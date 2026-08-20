@@ -1,0 +1,66 @@
+name: arucad_campus_prototype
+description: AruSocial — ARUCAD Social Life mobile/web client.
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  flutter_localizations:
+    sdk: flutter
+  # Real /admin vs / separation on web — clean URL (no #/) via usePathUrlStrategy().
+  flutter_web_plugins:
+    sdk: flutter
+  # Re-added to apply ARUCAD's real official typography (Montserrat/Oswald)
+  # per the brand guide; a prior attempt hit web build constant-eval issues
+  # with an older package version — being re-verified now.
+  google_fonts: ^6.2.1
+  geolocator: ^14.0.3
+  # Real vector-tile map rendering (OpenStreetMap data via OpenFreeMap's
+  # free, keyless tile service) — replaces the earlier hand-drawn Canvas map
+  # so the app shows genuine streets/buildings instead of an illustration.
+  # No Google dependency; OpenFreeMap requires no API key or account.
+  maplibre_gl: ^0.26.2
+
+  cupertino_icons: ^1.0.8
+  http: ^1.6.0
+  url_launcher: ^6.1.10
+  flutter_appauth: 12.0.2
+  local_auth: ^3.0.2
+  flutter_local_notifications: ^22.3.0
+  firebase_core: ^4.13.0
+  intl: ^0.20.2
+  shared_preferences: ^2.3.2
+  image_picker: ^1.1.2
+  collection: ^1.2.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.3
+
+flutter:
+  uses-material-design: true
+  generate: true
+  assets:
+    - assets/images/
+
+# Flutter gen_l10n configuration (top-level)
+l10n:
+  arb-dir: lib/l10n
+  template-arb-file: intl_en.arb
+  output-localization-file: app_localizations.dart
+  output-class: AppLocalizations
+
+flutter_launcher_icons:
+  android: true
+  ios: false
+  web:
+    generate: true
+  image_path: "assets/images/ARUCAD_MAIN_LOGO.jpg"
+  min_sdk_android: 21

@@ -1,0 +1,48 @@
+name: CI
+
+# Runs on every push/PR — frontend and backend are independent jobs since
+# they're independent Flutter/PHP projects (see docs/README structure).
+# A failing job blocks the PR from looking green; nothing here auto-merges
+# or deploys anything (see docs/EKSIKLER.md §20 for the still-missing
+# real deployment pipeline).
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  frontend:
+    name: Frontend (Flutter analyze + test)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: flutter pub get
+      - run: flutter analyze --fatal-infos
+      - run: flutter test
+      - name: Build web (verifies the release build itself compiles)
+        run: flutter build web --release
+
+  backend:
+    name: Backend (Laravel PHPUnit)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: fileinfo, pdo_sqlite, sqlite3, mbstring
+      - run: composer install --no-interaction --prefer-dist
+      - name: Copy .env
+        run: cp .env.example .env
+      - run: php artisan key:generate
+      - run: php artisan test

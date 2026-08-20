@@ -1,0 +1,35 @@
+{
+    "name": "AruSocial",
+    "short_name": "AruSocial",
+    "start_url": ".",
+    "display": "standalone",
+    "background_color": "#F6F7F9",
+    "theme_color": "#2B4C7E",
+    "description": "AruSocial — ARUCAD Social Life",
+    "orientation": "portrait-primary",
+    "prefer_related_applications": false,
+    "icons": [
+        {
+            "src": "icons/Icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-maskable-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "maskable"
+        },
+        {
+            "src": "icons/Icon-maskable-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+    ]
+}

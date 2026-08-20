@@ -1,0 +1,36 @@
+# Root .gitignore — covers all three project folders (frontend/, backend/,
+# sql/) plus this machine's own local tooling overrides. See docs/README.md
+# for the folder layout this maps to.
+
+# --- Flutter (frontend/) ---
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+build/
+*.iml
+# Android SDK path is machine-specific — never commit it.
+local.properties
+# Gradle's own build cache/lock files — pure local state, never commit.
+.gradle/
+
+# --- Laravel (backend/) ---
+# backend/.gitignore already covers vendor/, .env, storage caches, etc.
+
+# --- SQLite dev database (sql/) ---
+# Runtime data, not source — see sql/README.md for how to recreate it.
+sql/database.sqlite
+sql/database.sqlite-*
+
+# --- Editors / IDEs ---
+.idea/
+.vscode/
+
+# --- This machine's local PHP extension override ---
+# fileinfo/pdo_sqlite/sqlite3 enabled here because this machine's system
+# php.ini doesn't have them and isn't writable without admin rights —
+# machine-specific, not project config. See backend/README.md.
+.phpconfig/
+
+# --- Local AI coding tool state (not project source) ---
+.claude/

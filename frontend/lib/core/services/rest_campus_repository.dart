@@ -15,7 +15,6 @@ import 'package:arucad_campus_prototype/core/models/content_revision.dart';
 import 'package:arucad_campus_prototype/core/models/email_log.dart';
 import 'package:arucad_campus_prototype/core/models/event_participant.dart';
 import 'package:arucad_campus_prototype/core/models/inbox_notification.dart';
-import 'package:arucad_campus_prototype/core/models/realtime_event.dart';
 import 'package:arucad_campus_prototype/core/models/role_assignment.dart';
 import 'package:arucad_campus_prototype/core/models/survey.dart';
 import 'package:arucad_campus_prototype/core/network/api_client.dart';
@@ -226,16 +225,6 @@ class RestCampusRepository implements CampusRepository {
   @override
   Future<void> addComment(String postId, String text) async {
     await _postModerated('/feed/$postId/comments', body: {'text': text});
-  }
-
-  @override
-  Future<void> deleteComment(String postId, String commentId) async {
-    await client.post('/feed/$postId/comments/$commentId/delete');
-  }
-
-  @override
-  Future<void> sharePost(String postId) async {
-    await client.post('/feed/$postId/share');
   }
 
   @override
@@ -655,24 +644,15 @@ class RestCampusRepository implements CampusRepository {
 
   @override
   Future<List<ChatMessage>> getChatMessages(String peer) async {
-    final encoded = Uri.encodeComponent(peer);
-    final response = await client.get('/chat/$encoded/messages');
+    final response = await client.get('/chat/$peer/messages');
     final items = response['data'] as List<dynamic>;
     return items.map((item) => ChatMessage.fromJson(item as Map<String, dynamic>)).toList();
   }
 
   @override
   Future<ChatMessage> sendChatMessage(String peer, String text) async {
-    final encoded = Uri.encodeComponent(peer);
-    final response = await client.post('/chat/$encoded/messages', body: {'text': text});
+    final response = await client.post('/chat/$peer/messages', body: {'text': text});
     return ChatMessage.fromJson(response['data'] as Map<String, dynamic>);
-  }
-
-  @override
-  Future<RealtimePoll> pollRealtimeEvents({int? after}) async {
-    final path = after == null ? '/realtime/events' : '/realtime/events?after=$after';
-    final response = await client.get(path);
-    return RealtimePoll.fromJson(response['data'] as Map<String, dynamic>);
   }
 
   @override

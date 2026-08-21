@@ -59,15 +59,18 @@ void main() async {
     authProvider = MockAuthProvider();
   }
 
-  // Real backend is the default: mock-only `flutter run` needs
-  // `--dart-define=USE_REST_API=false`. Android emulator: API_BASE_URL=
-  // http://10.0.2.2:4000/api/v1 ; web/desktop: http://localhost:4000/api/v1
+  // Real backend switch: off by default (MockCampusRepository, per-device
+  // SharedPreferences) so a plain `flutter run` keeps working with zero
+  // setup. Pass `--dart-define=USE_REST_API=true --dart-define=API_BASE_URL=
+  // http://10.0.2.2:4000/api/v1` (Android emulator) or `http://localhost:
+  // 4000/api/v1` (web/desktop) to talk to the real Laravel/SQLite server in
+  // backend/ instead — see docs/GERCEK_PROJEYE_GECIS.md for exact steps.
   // Real, per-user session auth (docs/EKSIKLER.md "Gerçek JWT/session
   // authentication"): every request now carries whatever real bearer token
   // SessionStore holds — set once sign-in completes (see app.dart's
   // _finishSignIn), read fresh on every call since it doesn't exist yet
   // at this point in startup.
-  const useRestApi = bool.fromEnvironment('USE_REST_API', defaultValue: true);
+  const useRestApi = bool.fromEnvironment('USE_REST_API');
   const apiBaseUrl =
       String.fromEnvironment('API_BASE_URL', defaultValue: 'http://10.0.2.2:4000/api/v1');
   final CampusRepository repository = useRestApi

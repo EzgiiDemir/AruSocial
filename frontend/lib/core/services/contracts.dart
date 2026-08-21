@@ -14,7 +14,6 @@ import '../models/content_revision.dart';
 import '../models/email_log.dart';
 import '../models/event_participant.dart';
 import '../models/inbox_notification.dart';
-import '../models/realtime_event.dart';
 import '../models/role_assignment.dart';
 import '../models/survey.dart';
 
@@ -180,8 +179,6 @@ abstract class CampusRepository {
       String? locationTag});
   Future<void> toggleLike(String postId);
   Future<void> addComment(String postId, String text);
-  Future<void> deleteComment(String postId, String commentId);
-  Future<void> sharePost(String postId);
   Future<void> reportPost(String postId, String reason);
   Future<List<CampusStory>> getStories();
   Future<void> addStory(
@@ -341,10 +338,6 @@ abstract class CampusRepository {
   Future<List<ChatThreadSummary>> getChatThreadPeers(List<String> knownPeers);
   Future<List<ChatMessage>> getChatMessages(String peer);
   Future<ChatMessage> sendChatMessage(String peer, String text);
-
-  /// [after] null is the first handshake (no query param). `0` is a real
-  /// cursor after an empty log and must return new rows with id > 0.
-  Future<RealtimePoll> pollRealtimeEvents({int? after});
 
   // Backend-delivered notifications (e.g. a real follow event) — additive
   // to NotificationsScreen's existing feed/activity synthesis, not a

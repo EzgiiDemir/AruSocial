@@ -4,7 +4,6 @@ import 'package:arucad_campus_prototype/core/l10n/app_strings.dart';
 import 'package:arucad_campus_prototype/core/models/campus_models.dart';
 import 'package:arucad_campus_prototype/core/models/inbox_notification.dart';
 import 'package:arucad_campus_prototype/core/services/contracts.dart';
-import 'package:arucad_campus_prototype/core/services/realtime_sync.dart';
 import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
 
 /// Real notifications built entirely from data that genuinely exists.
@@ -22,26 +21,8 @@ class NotificationsScreen extends StatefulWidget {
   State<NotificationsScreen> createState() => _NotificationsScreenState();
 }
 
-class _NotificationsScreenState extends State<NotificationsScreen> with RealtimeAware {
+class _NotificationsScreenState extends State<NotificationsScreen> {
   late Future<List<_NotificationItem>> _future;
-
-  @override
-  Set<String> get realtimeTypes => const {
-        'notification.created',
-        'message.created',
-        'activity.approved',
-        'activity.rejected',
-        'activity.published',
-        'like.created',
-        'comment.created',
-        'follow.created',
-        'xp.updated',
-      };
-
-  @override
-  void onRealtimeEvents(List<String> types) {
-    setState(() => _future = _load());
-  }
 
   @override
   void initState() {

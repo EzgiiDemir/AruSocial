@@ -15,7 +15,7 @@ class Event extends Model
         'draft', 'publish_at', 'expires_at', 'audience', 'organizer', 'organizer_email', 'description',
         'created_by_user_id', 'workflow_status', 'review_note', 'place_id', 'academic_year_id',
         'student_number', 'phone', 'faculty', 'department', 'estimated_attendees', 'purpose',
-        'requirements', 'poster_url', 'assigned_staff_id', 'form_opened_at', 'reviewed_at',
+        'requirements', 'poster_url', 'assigned_staff_id', 'form_opened_at',
     ];
 
     protected function casts(): array
@@ -26,7 +26,6 @@ class Event extends Model
             'expires_at' => 'datetime',
             'event_date' => 'date',
             'form_opened_at' => 'datetime',
-            'reviewed_at' => 'datetime',
         ];
     }
 

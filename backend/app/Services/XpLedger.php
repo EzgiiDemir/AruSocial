@@ -23,13 +23,5 @@ class XpLedger
             'source_id' => $sourceId,
             'created_at' => now(),
         ]);
-        RealtimePublisher::toUser(
-            (string) $user->id,
-            'xp.updated',
-            'user',
-            (string) $user->id,
-            (string) $user->id,
-            ['amount' => $amount, 'reason' => $reason, 'xp' => $user->fresh()->xp],
-        );
     }
 }

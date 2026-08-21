@@ -18,7 +18,6 @@ import 'package:arucad_campus_prototype/core/models/survey.dart';
 import 'package:arucad_campus_prototype/core/services/admin_settings_store.dart';
 import 'package:arucad_campus_prototype/core/services/audit_log_store.dart';
 import 'package:arucad_campus_prototype/core/services/contracts.dart';
-import 'package:arucad_campus_prototype/core/services/realtime_sync.dart';
 import 'package:arucad_campus_prototype/core/services/media_library_store.dart';
 import 'package:arucad_campus_prototype/core/services/site_settings_store.dart';
 import 'package:arucad_campus_prototype/core/services/wordpress_data_source.dart';
@@ -542,35 +541,11 @@ class _DashboardTab extends StatefulWidget {
 // per §1 ("manuel refresh gerektirmemeli"): a 30s poll silently refetches
 // both halves and updates the already-rendered screen in place — no
 // blank reload, no spinner flash, exactly like a real dashboard.
-class _DashboardTabState extends State<_DashboardTab> with RealtimeAware {
+class _DashboardTabState extends State<_DashboardTab> {
   _DashboardData? _dashboard;
   AdminStats? _stats;
   int _days = 14;
   Timer? _pollTimer;
-
-  @override
-  Set<String> get realtimeTypes => const {
-        'checkin.created',
-        'xp.updated',
-        'activity.created',
-        'activity.submitted',
-        'activity.approved',
-        'activity.rejected',
-        'activity.published',
-        'activity.joined',
-        'post.created',
-        'comment.created',
-        'like.created',
-        'like.removed',
-        'follow.created',
-        'follow.removed',
-        'survey.updated',
-        'moderation.updated',
-        'notification.created',
-      };
-
-  @override
-  void onRealtimeEvents(List<String> types) => _load(silent: true);
 
   @override
   void initState() {
@@ -605,10 +580,6 @@ class _DashboardTabState extends State<_DashboardTab> with RealtimeAware {
       _dashboard = _DashboardData(
         events: events.length,
         draftEvents: events.where((e) => e.draft).length,
-        pendingActivities: events
-            .where((e) =>
-                e.workflowStatus == 'pending_approval' || e.workflowStatus == 'pending_review')
-            .length,
         clubs: (results[1] as List<CampusClub>).length,
         sports: (results[2] as List<CampusSport>).length,
         services: (results[3] as List<CampusService>).length,
@@ -707,11 +678,11 @@ class _DashboardTabState extends State<_DashboardTab> with RealtimeAware {
                       accentColor: ArucadColors.honey,
                       onTap: () => widget.onNavigate(_AdminSection.food)),
                   _StatCard(
-                      label: strings.t('admin_dash_stat_pending_activities'),
-                      value: '${d.pendingActivities}',
-                      icon: Icons.pending_actions_outlined,
+                      label: strings.t('admin_dash_stat_directory'),
+                      value: '${d.directoryEntries}',
+                      icon: Icons.meeting_room_outlined,
                       accentColor: ArucadColors.mistLilac,
-                      onTap: () => widget.onNavigate(_AdminSection.pendingActivities)),
+                      onTap: () => widget.onNavigate(_AdminSection.directory)),
                   _StatCard(
                       label: strings.t('admin_dash_stat_media'),
                       value: '${d.mediaItems}',
@@ -788,16 +759,6 @@ class _DashboardTabState extends State<_DashboardTab> with RealtimeAware {
               const SizedBox(height: 8),
               Text(s.userSummary.note,
                   style: const TextStyle(color: ArucadColors.muted, fontSize: 11.5)),
-              if (s.userSummary.bannedAccounts > 0) ...[
-                const SizedBox(height: 10),
-                _StatCard(
-                    label: strings.t('admin_stats_banned_accounts'),
-                    value: '${s.userSummary.bannedAccounts}',
-                    sub: '${s.userSummary.deactivatedAccounts} pasif — moderasyon alanından yönetilir',
-                    icon: Icons.block_outlined,
-                    highlight: true,
-                    onTap: () => widget.onNavigate(_AdminSection.moderation)),
-              ],
 
               const SizedBox(height: 22),
               _StatsSectionHeader(strings.t('admin_stats_checkins')),
@@ -830,19 +791,12 @@ class _DashboardTabState extends State<_DashboardTab> with RealtimeAware {
                       accentColor: ArucadColors.honey,
                       onTap: () {}),
                   _StatCard(
-                      label: 'Bugün',
-                      value: '${s.checkins.today}',
-                      sub: 'Hafta ${s.checkins.thisWeek} · Ay ${s.checkins.thisMonth}',
-                      icon: Icons.today_outlined,
-                      accentColor: ArucadColors.honey,
-                      onTap: () {}),
-                  _StatCard(
-                      label: 'Paylaşım oranı',
-                      value: '${(s.checkins.shareRate * 100).round()}%',
-                      sub: 'Gizli XP ${(s.checkins.hiddenXpRate * 100).round()}%',
-                      icon: Icons.pie_chart_outline,
-                      accentColor: ArucadColors.dustyRose,
-                      onTap: () {}),
+                      label: strings.t('admin_stats_banned_accounts'),
+                      value: '${s.userSummary.bannedAccounts}',
+                      sub: '${s.userSummary.deactivatedAccounts} pasif',
+                      icon: Icons.block_outlined,
+                      highlight: s.userSummary.bannedAccounts > 0,
+                      onTap: () => widget.onNavigate(_AdminSection.moderation)),
                 ],
               ),
               const SizedBox(height: 14),
@@ -925,20 +879,6 @@ class _DashboardTabState extends State<_DashboardTab> with RealtimeAware {
                       icon: Icons.pending_actions_outlined,
                       highlight: s.events.pendingReview > 0,
                       onTap: () => widget.onNavigate(_AdminSection.pendingActivities)),
-                  _StatCard(
-                      label: 'Ort. katılım',
-                      value: s.events.averageJoins.toStringAsFixed(1),
-                      icon: Icons.groups_outlined,
-                      accentColor: ArucadColors.sage,
-                      onTap: () {}),
-                  _StatCard(
-                      label: 'Ort. onay (saat)',
-                      value: s.events.avgApprovalHours == null
-                          ? '—'
-                          : s.events.avgApprovalHours!.toStringAsFixed(1),
-                      icon: Icons.timer_outlined,
-                      accentColor: ArucadColors.honey,
-                      onTap: () {}),
                 ],
               ),
               const SizedBox(height: 14),
@@ -955,22 +895,6 @@ class _DashboardTabState extends State<_DashboardTab> with RealtimeAware {
               const SizedBox(height: 8),
               _RankedBarList(
                 items: [for (final p in s.events.mostUsedPlaces) (p.placeName, p.total)],
-                emptyLabel: strings.t('admin_stats_no_data_yet'),
-              ),
-              const SizedBox(height: 14),
-              Text('En çok kullanılan etkinlik türü',
-                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5)),
-              const SizedBox(height: 8),
-              _RankedBarList(
-                items: [for (final c in s.events.byCategory) (c.label, c.total)],
-                emptyLabel: strings.t('admin_stats_no_data_yet'),
-              ),
-              const SizedBox(height: 14),
-              Text('Katılımın yoğun saatleri',
-                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5)),
-              const SizedBox(height: 8),
-              _RankedBarList(
-                items: [for (final h in s.events.joinsByHour) ('${h.label}:00', h.total)],
                 emptyLabel: strings.t('admin_stats_no_data_yet'),
               ),
               const SizedBox(height: 14),
@@ -1026,7 +950,6 @@ class _DashboardTabState extends State<_DashboardTab> with RealtimeAware {
                   _StatCard(
                       label: strings.t('admin_stats_feed_posts'),
                       value: '${s.social.feedPosts}',
-                      sub: 'Etkileşim ${s.social.engagementRate.toStringAsFixed(1)}',
                       icon: Icons.dynamic_feed_outlined,
                       accentColor: ArucadColors.slateBlue,
                       onTap: () {}),
@@ -1380,7 +1303,6 @@ class _DailyTrendChart extends StatelessWidget {
 class _DashboardData {
   final int events;
   final int draftEvents;
-  final int pendingActivities;
   final int clubs;
   final int sports;
   final int services;
@@ -1392,7 +1314,6 @@ class _DashboardData {
   const _DashboardData({
     required this.events,
     required this.draftEvents,
-    required this.pendingActivities,
     required this.clubs,
     required this.sports,
     required this.services,
@@ -2117,20 +2038,8 @@ class _PendingActivitiesTab extends StatefulWidget {
   State<_PendingActivitiesTab> createState() => _PendingActivitiesTabState();
 }
 
-class _PendingActivitiesTabState extends State<_PendingActivitiesTab> with RealtimeAware {
+class _PendingActivitiesTabState extends State<_PendingActivitiesTab> {
   late Future<List<CampusEvent>> _future;
-
-  @override
-  Set<String> get realtimeTypes => const {
-        'activity.created',
-        'activity.submitted',
-        'activity.approved',
-        'activity.rejected',
-        'activity.published',
-      };
-
-  @override
-  void onRealtimeEvents(List<String> types) => _reload();
 
   @override
   void initState() {
@@ -3541,12 +3450,6 @@ class _PagesTabState extends State<_PagesTab> {
 // ------------------------------------------------------- Users & Roles
 
 const _permissionLabels = {
-  'dashboard.view': 'Dashboard gör',
-  'stats.view': 'İstatistikleri gör',
-  'activities.view': 'Aktivite gör',
-  'activities.create': 'Aktivite oluştur',
-  'activities.approve': 'Aktivite onayla',
-  'activities.reject': 'Aktivite reddet',
   'events.manage': 'Etkinlikleri yönet',
   'pendingActivities.manage': 'Bekleyen aktiviteleri onayla/reddet',
   'clubs.manage': 'Kulüpleri yönet',
@@ -3556,16 +3459,10 @@ const _permissionLabels = {
   'media.manage': 'Medya kütüphanesini yönet',
   'surveys.manage': 'Anketleri yönet',
   'email.send': 'E-posta gönder',
-  'moderation.view': 'Moderasyon gör',
   'moderation.moderate': 'Moderasyon yap',
   'activityLog.view': 'Aktivite günlüğünü gör',
-  'users.view': 'Kullanıcı gör',
   'users.manage': 'Kullanıcı ve rolleri yönet',
-  'roles.view': 'Rol gör',
-  'roles.manage': 'Rol oluştur / düzenle',
-  'siteSettings.view': 'Site ayarlarını gör',
-  'siteSettings.manage': 'Site ayarlarını değiştir',
-  'auditLog.view': 'Audit log gör',
+  'siteSettings.manage': 'Site ayarlarını yönet',
 };
 
 // Real "Kullanıcılar ve Roller" (docs/EKSIKLER.md admin §9) — the piece

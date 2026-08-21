@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 
-import 'package:arucad_campus_prototype/core/models/chat_message.dart';
+import 'package:arucad_campus_prototype/core/services/chat_store.dart';
 import 'package:arucad_campus_prototype/core/services/contracts.dart';
-import 'package:arucad_campus_prototype/core/services/realtime_sync.dart';
 import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
 import 'package:arucad_campus_prototype/features/widgets/campus_widgets.dart';
 
-/// Message threads list — Rest mode talks to `ChatController` and refreshes
-/// when `message.created` lands on the durable realtime bus. Mock mode
-/// still keeps history on-device only.
+/// Message threads list — real, shared per-peer history in Rest mode (a
+/// real backend `ChatController`), still local-only in Mock mode. See the
+/// scope banner in [build] for the honest, mode-accurate disclaimer: even
+/// in Rest mode this is poll-based, not a live two-way socket connection.
 class ChatThreadsScreen extends StatefulWidget {
   final CampusRepository repository;
   final List<String> knownPeers;
@@ -18,14 +18,8 @@ class ChatThreadsScreen extends StatefulWidget {
   State<ChatThreadsScreen> createState() => _ChatThreadsScreenState();
 }
 
-class _ChatThreadsScreenState extends State<ChatThreadsScreen> with RealtimeAware {
+class _ChatThreadsScreenState extends State<ChatThreadsScreen> {
   late Future<List<ChatThreadSummary>> _threadsFuture;
-
-  @override
-  Set<String> get realtimeTypes => const {'message.created', 'notification.created'};
-
-  @override
-  void onRealtimeEvents(List<String> types) => _reload();
 
   @override
   void initState() {
@@ -88,8 +82,9 @@ class _ChatThreadsScreenState extends State<ChatThreadsScreen> with RealtimeAwar
           color: ArucadColors.mist,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           child: const Text(
-            'Mesajlar veritabanında saklanır ve yeni mesajlar otomatik düşer. '
-            'Geçmiş konuşmalar sol listeden tekrar açılabilir.',
+            'Mesajlar gerçek zamanlı değil — yeni mesaj görmek için sayfayı '
+            'yeniden aç. Canlı, anlık teslim için sunucu tarafında bir soket '
+            'bağlantısı gerekiyor ve bu prototipte henüz yok.',
             style: TextStyle(color: ArucadColors.muted, fontSize: 11.5),
           ),
         ),
@@ -200,18 +195,10 @@ class ChatThreadScreen extends StatefulWidget {
   State<ChatThreadScreen> createState() => _ChatThreadScreenState();
 }
 
-class _ChatThreadScreenState extends State<ChatThreadScreen> with RealtimeAware {
+class _ChatThreadScreenState extends State<ChatThreadScreen> {
   late Future<List<ChatMessage>> _future;
   final _controller = TextEditingController();
   bool _sending = false;
-
-  @override
-  Set<String> get realtimeTypes => const {'message.created'};
-
-  @override
-  void onRealtimeEvents(List<String> types) {
-    setState(() => _future = widget.repository.getChatMessages(widget.peer));
-  }
 
   @override
   void initState() {

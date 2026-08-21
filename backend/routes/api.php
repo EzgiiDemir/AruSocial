@@ -26,7 +26,6 @@ use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\PageController;
 use App\Http\Controllers\Api\PlaceController;
 use App\Http\Controllers\Api\ProfileController;
-use App\Http\Controllers\Api\RealtimeController;
 use App\Http\Controllers\Api\PushTokenController;
 use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\SavedPostController;
@@ -54,8 +53,6 @@ Route::prefix('v1')->middleware(['throttle:api'])->group(function () {
 // resolves from it, not a hardcoded single account.
 Route::prefix('v1')->middleware(['throttle:api', 'auth:sanctum', 'not-banned'])->group(function () {
     Route::post('/auth/logout', [AuthController::class, 'logout']);
-
-    Route::get('/realtime/events', [RealtimeController::class, 'index']);
 
     Route::get('/me', [ProfileController::class, 'me']);
     Route::get('/me/quests', [ProfileController::class, 'quests']);
@@ -93,8 +90,6 @@ Route::prefix('v1')->middleware(['throttle:api', 'auth:sanctum', 'not-banned'])-
     Route::post('/feed', [FeedController::class, 'store']);
     Route::post('/feed/{id}/like', [FeedController::class, 'like']);
     Route::post('/feed/{id}/comments', [FeedController::class, 'comment']);
-    Route::post('/feed/{id}/comments/{commentId}/delete', [FeedController::class, 'deleteComment']);
-    Route::post('/feed/{id}/share', [FeedController::class, 'share']);
     Route::post('/feed/{id}/report', [FeedController::class, 'report']);
 
     Route::get('/stories', [StoryController::class, 'index']);

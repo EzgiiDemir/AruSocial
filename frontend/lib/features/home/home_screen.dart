@@ -10,7 +10,6 @@ import 'package:arucad_campus_prototype/core/models/campus_models.dart';
 import 'package:arucad_campus_prototype/core/models/geo_point.dart';
 import 'package:arucad_campus_prototype/core/services/campus_access_policy.dart';
 import 'package:arucad_campus_prototype/core/services/contracts.dart';
-import 'package:arucad_campus_prototype/core/services/realtime_sync.dart';
 import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
 import 'package:arucad_campus_prototype/features/home/campus_live_map.dart';
 import 'package:arucad_campus_prototype/features/home/create_own_activity_screen.dart';
@@ -56,7 +55,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with RealtimeAware {
+class _HomeScreenState extends State<HomeScreen> {
   List<CampusEvent> _events = const [];
   List<CampusPlace> _places = const [];
   List<ActivityItem> _activity = const [];
@@ -79,20 +78,6 @@ class _HomeScreenState extends State<HomeScreen> with RealtimeAware {
       if (mounted) maybeShowSurveyPopup(context, widget.repository);
     });
   }
-
-  @override
-  Set<String> get realtimeTypes => const {
-        'activity.published',
-        'activity.joined',
-        'activity.approved',
-        'checkin.created',
-        'post.created',
-        'xp.updated',
-        'survey.updated',
-      };
-
-  @override
-  void onRealtimeEvents(List<String> types) => _load();
 
   Future<void> _load() async {
     final results = await Future.wait([

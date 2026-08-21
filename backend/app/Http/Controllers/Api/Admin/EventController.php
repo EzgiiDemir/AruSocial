@@ -13,7 +13,6 @@ use App\Models\Notification as InboxNotification;
 use App\Services\ActivityLogger;
 use App\Services\AuditLogger;
 use App\Services\EmailService;
-use App\Services\RealtimePublisher;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -151,14 +150,14 @@ class EventController extends Controller
         // approve an activity whose form was never completed/routed —
         // same "form doldurulmadan onay yok" principle already enforced
         // for event-join attendance (EventJoin::form_submitted_at).
-        if (in_array($event->workflow_status, ['form_required', 'form_opened'], true)) {
+        if ($event->workflow_status === 'form_required') {
             return $this->fail(400, 'FORM_NOT_SUBMITTED', 'Aktivite formu henüz doldurulmadı.');
         }
 
         // 'published', not 'approved' — the public index() filter requires
         // workflow_status='published' to show an event at all, so anything
         // else here would approve an activity that then never appears.
-        $event->update(['workflow_status' => 'published', 'draft' => false, 'review_note' => null, 'reviewed_at' => now()]);
+        $event->update(['workflow_status' => 'published', 'draft' => false, 'review_note' => null]);
         if ($event->created_by_user_id) {
             ActivityLogger::log($event->created_by_user_id, 'eventJoin', "Aktiviten onaylandı: {$event->title}", 'Yayında');
         }
@@ -178,10 +177,7 @@ class EventController extends Controller
                 'body' => "\"{$event->title}\" yayında.",
                 'created_at' => now(),
             ]);
-            RealtimePublisher::toUser((string) $event->created_by_user_id, 'notification.created', 'event', $event->id);
         }
-        RealtimePublisher::emit('activity.approved', 'all', 'event', $event->id, (string) $this->currentUser()->id);
-        RealtimePublisher::emit('activity.published', 'all', 'event', $event->id, (string) $this->currentUser()->id);
 
         return $this->ok($this->eventToJson($event->fresh('participationTypes')));
     }
@@ -199,7 +195,7 @@ class EventController extends Controller
             return $this->fail(400, 'VALIDATION', 'reviewNote is required to reject an activity.');
         }
 
-        $event->update(['workflow_status' => 'rejected', 'review_note' => $note, 'reviewed_at' => now()]);
+        $event->update(['workflow_status' => 'rejected', 'review_note' => $note]);
         if ($event->created_by_user_id) {
             ActivityLogger::log($event->created_by_user_id, 'eventJoin', "Aktiviten reddedildi: {$event->title}", $note);
         }
@@ -219,9 +215,7 @@ class EventController extends Controller
                 'body' => "\"{$event->title}\": {$note}",
                 'created_at' => now(),
             ]);
-            RealtimePublisher::toUser((string) $event->created_by_user_id, 'notification.created', 'event', $event->id);
         }
-        RealtimePublisher::emit('activity.rejected', 'all', 'event', $event->id, (string) $this->currentUser()->id);
 
         return $this->ok($this->eventToJson($event->fresh('participationTypes')));
     }

@@ -10,7 +10,7 @@ class PostComment extends Model
     protected $keyType = 'string';
     public $timestamps = false;
 
-    protected $fillable = ['id', 'post_id', 'author_id', 'author', 'text', 'meta', 'created_at'];
+    protected $fillable = ['id', 'post_id', 'author', 'text', 'meta', 'created_at'];
 
     protected function casts(): array
     {

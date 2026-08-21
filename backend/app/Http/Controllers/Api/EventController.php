@@ -15,7 +15,6 @@ use App\Models\EventParticipationType;
 use App\Models\Notification as InboxNotification;
 use App\Services\ActivityLogger;
 use App\Services\EmailService;
-use App\Services\RealtimePublisher;
 use App\Services\XpLedger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -178,9 +177,7 @@ class EventController extends Controller
                     'body' => "{$me->name}, \"{$event->title}\" etkinliğine katıldı.",
                     'created_at' => now(),
                 ]);
-                RealtimePublisher::toUser((string) $event->created_by_user_id, 'notification.created', 'event', $event->id, (string) $me->id);
             }
-            RealtimePublisher::emit('activity.joined', 'all', 'event', $event->id, (string) $me->id);
         } else {
             $formSubmitted = (bool) EventJoin::where('event_id', $event->id)
                 ->where('user_id', $me->id)
@@ -314,7 +311,6 @@ class EventController extends Controller
             EmailService::send($me->email, "Aktiviteniz oluşturuldu: {$title}",
                 'event-activity-form-requested', new ActivityFormRequestedMail($event, $formUrl));
         }
-        RealtimePublisher::emit('activity.created', 'admin', 'event', $event->id, (string) $me->id);
 
         return $this->ok($this->eventToJson($event->fresh('participationTypes')), 201);
     }

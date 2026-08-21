@@ -6,7 +6,6 @@ use App\Http\Controllers\Api\Concerns\ApiResponds;
 use App\Http\Controllers\Controller;
 use App\Models\ModerationReport;
 use App\Services\AuditLogger;
-use App\Services\RealtimePublisher;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -38,7 +37,6 @@ class ReportController extends Controller
         $report->save();
         AuditLogger::log($this->currentUser()->name, 'moderation_resolve', 'report',
             "{$report->target_label} → {$report->action}");
-        RealtimePublisher::emit('moderation.updated', 'admin', 'report', $report->id, (string) $this->currentUser()->id);
 
         return $this->ok(['resolved' => true]);
     }

@@ -11,7 +11,6 @@ use App\Models\SocialFollow;
 use App\Models\User;
 use App\Services\AuditLogger;
 use App\Services\GranularPermissions;
-use App\Services\RealtimePublisher;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -141,8 +140,6 @@ class UserController extends Controller
                 ['role' => $role, 'permissions' => $permissions, 'assigned_by' => $actor->name, 'assigned_at' => now()]
             );
             AuditLogger::log($actor->name, 'role_change', 'user', "{$user->email} → $role");
-            RealtimePublisher::toUser((string) $user->id, 'role.updated', 'user', (string) $user->id);
-            RealtimePublisher::toUser((string) $user->id, 'permission.updated', 'user', (string) $user->id);
         }
 
         return $this->ok($this->toJson($user->fresh()));

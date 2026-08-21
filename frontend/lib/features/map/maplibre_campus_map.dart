@@ -123,7 +123,6 @@ class CampusMapView extends StatefulWidget {
   final Color routeColor;
   final bool showUserLocation;
   final CampusMapController? controller;
-  final ValueChanged<double>? onZoomChanged;
 
   const CampusMapView({
     super.key,
@@ -136,7 +135,6 @@ class CampusMapView extends StatefulWidget {
     this.routeColor = ArucadColors.blue,
     this.showUserLocation = false,
     this.controller,
-    this.onZoomChanged,
   });
 
   @override
@@ -297,10 +295,6 @@ class _CampusMapViewState extends State<CampusMapView> {
         _map = controller;
         widget.controller?._attach(controller);
         controller.onSymbolTapped.add(_handleSymbolTap);
-      },
-      onCameraIdle: () {
-        final zoom = _map?.cameraPosition?.zoom;
-        if (zoom != null) widget.onZoomChanged?.call(zoom);
       },
       onStyleLoadedCallback: () {
         _onStyleLoaded();

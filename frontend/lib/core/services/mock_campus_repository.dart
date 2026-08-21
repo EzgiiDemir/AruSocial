@@ -16,7 +16,6 @@ import '../models/content_revision.dart';
 import '../models/email_log.dart';
 import '../models/event_participant.dart';
 import '../models/inbox_notification.dart';
-import '../models/realtime_event.dart';
 import '../models/survey.dart';
 import 'admin_content_store.dart';
 import 'admin_page_store.dart';
@@ -788,10 +787,6 @@ class MockCampusRepository implements CampusRepository {
     return (await ChatStore.messages(peer)).last;
   }
 
-  @override
-  Future<RealtimePoll> pollRealtimeEvents({int? after}) async =>
-      RealtimePoll(events: const [], cursor: after ?? 0);
-
   // Mock mode has no real backend notification pipeline — no other real
   // user exists to generate one (same honest scope as NotificationsScreen
   // itself), so this stays genuinely empty rather than faking entries.
@@ -1316,19 +1311,6 @@ class MockCampusRepository implements CampusRepository {
         total: checkinActivity.length,
         visibleToOthers: _feed.where((p) => p.kind == FeedKind.checkIn).length,
         hiddenXpOnly: checkinActivity.length - _feed.where((p) => p.kind == FeedKind.checkIn).length,
-        today: checkinActivity.where((a) {
-          final n = DateTime.now();
-          return a.timestamp.year == n.year && a.timestamp.month == n.month && a.timestamp.day == n.day;
-        }).length,
-        thisWeek: checkinActivity.where((a) => a.timestamp.isAfter(DateTime.now().subtract(const Duration(days: 7)))).length,
-        thisMonth: checkinActivity.where((a) => a.timestamp.isAfter(DateTime.now().subtract(const Duration(days: 30)))).length,
-        shareRate: checkinActivity.isEmpty
-            ? 0
-            : _feed.where((p) => p.kind == FeedKind.checkIn).length / checkinActivity.length,
-        hiddenXpRate: checkinActivity.isEmpty
-            ? 0
-            : (checkinActivity.length - _feed.where((p) => p.kind == FeedKind.checkIn).length) /
-                checkinActivity.length,
         mostCheckedInPlaces: mostChecked,
         byDay: byDay,
         // Hour-of-day/top-student breakdowns need real, multi-account,
@@ -1530,19 +1512,6 @@ class MockCampusRepository implements CampusRepository {
     _logActivity(ActivityKind.comment, 'Yorum yaptın: ${post.name}', text,
         xp: 5);
   }
-
-  @override
-  Future<void> deleteComment(String postId, String commentId) async {
-    final index = _feed.indexWhere((p) => p.id == postId);
-    if (index == -1) return;
-    final post = _feed[index];
-    _feed[index] = post.copyWith(
-      comments: post.comments.where((c) => c.id != commentId).toList(),
-    );
-  }
-
-  @override
-  Future<void> sharePost(String postId) async {}
 
   @override
   Future<void> reportPost(String postId, String reason) async {

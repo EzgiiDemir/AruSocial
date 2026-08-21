@@ -132,11 +132,6 @@ class CheckinStats {
   final int total;
   final int visibleToOthers;
   final int hiddenXpOnly;
-  final int today;
-  final int thisWeek;
-  final int thisMonth;
-  final double shareRate;
-  final double hiddenXpRate;
   final List<PlaceCount> mostCheckedInPlaces;
   final List<DailyCount> byDay;
   final List<LabelCount> byHour;
@@ -145,11 +140,6 @@ class CheckinStats {
     required this.total,
     required this.visibleToOthers,
     required this.hiddenXpOnly,
-    this.today = 0,
-    this.thisWeek = 0,
-    this.thisMonth = 0,
-    this.shareRate = 0,
-    this.hiddenXpRate = 0,
     required this.mostCheckedInPlaces,
     required this.byDay,
     required this.byHour,
@@ -159,11 +149,6 @@ class CheckinStats {
         total: json['total'] as int,
         visibleToOthers: json['visibleToOthers'] as int,
         hiddenXpOnly: json['hiddenXpOnly'] as int,
-        today: json['today'] as int? ?? 0,
-        thisWeek: json['thisWeek'] as int? ?? 0,
-        thisMonth: json['thisMonth'] as int? ?? 0,
-        shareRate: (json['shareRate'] as num?)?.toDouble() ?? 0,
-        hiddenXpRate: (json['hiddenXpRate'] as num?)?.toDouble() ?? 0,
         mostCheckedInPlaces: (json['mostCheckedInPlaces'] as List<dynamic>)
             .map((e) => PlaceCount.fromJson(e as Map<String, dynamic>))
             .toList(),
@@ -214,11 +199,6 @@ class EventStats {
   final List<LabelCount> attendanceTakenBy;
   final int attendanceStudentCount;
   final List<LabelCount> mostActiveStudents;
-  final List<LabelCount> byCategory;
-  final List<LabelCount> joinsByHour;
-  final List<DailyCount> joinsByDay;
-  final double averageJoins;
-  final double? avgApprovalHours;
   const EventStats({
     required this.total,
     required this.published,
@@ -235,11 +215,6 @@ class EventStats {
     required this.attendanceTakenBy,
     required this.attendanceStudentCount,
     required this.mostActiveStudents,
-    this.byCategory = const [],
-    this.joinsByHour = const [],
-    this.joinsByDay = const [],
-    this.averageJoins = 0,
-    this.avgApprovalHours,
   });
   factory EventStats.fromJson(Map<String, dynamic> json) => EventStats(
         total: json['total'] as int,
@@ -269,17 +244,6 @@ class EventStats {
         mostActiveStudents: (json['mostActiveStudents'] as List<dynamic>)
             .map((e) => LabelCount.fromJson(e as Map<String, dynamic>, 'name'))
             .toList(),
-        byCategory: (json['byCategory'] as List<dynamic>? ?? const [])
-            .map((e) => LabelCount.fromJson(e as Map<String, dynamic>, 'category'))
-            .toList(),
-        joinsByHour: (json['joinsByHour'] as List<dynamic>? ?? const [])
-            .map((e) => LabelCount.fromJson(e as Map<String, dynamic>, 'hour'))
-            .toList(),
-        joinsByDay: (json['joinsByDay'] as List<dynamic>? ?? const [])
-            .map((e) => DailyCount.fromJson(e as Map<String, dynamic>))
-            .toList(),
-        averageJoins: (json['averageJoins'] as num?)?.toDouble() ?? 0,
-        avgApprovalHours: (json['avgApprovalHours'] as num?)?.toDouble(),
       );
 }
 
@@ -339,9 +303,6 @@ class SocialStats {
   final List<LabelCount> mostFollowed;
   final List<ReportedContent> mostReportedContent;
   final List<LabelCount> mostActiveStudents;
-  final List<LabelCount> mostLikedAuthors;
-  final double engagementRate;
-  final List<DailyCount> byDay;
   const SocialStats({
     required this.feedPosts,
     required this.comments,
@@ -356,9 +317,6 @@ class SocialStats {
     required this.mostFollowed,
     required this.mostReportedContent,
     required this.mostActiveStudents,
-    this.mostLikedAuthors = const [],
-    this.engagementRate = 0,
-    this.byDay = const [],
   });
   factory SocialStats.fromJson(Map<String, dynamic> json) => SocialStats(
         feedPosts: json['feedPosts'] as int,
@@ -385,13 +343,6 @@ class SocialStats {
             .toList(),
         mostActiveStudents: (json['mostActiveStudents'] as List<dynamic>)
             .map((e) => LabelCount.fromJson(e as Map<String, dynamic>, 'name'))
-            .toList(),
-        mostLikedAuthors: (json['mostLikedAuthors'] as List<dynamic>? ?? const [])
-            .map((e) => LabelCount.fromJson(e as Map<String, dynamic>, 'name'))
-            .toList(),
-        engagementRate: (json['engagementRate'] as num?)?.toDouble() ?? 0,
-        byDay: (json['byDay'] as List<dynamic>? ?? const [])
-            .map((e) => DailyCount.fromJson(e as Map<String, dynamic>))
             .toList(),
       );
 }

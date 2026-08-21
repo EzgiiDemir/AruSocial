@@ -59,7 +59,6 @@ class AdminStrings {
     'admin_dash_stat_services': {AdminLanguage.tr: 'Hizmetler', AdminLanguage.en: 'Services'},
     'admin_dash_stat_food_venues': {AdminLanguage.tr: 'Yemek Noktaları', AdminLanguage.en: 'Food Venues'},
     'admin_dash_stat_directory': {AdminLanguage.tr: 'Bina Dizini Kaydı', AdminLanguage.en: 'Directory Entries'},
-    'admin_dash_stat_pending_activities': {AdminLanguage.tr: 'Bekleyen Aktivite', AdminLanguage.en: 'Pending Activities'},
     'admin_dash_stat_media': {AdminLanguage.tr: 'Medya', AdminLanguage.en: 'Media'},
     'admin_dash_stat_pending_moderation': {AdminLanguage.tr: 'Bekleyen Moderasyon', AdminLanguage.en: 'Pending Reports'},
     'admin_dash_recent_activity': {AdminLanguage.tr: 'Son Aktiviteler', AdminLanguage.en: 'Recent Activity'},

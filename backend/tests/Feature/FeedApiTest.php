@@ -88,36 +88,4 @@ class FeedApiTest extends TestCase
         $this->assertFalse($afterUnlike['likedByMe']);
         $this->assertEquals(0, $afterUnlike['likes']);
     }
-
-    public function test_only_the_author_can_delete_their_comment(): void
-    {
-        $author = $this->actingAsAdmin(name: 'Author Person', email: 'author@arucad.edu.tr');
-        $postId = $this->postJson('/api/v1/feed', ['text' => 'gerçek gönderi'])->json('data.id');
-
-        $commenter = User::create(['name' => 'Commenter Person', 'email' => 'commenter@arucad.edu.tr', 'password' => bcrypt('x')]);
-        Sanctum::actingAs($commenter);
-        $commentId = $this->postJson("/api/v1/feed/{$postId}/comments", ['text' => 'silinecek'])->json('data.comments.0.id');
-
-        Sanctum::actingAs($author);
-        $this->postJson("/api/v1/feed/{$postId}/comments/{$commentId}/delete")->assertStatus(403);
-
-        Sanctum::actingAs($commenter);
-        $this->postJson("/api/v1/feed/{$postId}/comments/{$commentId}/delete")->assertOk();
-        $feed = $this->getJson('/api/v1/feed')->json('data');
-        $post = collect($feed)->firstWhere('id', $postId);
-        $this->assertCount(0, $post['comments']);
-    }
-
-    public function test_sharing_a_post_is_idempotent_and_counted(): void
-    {
-        $this->actingAsAdmin();
-        $postId = $this->postJson('/api/v1/feed', ['text' => 'paylaşılacak'])->json('data.id');
-
-        $first = $this->postJson("/api/v1/feed/{$postId}/share")->json('data');
-        $this->assertEquals(1, $first['shares']);
-        $this->assertTrue($first['sharedByMe']);
-
-        $second = $this->postJson("/api/v1/feed/{$postId}/share")->json('data');
-        $this->assertEquals(1, $second['shares']);
-    }
 }

@@ -9,7 +9,6 @@ use App\Models\Checkin;
 use App\Models\FeedPost;
 use App\Models\Place;
 use App\Services\ActivityLogger;
-use App\Services\RealtimePublisher;
 use App\Services\XpLedger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -100,14 +99,6 @@ class CheckinController extends Controller
                 'official' => false,
                 'created_at' => now(),
             ]);
-        }
-
-        RealtimePublisher::emit('checkin.created', 'all', 'checkin', $checkinId, (string) $me->id, [
-            'placeId' => $place->id,
-            'visibleToOthers' => $visibleToOthers,
-        ]);
-        if ($visibleToOthers) {
-            RealtimePublisher::emit('post.created', 'all', 'post', null, (string) $me->id);
         }
 
         return $this->ok(['checkedIn' => true]);

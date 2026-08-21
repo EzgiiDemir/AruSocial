@@ -44,12 +44,6 @@ class ArucadColors {
   static const honey = Color(0xFFF2D388); // Sıcak Sarı
   static const terracotta = Color(0xFFDA8359); // Kiremit
   static const dustyRose = Color(0xFF886F6F); // Puslu Gül
-  static const secondary = terracotta;
-  static const accent = honey;
-  static const info = slateBlue;
-  static const surface = paper;
-  static const background = paper;
-  static const text = ink;
 }
 
 /// Score level → color, levels 1 through 5+. Deliberately a "graphite to

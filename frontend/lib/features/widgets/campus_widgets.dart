@@ -257,16 +257,7 @@ class EventCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Real decluttering pass (docs/EKSIKLER.md aktivite §6/§7): exactly
-    // what a browsing card needs — name, date+time, location, category,
-    // a one-line description, participation, and the one action that
-    // matters — everything else (faculty, purpose, requirements, poster,
-    // assigned staff...) stays in EventDetailScreen, never repeated here.
     final accent = categoryAccent(event.category);
-    final date = event.eventDate;
-    final dateLabel = date == null
-        ? event.time
-        : '${date.day.toString().padLeft(2, '0')}.${date.month.toString().padLeft(2, '0')} · ${event.time}';
     return Card(
         color: accent.withValues(alpha: .06),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
@@ -275,7 +266,7 @@ class EventCard extends StatelessWidget {
           onTap: () => _openDetail(context),
           child: Padding(
           padding: const EdgeInsets.all(16),
-          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          child: Row(children: [
             Container(
               width: 52,
               height: 52,
@@ -285,42 +276,13 @@ class EventCard extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(children: [
-                  Expanded(
-                      child: Text(event.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.w900))),
-                  const SizedBox(width: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                    decoration: BoxDecoration(
-                        color: accent.withValues(alpha: .18), borderRadius: BorderRadius.circular(999)),
-                    child: Text(event.category,
-                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: accent)),
-                  ),
-                ]),
+                Text(event.title, style: const TextStyle(fontWeight: FontWeight.w900)),
                 const SizedBox(height: 4),
-                Text('$dateLabel · ${event.placeName}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: ArucadColors.muted, fontSize: 12.5)),
-                if (event.description.isNotEmpty) ...[
-                  const SizedBox(height: 3),
-                  Text(event.description,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 12.5)),
-                ],
-                const SizedBox(height: 3),
-                Text('${event.attendees} katılımcı', style: const TextStyle(color: ArucadColors.muted, fontSize: 11.5)),
+                Text('${event.placeName} · ${event.attendees} going', style: const TextStyle(color: ArucadColors.muted)),
               ]),
             ),
-            const SizedBox(width: 8),
             FilledButton(
-              style: FilledButton.styleFrom(
-                  backgroundColor: accent,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+              style: FilledButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
               onPressed: () => showEventJoinSheet(context, repository, event),
               child: const Text('Katıl'),
             ),

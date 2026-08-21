@@ -60,9 +60,9 @@ class PageController extends Controller
             'blocks' => $request->input('blocks', []),
             'status' => $request->input('status', 'draft'),
             'updated_at' => now(),
-            'updated_by' => $this->currentUser()->name,
+            'updated_by' => $request->input('actorName', 'admin'),
         ]);
-        AuditLogger::log($this->currentUser()->name, $isNew ? 'create' : 'update', 'page', $title);
+        AuditLogger::log($request->input('actorName', 'admin'), $isNew ? 'create' : 'update', 'page', $title);
 
         return $this->ok($this->toJson($page));
     }
@@ -71,7 +71,7 @@ class PageController extends Controller
     {
         $page = AdminPage::find($id);
         if ($page) {
-            AuditLogger::log($this->currentUser()->name, 'delete', 'page', $page->title);
+            AuditLogger::log($request->input('actorName', 'admin'), 'delete', 'page', $page->title);
             $page->delete();
         }
 

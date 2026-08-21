@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import 'package:arucad_campus_prototype/core/models/campus_models.dart';
 import 'package:arucad_campus_prototype/core/models/geo_point.dart';
-import 'package:arucad_campus_prototype/core/services/contracts.dart';
 import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
 import 'package:arucad_campus_prototype/features/map/maplibre_campus_map.dart';
 
@@ -59,42 +58,6 @@ class HeatmapAdapter {
       // Kept deliberately small — real campus POIs sit as close as 20-30m
       // apart, so anything bigger than this just merges into one blob and
       // stops being readable as "this specific place is busy."
-      zones.add(CampusPulseZone(
-        center: GeoPoint(place.lat, place.lng),
-        baseRadiusMeters: 7 + intensity * 8,
-        color: color,
-        intensity: intensity,
-      ));
-    }
-    return zones;
-  }
-
-  /// The real thing (docs/EKSIKLER.md harita/heatmap): pulse zones driven
-  /// by [CampusRepository.getPlaceDensity]'s real, time-windowed check-in
-  /// counts instead of [pulseZones]'s static seeded density string. Same
-  /// color/intensity/size mapping so the visual language doesn't change,
-  /// just what decides it.
-  static List<CampusPulseZone> pulseZonesFromDensity(
-      List<CampusPlace> places, List<PlaceDensity> density) {
-    final levelByPlaceId = {for (final d in density) d.placeId: d.level};
-    final zones = <CampusPulseZone>[];
-    for (final place in places) {
-      final level = levelByPlaceId[place.id];
-      final Color color;
-      final double intensity;
-      switch (level) {
-        case 'busy':
-          color = ArucadColors.danger;
-          intensity = 1.0;
-        case 'moderate':
-          color = ArucadColors.warning;
-          intensity = 0.6;
-        case 'quiet':
-          color = ArucadColors.success;
-          intensity = 0.3;
-        default:
-          continue; // No real density data for this place yet.
-      }
       zones.add(CampusPulseZone(
         center: GeoPoint(place.lat, place.lng),
         baseRadiusMeters: 7 + intensity * 8,

@@ -55,7 +55,7 @@ class ClubController extends Controller
             'description' => $request->input('description', ''),
             'body' => $request->input('body', []),
         ]);
-        AuditLogger::log($this->currentUser()->name, $isNew ? 'create' : 'update', 'club', $name);
+        AuditLogger::log($request->input('actorName', 'admin'), $isNew ? 'create' : 'update', 'club', $name);
 
         return $this->ok($this->toJson($club));
     }
@@ -64,7 +64,7 @@ class ClubController extends Controller
     {
         $club = Club::find($id);
         if ($club) {
-            AuditLogger::log($this->currentUser()->name, 'delete', 'club', $club->name);
+            AuditLogger::log($request->input('actorName', 'admin'), 'delete', 'club', $club->name);
             $club->delete();
         }
 

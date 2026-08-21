@@ -18,18 +18,11 @@ class EntraAuthProvider implements AuthProvider, AuthTokenAdapter {
 
   String? _accessToken;
   String? _email;
-  String? _name;
 
   /// The signed-in account's real email, parsed from the Entra ID token —
   /// used to look up a locally-assigned role via `RoleAssignmentStore`
   /// (Entra itself doesn't hand this app a roles claim yet).
   String? get currentEmail => _email;
-
-  /// The signed-in account's real display name, from the ID token's
-  /// standard OIDC `name` claim — used as the initial name for the
-  /// backend's real per-user session row (`AuthController::session()`)
-  /// the first time this email signs in.
-  String? get currentName => _name;
 
   EntraAuthProvider({
     FlutterAppAuth? appAuth,
@@ -74,7 +67,6 @@ class EntraAuthProvider implements AuthProvider, AuthTokenAdapter {
 
       _accessToken = accessToken;
       _email = (email as String).trim().toLowerCase();
-      _name = (claims['name'] as String?)?.trim();
 
       return true;
     } catch (e, st) {

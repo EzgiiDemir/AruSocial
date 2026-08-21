@@ -24,18 +24,13 @@ class RoleAssignmentStore {
         .toList();
   }
 
-  static Future<void> setRole(String email, UserRole role,
-      {required String assignedBy, List<String> permissions = const []}) async {
+  static Future<void> setRole(String email, UserRole role, {required String assignedBy}) async {
     final current = await assignments();
     final normalized = email.trim().toLowerCase();
     final next = [
       for (final a in current) if (a.email != normalized) a,
       RoleAssignment(
-          email: normalized,
-          role: role,
-          permissions: permissions,
-          assignedAt: DateTime.now(),
-          assignedBy: assignedBy),
+          email: normalized, role: role, assignedAt: DateTime.now(), assignedBy: assignedBy),
     ];
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kAssignments, jsonEncode(next.map((a) => a.toJson()).toList()));

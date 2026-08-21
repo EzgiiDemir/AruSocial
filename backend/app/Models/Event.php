@@ -11,11 +11,9 @@ class Event extends Model
     public $timestamps = false;
 
     protected $fillable = [
-        'id', 'title', 'time', 'end_time', 'event_date', 'place_name', 'category', 'attendees', 'xp',
+        'id', 'title', 'time', 'event_date', 'place_name', 'category', 'attendees', 'xp',
         'draft', 'publish_at', 'expires_at', 'audience', 'organizer', 'organizer_email', 'description',
         'created_by_user_id', 'workflow_status', 'review_note', 'place_id', 'academic_year_id',
-        'student_number', 'phone', 'faculty', 'department', 'estimated_attendees', 'purpose',
-        'requirements', 'poster_url', 'assigned_staff_id', 'form_opened_at',
     ];
 
     protected function casts(): array
@@ -25,7 +23,6 @@ class Event extends Model
             'publish_at' => 'datetime',
             'expires_at' => 'datetime',
             'event_date' => 'date',
-            'form_opened_at' => 'datetime',
         ];
     }
 
@@ -52,10 +49,5 @@ class Event extends Model
     public function academicYear()
     {
         return $this->belongsTo(AcademicYear::class);
-    }
-
-    public function assignedStaff()
-    {
-        return $this->belongsTo(AcademicStaff::class, 'assigned_staff_id');
     }
 }

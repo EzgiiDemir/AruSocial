@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Api\Concerns\ApiResponds;
 use App\Http\Controllers\Controller;
-use App\Mail\ActivityFormRequestedMail;
 use App\Mail\EventParticipationClubMail;
 use App\Mail\EventParticipationFormCompletedMail;
 use App\Mail\EventParticipationFormMail;
@@ -12,14 +11,11 @@ use App\Models\AcademicYear;
 use App\Models\Event;
 use App\Models\EventJoin;
 use App\Models\EventParticipationType;
-use App\Models\Notification as InboxNotification;
 use App\Services\ActivityLogger;
 use App\Services\EmailService;
-use App\Services\XpLedger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use Illuminate\Validation\UniqueConstraintViolationException;
 
 class EventController extends Controller
@@ -52,20 +48,6 @@ class EventController extends Controller
             'placeId' => $e->place_id,
             'academicYearId' => $e->academic_year_id,
             'createdByUserId' => $e->created_by_user_id,
-            // Real activity-form fields (docs/EKSIKLER.md aktivite/onay
-            // workflow §1), filled in via the signed web form, not the
-            // quick-create call.
-            'endTime' => $e->end_time,
-            'studentNumber' => $e->student_number,
-            'phone' => $e->phone,
-            'faculty' => $e->faculty,
-            'department' => $e->department,
-            'estimatedAttendees' => $e->estimated_attendees,
-            'purpose' => $e->purpose,
-            'requirements' => $e->requirements,
-            'posterUrl' => $e->poster_url,
-            'assignedStaffId' => $e->assigned_staff_id,
-            'assignedStaffName' => $e->assignedStaff?->name,
             'participationTypes' => $e->participationTypes->map(fn ($t) => [
                 'id' => $t->id,
                 'label' => $t->label,
@@ -123,18 +105,17 @@ class EventController extends Controller
         $formSubmitted = false;
 
         if (! $alreadyJoined) {
-            $joinId = $this->newId('join');
             try {
-                DB::transaction(function () use ($event, $me, $participationTypeId, $joinId) {
+                DB::transaction(function () use ($event, $me, $participationTypeId) {
                     EventJoin::create([
-                        'id' => $joinId,
+                        'id' => $this->newId('join'),
                         'event_id' => $event->id,
                         'user_id' => $me->id,
                         'participation_type_id' => $participationTypeId,
                         'joined_at' => now(),
                     ]);
                     $event->increment('attendees');
-                    XpLedger::grant($me, $event->xp, "Katıldın: {$event->title}", 'event_join', $joinId);
+                    $me->increment('xp', $event->xp);
                     $me->increment('events');
                     ActivityLogger::log($me->id, 'eventJoin', "Katıldın: {$event->title}", "+{$event->xp} XP");
                 });
@@ -162,22 +143,6 @@ class EventController extends Controller
                 new EventParticipationFormMail($event, null)
             );
             $emailStatus['formEmailSent'] = $formLog->status === 'sent';
-
-            // Real "aktivite katılımı" notification for the organizer —
-            // only when the organizer is a real account (created_by_user_id
-            // is the student/organizer for self-created activities; admin-
-            // authored events have no such account to notify, same honest
-            // gap as organizer_email being empty for those).
-            if ($event->created_by_user_id && $event->created_by_user_id !== $me->id) {
-                InboxNotification::create([
-                    'id' => 'notif-'.Str::uuid(),
-                    'user_id' => $event->created_by_user_id,
-                    'kind' => 'activity_join',
-                    'title' => 'Yeni katılım',
-                    'body' => "{$me->name}, \"{$event->title}\" etkinliğine katıldı.",
-                    'created_at' => now(),
-                ]);
-            }
         } else {
             $formSubmitted = (bool) EventJoin::where('event_id', $event->id)
                 ->where('user_id', $me->id)
@@ -257,14 +222,9 @@ class EventController extends Controller
             ->first();
     }
 
-    // Real "kendi aktiviteni oluştur" flow (docs/EKSIKLER.md aktivite/onay
-    // workflow §1/§2): the student's initial submission just identifies
-    // the activity (title/place/time/category) — the record starts in
-    // 'form_required', and a real signed, single-activity web form URL is
-    // emailed immediately (ActivityFormController) to collect the rest
-    // (student number, phone, faculty/department, purpose, requirements,
-    // poster) and route it to the right approver. Nothing is published
-    // without both a completed form and an admin approving it.
+    // Real "kendi aktiviteni oluştur" flow (docs/EKSIKLER.md §5): a
+    // student submits a draft that starts in pending_review, not
+    // published — nothing goes live without an admin approving it.
     public function createOwnActivity(Request $request): JsonResponse
     {
         $me = $this->currentUser();
@@ -297,20 +257,14 @@ class EventController extends Controller
             'attendees' => 0,
             'xp' => 20,
             'draft' => true,
-            'workflow_status' => 'form_required',
+            'workflow_status' => 'pending_review',
             'audience' => 'Tümü',
             'organizer' => $me->name,
             'description' => $request->input('description', ''),
             'created_by_user_id' => $me->id,
             'academic_year_id' => $activeYear?->id,
         ]);
-        ActivityLogger::log($me->id, 'eventJoin', "Aktivite önerdin: {$title}", 'Form bekleniyor');
-
-        if ($me->email) {
-            $formUrl = \Illuminate\Support\Facades\URL::signedRoute('activity.form.show', ['event' => $event->id]);
-            EmailService::send($me->email, "Aktiviteniz oluşturuldu: {$title}",
-                'event-activity-form-requested', new ActivityFormRequestedMail($event, $formUrl));
-        }
+        ActivityLogger::log($me->id, 'eventJoin', "Aktivite önerdin: {$title}", 'İnceleme bekliyor');
 
         return $this->ok($this->eventToJson($event->fresh('participationTypes')), 201);
     }

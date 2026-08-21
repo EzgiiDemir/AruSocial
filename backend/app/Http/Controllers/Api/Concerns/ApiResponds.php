@@ -34,12 +34,12 @@ trait ApiResponds
         return $prefix.'-'.Str::uuid();
     }
 
-    // Real, per-request identity (docs/EKSIKLER.md "Gerçek JWT/session
-    // authentication") — resolved from the Sanctum bearer token every /v1
-    // route now requires (see routes/api.php's `auth:sanctum` middleware
-    // and AuthController::session()), not a hardcoded single account.
+    // No real identity provider is wired up yet (needs a real Microsoft
+    // Entra tenant only ARUCAD can create — see docs/GERCEK_PROJEYE_GECIS.md).
+    // Every request is treated as the single seeded demo account, honestly,
+    // rather than pretending to validate a bearer token nothing can check.
     protected function currentUser(): User
     {
-        return request()->user();
+        return User::firstOrFail();
     }
 }

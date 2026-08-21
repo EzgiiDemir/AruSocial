@@ -48,7 +48,7 @@ class FoodVenueController extends Controller
             'hours' => $request->input('hours'),
             'menu_file_url' => $request->input('menuFileUrl'),
         ]);
-        AuditLogger::log($this->currentUser()->name, $isNew ? 'create' : 'update', 'food_venue', $name);
+        AuditLogger::log($request->input('actorName', 'admin'), $isNew ? 'create' : 'update', 'food_venue', $name);
 
         return $this->ok($this->toJson($venue->fresh('dailyMenus')));
     }
@@ -57,23 +57,13 @@ class FoodVenueController extends Controller
     {
         $venue = FoodVenue::find($id);
         if ($venue) {
-            AuditLogger::log($this->currentUser()->name, 'delete', 'food_venue', $venue->name);
+            AuditLogger::log($request->input('actorName', 'admin'), 'delete', 'food_venue', $venue->name);
             $venue->delete();
         }
 
         return $this->ok(['deleted' => true]);
     }
 
-    // Real bug fix: `menu_date` is cast to `date`, which Eloquent stores
-    // with a time component under sqlite (e.g. "2026-08-21 00:00:00"), but
-    // a plain `where('menu_date', $date)` match against a raw "YYYY-MM-DD"
-    // string never matched that stored value — updateOrCreate's match
-    // clause silently failed to find the existing row and tried to INSERT
-    // a duplicate instead, crashing on the (food_venue_id, menu_date)
-    // unique constraint the very first time an admin re-edited an
-    // already-set day. whereDate() compares just the date portion,
-    // portable across sqlite/mysql, so this now genuinely finds and
-    // updates the existing row.
     public function upsertMenu(Request $request, string $venueId): JsonResponse
     {
         $venue = FoodVenue::find($venueId);
@@ -81,30 +71,23 @@ class FoodVenueController extends Controller
         $date = $request->input('date');
         if (! $date) return $this->fail(400, 'VALIDATION', 'date is required.');
 
-        $attributes = [
-            'items' => $request->input('items', []),
-            'price' => $request->input('price'),
-            'hours' => $request->input('hours'),
-        ];
-        $existing = FoodDailyMenu::where('food_venue_id', $venueId)->whereDate('menu_date', $date)->first();
-        if ($existing) {
-            $existing->update($attributes);
-        } else {
-            FoodDailyMenu::create([
+        FoodDailyMenu::updateOrCreate(
+            ['food_venue_id' => $venueId, 'menu_date' => $date],
+            [
                 'id' => 'menu-'.Str::uuid(),
-                'food_venue_id' => $venueId,
-                'menu_date' => $date,
-                ...$attributes,
-            ]);
-        }
-        AuditLogger::log($this->currentUser()->name, 'update', 'food_menu', "{$venue->name} · $date");
+                'items' => $request->input('items', []),
+                'price' => $request->input('price'),
+                'hours' => $request->input('hours'),
+            ]
+        );
+        AuditLogger::log($request->input('actorName', 'admin'), 'update', 'food_menu', "{$venue->name} · $date");
 
         return $this->ok($this->toJson($venue->fresh('dailyMenus')));
     }
 
     public function destroyMenu(Request $request, string $venueId, string $date): JsonResponse
     {
-        FoodDailyMenu::where('food_venue_id', $venueId)->whereDate('menu_date', $date)->delete();
+        FoodDailyMenu::where('food_venue_id', $venueId)->where('menu_date', $date)->delete();
 
         return $this->ok(['deleted' => true]);
     }

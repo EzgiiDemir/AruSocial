@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:arucad_campus_prototype/core/services/chat_store.dart';
 import 'package:arucad_campus_prototype/core/services/contracts.dart';
 import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
-import 'package:arucad_campus_prototype/features/widgets/campus_widgets.dart';
 
 /// Message threads list — real, shared per-peer history in Rest mode (a
 /// real backend `ChatController`), still local-only in Mock mode. See the
@@ -19,7 +18,7 @@ class ChatThreadsScreen extends StatefulWidget {
 }
 
 class _ChatThreadsScreenState extends State<ChatThreadsScreen> {
-  late Future<List<ChatThreadSummary>> _threadsFuture;
+  late Future<List<String>> _threadsFuture;
 
   @override
   void initState() {
@@ -59,15 +58,6 @@ class _ChatThreadsScreenState extends State<ChatThreadsScreen> {
     _reload();
   }
 
-  String _relativeTime(DateTime? at) {
-    if (at == null) return '';
-    final diff = DateTime.now().difference(at);
-    if (diff.inMinutes < 1) return 'şimdi';
-    if (diff.inMinutes < 60) return '${diff.inMinutes}dk';
-    if (diff.inHours < 24) return '${diff.inHours}sa';
-    return '${diff.inDays}g';
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -89,96 +79,53 @@ class _ChatThreadsScreenState extends State<ChatThreadsScreen> {
           ),
         ),
         Expanded(
-          child: RefreshIndicator(
-            onRefresh: () async => _reload(),
-            child: FutureBuilder<List<ChatThreadSummary>>(
-              future: _threadsFuture,
-              builder: (context, snap) {
-                if (!snap.hasData) return const Center(child: CircularProgressIndicator());
-                final threads = snap.data!;
-                if (threads.isEmpty) {
-                  return ListView(children: [
-                    Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(mainAxisSize: MainAxisSize.min, children: [
-                        const SizedBox(height: 40),
-                        const Icon(Icons.forum_outlined, size: 40, color: ArucadColors.muted),
-                        const SizedBox(height: 10),
-                        const Text('Henüz mesajın yok.', style: TextStyle(color: ArucadColors.muted)),
-                        const SizedBox(height: 14),
-                        OutlinedButton.icon(
-                          onPressed: _startNew,
-                          icon: const Icon(Icons.add),
-                          label: const Text('Yeni mesaj'),
-                        ),
-                      ]),
-                    ),
-                  ]);
-                }
-                // Real conversation list (docs/EKSIKLER.md sosyal/chat §3):
-                // avatar, name, last message, time, unread count — nothing
-                // beyond that, so the list stays scannable.
-                return ListView.separated(
-                  itemCount: threads.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
-                  itemBuilder: (context, i) {
-                    final t = threads[i];
-                    final peer = t.peerName;
-                    final unread = t.unreadCount > 0;
-                    return ListTile(
-                      leading: CircleAvatar(
-                          backgroundColor: unread
-                              ? ArucadColors.primary
-                              : categoryAccent(peer).withValues(alpha: .85),
-                          child: Text(peer.isEmpty ? '?' : peer.substring(0, 1),
-                              style: const TextStyle(
-                                  color: Colors.white, fontWeight: FontWeight.w800))),
-                      title: Text(peer,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                              fontWeight: unread ? FontWeight.w900 : FontWeight.w700)),
-                      subtitle: t.lastMessage == null
-                          ? null
-                          : Text(t.lastMessage!,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                  color: unread ? ArucadColors.ink : ArucadColors.muted,
-                                  fontWeight: unread ? FontWeight.w600 : FontWeight.normal)),
-                      trailing: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(_relativeTime(t.lastMessageAt),
-                              style: const TextStyle(color: ArucadColors.muted, fontSize: 11)),
-                          if (unread) ...[
-                            const SizedBox(height: 4),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                              decoration: BoxDecoration(
-                                  color: ArucadColors.primary,
-                                  borderRadius: BorderRadius.circular(999)),
-                              child: Text('${t.unreadCount}',
-                                  style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w800)),
-                            ),
-                          ],
-                        ],
+          child: FutureBuilder<List<String>>(
+            future: _threadsFuture,
+            builder: (context, snap) {
+              if (!snap.hasData) return const Center(child: CircularProgressIndicator());
+              final threads = snap.data!;
+              if (threads.isEmpty) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(mainAxisSize: MainAxisSize.min, children: [
+                      const Icon(Icons.forum_outlined, size: 40, color: ArucadColors.muted),
+                      const SizedBox(height: 10),
+                      const Text('Henüz mesajın yok.', style: TextStyle(color: ArucadColors.muted)),
+                      const SizedBox(height: 14),
+                      OutlinedButton.icon(
+                        onPressed: _startNew,
+                        icon: const Icon(Icons.add),
+                        label: const Text('Yeni mesaj'),
                       ),
-                      onTap: () async {
-                        await Navigator.of(context).push(MaterialPageRoute(
-                            builder: (_) =>
-                                ChatThreadScreen(repository: widget.repository, peer: peer)));
-                        _reload();
-                      },
-                    );
-                  },
+                    ]),
+                  ),
                 );
-              },
-            ),
+              }
+              return ListView.separated(
+                itemCount: threads.length,
+                separatorBuilder: (_, __) => const Divider(height: 1),
+                itemBuilder: (context, i) {
+                  final peer = threads[i];
+                  return ListTile(
+                    leading: CircleAvatar(
+                        backgroundColor: ArucadColors.mist,
+                        child: Text(peer.isEmpty ? '?' : peer.substring(0, 1))),
+                    title: Text(peer,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w700)),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () async {
+                      await Navigator.of(context).push(MaterialPageRoute(
+                          builder: (_) =>
+                              ChatThreadScreen(repository: widget.repository, peer: peer)));
+                      _reload();
+                    },
+                  );
+                },
+              );
+            },
           ),
         ),
       ]),
@@ -198,7 +145,6 @@ class ChatThreadScreen extends StatefulWidget {
 class _ChatThreadScreenState extends State<ChatThreadScreen> {
   late Future<List<ChatMessage>> _future;
   final _controller = TextEditingController();
-  bool _sending = false;
 
   @override
   void initState() {
@@ -206,36 +152,12 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
     _future = widget.repository.getChatMessages(widget.peer);
   }
 
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  // Real bug fix (docs/EKSIKLER.md sosyal/chat): this used to clear the
-  // text field and fire the send request with no error handling at all —
-  // a failed send (expired session, network blip) silently lost the typed
-  // message with zero feedback, which is exactly the "gönderince ekrana
-  // düşmüyor" symptom. Now the text only clears on a real confirmed
-  // success, and a real failure restores it with a visible error.
   Future<void> _send() async {
     final text = _controller.text.trim();
-    if (text.isEmpty || _sending) return;
-    setState(() => _sending = true);
-    try {
-      await widget.repository.sendChatMessage(widget.peer, text);
-      if (!mounted) return;
-      _controller.clear();
-      setState(() {
-        _sending = false;
-        _future = widget.repository.getChatMessages(widget.peer);
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _sending = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Mesaj gönderilemedi. Lütfen tekrar dene.')));
-    }
+    if (text.isEmpty) return;
+    _controller.clear();
+    await widget.repository.sendChatMessage(widget.peer, text);
+    setState(() => _future = widget.repository.getChatMessages(widget.peer));
   }
 
   @override
@@ -291,19 +213,13 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
               Expanded(
                 child: TextField(
                   controller: _controller,
-                  enabled: !_sending,
                   decoration: const InputDecoration(hintText: 'Mesaj yaz...'),
                   onSubmitted: (_) => _send(),
                 ),
               ),
               IconButton(
-                onPressed: _sending ? null : _send,
-                icon: _sending
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Icon(Icons.send, color: ArucadColors.primary),
+                onPressed: _send,
+                icon: const Icon(Icons.send, color: ArucadColors.primary),
               ),
             ]),
           ),

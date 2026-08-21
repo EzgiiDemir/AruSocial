@@ -149,22 +149,6 @@ class CampusEvent {
   /// in which case the join popup just skips straight to a plain confirm.
   final List<EventParticipationOption> participationTypes;
 
-  // Real "Kendi Aktiviteni Oluştur" form fields (docs/EKSIKLER.md
-  // aktivite/onay workflow §1) — filled in via the real signed web form
-  // (ActivityFormController on the backend), read-only here: the admin
-  // review screen displays them, it never edits them.
-  final String? endTime;
-  final String? studentNumber;
-  final String? phone;
-  final String? faculty;
-  final String? department;
-  final int? estimatedAttendees;
-  final String? purpose;
-  final String? requirements;
-  final String? posterUrl;
-  final String? assignedStaffId;
-  final String? assignedStaffName;
-
   const CampusEvent({
     required this.id,
     required this.title,
@@ -188,17 +172,6 @@ class CampusEvent {
     this.academicYearId,
     this.body = const [],
     this.participationTypes = const [],
-    this.endTime,
-    this.studentNumber,
-    this.phone,
-    this.faculty,
-    this.department,
-    this.estimatedAttendees,
-    this.purpose,
-    this.requirements,
-    this.posterUrl,
-    this.assignedStaffId,
-    this.assignedStaffName,
   });
 
   /// Whether this event should appear in a normal (non-admin) listing right
@@ -246,17 +219,6 @@ class CampusEvent {
               ?.map((e) => EventParticipationOption.fromJson(e as Map<String, dynamic>))
               .toList() ??
           const [],
-      endTime: json['endTime'] as String?,
-      studentNumber: json['studentNumber'] as String?,
-      phone: json['phone'] as String?,
-      faculty: json['faculty'] as String?,
-      department: json['department'] as String?,
-      estimatedAttendees: json['estimatedAttendees'] as int?,
-      purpose: json['purpose'] as String?,
-      requirements: json['requirements'] as String?,
-      posterUrl: json['posterUrl'] as String?,
-      assignedStaffId: json['assignedStaffId'] as String?,
-      assignedStaffName: json['assignedStaffName'] as String?,
     );
   }
 

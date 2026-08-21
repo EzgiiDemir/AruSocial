@@ -1,12 +1,10 @@
 import 'dart:typed_data';
 
 import 'package:collection/collection.dart';
-import 'package:geolocator/geolocator.dart';
 
 import '../config/campus_life_config.dart';
 import '../config/place_catalog.dart';
 import '../config/shuttle_config.dart';
-import '../models/academic_staff.dart';
 import '../models/academic_year.dart';
 import '../models/admin_page.dart';
 import '../models/admin_stats.dart';
@@ -19,7 +17,6 @@ import '../models/inbox_notification.dart';
 import '../models/survey.dart';
 import 'admin_content_store.dart';
 import 'admin_page_store.dart';
-import 'admin_user_store.dart';
 import 'audit_log_store.dart';
 import 'building_directory_store.dart';
 import 'chat_store.dart';
@@ -304,53 +301,11 @@ class MockCampusRepository implements CampusRepository {
         reward: 400),
   ];
 
-  // Mock mode has no real backend to authenticate against — an honest
-  // local stand-in with no real token, matching the "no email pipeline"
-  // pattern used elsewhere in this class. Role still comes from the same
-  // real RoleAssignmentStore lookup the Rest path's role_assignments table
-  // mirrors, so the session's role is genuine even without a real token.
-  @override
-  Future<AuthSession> startSession({required String email, required String name}) async {
-    final role = await RoleAssignmentStore.roleFor(email);
-    return AuthSession(token: null, email: email, name: name, role: role?.name ?? 'student');
-  }
-
-  @override
-  Future<void> endSession() async {}
-
   @override
   Future<CampusUser> getMe() async => _computedUser;
 
   @override
   Future<List<CampusPlace>> getPlaces() async => _places;
-
-  // Real aggregation over Mock mode's own check-in activity (docs/
-  // EKSIKLER.md harita/heatmap) — same window logic and busy/moderate/
-  // quiet thresholds as the real backend's PlaceController::density(),
-  // just computed from this session's in-memory ActivityLog instead of a
-  // real checkins table.
-  @override
-  Future<List<PlaceDensity>> getPlaceDensity({DensityWindow window = DensityWindow.today}) async {
-    final now = DateTime.now();
-    final since = switch (window) {
-      DensityWindow.lastHour => now.subtract(const Duration(hours: 1)),
-      DensityWindow.today => DateTime(now.year, now.month, now.day),
-      DensityWindow.last7Days => now.subtract(const Duration(days: 7)),
-      DensityWindow.last30Days => now.subtract(const Duration(days: 30)),
-    };
-    final counts = <String, int>{};
-    for (final a in _activity) {
-      if (a.kind != ActivityKind.checkIn) continue;
-      if (a.timestamp.isBefore(since)) continue;
-      final name = a.title.replaceFirst('Check-in: ', '');
-      counts[name] = (counts[name] ?? 0) + 1;
-    }
-    return _places.map((p) {
-      final count = counts[p.name] ?? 0;
-      final level = count >= 3 ? 'busy' : (count >= 1 ? 'moderate' : 'quiet');
-      return PlaceDensity(placeId: p.id, checkins: count, level: level);
-    }).toList();
-  }
 
   @override
   Future<List<CampusEvent>> getEvents({bool includeUnpublished = false, String? academicYearId}) async {
@@ -366,36 +321,15 @@ class MockCampusRepository implements CampusRepository {
   @override
   Future<List<FeedPost>> getFeed() async => List.unmodifiable(_feed);
 
-  // Mirrors the real backend's AppSetting 'checkin.radiusMeters'/
-  // 'xp.checkinAmount' — real, mutable values (admin panel Site Settings
-  // can change them), not fixed constants, so Mock mode behaves the same
-  // as Rest mode when an admin edits a setting.
-  double _checkInRadiusMeters = 150.0;
-  int _checkinXpAmount = 30;
-  List<String> _allowedDomains = const ['@arucad.edu.tr'];
-  bool _entraClientSecretConfigured = false;
+  static const _checkInXp = 30;
 
   @override
-  Future<void> checkIn(String placeId,
-      {required double lat, required double lng, bool visibleToOthers = true}) async {
+  Future<void> checkIn(String placeId, {bool visibleToOthers = true}) async {
     CampusPlace? place;
     for (final p in _places) {
       if (p.id == placeId) {
         place = p;
         break;
-      }
-    }
-    // Real, server-would-enforce proximity check (docs/EKSIKLER.md
-    // §18/§35) mirrored here so Mock mode behaves the same as Rest mode —
-    // never trusts an "I'm nearby" claim, always recomputes the distance.
-    if (place != null) {
-      final meters = Geolocator.distanceBetween(lat, lng, place.lat, place.lng);
-      if (meters > _checkInRadiusMeters) {
-        final label = meters >= 1000
-            ? '${(meters / 1000).toStringAsFixed(1)} km'
-            : '${meters.round()} m';
-        throw CheckInBlockedException(
-            'Bu konuma yeterince yakın değilsiniz. Konuma yaklaşık $label uzaktasınız.');
       }
     }
     final placeName = place?.name ?? placeId;
@@ -409,15 +343,15 @@ class MockCampusRepository implements CampusRepository {
           authorId: _user.id,
           name: _user.name,
           text: 'checked in at $placeName',
-          meta: 'şimdi · +$_checkinXpAmount XP',
+          meta: 'şimdi · +$_checkInXp XP',
           likes: 0,
           kind: FeedKind.checkIn,
         ),
       );
     }
     _logActivity(ActivityKind.checkIn, 'Check-in: $placeName',
-        visibleToOthers ? '+$_checkinXpAmount XP' : '+$_checkinXpAmount XP · gizli',
-        xp: _checkinXpAmount);
+        visibleToOthers ? '+$_checkInXp XP' : '+$_checkInXp XP · gizli',
+        xp: _checkInXp);
   }
 
   @override
@@ -592,51 +526,6 @@ class MockCampusRepository implements CampusRepository {
   Future<void> deleteService(String id) => AdminContentStore.deleteService(id);
 
   @override
-  Future<List<CampusFoodVenue>> getFoodVenues() => AdminContentStore.foodVenues();
-
-  @override
-  Future<void> upsertFoodVenue(CampusFoodVenue venue) => AdminContentStore.saveFoodVenue(venue);
-
-  @override
-  Future<void> deleteFoodVenue(String id) => AdminContentStore.deleteFoodVenue(id);
-
-  // No per-day menu granularity in AdminContentStore's on-device shape —
-  // same as the existing admin calendar screen's own pattern, a menu edit
-  // is really "replace this venue's whole dailyMenus list and re-save".
-  @override
-  Future<void> upsertFoodMenu(String venueId, DailyMenu menu) async {
-    final venues = await AdminContentStore.foodVenues();
-    final venue = venues.firstWhere((v) => v.id == venueId, orElse: () => CampusFoodVenue(id: venueId, name: venueId));
-    final nextMenus = [
-      for (final m in venue.dailyMenus)
-        if (!(m.date.year == menu.date.year && m.date.month == menu.date.month && m.date.day == menu.date.day)) m,
-      menu,
-    ];
-    await AdminContentStore.saveFoodVenue(CampusFoodVenue(
-        id: venue.id,
-        name: venue.name,
-        hours: venue.hours,
-        menuFileUrl: venue.menuFileUrl,
-        dailyMenus: nextMenus));
-  }
-
-  @override
-  Future<void> deleteFoodMenu(String venueId, DateTime date) async {
-    final venues = await AdminContentStore.foodVenues();
-    final venue = venues.firstWhere((v) => v.id == venueId, orElse: () => CampusFoodVenue(id: venueId, name: venueId));
-    final nextMenus = [
-      for (final m in venue.dailyMenus)
-        if (!(m.date.year == date.year && m.date.month == date.month && m.date.day == date.day)) m,
-    ];
-    await AdminContentStore.saveFoodVenue(CampusFoodVenue(
-        id: venue.id,
-        name: venue.name,
-        hours: venue.hours,
-        menuFileUrl: venue.menuFileUrl,
-        dailyMenus: nextMenus));
-  }
-
-  @override
   Future<List<DirectoryEntry>> getDirectoryEntries() => BuildingDirectoryStore.entries();
 
   @override
@@ -662,72 +551,11 @@ class MockCampusRepository implements CampusRepository {
   Future<UserRole?> roleFor(String? email) => RoleAssignmentStore.roleFor(email);
 
   @override
-  Future<void> setRoleAssignment(String email, UserRole role,
-          {required String assignedBy, List<String> permissions = const []}) =>
-      RoleAssignmentStore.setRole(email, role, assignedBy: assignedBy, permissions: permissions);
+  Future<void> setRoleAssignment(String email, UserRole role, {required String assignedBy}) =>
+      RoleAssignmentStore.setRole(email, role, assignedBy: assignedBy);
 
   @override
   Future<void> deleteRoleAssignment(String email) => RoleAssignmentStore.removeRole(email);
-
-  @override
-  Future<List<AdminUser>> getAdminUsers() => AdminUserStore.list();
-
-  @override
-  Future<AdminUser> getAdminUser(String id) async =>
-      await AdminUserStore.byId(id) ??
-      (throw Exception('User not found'));
-
-  @override
-  Future<AdminUser> createAdminUser(
-          {required String name,
-          required String email,
-          required UserRole role,
-          List<String> permissions = const []}) =>
-      AdminUserStore.create(name: name, email: email, role: role, permissions: permissions);
-
-  @override
-  Future<AdminUser> updateAdminUserRole(String id, {required UserRole role, required List<String> permissions}) =>
-      AdminUserStore.updateRole(id, role: role, permissions: permissions);
-
-  @override
-  Future<AdminUser> setAdminUserActive(String id, bool active) => AdminUserStore.setActive(id, active);
-
-  @override
-  Future<List<AdminUser>> getBannedUsers() => AdminUserStore.banned();
-
-  @override
-  Future<AdminUser> unbanUser(String id) => AdminUserStore.unban(id);
-
-  // Mock mode has no real backend session check to enforce these against
-  // — they persist locally and round-trip in the UI, but (honestly,
-  // documented) don't actually gate Mock sign-in the way the Rest-mode
-  // versions gate AuthController::session().
-  @override
-  Future<List<String>> getAllowedDomains() async => _allowedDomains;
-
-  @override
-  Future<List<String>> setAllowedDomains(List<String> domains) async {
-    _allowedDomains = domains.isEmpty ? const ['@arucad.edu.tr'] : domains;
-    return _allowedDomains;
-  }
-
-  @override
-  Future<bool> getEntraClientSecretConfigured() async => _entraClientSecretConfigured;
-
-  @override
-  Future<bool> setEntraClientSecret(String secret) async {
-    _entraClientSecretConfigured = secret.isNotEmpty;
-    return _entraClientSecretConfigured;
-  }
-
-  @override
-  Future<int> getCheckinXpAmount() async => _checkinXpAmount;
-
-  @override
-  Future<int> setCheckinXpAmount(int amount) async {
-    _checkinXpAmount = amount.clamp(0, 500);
-    return _checkinXpAmount;
-  }
 
   @override
   Future<List<AuditLogEntry>> getAuditLog() => AuditLogStore.entries();
@@ -759,24 +587,8 @@ class MockCampusRepository implements CampusRepository {
   Future<bool> toggleBlock(String peer) => SocialGraphStore.toggleBlock(peer);
 
   @override
-  Future<List<ChatThreadSummary>> getChatThreadPeers(List<String> knownPeers) async {
-    final peers = await ChatStore.threadPeers(knownPeers);
-    final summaries = <ChatThreadSummary>[];
-    for (final peer in peers) {
-      final history = await ChatStore.messages(peer);
-      final last = history.isEmpty ? null : history.last;
-      summaries.add(ChatThreadSummary(
-        peerName: peer,
-        lastMessage: last?.text,
-        lastMessageAt: last?.sentAt,
-        // Mock mode's single-device reality has no real second inbox to
-        // leave a message unread in — honestly always 0, not a guess.
-        unreadCount: 0,
-      ));
-    }
-    summaries.sort((a, b) => (b.lastMessageAt ?? DateTime(0)).compareTo(a.lastMessageAt ?? DateTime(0)));
-    return summaries;
-  }
+  Future<List<String>> getChatThreadPeers(List<String> knownPeers) =>
+      ChatStore.threadPeers(knownPeers);
 
   @override
   Future<List<ChatMessage>> getChatMessages(String peer) => ChatStore.messages(peer);
@@ -1175,13 +987,6 @@ class MockCampusRepository implements CampusRepository {
     return 0;
   }
 
-  // Mock mode has no real personnel directory to source from (the real
-  // 59-person roster only exists as a real backend seed — see
-  // docs/EKSIKLER.md aktivite/onay workflow §8) — honestly empty rather
-  // than a second, divergent hand-typed copy that could drift from it.
-  @override
-  Future<List<AcademicStaffMember>> getAcademicStaff() async => const [];
-
   @override
   Future<List<ModerationReport>> getReports() async => List.unmodifiable(_reports);
 
@@ -1201,15 +1006,6 @@ class MockCampusRepository implements CampusRepository {
 
   @override
   Future<bool> setImageModerationApiKey(String apiKey) async => false;
-
-  @override
-  Future<int> getCheckinRadiusMeters() async => _checkInRadiusMeters.round();
-
-  @override
-  Future<int> setCheckinRadiusMeters(int meters) async {
-    _checkInRadiusMeters = meters.toDouble().clamp(10, 5000);
-    return _checkInRadiusMeters.round();
-  }
 
   // Real aggregation over Mock mode's own in-memory state (docs/EKSIKLER.md
   // admin istatistik modülü) — same shape `Admin\StatsController` returns,
@@ -1305,36 +1101,21 @@ class MockCampusRepository implements CampusRepository {
         totalXp: _user.xp,
         totalStrikes: 0,
         bannedAccounts: 0,
-        deactivatedAccounts: 0,
       ),
       checkins: CheckinStats(
         total: checkinActivity.length,
         visibleToOthers: _feed.where((p) => p.kind == FeedKind.checkIn).length,
-        hiddenXpOnly: checkinActivity.length - _feed.where((p) => p.kind == FeedKind.checkIn).length,
         mostCheckedInPlaces: mostChecked,
         byDay: byDay,
-        // Hour-of-day/top-student breakdowns need real, multi-account,
-        // timestamped rows a single-device Mock session can't produce
-        // honestly — empty rather than invented (docs/EKSIKLER.md).
-        byHour: const [],
-        topStudents: const [],
       ),
       events: EventStats(
         total: _events.length,
         published: _events.where((e) => e.isVisibleNow).length,
         pendingReview: _events.where((e) => e.workflowStatus == 'pending_review').length,
-        rejected: _events.where((e) => e.workflowStatus == 'rejected').length,
         totalJoins: totalJoins,
         formsSubmitted: formsSubmitted,
         attendanceApproved: approved,
         mostJoinedEvents: mostJoined,
-        mostUsedPlaces: const [],
-        forms: const FormFunnelStats(total: 0, opened: 0, submitted: 0, submitRate: null),
-        byFaculty: const [],
-        byDepartment: const [],
-        attendanceTakenBy: const [],
-        attendanceStudentCount: 0,
-        mostActiveStudents: const [],
       ),
       social: SocialStats(
         feedPosts: _feed.length,
@@ -1344,24 +1125,6 @@ class MockCampusRepository implements CampusRepository {
         averageRating: double.parse(avgRating.toStringAsFixed(2)),
         moderationReportsFiled: _reports.length,
         moderationReportsUnresolved: _reports.where((r) => r.resolvedAt == null).length,
-        topPosters: (() {
-          final counts = <String, int>{};
-          for (final p in _feed) {
-            counts[p.name] = (counts[p.name] ?? 0) + 1;
-          }
-          final sorted = counts.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
-          return sorted.take(10).map((e) => LabelCount(label: e.key, total: e.value)).toList();
-        })(),
-        mostLiked: (_feed.toList()..sort((a, b) => b.likes.compareTo(a.likes)))
-            .take(10)
-            .map((p) => LikedPost(id: p.id, name: p.name, text: p.text, likes: p.likes))
-            .toList(),
-        mostCommented: const [],
-        // Who follows *me* isn't something a single-device follow store
-        // (only "who I follow") can honestly answer — see SocialGraphStore.
-        mostFollowed: const [],
-        mostReportedContent: const [],
-        mostActiveStudents: const [],
       ),
       surveys: SurveyStats(total: _surveys.length, totalResponses: totalResponses),
       activityByKind:
@@ -1370,11 +1133,6 @@ class MockCampusRepository implements CampusRepository {
         sent: _emailLogs.where((l) => l.status == 'sent').length,
         failed: _emailLogs.where((l) => l.status == 'failed').length,
       ),
-      // Mock mode's Ask ARUCAD chat never logs questions server-side (no
-      // server), and there's no independent check-in-density engine to
-      // mirror here — both stay honestly empty rather than invented.
-      askArucad: const AskArucadStats(totalQuestions: 0, byCategory: [], topQuestions: []),
-      map: const MapStats(busiestPlaces: [], quietestPlaces: [], byHour: []),
       catalog: CatalogStats(
         places: _places.length,
         clubs: clubs.length,

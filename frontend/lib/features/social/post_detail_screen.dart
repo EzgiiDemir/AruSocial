@@ -5,7 +5,6 @@ import 'package:arucad_campus_prototype/core/models/campus_models.dart';
 import 'package:arucad_campus_prototype/core/services/contracts.dart';
 import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
 import 'package:arucad_campus_prototype/features/social/social_profile_screen.dart';
-import 'package:arucad_campus_prototype/features/widgets/campus_widgets.dart';
 
 /// Full-screen single-post view — the post itself plus its comments inline,
 /// reached by tapping a card in the feed. Likes/comments/save all act on
@@ -88,14 +87,11 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                 child: Row(children: [
                   CircleAvatar(
                       radius: 18,
-                      backgroundColor: post.official
-                          ? ArucadColors.primary
-                          : categoryAccent(post.name).withValues(alpha: .85),
+                      backgroundColor:
+                          post.official ? ArucadColors.primary : ArucadColors.mist,
                       child: post.official
                           ? const Icon(Icons.school_outlined, size: 18, color: Colors.white)
-                          : Text(post.name.isEmpty ? '?' : post.name.substring(0, 1),
-                              style: const TextStyle(
-                                  color: Colors.white, fontWeight: FontWeight.w800))),
+                          : Text(post.name.isEmpty ? '?' : post.name.substring(0, 1))),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -126,15 +122,9 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                 const SizedBox(height: 10),
                 Wrap(spacing: 8, runSpacing: 8, children: [
                   if (post.locationTag != null)
-                    _TagChip(
-                        icon: Icons.place_outlined,
-                        label: post.locationTag!,
-                        accent: ArucadColors.sage),
+                    _TagChip(icon: Icons.place_outlined, label: post.locationTag!),
                   if (post.courseTag != null)
-                    _TagChip(
-                        icon: Icons.menu_book_outlined,
-                        label: post.courseTag!,
-                        accent: ArucadColors.slateBlue),
+                    _TagChip(icon: Icons.menu_book_outlined, label: post.courseTag!),
                 ]),
               ],
               if (post.hashtags.isNotEmpty) ...[
@@ -145,7 +135,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                     for (final tag in post.hashtags)
                       Text('#$tag',
                           style: const TextStyle(
-                              color: ArucadColors.slateBlue, fontWeight: FontWeight.w700)),
+                              color: ArucadColors.primary, fontWeight: FontWeight.w700)),
                   ],
                 ),
               ],
@@ -156,7 +146,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                   borderRadius: BorderRadius.circular(999),
                   child: Row(children: [
                     Icon(post.likedByMe ? Icons.favorite : Icons.favorite_border,
-                        size: 22, color: post.likedByMe ? ArucadColors.terracotta : null),
+                        size: 22, color: post.likedByMe ? ArucadColors.primary : null),
                     const SizedBox(width: 6),
                     Text('${post.likes}'),
                   ]),
@@ -172,7 +162,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                   onTap: _toggleSave,
                   borderRadius: BorderRadius.circular(999),
                   child: Icon(_saved ? Icons.bookmark : Icons.bookmark_border,
-                      size: 22, color: _saved ? ArucadColors.honey : null),
+                      size: 22, color: _saved ? ArucadColors.primary : null),
                 ),
               ]),
               const Divider(height: 32),
@@ -224,18 +214,17 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 class _TagChip extends StatelessWidget {
   final IconData icon;
   final String label;
-  final Color accent;
-  const _TagChip({required this.icon, required this.label, required this.accent});
+  const _TagChip({required this.icon, required this.label});
 
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-            color: accent.withValues(alpha: .14), borderRadius: BorderRadius.circular(999)),
+            color: ArucadColors.mist, borderRadius: BorderRadius.circular(999)),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, size: 14, color: accent),
+          Icon(icon, size: 14, color: ArucadColors.muted),
           const SizedBox(width: 5),
-          Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: accent)),
+          Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
         ]),
       );
 }

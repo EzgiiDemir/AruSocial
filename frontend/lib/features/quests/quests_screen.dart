@@ -209,44 +209,26 @@ class _QuestsScreenState extends State<QuestsScreen> {
               const SizedBox(height: 14),
               _CampusJourneyCard(year: year, counts: _journeyCounts),
               const SizedBox(height: 18),
-              ..._quests.map((quest) {
-                final accent = categoryAccent(quest.title);
-                return Padding(
+              ..._quests.map((quest) => Padding(
                     padding: const EdgeInsets.only(bottom: 12),
                     child: Card(
-                      color: accent.withValues(alpha: .05),
                       child: Padding(
                         padding: const EdgeInsets.all(18),
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           Row(children: [
                             Expanded(child: Text(quest.title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18))),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(
-                                  color: accent.withValues(alpha: .16),
-                                  borderRadius: BorderRadius.circular(999)),
-                              child: Text('+${quest.reward} XP',
-                                  style: TextStyle(fontWeight: FontWeight.w900, color: accent, fontSize: 12)),
-                            ),
+                            Text('+${quest.reward} XP', style: const TextStyle(fontWeight: FontWeight.w900, color: ArucadColors.primary)),
                           ]),
                           const SizedBox(height: 6),
                           Text(quest.subtitle),
                           const SizedBox(height: 14),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(999),
-                            child: LinearProgressIndicator(
-                                value: quest.progress / quest.target.toDouble(),
-                                minHeight: 7,
-                                backgroundColor: accent.withValues(alpha: .14),
-                                color: accent),
-                          ),
+                          LinearProgressIndicator(value: quest.progress / quest.target.toDouble()),
                           const SizedBox(height: 6),
                           Text('${quest.progress}/${quest.target} tamamlandı'),
                         ]),
                       ),
                     ),
-                  );
-              }),
+                  )),
               if (widget.showSuggestions &&
                   (unvisited.isNotEmpty || unjoined.isNotEmpty)) ...[
                 const SizedBox(height: 6),
@@ -257,7 +239,7 @@ class _QuestsScreenState extends State<QuestsScreen> {
                   child: Column(children: [
                     for (final place in unvisited)
                       ListTile(
-                        leading: const Icon(Icons.explore_outlined, color: ArucadColors.terracotta),
+                        leading: const Icon(Icons.explore_outlined, color: ArucadColors.primary),
                         title: Text('${place.name} henüz gitmedin'),
                         subtitle: const Text('Check-in yaparsan +30 XP kazanırsın'),
                         trailing: const Icon(Icons.chevron_right),
@@ -272,7 +254,7 @@ class _QuestsScreenState extends State<QuestsScreen> {
                       ),
                     for (final event in unjoined)
                       ListTile(
-                        leading: const Icon(Icons.event_available_outlined, color: ArucadColors.sage),
+                        leading: const Icon(Icons.event_available_outlined, color: ArucadColors.blue),
                         title: Text('${event.title} var, katılmak ister misin?'),
                         subtitle: Text('${event.placeName} · ${event.time} · +${event.xp} XP'),
                       ),
@@ -388,10 +370,7 @@ class _CampusJourneyCard extends StatelessWidget {
                         child: Text(entry.key,
                             style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13))),
                     Text('${entry.value}',
-                        style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 13,
-                            color: categoryAccent(entry.key))),
+                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
                   ]),
                   const SizedBox(height: 4),
                   ClipRRect(
@@ -400,7 +379,7 @@ class _CampusJourneyCard extends StatelessWidget {
                       value: maxCount == 0 ? 0 : entry.value / maxCount,
                       minHeight: 7,
                       backgroundColor: ArucadColors.mist,
-                      color: categoryAccent(entry.key),
+                      color: ArucadColors.primary,
                     ),
                   ),
                 ]),

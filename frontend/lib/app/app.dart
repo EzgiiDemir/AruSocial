@@ -8,7 +8,6 @@ import 'config/app_config.dart';
 import '../core/auth/app_settings_store.dart';
 import '../core/auth/biometric_auth_provider.dart';
 import '../core/auth/entra_auth_provider.dart';
-import '../core/auth/session_store.dart';
 import '../core/models/campus_models.dart';
 import '../core/network/api_client.dart';
 import '../core/services/audit_log_store.dart';
@@ -117,12 +116,6 @@ class _DemoSessionState extends State<_DemoSession> {
   CampusUser? user;
   bool signedIn = false;
   bool loading = false;
-  // Real session persistence (docs/EKSIKLER.md "Gerçek JWT/session
-  // authentication" — "sayfa yenilendiğinde kullanıcı tekrar login
-  // ekranına düşmemelidir"): true only while checking for a real stored
-  // session on startup, so the login screen doesn't flash before a valid
-  // session has a chance to restore.
-  bool restoringSession = true;
   String? error;
   String language = 'TR';
   UserRole role = UserRole.student;
@@ -133,37 +126,7 @@ class _DemoSessionState extends State<_DemoSession> {
     AppSettingsStore.language().then((lang) {
       if (mounted) setState(() => language = lang);
     });
-    _restoreSession();
   }
-
-  Future<void> _restoreSession() async {
-    final stored = await SessionStore.restore();
-    if (!mounted) return;
-    if (stored == null) {
-      setState(() => restoringSession = false);
-      return;
-    }
-    try {
-      final profile = await widget.repository.getMe();
-      if (!mounted) return;
-      setState(() {
-        user = profile;
-        signedIn = true;
-        role = _roleFromName(stored.role);
-        restoringSession = false;
-      });
-    } catch (_) {
-      // The stored token is no longer valid (revoked, expired, or the
-      // backend restarted with a fresh dev database) — fall back to a
-      // real sign-in instead of getting stuck on a broken session.
-      await SessionStore.clear();
-      if (!mounted) return;
-      setState(() => restoringSession = false);
-    }
-  }
-
-  UserRole _roleFromName(String name) =>
-      UserRole.values.firstWhere((r) => r.name == name, orElse: () => UserRole.student);
 
   Future<void> _finishSignIn(String method, bool ok) async {
     if (!ok) {
@@ -171,6 +134,9 @@ class _DemoSessionState extends State<_DemoSession> {
       widget.analyticsTracker.track('auth_failure', {'method': method});
       return;
     }
+    final profile = await widget.repository.getMe();
+    if (!mounted) return;
+    widget.analyticsTracker.track('auth_success', {'method': method});
     final baseRole = widget.authProvider is MockAuthProvider
         ? (widget.authProvider as MockAuthProvider).role
         : UserRole.student;
@@ -179,47 +145,20 @@ class _DemoSessionState extends State<_DemoSession> {
         : (widget.authProvider is EntraAuthProvider
             ? (widget.authProvider as EntraAuthProvider).currentEmail
             : null);
-    final signedInName = widget.authProvider is EntraAuthProvider
-        ? (widget.authProvider as EntraAuthProvider).currentName
-        : null;
-
-    // Real per-user backend session (docs/EKSIKLER.md "Gerçek JWT/session
-    // authentication") — must happen before getMe() in Rest mode, since
-    // every request (including /me itself) now requires the real bearer
-    // token this returns.
-    final session = await widget.repository.startSession(
-      email: signedInEmail ?? 'demo@arucad.edu.tr',
-      name: signedInName ?? (signedInEmail?.split('@').first ?? 'Öğrenci'),
-    );
-
-    final profile = await widget.repository.getMe();
-    if (!mounted) return;
-    widget.analyticsTracker.track('auth_success', {'method': method});
     // A real, admin-editable email→role table overrides the base role when
     // set — this is what makes role assignment genuinely manageable from
     // Kullanıcılar & Roller instead of only ever being the one hardcoded
     // seed admin account. In Rest mode this is a real, shared backend
     // lookup; in Mock mode it's still per-device (see RoleAssignmentStore).
     final assignedRole = await widget.repository.roleFor(signedInEmail);
-    final resolvedRole = assignedRole ?? baseRole;
     if (!mounted) return;
-    // Persisted with the *resolved* role (not the raw backend value), so a
-    // restored session on next launch reflects the same implicit
-    // baseRole fallback a fresh sign-in gets — otherwise the seeded demo
-    // admin account would look like a plain student after a restart.
-    await SessionStore.save(
-      token: session.token,
-      email: session.email,
-      name: session.name,
-      role: resolvedRole.name,
-    );
     await AuditLogStore.log(
         actorName: profile.name, action: 'login', targetType: 'auth', targetLabel: method);
     setState(() {
       user = profile;
       signedIn = true;
       error = null;
-      role = resolvedRole;
+      role = assignedRole ?? baseRole;
     });
     unawaited(_ensureLocationPermission());
   }
@@ -324,8 +263,6 @@ class _DemoSessionState extends State<_DemoSession> {
       unawaited(AuditLogStore.log(
           actorName: user!.name, action: 'logout', targetType: 'auth', targetLabel: ''));
     }
-    unawaited(widget.repository.endSession());
-    unawaited(SessionStore.clear());
     setState(() {
       signedIn = false;
       user = null;
@@ -336,9 +273,6 @@ class _DemoSessionState extends State<_DemoSession> {
 
   @override
   Widget build(BuildContext context) {
-    if (restoringSession) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
     if (!signedIn) {
       return _DemoLoginScreen(
         loading: loading,

@@ -2,11 +2,9 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:arucad_campus_prototype/core/config/campus_life_config.dart';
-import 'package:arucad_campus_prototype/core/models/academic_staff.dart';
 import 'package:arucad_campus_prototype/core/models/academic_year.dart';
 import 'package:arucad_campus_prototype/core/models/admin_page.dart';
 import 'package:arucad_campus_prototype/core/models/admin_stats.dart';
-import 'package:arucad_campus_prototype/core/models/admin_user.dart';
 import 'package:arucad_campus_prototype/core/models/audit_log_entry.dart';
 import 'package:arucad_campus_prototype/core/models/campus_models.dart';
 import 'package:arucad_campus_prototype/core/models/chat_message.dart';
@@ -63,30 +61,6 @@ class RestCampusRepository implements CampusRepository {
   final ApiClient client;
 
   @override
-  Future<AuthSession> startSession({required String email, required String name}) async {
-    final response =
-        await client.post('/auth/session', body: {'email': email, 'name': name});
-    final data = response['data'] as Map<String, dynamic>;
-    return AuthSession(
-      token: data['token'] as String?,
-      email: data['email'] as String,
-      name: data['name'] as String,
-      role: data['role'] as String? ?? 'student',
-    );
-  }
-
-  @override
-  Future<void> endSession() async {
-    try {
-      await client.post('/auth/logout');
-    } catch (_) {
-      // Best-effort — the local session is cleared regardless (see
-      // SessionStore.clear() in app.dart's _logout()), so a failed
-      // server-side revoke shouldn't block signing out on-device.
-    }
-  }
-
-  @override
   Future<CampusUser> getMe() async {
     final response = await client.get('/me');
     return CampusUserDto.fromJson(response['data'] as Map<String, dynamic>)
@@ -101,13 +75,6 @@ class RestCampusRepository implements CampusRepository {
         .map((item) =>
             CampusPlaceDto.fromJson(item as Map<String, dynamic>).toDomain())
         .toList();
-  }
-
-  @override
-  Future<List<PlaceDensity>> getPlaceDensity({DensityWindow window = DensityWindow.today}) async {
-    final response = await client.get('/places/density?window=${window.apiValue}');
-    final items = response['data'] as List<dynamic>;
-    return items.map((item) => PlaceDensity.fromJson(item as Map<String, dynamic>)).toList();
   }
 
   @override
@@ -277,24 +244,9 @@ class RestCampusRepository implements CampusRepository {
   }
 
   @override
-  Future<void> checkIn(String placeId,
-      {required double lat, required double lng, bool visibleToOthers = true}) async {
-    try {
-      await client.post('/checkins', body: {
-        'placeId': placeId,
-        'visibleToOthers': visibleToOthers,
-        'lat': lat,
-        'lng': lng,
-      });
-    } on ApiClientException catch (e) {
-      if (e.code == 'LOCATION_REQUIRED') {
-        throw CheckInBlockedException(e.message, locationRequired: true);
-      }
-      if (e.code == 'TOO_FAR') {
-        throw CheckInBlockedException(e.message);
-      }
-      rethrow;
-    }
+  Future<void> checkIn(String placeId, {bool visibleToOthers = true}) async {
+    await client.post('/checkins',
+        body: {'placeId': placeId, 'visibleToOthers': visibleToOthers});
   }
 
   @override
@@ -391,41 +343,6 @@ class RestCampusRepository implements CampusRepository {
   }
 
   @override
-  Future<List<CampusFoodVenue>> getFoodVenues() async {
-    final response = await client.get('/food-venues');
-    final items = response['data'] as List<dynamic>;
-    return items.map((item) => CampusFoodVenue.fromJson(item as Map<String, dynamic>)).toList();
-  }
-
-  @override
-  Future<void> upsertFoodVenue(CampusFoodVenue venue) async {
-    await client.post('/admin/food-venues', body: venue.toJson());
-  }
-
-  @override
-  Future<void> deleteFoodVenue(String id) async {
-    await client.post('/admin/food-venues/$id/delete');
-  }
-
-  String _dateOnly(DateTime d) =>
-      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
-
-  @override
-  Future<void> upsertFoodMenu(String venueId, DailyMenu menu) async {
-    await client.post('/admin/food-venues/$venueId/menus', body: {
-      'date': _dateOnly(menu.date),
-      'items': menu.items,
-      if (menu.price != null) 'price': menu.price,
-      if (menu.hours != null) 'hours': menu.hours,
-    });
-  }
-
-  @override
-  Future<void> deleteFoodMenu(String venueId, DateTime date) async {
-    await client.post('/admin/food-venues/$venueId/menus/${_dateOnly(date)}/delete');
-  }
-
-  @override
   Future<List<DirectoryEntry>> getDirectoryEntries() async {
     final response = await client.get('/directory');
     final items = response['data'] as List<dynamic>;
@@ -475,105 +392,14 @@ class RestCampusRepository implements CampusRepository {
   }
 
   @override
-  Future<void> setRoleAssignment(String email, UserRole role,
-      {required String assignedBy, List<String> permissions = const []}) async {
+  Future<void> setRoleAssignment(String email, UserRole role, {required String assignedBy}) async {
     await client.post('/admin/roles',
-        body: {'email': email, 'role': role.name, 'assignedBy': assignedBy, 'permissions': permissions});
+        body: {'email': email, 'role': role.name, 'assignedBy': assignedBy});
   }
 
   @override
   Future<void> deleteRoleAssignment(String email) async {
     await client.post('/admin/roles/$email/delete');
-  }
-
-  @override
-  Future<List<AdminUser>> getAdminUsers() async {
-    final response = await client.get('/admin/users');
-    final items = response['data'] as List<dynamic>;
-    return items.map((item) => AdminUser.fromJson(item as Map<String, dynamic>)).toList();
-  }
-
-  @override
-  Future<AdminUser> getAdminUser(String id) async {
-    final response = await client.get('/admin/users/$id');
-    return AdminUser.fromJson(response['data'] as Map<String, dynamic>);
-  }
-
-  @override
-  Future<AdminUser> createAdminUser(
-      {required String name,
-      required String email,
-      required UserRole role,
-      List<String> permissions = const []}) async {
-    final response = await client.post('/admin/users',
-        body: {'name': name, 'email': email, 'role': role.name, 'permissions': permissions});
-    return AdminUser.fromJson(response['data'] as Map<String, dynamic>);
-  }
-
-  @override
-  Future<AdminUser> updateAdminUserRole(String id,
-      {required UserRole role, required List<String> permissions}) async {
-    final response = await client.post('/admin/users/$id',
-        body: {'role': role.name, 'permissions': permissions});
-    return AdminUser.fromJson(response['data'] as Map<String, dynamic>);
-  }
-
-  @override
-  Future<AdminUser> setAdminUserActive(String id, bool active) async {
-    final response = await client.post('/admin/users/$id', body: {'active': active});
-    return AdminUser.fromJson(response['data'] as Map<String, dynamic>);
-  }
-
-  @override
-  Future<List<AdminUser>> getBannedUsers() async {
-    final response = await client.get('/admin/users/banned');
-    final items = response['data'] as List<dynamic>;
-    return items.map((item) => AdminUser.fromJson(item as Map<String, dynamic>)).toList();
-  }
-
-  @override
-  Future<AdminUser> unbanUser(String id) async {
-    final response = await client.post('/admin/users/$id/unban');
-    return AdminUser.fromJson(response['data'] as Map<String, dynamic>);
-  }
-
-  @override
-  Future<List<String>> getAllowedDomains() async {
-    final response = await client.get('/admin/settings/auth');
-    final domains = (response['data'] as Map<String, dynamic>)['allowedDomains'] as List<dynamic>?;
-    return domains?.cast<String>() ?? const [];
-  }
-
-  @override
-  Future<List<String>> setAllowedDomains(List<String> domains) async {
-    final response =
-        await client.post('/admin/settings/auth', body: {'allowedDomains': domains});
-    return ((response['data'] as Map<String, dynamic>)['allowedDomains'] as List<dynamic>).cast<String>();
-  }
-
-  @override
-  Future<bool> getEntraClientSecretConfigured() async {
-    final response = await client.get('/admin/settings/auth');
-    return (response['data'] as Map<String, dynamic>)['entraClientSecretConfigured'] as bool;
-  }
-
-  @override
-  Future<bool> setEntraClientSecret(String secret) async {
-    final response =
-        await client.post('/admin/settings/auth', body: {'entraClientSecret': secret});
-    return (response['data'] as Map<String, dynamic>)['entraClientSecretConfigured'] as bool;
-  }
-
-  @override
-  Future<int> getCheckinXpAmount() async {
-    final response = await client.get('/admin/settings/xp');
-    return (response['data'] as Map<String, dynamic>)['checkinXp'] as int;
-  }
-
-  @override
-  Future<int> setCheckinXpAmount(int amount) async {
-    final response = await client.post('/admin/settings/xp', body: {'checkinXp': amount});
-    return (response['data'] as Map<String, dynamic>)['checkinXp'] as int;
   }
 
   @override
@@ -634,12 +460,9 @@ class RestCampusRepository implements CampusRepository {
   }
 
   @override
-  Future<List<ChatThreadSummary>> getChatThreadPeers(List<String> knownPeers) async {
+  Future<List<String>> getChatThreadPeers(List<String> knownPeers) async {
     final response = await client.get('/chat/threads');
-    final items = response['data'] as List<dynamic>;
-    return items
-        .map((item) => ChatThreadSummary.fromJson(item as Map<String, dynamic>))
-        .toList();
+    return (response['data'] as List<dynamic>).cast<String>();
   }
 
   @override
@@ -857,15 +680,6 @@ class RestCampusRepository implements CampusRepository {
   }
 
   @override
-  Future<List<AcademicStaffMember>> getAcademicStaff() async {
-    final response = await client.get('/admin/academic-staff');
-    final items = response['data'] as List<dynamic>;
-    return items
-        .map((item) => AcademicStaffMember.fromJson(item as Map<String, dynamic>))
-        .toList();
-  }
-
-  @override
   Future<List<ModerationReport>> getReports() async {
     final response = await client.get('/admin/reports');
     final items = response['data'] as List<dynamic>;
@@ -898,19 +712,6 @@ class RestCampusRepository implements CampusRepository {
     final response =
         await client.post('/admin/settings/moderation', body: {'apiKey': apiKey});
     return (response['data'] as Map<String, dynamic>)['configured'] as bool? ?? false;
-  }
-
-  @override
-  Future<int> getCheckinRadiusMeters() async {
-    final response = await client.get('/admin/settings/checkin-radius');
-    return (response['data'] as Map<String, dynamic>)['radiusMeters'] as int? ?? 150;
-  }
-
-  @override
-  Future<int> setCheckinRadiusMeters(int meters) async {
-    final response =
-        await client.post('/admin/settings/checkin-radius', body: {'radiusMeters': meters});
-    return (response['data'] as Map<String, dynamic>)['radiusMeters'] as int? ?? meters;
   }
 
   @override

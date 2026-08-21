@@ -26,7 +26,6 @@ class User extends Authenticatable
         'avatar_url',
         'strikes',
         'banned_at',
-        'deactivated_at',
     ];
 
     protected $hidden = [
@@ -41,17 +40,11 @@ class User extends Authenticatable
             'password' => 'hashed',
             'interests' => 'array',
             'banned_at' => 'datetime',
-            'deactivated_at' => 'datetime',
         ];
     }
 
     public function isBanned(): bool
     {
         return $this->banned_at !== null;
-    }
-
-    public function isDeactivated(): bool
-    {
-        return $this->deactivated_at !== null;
     }
 }

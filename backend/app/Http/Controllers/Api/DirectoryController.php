@@ -49,7 +49,7 @@ class DirectoryController extends Controller
             'occupant_role' => $request->input('occupantRole'),
             'related_service_id' => $request->input('relatedServiceId'),
         ]);
-        AuditLogger::log($this->currentUser()->name, $isNew ? 'create' : 'update', 'directory_entry', $occupantName);
+        AuditLogger::log($request->input('actorName', 'admin'), $isNew ? 'create' : 'update', 'directory_entry', $occupantName);
 
         return $this->ok($this->toJson($entry));
     }
@@ -58,7 +58,7 @@ class DirectoryController extends Controller
     {
         $entry = DirectoryEntry::find($id);
         if ($entry) {
-            AuditLogger::log($this->currentUser()->name, 'delete', 'directory_entry', $entry->occupant_name);
+            AuditLogger::log($request->input('actorName', 'admin'), 'delete', 'directory_entry', $entry->occupant_name);
             $entry->delete();
         }
 

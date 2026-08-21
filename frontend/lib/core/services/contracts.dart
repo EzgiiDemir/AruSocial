@@ -1,11 +1,9 @@
 import 'dart:typed_data';
 
 import '../config/campus_life_config.dart';
-import '../models/academic_staff.dart';
 import '../models/academic_year.dart';
 import '../models/admin_page.dart';
 import '../models/admin_stats.dart';
-import '../models/admin_user.dart';
 import '../models/audit_log_entry.dart';
 import '../models/campus_models.dart';
 import '../models/chat_message.dart';
@@ -47,38 +45,6 @@ class EventJoinResult {
   });
 }
 
-/// Real, server-enforced check-in proximity rejection (docs/EKSIKLER.md
-/// §18/§35): thrown when the device's location is missing
-/// ([locationRequired]) or the backend's own Haversine distance check
-/// found the device too far from the place — never a client-side guess.
-class CheckInBlockedException implements Exception {
-  final String reason;
-  final bool locationRequired;
-  const CheckInBlockedException(this.reason, {this.locationRequired = false});
-  @override
-  String toString() => reason;
-}
-
-/// Real, per-user backend session (docs/EKSIKLER.md "Gerçek JWT/session
-/// authentication") — [token] is the real Sanctum bearer token every /v1
-/// route now requires in Rest mode (null in Mock mode, which has no real
-/// backend to authenticate against). [role] mirrors the backend's own
-/// `role_assignments` lookup, so a separate `roleFor()` call right after
-/// isn't needed — this is the single source of truth for "who is this,
-/// and what can they do" the moment sign-in succeeds.
-class AuthSession {
-  final String? token;
-  final String email;
-  final String name;
-  final String role;
-  const AuthSession({
-    required this.token,
-    required this.email,
-    required this.name,
-    required this.role,
-  });
-}
-
 /// Real "boş/dolu" conflict (docs/EKSIKLER.md §4): thrown when a place is
 /// already booked for the exact date+time slot being requested — both
 /// `RestCampusRepository` (translating the backend's real 409
@@ -115,53 +81,9 @@ class PlaceBooking {
       );
 }
 
-/// Real heatmap density for one place (docs/EKSIKLER.md harita/heatmap) —
-/// mirrors `PlaceController::density()`'s real Checkin-count aggregate,
-/// not a static seeded label. [level] is 'quiet'/'moderate'/'busy'.
-class PlaceDensity {
-  final String placeId;
-  final int checkins;
-  final String level;
-  const PlaceDensity({required this.placeId, required this.checkins, required this.level});
-
-  factory PlaceDensity.fromJson(Map<String, dynamic> json) => PlaceDensity(
-        placeId: json['placeId'] as String,
-        checkins: json['checkins'] as int,
-        level: json['level'] as String,
-      );
-}
-
-/// Real time windows the heatmap can filter by (docs/EKSIKLER.md harita/
-/// heatmap "zaman filtreleri") — value is exactly what the backend's
-/// `?window=` query param expects.
-enum DensityWindow {
-  lastHour('1h', 'Son 1 saat'),
-  today('today', 'Bugün'),
-  last7Days('7d', 'Son 7 gün'),
-  last30Days('30d', 'Son 30 gün');
-
-  final String apiValue;
-  final String label;
-  const DensityWindow(this.apiValue, this.label);
-}
-
 abstract class CampusRepository {
-  /// Real per-user session establishment (docs/EKSIKLER.md "Gerçek JWT/
-  /// session authentication") — called once, right after a sign-in method
-  /// (Entra or Mock) succeeds. In Rest mode this hits the real backend
-  /// (`POST /auth/session`), creating the user row if needed and returning
-  /// a real bearer token every subsequent request carries; in Mock mode
-  /// it's a local, honest stand-in with no token (see [AuthSession.token]).
-  Future<AuthSession> startSession({required String email, required String name});
-  /// Ends the real backend session (revokes the token in Rest mode) —
-  /// called on logout. A no-op in Mock mode.
-  Future<void> endSession();
-
   Future<CampusUser> getMe();
   Future<List<CampusPlace>> getPlaces();
-  /// Real heatmap density (docs/EKSIKLER.md harita/heatmap) — one entry
-  /// per place, computed from real check-ins in [window].
-  Future<List<PlaceDensity>> getPlaceDensity({DensityWindow window = DensityWindow.today});
   /// [includeUnpublished] shows drafts and not-yet-published/expired events
   /// too — only the Admin Panel should pass `true`; every normal screen
   /// should only ever see what's actually live right now.
@@ -196,13 +118,7 @@ abstract class CampusRepository {
   /// [ContentModerationException] if the image is rejected. Mock mode has
   /// no backend to scan with, so it always allows — honest, not faked.
   Future<void> checkImageModeration(Uint8List bytes, {String mimeType = 'image/jpeg'});
-  /// Real, server-enforced proximity check-in (docs/EKSIKLER.md §18/§35):
-  /// [lat]/[lng] are the device's actual measured GPS position, required —
-  /// the backend recomputes the distance to the place itself rather than
-  /// trusting any client-side "I'm nearby" claim, and throws
-  /// [CheckInBlockedException] if it's missing or too far.
-  Future<void> checkIn(String placeId,
-      {required double lat, required double lng, bool visibleToOthers = true});
+  Future<void> checkIn(String placeId, {bool visibleToOthers = true});
   /// [participationTypeId] selects one of the event's real, admin-defined
   /// participation options (if it has any — see [CampusEvent.participationTypes]).
   /// The returned status reflects what the backend actually did: whether the
@@ -233,11 +149,6 @@ abstract class CampusRepository {
   /// moderation API key. Returns the new configured state.
   Future<bool> setImageModerationApiKey(String apiKey);
 
-  /// The real, server-enforced check-in proximity threshold in meters
-  /// (docs/EKSIKLER.md §18) — what [checkIn] is actually checked against.
-  Future<int> getCheckinRadiusMeters();
-  Future<int> setCheckinRadiusMeters(int meters);
-
   /// Real, live-aggregated usage statistics for the Admin Panel's
   /// İstatistikler tab (check-ins, most-visited places, event
   /// participation, content/survey/email counts) — see [AdminStats].
@@ -259,16 +170,6 @@ abstract class CampusRepository {
   Future<void> upsertService(CampusService service);
   Future<void> deleteService(String id);
 
-  // Food/Yemek — real backend `FoodVenueController` in Rest mode (this was
-  // previously wired to nothing but the on-device `AdminContentStore`, a
-  // real gap: FAZ 6A §6). Menu upsert/delete are separate calls since a
-  // venue's daily menus are a nested resource server-side.
-  Future<List<CampusFoodVenue>> getFoodVenues();
-  Future<void> upsertFoodVenue(CampusFoodVenue venue);
-  Future<void> deleteFoodVenue(String id);
-  Future<void> upsertFoodMenu(String venueId, DailyMenu menu);
-  Future<void> deleteFoodMenu(String venueId, DateTime date);
-
   // Building directory + generic Pages — same real-backend-in-Rest-mode/
   // local-in-Mock-mode split as Clubs/Sports/Services.
   Future<List<DirectoryEntry>> getDirectoryEntries();
@@ -283,36 +184,8 @@ abstract class CampusRepository {
   /// Single-email lookup — used at sign-in time to resolve the actually
   /// assigned role, without fetching the whole assignment list.
   Future<UserRole?> roleFor(String? email);
-  Future<void> setRoleAssignment(String email, UserRole role,
-      {required String assignedBy, List<String> permissions = const []});
+  Future<void> setRoleAssignment(String email, UserRole role, {required String assignedBy});
   Future<void> deleteRoleAssignment(String email);
-
-  // Real "Kullanıcılar ve Roller" backing (docs/EKSIKLER.md admin §9): a
-  // list of genuine accounts (not just pre-provisioned email->role rows),
-  // with per-person checkbox permission overrides, active/banned state,
-  // and real usage counters. Additive to the RoleAssignment methods above.
-  Future<List<AdminUser>> getAdminUsers();
-  Future<AdminUser> getAdminUser(String id);
-  Future<AdminUser> createAdminUser(
-      {required String name, required String email, required UserRole role, List<String> permissions = const []});
-  Future<AdminUser> updateAdminUserRole(String id, {required UserRole role, required List<String> permissions});
-  Future<AdminUser> setAdminUserActive(String id, bool active);
-  Future<List<AdminUser>> getBannedUsers();
-  Future<AdminUser> unbanUser(String id);
-
-  /// Real, admin-configurable sign-in domain allow-list and Entra Client
-  /// Secret (write-only — never echoed back, same shape as the image-
-  /// moderation key). Defaults to `["@arucad.edu.tr"]` until an admin
-  /// changes it.
-  Future<List<String>> getAllowedDomains();
-  Future<List<String>> setAllowedDomains(List<String> domains);
-  Future<bool> getEntraClientSecretConfigured();
-  Future<bool> setEntraClientSecret(String secret);
-
-  /// Real, admin-configurable default check-in XP amount — what
-  /// [checkIn] actually grants server-side.
-  Future<int> getCheckinXpAmount();
-  Future<int> setCheckinXpAmount(int amount);
 
   // Admin activity log (capped at the most recent 200/500 server- or
   // locally-side) — read-only from the UI; every admin write elsewhere
@@ -333,9 +206,8 @@ abstract class CampusRepository {
   Future<bool> toggleBlock(String peer);
 
   // Chat — real, shared per-peer threads in Rest mode (still poll-based,
-  // not a live socket — see docs/EKSIKLER.md). Real bidirectional
-  // delivery between two real accounts, real unread tracking.
-  Future<List<ChatThreadSummary>> getChatThreadPeers(List<String> knownPeers);
+  // not a live socket — see docs/EKSIKLER.md §4).
+  Future<List<String>> getChatThreadPeers(List<String> knownPeers);
   Future<List<ChatMessage>> getChatMessages(String peer);
   Future<ChatMessage> sendChatMessage(String peer, String text);
 
@@ -411,11 +283,6 @@ abstract class CampusRepository {
   Future<String?> retryEmail(String id);
   Future<int> sendBulkEmail(
       {required List<String> recipients, required String subject, required String body});
-
-  /// Real ARUCAD personnel directory (docs/EKSIKLER.md aktivite/onay
-  /// workflow §8/§10) — backs the admin "E-posta" recipient picker and
-  /// the department→approver routing display.
-  Future<List<AcademicStaffMember>> getAcademicStaff();
 }
 
 abstract class AuthProvider {

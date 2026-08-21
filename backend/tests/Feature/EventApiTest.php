@@ -13,18 +13,15 @@ class EventApiTest extends TestCase
 {
     use RefreshDatabase;
 
-    // superAdmin so this file's mix of student-facing (join, own-activity)
-    // and admin (upsert/approve) endpoints both work without every test
-    // having to reason about which permission bucket a given route needs —
-    // real route-level RBAC enforcement itself is PermissionApiTest's job.
     private function seedUser(): User
     {
-        return $this->actingAsAdmin();
+        return User::create([
+            'name' => 'Test Student', 'email' => 'test@arucad.edu.tr', 'password' => bcrypt('x'),
+        ]);
     }
 
     public function test_events_index_only_returns_published_by_default(): void
     {
-        $this->seedUser();
         Event::create(['id' => 'e1', 'title' => 'Published', 'time' => '10:00', 'place_name' => 'X', 'category' => 'C']);
         Event::create(['id' => 'e2', 'title' => 'Draft', 'time' => '10:00', 'place_name' => 'X', 'category' => 'C', 'draft' => true]);
 
@@ -62,18 +59,15 @@ class EventApiTest extends TestCase
         $this->assertEquals('INVALID_PARTICIPATION_TYPE', $response->json('error.code'));
     }
 
-    public function test_student_created_activity_starts_as_form_required_and_is_not_publicly_listed(): void
+    public function test_student_created_activity_starts_pending_and_is_not_publicly_listed(): void
     {
         $this->seedUser();
         Place::create(['id' => 'p1', 'name' => 'Garden', 'category' => 'Outdoor', 'lat' => 1, 'lng' => 1]);
 
-        // docs/EKSIKLER.md aktivite/onay workflow §1/§2: the quick-create
-        // call only starts the record — it isn't reviewable yet until the
-        // real signed-URL web form is submitted (see ActivityFormApiTest).
         $response = $this->postJson('/api/v1/events/mine', ['title' => 'Kendi Aktivitem', 'placeId' => 'p1']);
 
         $response->assertStatus(201);
-        $this->assertEquals('form_required', $response->json('data.workflowStatus'));
+        $this->assertEquals('pending_review', $response->json('data.workflowStatus'));
         $publicIds = collect($this->getJson('/api/v1/events')->json('data'))->pluck('id');
         $this->assertFalse($publicIds->contains($response->json('data.id')));
     }
@@ -168,7 +162,6 @@ class EventApiTest extends TestCase
 
     public function test_admin_upsert_is_also_rejected_for_a_double_booked_slot(): void
     {
-        $this->seedUser();
         Place::create(['id' => 'p1', 'name' => 'Garden', 'category' => 'Outdoor', 'lat' => 1, 'lng' => 1]);
         Event::create([
             'id' => 'taken', 'title' => 'Zaten Var', 'time' => '14:00', 'event_date' => '2026-09-01',
@@ -186,7 +179,6 @@ class EventApiTest extends TestCase
 
     public function test_admin_editing_an_event_in_place_does_not_conflict_with_itself(): void
     {
-        $this->seedUser();
         Place::create(['id' => 'p1', 'name' => 'Garden', 'category' => 'Outdoor', 'lat' => 1, 'lng' => 1]);
         Event::create([
             'id' => 'e1', 'title' => 'Mine', 'time' => '14:00', 'event_date' => '2026-09-01',
@@ -201,7 +193,6 @@ class EventApiTest extends TestCase
 
     public function test_place_availability_lists_active_bookings_and_excludes_rejected(): void
     {
-        $this->seedUser();
         Place::create(['id' => 'p1', 'name' => 'Garden', 'category' => 'Outdoor', 'lat' => 1, 'lng' => 1]);
         Event::create([
             'id' => 'e1', 'title' => 'Booked', 'time' => '14:00', 'event_date' => '2026-09-01',
@@ -240,21 +231,20 @@ class EventApiTest extends TestCase
 
         // Approval must be gated on the student actually completing the
         // form — see EventController::submitForm().
-        $this->postJson("/api/v1/admin/events/{$event->id}/participants/{$joinId}/approve")
-            ->assertStatus(400)->assertJsonPath('error.code', 'FORM_NOT_SUBMITTED');
+        $this->postJson("/api/v1/admin/events/{$event->id}/participants/{$joinId}/approve",
+            ['actorName' => 'Hoca'])->assertStatus(400)->assertJsonPath('error.code', 'FORM_NOT_SUBMITTED');
 
         $this->postJson("/api/v1/events/{$event->id}/join/form")->assertOk()
             ->assertJsonPath('data.formSubmitted', true);
 
-        $approve = $this->postJson("/api/v1/admin/events/{$event->id}/participants/{$joinId}/approve");
+        $approve = $this->postJson("/api/v1/admin/events/{$event->id}/participants/{$joinId}/approve",
+            ['actorName' => 'Hoca']);
         $approve->assertOk();
 
         $after = $this->getJson("/api/v1/admin/events/{$event->id}/participants");
         $this->assertNotNull($after->json('data.0.formSubmittedAt'));
         $this->assertNotNull($after->json('data.0.approvedAt'));
-        // approvedBy is now the real authenticated identity (docs/EKSIKLER.md
-        // "Gerçek JWT/session authentication"), not a client-asserted name.
-        $this->assertEquals('Test Admin', $after->json('data.0.approvedBy'));
+        $this->assertEquals('Hoca', $after->json('data.0.approvedBy'));
     }
 
     public function test_submitting_the_form_before_joining_is_rejected(): void
@@ -272,19 +262,6 @@ class EventApiTest extends TestCase
         Place::create(['id' => 'p1', 'name' => 'Garden', 'category' => 'Outdoor', 'lat' => 1, 'lng' => 1]);
         $created = $this->postJson('/api/v1/events/mine', ['title' => 'Kendi Aktivitem', 'placeId' => 'p1']);
         $id = $created->json('data.id');
-
-        // Real gate: approval before the real signed form is submitted is
-        // rejected — see ActivityFormApiTest for the form flow itself.
-        $this->postJson("/api/v1/admin/events/{$id}/approve")
-            ->assertStatus(400)->assertJsonPath('error.code', 'FORM_NOT_SUBMITTED');
-
-        $formUrl = \Illuminate\Support\Facades\URL::signedRoute('activity.form.show', ['event' => $id]);
-        $this->withoutMiddleware(\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class);
-        $this->post($formUrl, [
-            'studentNumber' => '20231234', 'phone' => '05551234567',
-            'faculty' => 'İletişim Fakültesi', 'department' => 'Yeni Medya ve İletişim',
-            'purpose' => 'Test amacı',
-        ])->assertOk();
 
         $this->postJson("/api/v1/admin/events/{$id}/approve")->assertOk();
 

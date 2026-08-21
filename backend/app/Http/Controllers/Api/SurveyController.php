@@ -91,7 +91,7 @@ class SurveyController extends Controller
             'anonymous' => (bool) $request->input('anonymous', true),
             'show_results' => (bool) $request->input('showResults', true),
             'active' => (bool) $request->input('active', true),
-            'created_by' => $this->currentUser()->name,
+            'created_by' => $request->input('actorName', 'admin'),
             'created_at' => $isNew ? now() : Survey::find($id)->created_at,
         ]);
 
@@ -108,7 +108,7 @@ class SurveyController extends Controller
                 ]);
             }
         }
-        AuditLogger::log($this->currentUser()->name, $isNew ? 'create' : 'update', 'survey', $question);
+        AuditLogger::log($request->input('actorName', 'admin'), $isNew ? 'create' : 'update', 'survey', $question);
 
         return $this->ok($this->toJson($survey->fresh('options')));
     }
@@ -143,7 +143,7 @@ class SurveyController extends Controller
     {
         $survey = Survey::find($id);
         if ($survey) {
-            AuditLogger::log($this->currentUser()->name, 'delete', 'survey', $survey->question);
+            AuditLogger::log($request->input('actorName', 'admin'), 'delete', 'survey', $survey->question);
             $survey->delete();
         }
 

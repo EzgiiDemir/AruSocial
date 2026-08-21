@@ -21,29 +21,3 @@ class ChatMessage {
   Map<String, dynamic> toJson() =>
       {'id': id, 'fromMe': fromMe, 'text': text, 'sentAt': sentAt.toIso8601String()};
 }
-
-/// Real conversation-list entry (docs/EKSIKLER.md sosyal/chat) — mirrors
-/// `ChatController::threads()`'s real per-peer aggregate (last message,
-/// when it was sent, real unread count), not just a bare peer name.
-class ChatThreadSummary {
-  final String peerName;
-  final String? lastMessage;
-  final DateTime? lastMessageAt;
-  final int unreadCount;
-
-  const ChatThreadSummary({
-    required this.peerName,
-    this.lastMessage,
-    this.lastMessageAt,
-    this.unreadCount = 0,
-  });
-
-  factory ChatThreadSummary.fromJson(Map<String, dynamic> json) => ChatThreadSummary(
-        peerName: json['peerName'] as String,
-        lastMessage: json['lastMessage'] as String?,
-        lastMessageAt: json['lastMessageAt'] == null
-            ? null
-            : DateTime.tryParse(json['lastMessageAt'] as String),
-        unreadCount: json['unreadCount'] as int? ?? 0,
-      );
-}

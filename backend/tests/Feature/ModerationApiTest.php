@@ -13,12 +13,9 @@ class ModerationApiTest extends TestCase
 {
     use RefreshDatabase;
 
-    // superAdmin so this file's mix of student-facing (feed/comments/
-    // image-moderation) and admin (settings/audit-log) endpoints both
-    // work — real route-level RBAC enforcement is PermissionApiTest's job.
     private function seedUser(): User
     {
-        return $this->actingAsAdmin();
+        return User::create(['name' => 'Test Student', 'email' => 'test@arucad.edu.tr', 'password' => bcrypt('x')]);
     }
 
     public function test_a_post_with_blocked_text_is_rejected_and_not_created(): void
@@ -179,7 +176,6 @@ class ModerationApiTest extends TestCase
 
     public function test_admin_moderation_settings_round_trip_without_ever_echoing_the_key(): void
     {
-        $this->seedUser();
         $before = $this->getJson('/api/v1/admin/settings/moderation');
         $before->assertOk();
         $this->assertFalse($before->json('data.configured'));

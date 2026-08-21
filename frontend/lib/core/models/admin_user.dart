@@ -5,6 +5,12 @@ import 'campus_models.dart';
 /// key is a genuine, individually-enforced additive override on top of a
 /// person's role template (see `EnsurePermission`), not decoration.
 const kGranularPermissionKeys = [
+  'dashboard.view',
+  'stats.view',
+  'activities.view',
+  'activities.create',
+  'activities.approve',
+  'activities.reject',
   'events.manage',
   'pendingActivities.manage',
   'clubs.manage',
@@ -14,10 +20,16 @@ const kGranularPermissionKeys = [
   'media.manage',
   'surveys.manage',
   'email.send',
+  'moderation.view',
   'moderation.moderate',
   'activityLog.view',
+  'users.view',
   'users.manage',
+  'roles.view',
+  'roles.manage',
+  'siteSettings.view',
   'siteSettings.manage',
+  'auditLog.view',
 ];
 
 /// A real `users` row (docs/EKSIKLER.md admin §9) — distinct from

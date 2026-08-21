@@ -8,6 +8,7 @@ use App\Models\Survey;
 use App\Models\SurveyOption;
 use App\Models\SurveyResponse;
 use App\Services\AuditLogger;
+use App\Services\RealtimePublisher;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -135,6 +136,8 @@ class SurveyController extends Controller
                 'created_at' => now(),
             ]);
         }
+
+        RealtimePublisher::emit('survey.updated', 'all', 'survey', $id, (string) $me->id);
 
         return $this->ok($this->toJson($survey->fresh('options'), $me->id));
     }

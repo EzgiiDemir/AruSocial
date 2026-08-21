@@ -9,6 +9,7 @@ import 'package:arucad_campus_prototype/core/config/shuttle_config.dart';
 import 'package:arucad_campus_prototype/core/models/campus_models.dart';
 import 'package:arucad_campus_prototype/core/models/geo_point.dart';
 import 'package:arucad_campus_prototype/core/services/contracts.dart';
+import 'package:arucad_campus_prototype/core/services/realtime_sync.dart';
 import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
 import 'package:arucad_campus_prototype/features/home/shuttle_sheet.dart';
 import 'package:arucad_campus_prototype/features/map/heatmap_adapter.dart';
@@ -134,7 +135,7 @@ class CampusLiveMap extends StatefulWidget {
   State<CampusLiveMap> createState() => _CampusLiveMapState();
 }
 
-class _CampusLiveMapState extends State<CampusLiveMap> {
+class _CampusLiveMapState extends State<CampusLiveMap> with RealtimeAware {
   // Real heatmap (docs/EKSIKLER.md harita/heatmap): starts from the static
   // seeded density (never blank while the real, time-windowed fetch below
   // is in flight), then gets replaced by real Checkin-derived data.
@@ -143,6 +144,8 @@ class _CampusLiveMapState extends State<CampusLiveMap> {
   DensityWindow _densityWindow = DensityWindow.today;
   late CampusVisibility _visibility = widget.initialVisibility;
   final _mapController = CampusMapController();
+  double _zoom = 16.4;
+  bool _showLocationPrompt = false;
 
   @override
   void initState() {
@@ -151,6 +154,16 @@ class _CampusLiveMapState extends State<CampusLiveMap> {
     _loadOccupancy();
     _centerOnUserLocation();
   }
+
+  @override
+  Set<String> get realtimeTypes => const {
+        'checkin.created',
+        'activity.joined',
+        'activity.published',
+      };
+
+  @override
+  void onRealtimeEvents(List<String> types) => _loadDensity();
 
   Future<void> _loadDensity() async {
     try {
@@ -183,16 +196,25 @@ class _CampusLiveMapState extends State<CampusLiveMap> {
       final permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied ||
           permission == LocationPermission.deniedForever) {
+        if (mounted) setState(() => _showLocationPrompt = true);
         return;
       }
+      if (mounted) setState(() => _showLocationPrompt = false);
       final position = await Geolocator.getCurrentPosition(
           locationSettings: const LocationSettings(accuracy: LocationAccuracy.high));
       if (!mounted) return;
       await _mapController.centerOn(GeoPoint(position.latitude, position.longitude), zoom: 17);
     } catch (_) {
-      // No real position available — the map already fit to all places on
-      // style load, which is a reasonable fallback center.
+      if (mounted) setState(() => _showLocationPrompt = true);
     }
+  }
+
+  Future<void> _requestLocation() async {
+    var permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+    await _centerOnUserLocation();
   }
 
   Future<void> _loadOccupancy() async {
@@ -248,23 +270,27 @@ class _CampusLiveMapState extends State<CampusLiveMap> {
       final realLevel = levelByPlaceId[place.id];
       final raw = realLevel ?? place.density.toLowerCase();
       final isPulse = raw.contains('busy') || raw.contains('high') || raw.contains('moderate');
+      final isCampus = place.category.toLowerCase().contains('kampüs') ||
+          place.category.toLowerCase().contains('campus');
       final color = switch (raw) {
         var l when l.contains('busy') || l.contains('high') => ArucadColors.danger,
         var l when l.contains('moderate') => ArucadColors.warning,
         _ => ArucadColors.success,
       };
-      if (isPulse) {
+      final showLabel = isCampus || (_zoom >= 14.8 && isPulse) || _zoom >= 16.2;
+      if (showLabel) {
         labelMarkers.add(CampusMapMarker(
           id: 'pulse-${place.id}',
           position: GeoPoint(place.lat, place.lng),
-          label: place.name,
-          color: color,
+          label: _zoom < 15.4 ? '' : place.name,
+          color: isCampus ? ArucadColors.terracotta : color,
           onTap: () => _openInfo(
               Poi(name: place.name, category: place.category, lat: place.lat, lng: place.lng)),
         ));
       } else {
         contextDots.add(CampusMapContextDot(
-            position: GeoPoint(place.lat, place.lng), color: ArucadColors.slate));
+            position: GeoPoint(place.lat, place.lng),
+            color: isCampus ? ArucadColors.terracotta : ArucadColors.slate));
       }
     }
 
@@ -283,8 +309,37 @@ class _CampusLiveMapState extends State<CampusLiveMap> {
             contextDots: contextDots,
             pulseZones: _pulseZones,
             showUserLocation: true,
+            onZoomChanged: (z) {
+              if ((z - _zoom).abs() < 0.15) return;
+              setState(() => _zoom = z);
+            },
           ),
         ),
+        if (_showLocationPrompt)
+          Positioned(
+            left: 14,
+            right: 14,
+            bottom: 70,
+            child: Material(
+              color: ArucadColors.navy,
+              borderRadius: BorderRadius.circular(16),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
+                child: Row(children: [
+                  const Expanded(
+                    child: Text(
+                      'Haritayı konumuna açmak için konum izni gerekli.',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: _requestLocation,
+                    child: const Text('İzin ver', style: TextStyle(color: ArucadColors.honey, fontWeight: FontWeight.w800)),
+                  ),
+                ]),
+              ),
+            ),
+          ),
         Positioned(
           left: 14,
           top: 14,

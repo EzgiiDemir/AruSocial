@@ -9,6 +9,7 @@ use App\Services\ActivityLogger;
 use App\Services\AuditLogger;
 use App\Services\AcademicRoutingService;
 use App\Services\EmailService;
+use App\Services\RealtimePublisher;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\View;
 
@@ -22,19 +23,21 @@ class ActivityFormController extends Controller
 {
     public function show(Request $request, Event $event)
     {
-        if ($event->workflow_status !== 'form_required') {
+        if (! in_array($event->workflow_status, ['form_required', 'form_opened'], true)) {
             return View::make('activity-form.unavailable', ['event' => $event]);
         }
-        if ($event->form_opened_at === null) {
-            $event->update(['form_opened_at' => now()]);
-        }
+        $event->update([
+            'form_opened_at' => $event->form_opened_at ?? now(),
+            'workflow_status' => 'form_opened',
+        ]);
+        RealtimePublisher::emit('activity.updated', 'admin', 'event', $event->id, $event->created_by_user_id);
 
         return View::make('activity-form.show', ['event' => $event]);
     }
 
     public function submit(Request $request, Event $event)
     {
-        if ($event->workflow_status !== 'form_required') {
+        if (! in_array($event->workflow_status, ['form_required', 'form_opened'], true)) {
             return View::make('activity-form.unavailable', ['event' => $event]);
         }
 
@@ -93,6 +96,7 @@ class ActivityFormController extends Controller
             EmailService::send($staff->email, "Onayınız bekleniyor: {$event->title}",
                 'event-activity-pending-approval', new ActivityPendingApprovalMail($event));
         }
+        RealtimePublisher::emit('activity.submitted', 'admin', 'event', $event->id, $event->created_by_user_id);
 
         return View::make('activity-form.submitted', ['event' => $event]);
     }

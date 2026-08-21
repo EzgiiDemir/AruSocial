@@ -6,6 +6,7 @@ import 'package:arucad_campus_prototype/core/l10n/app_strings.dart';
 import 'package:arucad_campus_prototype/core/models/campus_models.dart';
 import 'package:arucad_campus_prototype/core/services/content_moderation.dart';
 import 'package:arucad_campus_prototype/core/services/contracts.dart';
+import 'package:arucad_campus_prototype/core/services/realtime_sync.dart';
 import 'package:arucad_campus_prototype/core/services/image_moderation_service.dart';
 import 'package:arucad_campus_prototype/core/services/photo_picker_service.dart';
 import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
@@ -40,7 +41,7 @@ class SocialScreen extends StatefulWidget {
   State<SocialScreen> createState() => _SocialScreenState();
 }
 
-class _SocialScreenState extends State<SocialScreen> {
+class _SocialScreenState extends State<SocialScreen> with RealtimeAware {
   List<FeedPost> _posts = const [];
   List<CampusStory> _stories = const [];
   Set<String> _blocked = {};
@@ -74,6 +75,21 @@ class _SocialScreenState extends State<SocialScreen> {
     super.initState();
     _load();
   }
+
+  @override
+  Set<String> get realtimeTypes => const {
+        'post.created',
+        'post.updated',
+        'comment.created',
+        'like.created',
+        'like.removed',
+        'follow.created',
+        'follow.removed',
+        'checkin.created',
+      };
+
+  @override
+  void onRealtimeEvents(List<String> types) => _load();
 
   Future<void> _load() async {
     final results = await Future.wait([
@@ -221,6 +237,7 @@ class _SocialScreenState extends State<SocialScreen> {
                           post: filtered[i],
                           saved: _saved.contains(filtered[i].id),
                           onLike: () => _like(filtered[i].id),
+                          onShare: () => _share(filtered[i].id),
                           onComment: () => _openComments(context, filtered[i]),
                           onReport: () => _report(context, filtered[i]),
                           onSave: () => _toggleSave(filtered[i].id),
@@ -265,6 +282,12 @@ class _SocialScreenState extends State<SocialScreen> {
       }).toList();
     });
     await widget.repository.toggleLike(postId);
+    if (!mounted) return;
+    await _load();
+  }
+
+  Future<void> _share(String postId) async {
+    await widget.repository.sharePost(postId);
     if (!mounted) return;
     await _load();
   }
@@ -504,9 +527,29 @@ class _SocialScreenState extends State<SocialScreen> {
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(c.author,
-                                style:
-                                    const TextStyle(fontWeight: FontWeight.w800)),
+                            Row(children: [
+                              Expanded(
+                                child: Text(c.author,
+                                    style:
+                                        const TextStyle(fontWeight: FontWeight.w800)),
+                              ),
+                              if (c.canDelete)
+                                IconButton(
+                                  icon: const Icon(Icons.delete_outline, size: 18),
+                                  onPressed: () async {
+                                    await widget.repository.deleteComment(post.id, c.id);
+                                    final refreshed = await widget.repository.getFeed();
+                                    final updated = refreshed
+                                        .where((p) => p.id == post.id)
+                                        .map((p) => p.comments)
+                                        .toList();
+                                    if (updated.isNotEmpty) {
+                                      setSheetState(() => comments = updated.first);
+                                    }
+                                    if (mounted) setState(() => _posts = refreshed);
+                                  },
+                                ),
+                            ]),
                             const SizedBox(height: 2),
                             Text(c.text),
                             const SizedBox(height: 2),
@@ -818,6 +861,7 @@ class _PostCard extends StatelessWidget {
   final FeedPost post;
   final bool saved;
   final VoidCallback onLike;
+  final VoidCallback onShare;
   final VoidCallback onComment;
   final VoidCallback onReport;
   final VoidCallback onSave;
@@ -832,6 +876,7 @@ class _PostCard extends StatelessWidget {
     required this.post,
     required this.saved,
     required this.onLike,
+    required this.onShare,
     required this.onComment,
     required this.onReport,
     required this.onSave,
@@ -1016,6 +1061,16 @@ class _PostCard extends StatelessWidget {
                       color: post.likedByMe ? ArucadColors.terracotta : null),
                   const SizedBox(width: 5),
                   Text('${post.likes}'),
+                ]),
+              ),
+              const SizedBox(width: 18),
+              InkWell(
+                onTap: onShare,
+                borderRadius: BorderRadius.circular(999),
+                child: const Row(children: [
+                  Icon(Icons.ios_share, size: 18, color: ArucadColors.terracotta),
+                  SizedBox(width: 5),
+                  Text('Paylaş'),
                 ]),
               ),
               const SizedBox(width: 18),

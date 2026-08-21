@@ -8,6 +8,7 @@ use App\Models\Notification as InboxNotification;
 use App\Models\SocialBlock;
 use App\Models\SocialFollow;
 use App\Models\User;
+use App\Services\RealtimePublisher;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -45,6 +46,7 @@ class SocialGraphController extends Controller
         $existing = SocialFollow::where('follower_user_id', $me->id)->where('followed_name', $peer)->first();
         if ($existing) {
             $existing->delete();
+            RealtimePublisher::emit('follow.removed', 'all', 'user', (string) $me->id);
 
             return $this->ok(['following' => false]);
         }
@@ -66,7 +68,10 @@ class SocialGraphController extends Controller
                 'body' => "{$me->name} seni takip etmeye başladı.",
                 'created_at' => now(),
             ]);
+            RealtimePublisher::toUser((string) $followedUser->id, 'notification.created', 'notification', null, (string) $me->id);
+            RealtimePublisher::toUser((string) $followedUser->id, 'follow.created', 'user', (string) $me->id, (string) $me->id);
         }
+        RealtimePublisher::emit('follow.created', 'all', 'user', (string) $me->id);
 
         return $this->ok(['following' => true]);
     }

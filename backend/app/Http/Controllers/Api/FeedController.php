@@ -11,6 +11,7 @@ use App\Models\PostComment;
 use App\Models\PostLike;
 use App\Services\ActivityLogger;
 use App\Services\ModerationService;
+use App\Services\RealtimePublisher;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -33,14 +34,19 @@ class FeedController extends Controller
             'text' => $p->text,
             'meta' => $p->meta,
             'likes' => $p->likes,
+            'shares' => \App\Models\PostShare::where('post_id', $p->id)->count(),
+            'sharedByMe' => $viewerUserId !== null
+                && \App\Models\PostShare::where('post_id', $p->id)->where('user_id', $viewerUserId)->exists(),
             'likedByMe' => $viewerUserId !== null
                 && PostLike::where('post_id', $p->id)->where('user_id', $viewerUserId)->exists(),
             'imageUrl' => $p->image_url,
             'comments' => $p->comments->map(fn ($c) => [
                 'id' => $c->id,
+                'authorId' => $c->author_id,
                 'author' => $c->author,
                 'text' => $c->text,
                 'meta' => $c->meta,
+                'canDelete' => $viewerUserId !== null && (string) $c->author_id === $viewerUserId,
             ]),
             'visibility' => $p->visibility,
             'postType' => $p->post_type,
@@ -84,6 +90,7 @@ class FeedController extends Controller
         ]);
         // No ActivityKind value represents "created a post" — see
         // ActivityLogger's doc comment. Nothing to log here on purpose.
+        RealtimePublisher::emit('post.created', 'all', 'post', $post->id, (string) $me->id);
 
         return $this->ok($this->postToJson($post->fresh('comments'), (string) $me->id));
     }
@@ -125,7 +132,12 @@ class FeedController extends Controller
                     'body' => "{$me->name} gönderini beğendi.",
                     'created_at' => now(),
                 ]);
+                RealtimePublisher::toUser((string) $post->author_id, 'notification.created', 'notification', null, (string) $me->id);
+                RealtimePublisher::toUser((string) $post->author_id, 'like.created', 'post', $post->id, (string) $me->id);
             }
+            RealtimePublisher::emit('like.created', 'all', 'post', $post->id, (string) $me->id);
+        } else {
+            RealtimePublisher::emit('like.removed', 'all', 'post', $post->id, (string) $me->id);
         }
 
         return $this->ok($this->postToJson($post->fresh('comments'), (string) $me->id));
@@ -146,6 +158,7 @@ class FeedController extends Controller
         PostComment::create([
             'id' => $this->newId('comment'),
             'post_id' => $post->id,
+            'author_id' => (string) $me->id,
             'author' => $me->name,
             'text' => $text,
             'meta' => 'az önce',
@@ -162,7 +175,9 @@ class FeedController extends Controller
                 'body' => "{$me->name}: {$text}",
                 'created_at' => now(),
             ]);
+            RealtimePublisher::toUser((string) $post->author_id, 'notification.created', 'notification', null, (string) $me->id);
         }
+        RealtimePublisher::emit('comment.created', 'all', 'post', $post->id, (string) $me->id);
 
         return $this->ok($this->postToJson($post->fresh('comments'), (string) $me->id));
     }
@@ -188,5 +203,46 @@ class FeedController extends Controller
         ]);
 
         return $this->ok(['reported' => true]);
+    }
+
+    public function deleteComment(string $id, string $commentId): JsonResponse
+    {
+        $post = FeedPost::find($id);
+        if (! $post) {
+            return $this->fail(404, 'POST_NOT_FOUND', 'Post not found.');
+        }
+        $comment = PostComment::where('post_id', $post->id)->where('id', $commentId)->first();
+        if (! $comment) {
+            return $this->fail(404, 'COMMENT_NOT_FOUND', 'Comment not found.');
+        }
+        $me = $this->currentUser();
+        if ((string) $comment->author_id !== (string) $me->id) {
+            return $this->fail(403, 'FORBIDDEN', 'Sadece kendi yorumunu silebilirsin.');
+        }
+        $comment->delete();
+        RealtimePublisher::emit('post.updated', 'all', 'post', $post->id, (string) $me->id);
+
+        return $this->ok($this->postToJson($post->fresh('comments'), (string) $me->id));
+    }
+
+    public function share(string $id): JsonResponse
+    {
+        $post = FeedPost::find($id);
+        if (! $post) {
+            return $this->fail(404, 'POST_NOT_FOUND', 'Post not found.');
+        }
+        $me = $this->currentUser();
+        $existing = \App\Models\PostShare::where('post_id', $post->id)->where('user_id', $me->id)->first();
+        if (! $existing) {
+            \App\Models\PostShare::create([
+                'id' => $this->newId('share'),
+                'post_id' => $post->id,
+                'user_id' => $me->id,
+                'created_at' => now(),
+            ]);
+            RealtimePublisher::emit('post.updated', 'all', 'post', $post->id, (string) $me->id);
+        }
+
+        return $this->ok($this->postToJson($post->fresh('comments'), (string) $me->id));
     }
 }

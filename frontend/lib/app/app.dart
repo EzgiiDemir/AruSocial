@@ -14,6 +14,7 @@ import '../core/network/api_client.dart';
 import '../core/services/audit_log_store.dart';
 import '../core/services/contracts.dart';
 import '../core/services/mock_auth_provider.dart';
+import '../core/services/realtime_sync.dart';
 import '../core/theme/arucad_theme.dart';
 import '../features/admin/admin_panel_screen.dart';
 import '../features/auth/settings_screen.dart';
@@ -126,6 +127,7 @@ class _DemoSessionState extends State<_DemoSession> {
   String? error;
   String language = 'TR';
   UserRole role = UserRole.student;
+  RealtimeBus? _realtime;
 
   @override
   void initState() {
@@ -146,10 +148,13 @@ class _DemoSessionState extends State<_DemoSession> {
     try {
       final profile = await widget.repository.getMe();
       if (!mounted) return;
+      final assigned = await widget.repository.roleFor(stored.email);
+      if (!mounted) return;
+      _startRealtime();
       setState(() {
         user = profile;
         signedIn = true;
-        role = _roleFromName(stored.role);
+        role = assigned ?? _roleFromName(stored.role);
         restoringSession = false;
       });
     } catch (_) {
@@ -215,6 +220,7 @@ class _DemoSessionState extends State<_DemoSession> {
     );
     await AuditLogStore.log(
         actorName: profile.name, action: 'login', targetType: 'auth', targetLabel: method);
+    _startRealtime();
     setState(() {
       user = profile;
       signedIn = true;
@@ -318,6 +324,24 @@ class _DemoSessionState extends State<_DemoSession> {
     ));
   }
 
+  void _startRealtime() {
+    _realtime?.stop();
+    _realtime?.dispose();
+    _realtime = RealtimeBus(widget.repository)..start();
+  }
+
+  void _stopRealtime() {
+    _realtime?.stop();
+    _realtime?.dispose();
+    _realtime = null;
+  }
+
+  @override
+  void dispose() {
+    _stopRealtime();
+    super.dispose();
+  }
+
   void _logout() {
     widget.analyticsTracker.track('auth_logout', {});
     if (user != null) {
@@ -326,6 +350,7 @@ class _DemoSessionState extends State<_DemoSession> {
     }
     unawaited(widget.repository.endSession());
     unawaited(SessionStore.clear());
+    _stopRealtime();
     setState(() {
       signedIn = false;
       user = null;
@@ -354,23 +379,27 @@ class _DemoSessionState extends State<_DemoSession> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
+    Widget signedInChild;
     if (widget.startInAdminMode) {
       if (!(role.canManageContent || role.canModerate)) {
-        return _AdminAccessDeniedScreen(role: role);
+        signedInChild = _AdminAccessDeniedScreen(role: role);
+      } else {
+        signedInChild = AdminPanelScreen(
+            repository: widget.repository, role: role, user: user!, onLogout: _logout);
       }
-      return AdminPanelScreen(
-          repository: widget.repository, role: role, user: user!, onLogout: _logout);
+    } else {
+      signedInChild = CampusShell(
+        user: user!,
+        repository: widget.repository,
+        mapProvider: widget.mapProvider,
+        analyticsTracker: widget.analyticsTracker,
+        initialLanguage: language,
+        role: role,
+        onLogout: _logout,
+      );
     }
-
-    return CampusShell(
-      user: user!,
-      repository: widget.repository,
-      mapProvider: widget.mapProvider,
-      analyticsTracker: widget.analyticsTracker,
-      initialLanguage: language,
-      role: role,
-      onLogout: _logout,
-    );
+    if (_realtime == null) return signedInChild;
+    return RealtimeScope(bus: _realtime!, child: signedInChild);
   }
 }
 

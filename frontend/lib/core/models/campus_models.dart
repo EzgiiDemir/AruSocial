@@ -365,12 +365,14 @@ class PostComment {
   final String author;
   final String text;
   final String meta;
+  final bool canDelete;
 
   const PostComment({
     required this.id,
     required this.author,
     required this.text,
     required this.meta,
+    this.canDelete = false,
   });
 
   factory PostComment.fromJson(Map<String, dynamic> json) {
@@ -379,6 +381,7 @@ class PostComment {
       author: json['author'] as String,
       text: json['text'] as String,
       meta: json['meta'] as String,
+      canDelete: json['canDelete'] as bool? ?? false,
     );
   }
 }

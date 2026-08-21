@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\RoleAssignment;
 use App\Services\AuditLogger;
 use App\Services\GranularPermissions;
+use App\Services\RealtimePublisher;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -59,6 +60,11 @@ class RoleController extends Controller
         );
         AuditLogger::log($assignedBy, 'role_change', 'user',
             "$email → $role".($permissions === [] ? '' : ' (+'.count($permissions).' ek izin)'));
+        $target = \App\Models\User::where('email', $email)->first();
+        if ($target) {
+            RealtimePublisher::toUser((string) $target->id, 'role.updated', 'user', (string) $target->id);
+            RealtimePublisher::toUser((string) $target->id, 'permission.updated', 'user', (string) $target->id);
+        }
 
         return $this->ok($this->toJson($assignment));
     }

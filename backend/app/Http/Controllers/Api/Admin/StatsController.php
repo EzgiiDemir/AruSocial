@@ -50,11 +50,11 @@ class StatsController extends Controller
     // spelled differently per driver. No app code path outside tests runs
     // on anything but sqlite/mysql today, so this two-way switch is honest
     // (not a stub for drivers this app doesn't actually support).
-    private function hourExpression(): string
+    private function hourExpression(string $column = 'created_at'): string
     {
         return DB::connection()->getDriverName() === 'sqlite'
-            ? "strftime('%H', created_at)"
-            : 'HOUR(created_at)';
+            ? "strftime('%H', $column)"
+            : "HOUR($column)";
     }
 
     private function mostActiveStudents(int $limit = 10)
@@ -96,6 +96,15 @@ class StatsController extends Controller
                 'total' => Checkin::count(),
                 'visibleToOthers' => Checkin::where('visible_to_others', true)->count(),
                 'hiddenXpOnly' => Checkin::where('visible_to_others', false)->count(),
+                'today' => Checkin::whereDate('created_at', today())->count(),
+                'thisWeek' => Checkin::where('created_at', '>=', now()->startOfWeek())->count(),
+                'thisMonth' => Checkin::where('created_at', '>=', now()->startOfMonth())->count(),
+                'shareRate' => Checkin::count() === 0
+                    ? 0
+                    : round(Checkin::where('visible_to_others', true)->count() / Checkin::count(), 4),
+                'hiddenXpRate' => Checkin::count() === 0
+                    ? 0
+                    : round(Checkin::where('visible_to_others', false)->count() / Checkin::count(), 4),
                 'mostCheckedInPlaces' => Checkin::query()
                     ->join('places', 'places.id', '=', 'checkins.place_id')
                     ->selectRaw('places.id as place_id, places.name as place_name, count(*) as total')
@@ -183,6 +192,23 @@ class StatsController extends Controller
                     ->get(),
                 'attendanceStudentCount' => EventJoin::whereNotNull('approved_at')->distinct('user_id')->count('user_id'),
                 'mostActiveStudents' => $mostActiveStudents,
+                'byCategory' => Event::selectRaw('category, count(*) as total')
+                    ->groupBy('category')->orderByDesc('total')->limit(10)->get(),
+                'joinsByHour' => EventJoin::selectRaw($this->hourExpression('joined_at').' as hour, count(*) as total')
+                    ->groupBy('hour')->orderBy('hour')->get(),
+                'joinsByDay' => EventJoin::where('joined_at', '>=', $since)
+                    ->selectRaw('date(joined_at) as day, count(*) as total')
+                    ->groupBy('day')->orderBy('day')->get(),
+                'averageJoins' => Event::count() === 0
+                    ? 0
+                    : round(EventJoin::count() / max(1, Event::count()), 2),
+                'avgApprovalHours' => (function () {
+                    $rows = Event::whereNotNull('reviewed_at')->whereNotNull('form_opened_at')->get(['form_opened_at', 'reviewed_at']);
+                    if ($rows->isEmpty()) {
+                        return null;
+                    }
+                    return round($rows->avg(fn ($e) => $e->form_opened_at->diffInMinutes($e->reviewed_at) / 60), 1);
+                })(),
             ],
 
             // -------------------------------------------- Social/content
@@ -220,6 +246,14 @@ class StatsController extends Controller
                     ->limit(10)
                     ->get(),
                 'mostActiveStudents' => $mostActiveStudents,
+                'mostLikedAuthors' => FeedPost::selectRaw('name, sum(likes) as total')
+                    ->groupBy('name')->orderByDesc('total')->limit(10)->get(),
+                'engagementRate' => FeedPost::count() === 0
+                    ? 0
+                    : round((FeedPost::sum('likes') + PostComment::count()) / FeedPost::count(), 2),
+                'byDay' => FeedPost::where('created_at', '>=', $since)
+                    ->selectRaw('date(created_at) as day, count(*) as total')
+                    ->groupBy('day')->orderBy('day')->get(),
             ],
 
             // ------------------------------------------------- Surveys

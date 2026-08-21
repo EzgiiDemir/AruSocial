@@ -44,6 +44,8 @@ class AdminStatsApiTest extends TestCase
 
         $response->assertOk();
         $this->assertEquals(3, $response->json('data.checkins.total'));
+        $this->assertEquals(3, $response->json('data.checkins.today'));
+        $this->assertGreaterThan(0, $response->json('data.checkins.shareRate') + $response->json('data.checkins.hiddenXpRate'));
         $top = $response->json('data.checkins.mostCheckedInPlaces');
         $this->assertEquals('Garden', $top[0]['place_name']);
         $this->assertEquals(2, $top[0]['total']);

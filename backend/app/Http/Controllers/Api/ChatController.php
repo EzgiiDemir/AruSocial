@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ChatMessage;
 use App\Models\Notification as InboxNotification;
 use App\Models\User;
+use App\Services\RealtimePublisher;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -112,6 +113,8 @@ class ChatController extends Controller
                 'body' => $text,
                 'created_at' => $sentAt,
             ]);
+            RealtimePublisher::toUser((string) $peerUser->id, 'message.created', 'message', $message->id, (string) $me->id);
+            RealtimePublisher::toUser((string) $peerUser->id, 'notification.created', 'notification', null, (string) $me->id);
         }
 
         return $this->ok([

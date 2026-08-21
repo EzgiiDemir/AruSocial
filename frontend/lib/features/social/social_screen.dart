@@ -17,12 +17,19 @@ import 'package:arucad_campus_prototype/features/widgets/campus_widgets.dart';
 
 const _pageSize = kPageSize;
 enum _FeedFilter { forYou, following, campus, courses, events }
+// A vivid, non-blue set for the story-composer background picker — pulled
+// from the same secondary palette (docs/EKSIKLER.md sosyal §4) already
+// used for category accents elsewhere, so "canlı ama tutarlı" instead of
+// arbitrary new hex values.
+// Only colors dark enough to hold white overlay text stay in this list
+// (honey is too pale — see _MessageBubble/story text rendering below).
 const _storyColors = [
-  ArucadColors.primary,
-  ArucadColors.blue,
+  ArucadColors.terracotta,
+  ArucadColors.sage,
+  ArucadColors.dustyRose,
+  ArucadColors.slateBlue,
+  ArucadColors.mistLilac,
   ArucadColors.warning,
-  ArucadColors.success,
-  ArucadColors.ink,
 ];
 
 class SocialScreen extends StatefulWidget {
@@ -674,8 +681,8 @@ class _StoryBubble extends StatelessWidget {
                 shape: BoxShape.circle,
                 gradient: ring
                     ? const LinearGradient(colors: [
-                        ArucadColors.primary,
-                        ArucadColors.warning,
+                        ArucadColors.terracotta,
+                        ArucadColors.honey,
                       ])
                     : null,
                 border: ring ? null : Border.all(color: ArucadColors.mist, width: 2),
@@ -854,11 +861,14 @@ class _PostCard extends StatelessWidget {
                 onTap: post.official ? null : onOpenProfile,
                 child: CircleAvatar(
                     radius: 18,
-                    backgroundColor:
-                        post.official ? ArucadColors.primary : ArucadColors.mist,
+                    backgroundColor: post.official
+                        ? ArucadColors.primary
+                        : categoryAccent(post.name).withValues(alpha: .85),
                     child: post.official
                         ? const Icon(Icons.school_outlined, size: 18, color: Colors.white)
-                        : Text(post.name.isEmpty ? '?' : post.name.substring(0, 1))),
+                        : Text(post.name.isEmpty ? '?' : post.name.substring(0, 1),
+                            style: const TextStyle(
+                                color: Colors.white, fontWeight: FontWeight.w800))),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -969,9 +979,15 @@ class _PostCard extends StatelessWidget {
               const SizedBox(height: 8),
               Wrap(spacing: 6, runSpacing: 6, children: [
                 if (post.locationTag != null)
-                  _MiniTagChip(icon: Icons.place_outlined, label: post.locationTag!),
+                  _MiniTagChip(
+                      icon: Icons.place_outlined,
+                      label: post.locationTag!,
+                      accent: ArucadColors.sage),
                 if (post.courseTag != null)
-                  _MiniTagChip(icon: Icons.menu_book_outlined, label: post.courseTag!),
+                  _MiniTagChip(
+                      icon: Icons.menu_book_outlined,
+                      label: post.courseTag!,
+                      accent: ArucadColors.slateBlue),
               ]),
             ],
             if (post.hashtags.isNotEmpty) ...[
@@ -980,7 +996,7 @@ class _PostCard extends StatelessWidget {
                 for (final tag in post.hashtags)
                   Text('#$tag',
                       style: const TextStyle(
-                          color: ArucadColors.primary, fontWeight: FontWeight.w700, fontSize: 12)),
+                          color: ArucadColors.slateBlue, fontWeight: FontWeight.w700, fontSize: 12)),
               ]),
             ],
             const SizedBox(height: 8),
@@ -997,7 +1013,7 @@ class _PostCard extends StatelessWidget {
                           ? Icons.favorite
                           : Icons.favorite_border,
                       size: 18,
-                      color: post.likedByMe ? ArucadColors.primary : null),
+                      color: post.likedByMe ? ArucadColors.terracotta : null),
                   const SizedBox(width: 5),
                   Text('${post.likes}'),
                 ]),
@@ -1017,7 +1033,7 @@ class _PostCard extends StatelessWidget {
                 onTap: onSave,
                 borderRadius: BorderRadius.circular(999),
                 child: Icon(saved ? Icons.bookmark : Icons.bookmark_border,
-                    size: 20, color: saved ? ArucadColors.primary : null),
+                    size: 20, color: saved ? ArucadColors.honey : null),
               ),
             ]),
           ]),
@@ -1029,17 +1045,19 @@ class _PostCard extends StatelessWidget {
 class _MiniTagChip extends StatelessWidget {
   final IconData icon;
   final String label;
-  const _MiniTagChip({required this.icon, required this.label});
+  final Color accent;
+  const _MiniTagChip({required this.icon, required this.label, required this.accent});
 
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-            color: ArucadColors.mist, borderRadius: BorderRadius.circular(999)),
+            color: accent.withValues(alpha: .14), borderRadius: BorderRadius.circular(999)),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, size: 12, color: ArucadColors.muted),
+          Icon(icon, size: 12, color: accent),
           const SizedBox(width: 4),
-          Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+          Text(label,
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: accent)),
         ]),
       );
 }

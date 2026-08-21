@@ -660,17 +660,24 @@ class _MatchedActions extends StatelessWidget {
     if (matchedPlace == null && matchedService == null && matchedClub == null && matchedSport == null) {
       return const SizedBox.shrink();
     }
+    // Each matched entity type gets its own accent (docs/EKSIKLER.md sosyal
+    // §5) instead of every action button defaulting to the same brand blue
+    // — a real signal of *what* was matched, not just decoration.
     return Padding(
       padding: const EdgeInsets.only(top: 8, left: 36),
       child: Wrap(spacing: 8, runSpacing: 8, children: [
         if (matchedPlace != null) ...[
           FilledButton.icon(
             onPressed: onNavigate,
+            style: FilledButton.styleFrom(backgroundColor: ArucadColors.terracotta),
             icon: const Icon(Icons.directions_walk, size: 16),
             label: const Text('Yol Tarifi'),
           ),
           OutlinedButton.icon(
             onPressed: onOpenPlace,
+            style: OutlinedButton.styleFrom(
+                foregroundColor: ArucadColors.terracotta,
+                side: const BorderSide(color: ArucadColors.terracotta, width: 1.2)),
             icon: const Icon(Icons.info_outline, size: 16),
             label: const Text('Aç'),
           ),
@@ -678,11 +685,15 @@ class _MatchedActions extends StatelessWidget {
         if (matchedService != null) ...[
           FilledButton.icon(
             onPressed: onContactService,
+            style: FilledButton.styleFrom(backgroundColor: ArucadColors.slateBlue),
             icon: const Icon(Icons.mail_outline, size: 16),
             label: const Text('İletişime Geç'),
           ),
           OutlinedButton.icon(
             onPressed: onOpenService,
+            style: OutlinedButton.styleFrom(
+                foregroundColor: ArucadColors.slateBlue,
+                side: const BorderSide(color: ArucadColors.slateBlue, width: 1.2)),
             icon: const Icon(Icons.info_outline, size: 16),
             label: const Text('Detaylar'),
           ),
@@ -690,12 +701,16 @@ class _MatchedActions extends StatelessWidget {
         if (matchedClub != null)
           OutlinedButton.icon(
             onPressed: onOpenClub,
+            style: OutlinedButton.styleFrom(
+                foregroundColor: ArucadColors.sage,
+                side: const BorderSide(color: ArucadColors.sage, width: 1.2)),
             icon: const Icon(Icons.groups_outlined, size: 16),
             label: const Text('Kulübü Aç'),
           ),
         if (matchedSport != null)
           FilledButton.icon(
             onPressed: onContactSport,
+            style: FilledButton.styleFrom(backgroundColor: ArucadColors.dustyRose),
             icon: const Icon(Icons.mail_outline, size: 16),
             label: const Text('Katıl / İletişime Geç'),
           ),

@@ -51,7 +51,7 @@ class AcademicYearController extends Controller
             'ends_on' => $endsOn,
             'is_active' => $makeActive,
         ]);
-        AuditLogger::log($request->input('actorName', 'admin'), 'update', 'academic_year', $label);
+        AuditLogger::log($this->currentUser()->name, 'update', 'academic_year', $label);
 
         return $this->ok($this->toJson($year));
     }

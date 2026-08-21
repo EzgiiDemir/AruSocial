@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 
 import 'package:arucad_campus_prototype/core/config/poi_config.dart';
@@ -134,13 +135,64 @@ class CampusLiveMap extends StatefulWidget {
 }
 
 class _CampusLiveMapState extends State<CampusLiveMap> {
+  // Real heatmap (docs/EKSIKLER.md harita/heatmap): starts from the static
+  // seeded density (never blank while the real, time-windowed fetch below
+  // is in flight), then gets replaced by real Checkin-derived data.
   late List<CampusPulseZone> _pulseZones = HeatmapAdapter.pulseZones(widget.places);
+  List<PlaceDensity> _density = const [];
+  DensityWindow _densityWindow = DensityWindow.today;
   late CampusVisibility _visibility = widget.initialVisibility;
+  final _mapController = CampusMapController();
 
   @override
   void initState() {
     super.initState();
+    _loadDensity();
     _loadOccupancy();
+    _centerOnUserLocation();
+  }
+
+  Future<void> _loadDensity() async {
+    try {
+      final density = await widget.repository.getPlaceDensity(window: _densityWindow);
+      if (!mounted) return;
+      setState(() {
+        _density = density;
+        _pulseZones = HeatmapAdapter.pulseZonesFromDensity(widget.places, density);
+      });
+    } catch (_) {
+      // Real backend unreachable — the static seeded pulseZones set above
+      // already cover the map, just without real check-in data behind it.
+    }
+  }
+
+  void _changeDensityWindow(DensityWindow window) {
+    setState(() => _densityWindow = window);
+    _loadDensity();
+  }
+
+  /// Real GPS centering on open (docs/EKSIKLER.md harita/konum): best-effort
+  /// — permission is already requested app-wide at sign-in
+  /// (`app.dart`'s `_ensureLocationPermission`), so this just reads
+  /// whatever's available. No position (denied/unavailable) falls back to
+  /// the map's existing fit-to-all-places behavior, not a blocked screen.
+  Future<void> _centerOnUserLocation() async {
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) return;
+      final permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        return;
+      }
+      final position = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(accuracy: LocationAccuracy.high));
+      if (!mounted) return;
+      await _mapController.centerOn(GeoPoint(position.latitude, position.longitude), zoom: 17);
+    } catch (_) {
+      // No real position available — the map already fit to all places on
+      // style load, which is a reasonable fallback center.
+    }
   }
 
   Future<void> _loadOccupancy() async {
@@ -153,13 +205,13 @@ class _CampusLiveMapState extends State<CampusLiveMap> {
           .toList();
       if (!mounted) return;
       setState(() => _pulseZones = [
-            ...HeatmapAdapter.pulseZones(widget.places),
+            ..._pulseZones,
             ...HeatmapAdapter.zonesFromOccupancy(data),
           ]);
     } catch (_) {
-      // Live occupancy service is optional in this prototype — the
-      // density-derived pulse zones set in initState already cover the
-      // map with a real (if coarser) red/yellow/green visualization.
+      // Live occupancy service is optional in this prototype — the real
+      // Checkin-derived pulse zones from _loadDensity() already cover the
+      // map with a genuine red/yellow/green visualization.
     }
   }
 
@@ -186,13 +238,21 @@ class _CampusLiveMapState extends State<CampusLiveMap> {
     // texture, but wayfinding to anywhere else goes through Ask ARUCAD
     // instead of tapping a permanently-plotted pin for all 20+ places. No
     // bus icons on the map itself (those live in the shuttle sheet behind
-    // the left control button).
+    // the left control button). Uses real, time-windowed check-in density
+    // (docs/EKSIKLER.md harita/heatmap) once loaded, falling back to the
+    // static seeded density string only until that real fetch resolves.
+    final levelByPlaceId = {for (final d in _density) d.placeId: d.level};
     final labelMarkers = <CampusMapMarker>[];
     final contextDots = <CampusMapContextDot>[];
     for (final place in widget.places) {
-      final raw = place.density.toLowerCase();
+      final realLevel = levelByPlaceId[place.id];
+      final raw = realLevel ?? place.density.toLowerCase();
       final isPulse = raw.contains('busy') || raw.contains('high') || raw.contains('moderate');
-      final (color, _) = campusDensityInfo(place);
+      final color = switch (raw) {
+        var l when l.contains('busy') || l.contains('high') => ArucadColors.danger,
+        var l when l.contains('moderate') => ArucadColors.warning,
+        _ => ArucadColors.success,
+      };
       if (isPulse) {
         labelMarkers.add(CampusMapMarker(
           id: 'pulse-${place.id}',
@@ -217,6 +277,7 @@ class _CampusLiveMapState extends State<CampusLiveMap> {
       child: Stack(children: [
         Positioned.fill(
           child: CampusMapView(
+            controller: _mapController,
             extentPoints: extentPoints,
             markers: labelMarkers,
             contextDots: contextDots,
@@ -232,6 +293,8 @@ class _CampusLiveMapState extends State<CampusLiveMap> {
             visibility: _visibility,
             onVisibilityChanged: (v) => setState(() => _visibility = v),
             onOpenShuttle: () => showShuttleSheet(context),
+            densityWindow: _densityWindow,
+            onDensityWindowChanged: _changeDensityWindow,
           ),
         ),
         Positioned(
@@ -289,12 +352,16 @@ class _MapControlButton extends StatelessWidget {
   final CampusVisibility visibility;
   final ValueChanged<CampusVisibility> onVisibilityChanged;
   final VoidCallback onOpenShuttle;
+  final DensityWindow densityWindow;
+  final ValueChanged<DensityWindow> onDensityWindowChanged;
 
   const _MapControlButton({
     required this.onlineCount,
     required this.visibility,
     required this.onVisibilityChanged,
     required this.onOpenShuttle,
+    required this.densityWindow,
+    required this.onDensityWindowChanged,
   });
 
   @override
@@ -381,6 +448,43 @@ class _MapControlButton extends StatelessWidget {
                   _openVisibilityPicker(context);
                 },
               ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.local_fire_department_outlined,
+                    color: ArucadColors.primary),
+                title: const Text('Yoğunluk Aralığı'),
+                subtitle: Text(densityWindow.label),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _openDensityWindowPicker(context);
+                },
+              ),
+            ]),
+      ),
+    );
+  }
+
+  void _openDensityWindowPicker(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (_) => SafeArea(
+        child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final w in DensityWindow.values)
+                ListTile(
+                  leading: Icon(Icons.local_fire_department_outlined,
+                      color: w == densityWindow ? ArucadColors.primary : ArucadColors.muted),
+                  title: Text(w.label),
+                  trailing: w == densityWindow
+                      ? const Icon(Icons.check, color: ArucadColors.primary)
+                      : null,
+                  onTap: () {
+                    onDensityWindowChanged(w);
+                    Navigator.pop(context);
+                  },
+                ),
             ]),
       ),
     );

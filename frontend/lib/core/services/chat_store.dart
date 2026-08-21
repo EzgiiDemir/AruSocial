@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/chat_message.dart';
 
-export '../models/chat_message.dart' show ChatMessage;
+export '../models/chat_message.dart' show ChatMessage, ChatThreadSummary;
 
 /// Real, persisted per-peer message threads — but single-device only.
 ///

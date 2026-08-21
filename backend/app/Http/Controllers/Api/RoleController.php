@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\Concerns\ApiResponds;
 use App\Http\Controllers\Controller;
 use App\Models\RoleAssignment;
 use App\Services\AuditLogger;
+use App\Services\GranularPermissions;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -22,6 +23,7 @@ class RoleController extends Controller
         return [
             'email' => $r->email,
             'role' => $r->role,
+            'permissions' => $r->permissions ?? [],
             'assignedAt' => $r->assigned_at?->toIso8601String(),
             'assignedBy' => $r->assigned_by,
         ];
@@ -48,12 +50,15 @@ class RoleController extends Controller
             return $this->fail(400, 'VALIDATION', 'email is required and role must be a valid UserRole.');
         }
 
-        $assignedBy = $request->input('assignedBy', 'admin');
+        $permissions = GranularPermissions::sanitize((array) $request->input('permissions', []));
+
+        $assignedBy = $this->currentUser()->name;
         $assignment = RoleAssignment::updateOrCreate(
             ['email' => $email],
-            ['role' => $role, 'assigned_by' => $assignedBy, 'assigned_at' => now()]
+            ['role' => $role, 'permissions' => $permissions, 'assigned_by' => $assignedBy, 'assigned_at' => now()]
         );
-        AuditLogger::log($assignedBy, 'role_change', 'user', "$email → $role");
+        AuditLogger::log($assignedBy, 'role_change', 'user',
+            "$email → $role".($permissions === [] ? '' : ' (+'.count($permissions).' ek izin)'));
 
         return $this->ok($this->toJson($assignment));
     }
@@ -62,7 +67,7 @@ class RoleController extends Controller
     {
         $assignment = RoleAssignment::find($email);
         if ($assignment) {
-            AuditLogger::log($request->input('actorName', 'admin'), 'delete', 'role_assignment', $email);
+            AuditLogger::log($this->currentUser()->name, 'delete', 'role_assignment', $email);
             $assignment->delete();
         }
 

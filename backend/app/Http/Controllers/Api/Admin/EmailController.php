@@ -60,7 +60,7 @@ class EmailController extends Controller
             $results[] = ['email' => $email, 'status' => $log->status];
         }
         AuditLogger::log(
-            $request->input('actorName', 'admin'),
+            $this->currentUser()->name,
             'send_email',
             'bulk_announcement',
             "$subject → ".count($recipients).' alıcı'

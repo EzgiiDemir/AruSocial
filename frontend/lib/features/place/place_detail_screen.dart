@@ -19,10 +19,6 @@ import 'package:arucad_campus_prototype/features/map/in_app_navigation_screen.da
 import 'package:arucad_campus_prototype/core/services/tour_launcher.dart';
 import 'package:arucad_campus_prototype/features/widgets/campus_widgets.dart';
 
-/// How close (in meters) the device's real GPS position must be to a place
-/// before a check-in there is accepted.
-const _checkInRadiusMeters = 150.0;
-
 class PlaceDetailScreen extends StatefulWidget {
   final CampusPlace place;
   final CampusRepository repository;
@@ -353,13 +349,31 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
     );
   }
 
+  // Real, hard-gated check-in (docs/EKSIKLER.md §18/§19/§35): the device's
+  // GPS position is required, sent to the backend, and the backend — not
+  // this client — decides whether it's close enough. A denied permission,
+  // an unavailable location service, or actually being too far all now
+  // block the check-in with a real, specific reason, rather than silently
+  // letting it through as "uzaktan check-in".
   Future<void> _checkIn(BuildContext context) async {
-    final proximity = await _checkProximity();
+    final position = await _resolvePosition();
+    if (position == null) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text(
+              'Check-in için konum gerekiyor. Lütfen konum servisini/iznini açıp tekrar dene.')));
+      return;
+    }
 
     final visibleToOthers = await AppSettingsStore.checkInVisible();
     if (!context.mounted) return;
     try {
-      await repository.checkIn(place.id, visibleToOthers: visibleToOthers);
+      await repository.checkIn(place.id,
+          lat: position.latitude, lng: position.longitude, visibleToOthers: visibleToOthers);
+    } on CheckInBlockedException catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.reason)));
+      return;
     } catch (e) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -371,52 +385,38 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
       'placeId': place.id,
       'placeName': place.name,
       'visibleToOthers': visibleToOthers,
-      'verifiedNearby': proximity.verified,
     });
 
     await NotificationService()
         .showSimple('Check-in başarılı', '${place.name} · +30 XP');
     if (!context.mounted) return;
     setState(() => _feedFuture = repository.getFeed());
-    // Always saves — a check-in isn't blocked on GPS being available or
-    // matching, but it honestly says so when the position couldn't be
-    // confirmed, rather than silently claiming "buradasın" either way.
-    final locationNote = proximity.verified ? '' : ' · ${proximity.note}';
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(visibleToOthers
-            ? '${place.name} için check-in yapıldı · sosyal akışa eklendi · +30 XP$locationNote'
-            : '${place.name} için check-in yapıldı · gizli (+30 XP)$locationNote')));
+            ? '${place.name} için check-in yapıldı · sosyal akışa eklendi · +30 XP'
+            : '${place.name} için check-in yapıldı · gizli (+30 XP)')));
   }
 
-  /// Best-effort real GPS proximity check — never blocks the check-in
-  /// itself (denied permission, an unavailable location service, or
-  /// actually being far away all still let the check-in through), but the
-  /// result is surfaced honestly in the confirmation message instead of
-  /// silently claiming "you're here" when that couldn't be confirmed.
-  Future<({bool verified, String note})> _checkProximity() async {
+  /// The device's real, current GPS position — null if location services
+  /// are off, permission is denied, or the position couldn't be read, in
+  /// which case [_checkIn] blocks outright rather than proceeding without
+  /// a real coordinate to send.
+  Future<Position?> _resolvePosition() async {
     try {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        return (verified: false, note: 'konum kapalı, uzaktan check-in');
-      }
+      if (!serviceEnabled) return null;
       var permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
       }
       if (permission == LocationPermission.denied ||
           permission == LocationPermission.deniedForever) {
-        return (verified: false, note: 'konum izni yok, uzaktan check-in');
+        return null;
       }
-      final position = await Geolocator.getCurrentPosition(
+      return await Geolocator.getCurrentPosition(
           locationSettings: const LocationSettings(accuracy: LocationAccuracy.high));
-      final meters = Geolocator.distanceBetween(
-          position.latitude, position.longitude, place.lat, place.lng);
-      if (meters > _checkInRadiusMeters) {
-        return (verified: false, note: 'uzaktan check-in (~${meters.round()} m)');
-      }
-      return (verified: true, note: '');
     } catch (_) {
-      return (verified: false, note: 'konum alınamadı, uzaktan check-in');
+      return null;
     }
   }
 

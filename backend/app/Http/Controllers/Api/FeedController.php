@@ -6,17 +6,25 @@ use App\Http\Controllers\Api\Concerns\ApiResponds;
 use App\Http\Controllers\Controller;
 use App\Models\FeedPost;
 use App\Models\ModerationReport;
+use App\Models\Notification as InboxNotification;
 use App\Models\PostComment;
+use App\Models\PostLike;
 use App\Services\ActivityLogger;
 use App\Services\ModerationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class FeedController extends Controller
 {
     use ApiResponds;
 
-    private function postToJson(FeedPost $p): array
+    // Real bug fix (docs/EKSIKLER.md sosyal §1): likedByMe used to be a
+    // single boolean column on the post itself, shared by every account —
+    // one real user liking a post made it show as "liked" for every other
+    // real account too. It's now computed per viewer from the real
+    // post_likes table (see PostLike), the same way comments already are.
+    private function postToJson(FeedPost $p, ?string $viewerUserId): array
     {
         return [
             'id' => $p->id,
@@ -25,7 +33,8 @@ class FeedController extends Controller
             'text' => $p->text,
             'meta' => $p->meta,
             'likes' => $p->likes,
-            'likedByMe' => $p->liked_by_me,
+            'likedByMe' => $viewerUserId !== null
+                && PostLike::where('post_id', $p->id)->where('user_id', $viewerUserId)->exists(),
             'imageUrl' => $p->image_url,
             'comments' => $p->comments->map(fn ($c) => [
                 'id' => $c->id,
@@ -43,9 +52,10 @@ class FeedController extends Controller
 
     public function index(): JsonResponse
     {
+        $me = $this->currentUser();
         $posts = FeedPost::with('comments')->orderByDesc('created_at')->get();
 
-        return $this->ok($posts->map(fn ($p) => $this->postToJson($p)));
+        return $this->ok($posts->map(fn ($p) => $this->postToJson($p, (string) $me->id)));
     }
 
     public function store(Request $request): JsonResponse
@@ -64,7 +74,6 @@ class FeedController extends Controller
             'text' => $text,
             'meta' => 'az önce',
             'likes' => 0,
-            'liked_by_me' => false,
             'image_url' => $request->input('imageUrl'),
             'visibility' => $visibility,
             'post_type' => $request->input('postType', 'normal'),
@@ -76,7 +85,7 @@ class FeedController extends Controller
         // No ActivityKind value represents "created a post" — see
         // ActivityLogger's doc comment. Nothing to log here on purpose.
 
-        return $this->ok($this->postToJson($post->fresh('comments')));
+        return $this->ok($this->postToJson($post->fresh('comments'), (string) $me->id));
     }
 
     public function like(string $id): JsonResponse
@@ -85,16 +94,41 @@ class FeedController extends Controller
         if (! $post) {
             return $this->fail(404, 'POST_NOT_FOUND', 'Post not found.');
         }
-        $nowLiked = ! $post->liked_by_me;
-        $post->liked_by_me = $nowLiked;
+        $me = $this->currentUser();
+
+        $existing = PostLike::where('post_id', $post->id)->where('user_id', $me->id)->first();
+        $nowLiked = ! $existing;
+        if ($nowLiked) {
+            PostLike::create([
+                'id' => $this->newId('like'),
+                'post_id' => $post->id,
+                'user_id' => $me->id,
+                'created_at' => now(),
+            ]);
+        } else {
+            $existing->delete();
+        }
         $post->likes = max(0, $post->likes + ($nowLiked ? 1 : -1));
         $post->save();
 
         if ($nowLiked) {
-            ActivityLogger::log($this->currentUser()->id, 'like', "Beğendin: {$post->name}", $post->text);
+            ActivityLogger::log($me->id, 'like', "Beğendin: {$post->name}", $post->text);
+            // Real notification to the post's real author — not the liker
+            // (matches the chat/follow pattern: resolve by author_id, a
+            // real user id, so this is genuinely per-account, not simulated).
+            if ($post->author_id && $post->author_id !== (string) $me->id) {
+                InboxNotification::create([
+                    'id' => 'notif-'.Str::uuid(),
+                    'user_id' => $post->author_id,
+                    'kind' => 'like',
+                    'title' => 'Yeni beğeni',
+                    'body' => "{$me->name} gönderini beğendi.",
+                    'created_at' => now(),
+                ]);
+            }
         }
 
-        return $this->ok($this->postToJson($post->fresh('comments')));
+        return $this->ok($this->postToJson($post->fresh('comments'), (string) $me->id));
     }
 
     public function comment(Request $request, string $id): JsonResponse
@@ -119,7 +153,18 @@ class FeedController extends Controller
         ]);
         ActivityLogger::log($me->id, 'comment', "Yorum yaptın: {$post->name}", $text);
 
-        return $this->ok($this->postToJson($post->fresh('comments')));
+        if ($post->author_id && $post->author_id !== (string) $me->id) {
+            InboxNotification::create([
+                'id' => 'notif-'.Str::uuid(),
+                'user_id' => $post->author_id,
+                'kind' => 'comment',
+                'title' => 'Yeni yorum',
+                'body' => "{$me->name}: {$text}",
+                'created_at' => now(),
+            ]);
+        }
+
+        return $this->ok($this->postToJson($post->fresh('comments'), (string) $me->id));
     }
 
     public function report(Request $request, string $id): JsonResponse

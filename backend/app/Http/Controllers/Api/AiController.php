@@ -4,9 +4,12 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Api\Concerns\ApiResponds;
 use App\Http\Controllers\Controller;
+use App\Models\AskArucadLog;
+use App\Services\AskArucadCategorizer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 
 class AiController extends Controller
 {
@@ -19,6 +22,21 @@ class AiController extends Controller
     // instead of faking an answer.
     public function query(Request $request): JsonResponse
     {
+        $prompt = (string) $request->input('prompt', '');
+        // Real question logging (docs/EKSIKLER.md admin §5) — logged
+        // regardless of whether Groq is even configured or the upstream
+        // call succeeds: the analytics question is "what do students ask
+        // Ask ARUCAD", not "what did Groq successfully answer".
+        if (trim($prompt) !== '') {
+            AskArucadLog::create([
+                'id' => 'asklog-'.Str::uuid(),
+                'user_id' => $this->currentUser()->id,
+                'question' => $prompt,
+                'category' => AskArucadCategorizer::categorize($prompt),
+                'created_at' => now(),
+            ]);
+        }
+
         $apiKey = env('GROQ_API_KEY');
         if (! $apiKey) {
             return $this->fail(
@@ -27,8 +45,6 @@ class AiController extends Controller
                 'GROQ_API_KEY is not set on the backend — set it in backend/.env to enable Ask ARUCAD through this server.'
             );
         }
-
-        $prompt = (string) $request->input('prompt', '');
 
         try {
             $response = Http::withToken($apiKey)

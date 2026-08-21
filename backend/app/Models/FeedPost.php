@@ -11,7 +11,7 @@ class FeedPost extends Model
     public $timestamps = false;
 
     protected $fillable = [
-        'id', 'author_id', 'name', 'text', 'meta', 'likes', 'liked_by_me',
+        'id', 'author_id', 'name', 'text', 'meta', 'likes',
         'image_url', 'visibility', 'post_type', 'course_tag', 'location_tag',
         'official', 'created_at',
     ];
@@ -19,7 +19,6 @@ class FeedPost extends Model
     protected function casts(): array
     {
         return [
-            'liked_by_me' => 'boolean',
             'official' => 'boolean',
             'created_at' => 'datetime',
         ];

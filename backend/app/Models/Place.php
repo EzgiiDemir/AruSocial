@@ -11,7 +11,7 @@ class Place extends Model
     public $timestamps = false;
 
     protected $fillable = [
-        'id', 'name', 'category', 'lat', 'lng', 'description', 'distance',
+        'id', 'name', 'category', 'lat', 'lng', 'coordinate_confidence', 'description', 'distance',
         'density', 'street', 'tour_url', 'accessible', 'photos', 'rating',
     ];
 

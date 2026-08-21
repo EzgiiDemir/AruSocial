@@ -7,12 +7,14 @@ import 'campus_models.dart';
 class RoleAssignment {
   final String email;
   final UserRole role;
+  final List<String> permissions;
   final DateTime assignedAt;
   final String assignedBy;
 
   const RoleAssignment({
     required this.email,
     required this.role,
+    this.permissions = const [],
     required this.assignedAt,
     required this.assignedBy,
   });
@@ -20,6 +22,7 @@ class RoleAssignment {
   factory RoleAssignment.fromJson(Map<String, dynamic> json) => RoleAssignment(
         email: json['email'] as String,
         role: UserRole.values.byName(json['role'] as String),
+        permissions: (json['permissions'] as List<dynamic>? ?? const []).cast<String>(),
         assignedAt: DateTime.parse(json['assignedAt'] as String),
         assignedBy: json['assignedBy'] as String,
       );
@@ -27,6 +30,7 @@ class RoleAssignment {
   Map<String, dynamic> toJson() => {
         'email': email,
         'role': role.name,
+        'permissions': permissions,
         'assignedAt': assignedAt.toIso8601String(),
         'assignedBy': assignedBy,
       };

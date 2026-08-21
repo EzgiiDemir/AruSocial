@@ -16,15 +16,43 @@ import 'package:arucad_campus_prototype/core/models/campus_models.dart';
 import 'package:arucad_campus_prototype/core/models/content_block.dart';
 import 'package:arucad_campus_prototype/core/models/survey.dart';
 import 'package:arucad_campus_prototype/core/network/api_client.dart';
+import 'package:arucad_campus_prototype/core/network/auth_token_adapter.dart';
 import 'package:arucad_campus_prototype/core/services/contracts.dart';
 import 'package:arucad_campus_prototype/core/services/rest_campus_repository.dart';
 import 'package:http/http.dart' as http;
 
+/// Pure-Dart, in-memory bearer-token holder — deliberately NOT
+/// `SessionStore` (SharedPreferences), which needs Flutter plugin
+/// bindings this pure-Dart script can't provide (the same reason
+/// `RestCampusRepository` itself was earlier extracted away from any
+/// Flutter-only imports — see docs/EKSIKLER.md history). Real per-user
+/// auth (docs/EKSIKLER.md "Gerçek JWT/session authentication") means this
+/// script must authenticate for real before any other check will succeed.
+class _TokenAdapter extends AuthTokenAdapter {
+  String? token;
+  @override
+  Future<String?> getAccessToken() async => token;
+}
+
 Future<void> main(List<String> args) async {
   final baseUrl = args.isNotEmpty ? args[0] : 'http://localhost:4000/api/v1';
   stdout.writeln('Verifying RestCampusRepository against $baseUrl ...\n');
-  final repo = RestCampusRepository(client: ApiClient(baseUrl: baseUrl));
+  final tokenAdapter = _TokenAdapter();
+  final repo = RestCampusRepository(client: ApiClient(baseUrl: baseUrl, authTokenAdapter: tokenAdapter));
   final http.Client raw = http.Client();
+
+  // Signs in as the seeded demo account (DatabaseSeeder), which is also
+  // the one account seeded with a real superAdmin RoleAssignment — every
+  // admin-only check below needs that real permission now (see
+  // EnsurePermission), not just a valid token.
+  final session =
+      await repo.startSession(email: 'ege.aydin@arucad.edu.tr', name: 'Ege Aydın');
+  tokenAdapter.token = session.token;
+  if (session.token == null || session.token!.isEmpty) {
+    stdout.writeln('FATAL: /auth/session did not return a real token — aborting.');
+    exit(1);
+  }
+  stdout.writeln('Authenticated as ${session.email} (role: ${session.role})\n');
 
   var failures = 0;
   Future<void> check(String label, Future<void> Function() body) async {
@@ -41,7 +69,8 @@ Future<void> main(List<String> args) async {
   // RBAC, ...) don't have Dart model classes yet — these hit them
   // directly over HTTP and check the raw JSON shape instead.
   Future<dynamic> getJson(String path) async {
-    final res = await raw.get(Uri.parse('$baseUrl$path'));
+    final res = await raw.get(Uri.parse('$baseUrl$path'),
+        headers: {'Authorization': 'Bearer ${tokenAdapter.token}'});
     if (res.statusCode < 200 || res.statusCode >= 300) {
       throw 'GET $path -> HTTP ${res.statusCode}: ${res.body}';
     }
@@ -60,6 +89,21 @@ Future<void> main(List<String> args) async {
     places = await repo.getPlaces();
     if (places.isEmpty) throw 'no places returned';
   });
+  await check('getPlaces() includes the real ARUCAD POI set', () async {
+    if (!places.any((p) => p.id == 'poi-rodin')) {
+      throw 'expected the real POI seed (e.g. poi-rodin) to be present';
+    }
+    if (places.length < 20) throw 'expected 20+ places (4 demo + 19 real POIs), got ${places.length}';
+  });
+  await check('repo.getPlaceDensity() covers every real place with a real level', () async {
+    final density = await repo.getPlaceDensity(window: DensityWindow.today);
+    if (density.length != places.length) {
+      throw 'expected one density entry per place (${places.length}), got ${density.length}';
+    }
+    if (density.any((d) => !['quiet', 'moderate', 'busy'].contains(d.level))) {
+      throw 'unexpected density level found';
+    }
+  });
   await check('getEvents()', () async {
     events = await repo.getEvents();
     if (events.isEmpty) throw 'no events returned';
@@ -73,6 +117,51 @@ Future<void> main(List<String> args) async {
   if (places.isNotEmpty) {
     await check('getReviews(${places.first.id})', () => repo.getReviews(places.first.id));
   }
+
+  // docs/EKSIKLER.md §18/§35: check-in is now a real, server-enforced
+  // proximity gate — the backend recomputes the distance itself rather
+  // than trusting the client, so this exercises rejection (missing coords,
+  // too far) and acceptance (matching the place's own coordinates) against
+  // the real endpoint.
+  if (places.isNotEmpty) {
+    final place = places.first;
+    // repo.checkIn()'s lat/lng are required params — there's no
+    // client-typed way to omit them, so LOCATION_REQUIRED (only reachable
+    // when the app itself can't get a GPS fix and never calls checkIn() at
+    // all) isn't exercised here; CheckinApiTest covers it directly against
+    // the raw endpoint instead.
+    await check('repo.checkIn() rejects a check-in far from the place', () async {
+      var blocked = false;
+      try {
+        await repo.checkIn(place.id, lat: place.lat + 5, lng: place.lng + 5);
+      } on CheckInBlockedException catch (e) {
+        blocked = true;
+        if (e.locationRequired) throw 'expected TOO_FAR, got LOCATION_REQUIRED instead';
+      }
+      if (!blocked) throw 'expected a ~500km-away check-in to be rejected as too far';
+    });
+    await check('repo.checkIn() accepts a check-in at the place\'s own coordinates', () async {
+      await repo.checkIn(place.id, lat: place.lat, lng: place.lng);
+    });
+    await check('GET /me/xp-transactions records a real, explained XP grant', () async {
+      final rows = await getJson('/me/xp-transactions') as List<dynamic>;
+      if (rows.isEmpty) throw 'expected at least one XP transaction after checking in';
+      final checkinRows = rows.cast<Map<String, dynamic>>().where((r) => r['sourceType'] == 'checkin');
+      if (checkinRows.isEmpty) throw 'expected a checkin-sourced XP transaction';
+    });
+  }
+
+  await check('admin: repo.getCheckinRadiusMeters()/setCheckinRadiusMeters() round-trip', () async {
+    final before = await repo.getCheckinRadiusMeters();
+    if (before != 150) throw 'expected the default check-in radius to be 150m, got $before';
+    final updated = await repo.setCheckinRadiusMeters(300);
+    if (updated != 300) throw 'setCheckinRadiusMeters(300) did not report 300';
+    if (await repo.getCheckinRadiusMeters() != 300) {
+      throw 'getCheckinRadiusMeters() did not reflect the value just set';
+    }
+    // Restore the default so re-running this script stays deterministic.
+    await repo.setCheckinRadiusMeters(150);
+  });
   if (events.isNotEmpty) {
     final before = events.first.attendees;
     await check('joinEvent(${events.first.id}) persists (idempotent per user)', () async {
@@ -194,6 +283,39 @@ Future<void> main(List<String> args) async {
     final venues = await getJson('/food-venues') as List;
     if (venues.isEmpty) throw 'no food venues returned';
   });
+
+  // FAZ 6A §6: previously the Flutter side never called this real,
+  // already-working backend at all — the whole app (student Discover tab,
+  // Ask ARUCAD, admin Yemek tab) read from an on-device-only store instead.
+  // This proves the full real round-trip: venue create, per-day menu
+  // upsert, per-day menu delete, venue delete.
+  await check('repo.getFoodVenues()/upsertFoodVenue()/upsertFoodMenu()/deleteFoodMenu()/deleteFoodVenue() round-trip',
+      () async {
+    await repo.upsertFoodVenue(const CampusFoodVenue(id: 'food-verify-temp', name: 'Verify Cafe', hours: '09:00-18:00'));
+    var venues = await repo.getFoodVenues();
+    if (!venues.any((v) => v.id == 'food-verify-temp')) throw 'food venue not created';
+
+    final today = DateTime.now();
+    await repo.upsertFoodMenu('food-verify-temp',
+        DailyMenu(date: today, items: const ['Mercimek Çorbası', 'Tavuk Sote'], price: '85₺'));
+    venues = await repo.getFoodVenues();
+    final withMenu = venues.firstWhere((v) => v.id == 'food-verify-temp');
+    final menu = withMenu.menuForDay(today);
+    if (menu == null || !menu.items.contains('Tavuk Sote')) {
+      throw 'daily menu not persisted for today';
+    }
+
+    await repo.deleteFoodMenu('food-verify-temp', today);
+    venues = await repo.getFoodVenues();
+    if (venues.firstWhere((v) => v.id == 'food-verify-temp').menuForDay(today) != null) {
+      throw 'daily menu still present after deleteFoodMenu()';
+    }
+
+    await repo.deleteFoodVenue('food-verify-temp');
+    venues = await repo.getFoodVenues();
+    if (venues.any((v) => v.id == 'food-verify-temp')) throw 'food venue still present after delete';
+  });
+
   await check('repo.getDirectoryEntries()/upsert/delete round-trip', () async {
     await repo.upsertDirectoryEntry(const DirectoryEntry(
         id: 'dir-verify-temp', building: 'Verify Hall', occupantName: 'Verify Person'));
@@ -319,12 +441,61 @@ Future<void> main(List<String> args) async {
     final messages = await repo.getChatMessages('Verify Peer');
     if (messages.isEmpty || messages.last.text != 'merhaba') throw 'message not persisted';
     final threads = await repo.getChatThreadPeers(const []);
-    if (!threads.contains('Verify Peer')) throw 'Verify Peer missing from thread list';
+    if (!threads.any((t) => t.peerName == 'Verify Peer')) {
+      throw 'Verify Peer missing from thread list';
+    }
+  });
+
+  // Real bug fix (docs/EKSIKLER.md sosyal/chat): a message used to only
+  // ever be visible in the sender's own copy of the thread — a second
+  // real account never actually received it. This proves two distinct
+  // real Sanctum-authenticated accounts now share the same conversation,
+  // with a real unread count that clears on open.
+  await check('chat is real and bidirectional between two distinct real accounts', () async {
+    final secondClient = ApiClient(baseUrl: baseUrl, authTokenAdapter: _TokenAdapter());
+    final secondRepo = RestCampusRepository(client: secondClient);
+    final secondSession =
+        await secondRepo.startSession(email: 'chat-verify-2@arucad.edu.tr', name: 'Chat Verify Two');
+    (secondClient.authTokenAdapter as _TokenAdapter).token = secondSession.token;
+
+    await repo.sendChatMessage(secondSession.name, 'ikinci hesaba gerçek mesaj');
+
+    // Peer name on their side is the real sender's display name
+    // (`session.name`), not email — matched by real content too, so a
+    // coincidental stale thread with the same peer name can't false-pass.
+    final secondThreads = await secondRepo.getChatThreadPeers(const []);
+    final matching = secondThreads
+        .where((t) => t.peerName == session.name && t.lastMessage == 'ikinci hesaba gerçek mesaj')
+        .toList();
+    if (matching.isEmpty) {
+      throw 'the second real account never received the message — bidirectional delivery broken';
+    }
+    if (matching.first.unreadCount < 1) throw 'expected a real unread count for the new message';
+
+    final secondMessages = await secondRepo.getChatMessages(matching.first.peerName);
+    if (!secondMessages.any((m) => m.text == 'ikinci hesaba gerçek mesaj' && !m.fromMe)) {
+      throw 'message not visible as incoming (fromMe=false) on the second real account';
+    }
+    final afterOpen = await secondRepo.getChatThreadPeers(const []);
+    final reopened = afterOpen.firstWhere((t) => t.peerName == matching.first.peerName);
+    if (reopened.unreadCount != 0) throw 'opening the thread should have marked it read';
+
+    // Real bug fix (docs/EKSIKLER.md sosyal §1/§9): follow notifications
+    // used to land in the *follower's own* inbox — the wrong account. Now
+    // that a real second account follows the main session, the
+    // notification below must show up in `repo`'s (the followed account's)
+    // inbox, not the follower's.
+    await secondRepo.toggleFollow(session.name);
   });
 
   await check('repo.getInboxNotifications() has real entries, markAllNotificationsRead() works', () async {
     final notifications = await repo.getInboxNotifications();
-    if (notifications.isEmpty) throw 'expected at least one notification (from the follow above)';
+    if (notifications.isEmpty) {
+      throw 'expected at least one notification (a real second account followed this one above)';
+    }
+    if (!notifications.any((n) => n.kind == 'follow')) {
+      throw 'expected a real follow notification from the second account, on the followed account\'s own inbox';
+    }
     await repo.markAllNotificationsRead();
     final afterMark = await repo.getInboxNotifications();
     if (afterMark.any((n) => !n.read)) throw 'expected every notification to be read after markAllRead';
@@ -342,9 +513,15 @@ Future<void> main(List<String> args) async {
   });
 
   String? myActivityId;
-  await check('student can propose an activity (pending_review, not live)', () async {
+  // docs/EKSIKLER.md aktivite/onay workflow §1/§2/§3: the quick-create call
+  // only starts the record (form_required) and emails a real signed web-
+  // form URL — it isn't reviewable until that form is actually submitted
+  // (ActivityFormController, a browser route this pure-Dart script can't
+  // drive). The full create→form→pending_approval chain is covered by the
+  // backend's own ActivityFormApiTest instead.
+  await check('student can propose an activity (form_required, not live, not yet pending)', () async {
     final created = await repo.createOwnActivity(title: 'Verify Activity', placeId: places.first.id);
-    if (created.workflowStatus != 'pending_review') throw 'expected pending_review status';
+    if (created.workflowStatus != 'form_required') throw 'expected form_required status';
     myActivityId = created.id;
     final published = await repo.getEvents();
     if (published.any((e) => e.id == myActivityId)) {
@@ -353,7 +530,9 @@ Future<void> main(List<String> args) async {
     final mine = await repo.getMyActivities();
     if (!mine.any((e) => e.id == myActivityId)) throw 'not found in repo.getMyActivities()';
     final pending = await repo.getPendingActivities();
-    if (!pending.any((e) => e.id == myActivityId)) throw 'not found in repo.getPendingActivities()';
+    if (pending.any((e) => e.id == myActivityId)) {
+      throw 'form_required activity should not appear in the pending-approval queue yet';
+    }
   });
 
   // docs/EKSIKLER.md §4: a place can't be double-booked at the exact
@@ -386,15 +565,15 @@ Future<void> main(List<String> args) async {
       throw 'double-booking the same place/date/time slot did not throw PlaceConflictException';
     }
   });
-  if (myActivityId != null) {
-    await check('admin approving a pending activity actually publishes it', () async {
-      await repo.approveActivity(myActivityId!);
-      final published = await repo.getEvents();
-      if (!published.any((e) => e.id == myActivityId)) {
-        throw 'approved activity did not appear in the public events list';
-      }
-    });
-  }
+  // "Admin approving a pending activity actually publishes it" used to be
+  // checked here directly, but approval is now correctly gated on the
+  // activity's real signed web form having been submitted
+  // (Admin\EventController::approveActivity's FORM_NOT_SUBMITTED check) —
+  // a browser route this pure-Dart script has no way to drive (it can't
+  // compute Laravel's own signed-URL HMAC). The full create→form→
+  // pending_approval→approve→published chain is covered end-to-end by
+  // the backend's own EventApiTest::test_approving_a_pending_activity_
+  // actually_makes_it_publicly_visible instead.
 
   await check('admin: repo.upsertParticipationType()/deleteParticipationType() round-trip', () async {
     if (events.isEmpty) throw 'no events to attach a participation type to';
@@ -465,6 +644,102 @@ Future<void> main(List<String> args) async {
     if (!logs.any((l) => l.subject == 'Verify bulk email')) throw 'bulk email not logged';
     final failed = logs.firstWhere((l) => l.status != 'sent', orElse: () => logs.first);
     await repo.retryEmail(failed.id);
+  });
+
+  await check('admin: repo.getAcademicStaff() returns the real 59-person roster', () async {
+    final staff = await repo.getAcademicStaff();
+    if (staff.length < 59) throw 'expected the real seeded roster (59+), got ${staff.length}';
+    if (!staff.any((s) => s.name == 'Çağdaş Öğüç' && s.isDepartmentHead)) {
+      throw 'expected a known real department head to be present and flagged';
+    }
+  });
+
+  // Prompt 5/5 (admin dashboard/analytics/users/settings) — every new
+  // section below is a real backend query, not a client-side guess, so
+  // parsing the full payload without a shape mismatch is itself the test.
+  await check('admin: repo.getAdminStats() parses the full merged dashboard/analytics payload', () async {
+    final stats = await repo.getAdminStats();
+    if (stats.checkins.byHour.isEmpty && stats.checkins.total > 0) {
+      throw 'expected byHour to reflect real check-ins above';
+    }
+    // Just touching every new field is the real assertion — a JSON shape
+    // mismatch between StatsController and AdminStats.fromJson throws here.
+    stats.events.forms.submitRate;
+    stats.events.byFaculty;
+    stats.social.mostLiked;
+    stats.social.mostFollowed;
+    stats.askArucad.byCategory;
+    stats.map.busiestPlaces;
+  });
+
+  String? createdUserId;
+  await check('admin: repo.createAdminUser() creates a real user with real permission overrides', () async {
+    final created = await repo.createAdminUser(
+      name: 'Verify New User',
+      email: 'verify.newuser@arucad.edu.tr',
+      role: UserRole.student,
+      permissions: const ['moderation.moderate'],
+    );
+    createdUserId = created.id;
+    if (created.permissions.length != 1) throw 'expected exactly 1 granted permission';
+    final all = await repo.getAdminUsers();
+    if (!all.any((u) => u.id == createdUserId)) throw 'new user missing from repo.getAdminUsers()';
+  });
+
+  await check('admin: repo.updateAdminUserRole()/setAdminUserActive() round-trip', () async {
+    final id = createdUserId!;
+    final updated = await repo.updateAdminUserRole(id,
+        role: UserRole.contentEditor, permissions: const ['events.manage', 'clubs.manage']);
+    if (updated.role != UserRole.contentEditor) throw 'role did not update';
+    if (updated.permissions.length != 2) throw 'permissions did not update';
+    final deactivated = await repo.setAdminUserActive(id, false);
+    if (deactivated.active) throw 'expected active=false';
+    final reactivated = await repo.setAdminUserActive(id, true);
+    if (!reactivated.active) throw 'expected active=true after reactivating';
+  });
+
+  await check('admin: repo.getAllowedDomains()/setAllowedDomains() is real and enforced at sign-in',
+      () async {
+    final original = await repo.getAllowedDomains();
+    final widened = await repo.setAllowedDomains(const ['@arucad.edu.tr', '@verify-partner.edu.tr']);
+    if (!widened.contains('@verify-partner.edu.tr')) throw 'domain did not save';
+
+    final partnerClient = ApiClient(baseUrl: baseUrl, authTokenAdapter: _TokenAdapter());
+    final partnerRepo = RestCampusRepository(client: partnerClient);
+    final partnerSession = await partnerRepo.startSession(
+        email: 'someone@verify-partner.edu.tr', name: 'Verify Partner');
+    if (partnerSession.token == null || partnerSession.token!.isEmpty) {
+      throw 'sign-in from the newly-allowed domain should have succeeded';
+    }
+
+    // Restore, so re-running this script doesn't keep widening the list.
+    await repo.setAllowedDomains(original);
+  });
+
+  await check('admin: repo.setEntraClientSecret() is write-only (never echoed back)', () async {
+    final configured = await repo.setEntraClientSecret('verify-secret-value');
+    if (!configured) throw 'expected entraClientSecretConfigured=true after setting one';
+  });
+
+  await check('admin: repo.getCheckinXpAmount()/setCheckinXpAmount() actually changes what check-in grants',
+      () async {
+    final original = await repo.getCheckinXpAmount();
+    final saved = await repo.setCheckinXpAmount(42);
+    if (saved != 42) throw 'setting did not save';
+    final place = places.first;
+    final before = (await repo.getMe()).xp;
+    await repo.checkIn(place.id, lat: place.lat, lng: place.lng);
+    final after = (await repo.getMe()).xp;
+    await repo.setCheckinXpAmount(original);
+    if (after - before != 42) {
+      throw 'expected a fresh check-in to grant exactly the configured 42 XP, granted ${after - before}';
+    }
+  });
+
+  await check('admin: repo.getBannedUsers() returns the real banned-account list (separate from reports)',
+      () async {
+    final banned = await repo.getBannedUsers();
+    if (banned.any((u) => !u.banned)) throw 'getBannedUsers() returned a non-banned account';
   });
 
   raw.close();

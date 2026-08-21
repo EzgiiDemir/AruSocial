@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Api\Concerns\ApiResponds;
 use App\Http\Controllers\Controller;
+use App\Models\Checkin;
 use App\Models\Event;
 use App\Models\ModerationReport;
 use App\Models\Place;
@@ -25,6 +26,7 @@ class PlaceController extends Controller
             'category' => $p->category,
             'lat' => $p->lat,
             'lng' => $p->lng,
+            'coordinateConfidence' => $p->coordinate_confidence,
             'description' => $p->description,
             'distance' => $p->distance,
             'density' => $p->density,
@@ -126,6 +128,35 @@ class PlaceController extends Controller
             'time' => $e->time,
             'workflowStatus' => $e->workflow_status,
         ]));
+    }
+
+    // Real heatmap data (docs/EKSIKLER.md harita/heatmap): density per
+    // place computed from real Checkin rows in a real time window, not
+    // the static seeded `density` string. Thresholds are simple, honest
+    // absolute counts (documented here, not hidden) rather than a fake
+    // precision this prototype's check-in volume can't actually support:
+    // 0 = quiet, 1-2 = moderate, 3+ = busy.
+    public function density(Request $request): JsonResponse
+    {
+        $window = $request->query('window', 'today');
+        $since = match ($window) {
+            '1h' => now()->subHour(),
+            '7d' => now()->subDays(7),
+            '30d' => now()->subDays(30),
+            default => now()->startOfDay(),
+        };
+
+        $counts = Checkin::where('created_at', '>=', $since)
+            ->selectRaw('place_id, count(*) as total')
+            ->groupBy('place_id')
+            ->pluck('total', 'place_id');
+
+        return $this->ok(Place::all()->map(function (Place $p) use ($counts) {
+            $count = (int) ($counts[$p->id] ?? 0);
+            $level = $count >= 3 ? 'busy' : ($count >= 1 ? 'moderate' : 'quiet');
+
+            return ['placeId' => $p->id, 'checkins' => $count, 'level' => $level];
+        }));
     }
 
     public function report(Request $request, string $id): JsonResponse

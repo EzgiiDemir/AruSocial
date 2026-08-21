@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\Concerns\ApiResponds;
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\Quest;
+use App\Models\XpTransaction;
 use Illuminate\Http\JsonResponse;
 
 class ProfileController extends Controller
@@ -61,6 +62,29 @@ class ProfileController extends Controller
                 'title' => $a->title,
                 'subtitle' => $a->subtitle,
                 'meta' => $a->meta,
+            ]);
+
+        return $this->ok($items);
+    }
+
+    // Real, permanent XP ledger (docs/EKSIKLER.md harita/check-in/XP —
+    // "xp_transactions mantığı") — every grant here traces back to the
+    // real check-in/event-join row that caused it, not just a running
+    // total with no explanation.
+    public function xpTransactions(): JsonResponse
+    {
+        $u = $this->currentUser();
+        $items = XpTransaction::where('user_id', $u->id)
+            ->orderByDesc('created_at')
+            ->limit(200)
+            ->get()
+            ->map(fn (XpTransaction $t) => [
+                'id' => $t->id,
+                'amount' => $t->amount,
+                'reason' => $t->reason,
+                'sourceType' => $t->source_type,
+                'sourceId' => $t->source_id,
+                'createdAt' => $t->created_at?->toIso8601String(),
             ]);
 
         return $this->ok($items);

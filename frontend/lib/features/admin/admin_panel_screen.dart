@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart' show setEquals;
 import 'package:flutter/material.dart';
 
 import 'package:arucad_campus_prototype/core/config/campus_life_config.dart';
@@ -6,17 +9,16 @@ import 'package:arucad_campus_prototype/core/l10n/admin_strings.dart';
 import 'package:arucad_campus_prototype/core/models/academic_year.dart';
 import 'package:arucad_campus_prototype/core/models/admin_page.dart';
 import 'package:arucad_campus_prototype/core/models/admin_stats.dart';
+import 'package:arucad_campus_prototype/core/models/admin_user.dart';
 import 'package:arucad_campus_prototype/core/models/campus_models.dart';
 import 'package:arucad_campus_prototype/core/models/content_block.dart';
 import 'package:arucad_campus_prototype/core/models/email_log.dart';
 import 'package:arucad_campus_prototype/core/models/event_participant.dart';
 import 'package:arucad_campus_prototype/core/models/survey.dart';
-import 'package:arucad_campus_prototype/core/services/admin_content_store.dart';
 import 'package:arucad_campus_prototype/core/services/admin_settings_store.dart';
 import 'package:arucad_campus_prototype/core/services/audit_log_store.dart';
 import 'package:arucad_campus_prototype/core/services/contracts.dart';
 import 'package:arucad_campus_prototype/core/services/media_library_store.dart';
-import 'package:arucad_campus_prototype/core/services/role_assignment_store.dart';
 import 'package:arucad_campus_prototype/core/services/site_settings_store.dart';
 import 'package:arucad_campus_prototype/core/services/wordpress_data_source.dart';
 import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
@@ -55,7 +57,6 @@ class AdminPanelScreen extends StatefulWidget {
 /// sidebar before the screen behind it does something genuine.
 enum _AdminSection {
   dashboard,
-  stats,
   events,
   pendingActivities,
   clubs,
@@ -96,7 +97,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
 
   String _titleFor(_AdminSection section, AdminStrings strings) => switch (section) {
         _AdminSection.dashboard => strings.t('admin_nav_dashboard'),
-        _AdminSection.stats => strings.t('admin_nav_stats'),
         _AdminSection.events => strings.t('admin_nav_events'),
         _AdminSection.pendingActivities => strings.t('admin_nav_pending_activities'),
         _AdminSection.clubs => strings.t('admin_nav_clubs'),
@@ -121,7 +121,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
             role: widget.role,
             onNavigate: (s) => setState(() => _section = s),
           ),
-        _AdminSection.stats => _StatsTab(repository: widget.repository),
         _AdminSection.events =>
           _EventsTab(repository: widget.repository, uploaderName: widget.user.name),
         _AdminSection.pendingActivities =>
@@ -132,7 +131,8 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
           _SportsTab(repository: widget.repository, adminName: widget.user.name),
         _AdminSection.services =>
           _ServicesTab(repository: widget.repository, uploaderName: widget.user.name),
-        _AdminSection.food => _FoodTab(adminName: widget.user.name),
+        _AdminSection.food =>
+          _FoodTab(repository: widget.repository, adminName: widget.user.name),
         _AdminSection.directory =>
           _DirectoryTab(repository: widget.repository, adminName: widget.user.name),
         _AdminSection.pages =>
@@ -358,17 +358,18 @@ class _AdminSidebar extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.symmetric(vertical: 8),
       children: [
+        // Real menu prune (docs/EKSIKLER.md admin §7): "Bina Dizini",
+        // "Sayfalar" and "Akademik Yıllar" are deliberately not listed here
+        // any more, and Dashboard/İstatistik are merged into one entry —
+        // exactly the section list the final phase asked for, nothing
+        // more. The underlying screens/backend endpoints those three still
+        // had real public consumers for (building directory screen, pages
+        // screen, event academic-year stamping) are untouched — only the
+        // admin *editing* shortcut is gone from the menu.
         _NavTile(
           icon: Icons.dashboard_outlined,
           label: strings.t('admin_nav_dashboard'),
           section: _AdminSection.dashboard,
-          selected: selected,
-          onSelect: onSelect,
-        ),
-        _NavTile(
-          icon: Icons.query_stats_outlined,
-          label: strings.t('admin_nav_stats'),
-          section: _AdminSection.stats,
           selected: selected,
           onSelect: onSelect,
         ),
@@ -409,19 +410,6 @@ class _AdminSidebar extends StatelessWidget {
             section: _AdminSection.food,
             selected: selected,
             onSelect: onSelect),
-        _NavTile(
-            icon: Icons.meeting_room_outlined,
-            label: strings.t('admin_nav_directory'),
-            section: _AdminSection.directory,
-            selected: selected,
-            onSelect: onSelect),
-        _SidebarGroupLabel(strings.t('admin_section_content')),
-        _NavTile(
-            icon: Icons.article_outlined,
-            label: strings.t('admin_nav_pages'),
-            section: _AdminSection.pages,
-            selected: selected,
-            onSelect: onSelect),
         _SidebarGroupLabel(strings.t('admin_section_media')),
         _NavTile(
             icon: Icons.photo_library_outlined,
@@ -434,12 +422,6 @@ class _AdminSidebar extends StatelessWidget {
             icon: Icons.poll_outlined,
             label: strings.t('admin_nav_surveys'),
             section: _AdminSection.surveys,
-            selected: selected,
-            onSelect: onSelect),
-        _NavTile(
-            icon: Icons.calendar_today_outlined,
-            label: strings.t('admin_nav_academic_years'),
-            section: _AdminSection.academicYears,
             selected: selected,
             onSelect: onSelect),
         _NavTile(
@@ -553,53 +535,81 @@ class _DashboardTab extends StatefulWidget {
   State<_DashboardTab> createState() => _DashboardTabState();
 }
 
+// Real "Dashboard ve İstatistik" merge (docs/EKSIKLER.md admin §1): one
+// screen, not two — content/catalog overview at the top (most important
+// info first, per §14), full usage analytics below. Genuinely realtime
+// per §1 ("manuel refresh gerektirmemeli"): a 30s poll silently refetches
+// both halves and updates the already-rendered screen in place — no
+// blank reload, no spinner flash, exactly like a real dashboard.
 class _DashboardTabState extends State<_DashboardTab> {
-  late Future<_DashboardData> _future;
+  _DashboardData? _dashboard;
+  AdminStats? _stats;
+  int _days = 14;
+  Timer? _pollTimer;
 
   @override
   void initState() {
     super.initState();
-    _future = _load();
+    _load();
+    _pollTimer = Timer.periodic(const Duration(seconds: 30), (_) => _load(silent: true));
   }
 
-  Future<_DashboardData> _load() async {
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _load({bool silent = false}) async {
     final results = await Future.wait([
       widget.repository.getEvents(includeUnpublished: true),
       widget.repository.getClubs(),
       widget.repository.getSports(),
       widget.repository.getServices(),
-      AdminContentStore.foodVenues(),
+      widget.repository.getFoodVenues(),
       widget.repository.getDirectoryEntries(),
       widget.repository.getReports(),
       MediaLibraryStore.items(),
       AuditLogStore.entries(),
+      widget.repository.getAdminStats(days: _days),
     ]);
+    if (!mounted) return;
     final events = results[0] as List<CampusEvent>;
     final reports = results[6] as List<ModerationReport>;
-    return _DashboardData(
-      events: events.length,
-      draftEvents: events.where((e) => e.draft).length,
-      clubs: (results[1] as List<CampusClub>).length,
-      sports: (results[2] as List<CampusSport>).length,
-      services: (results[3] as List<CampusService>).length,
-      foodVenues: (results[4] as List<CampusFoodVenue>).length,
-      directoryEntries: (results[5] as List).length,
-      recentActivity: (results[8] as List<AuditLogEntry>).take(5).toList(),
-      pendingReports: reports.where((r) => r.action == null).length,
-      mediaItems: (results[7] as List).length,
-    );
+    setState(() {
+      _dashboard = _DashboardData(
+        events: events.length,
+        draftEvents: events.where((e) => e.draft).length,
+        clubs: (results[1] as List<CampusClub>).length,
+        sports: (results[2] as List<CampusSport>).length,
+        services: (results[3] as List<CampusService>).length,
+        foodVenues: (results[4] as List<CampusFoodVenue>).length,
+        directoryEntries: (results[5] as List).length,
+        recentActivity: (results[8] as List<AuditLogEntry>).take(5).toList(),
+        pendingReports: reports.where((r) => r.action == null).length,
+        mediaItems: (results[7] as List).length,
+      );
+      _stats = results[9] as AdminStats;
+    });
+  }
+
+  void _changeDays(int days) {
+    setState(() => _days = days);
+    _load();
   }
 
   @override
-  Widget build(BuildContext context) => FutureBuilder<_DashboardData>(
-        future: _future,
-        builder: (context, snap) {
-          if (!snap.hasData) return const Center(child: CircularProgressIndicator());
-          final d = snap.data!;
-          final strings = AdminLocale.of(context);
-          return ListView(
-            padding: const EdgeInsets.all(20),
-            children: [
+  Widget build(BuildContext context) {
+    final d = _dashboard;
+    final s = _stats;
+    if (d == null || s == null) return const Center(child: CircularProgressIndicator());
+    final strings = AdminLocale.of(context);
+    final wide = MediaQuery.of(context).size.width >= 700;
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
               Text(strings.t('admin_dash_quick_actions'),
                   style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
               const SizedBox(height: 10),
@@ -730,348 +740,430 @@ class _DashboardTabState extends State<_DashboardTab> {
                   style: const TextStyle(color: ArucadColors.muted, fontSize: 12),
                 ),
               ],
-            ],
-          );
-        },
-      );
-}
 
-/// Real usage statistics — every number here comes straight from
-/// [CampusRepository.getAdminStats] (a live aggregate query in Rest mode,
-/// the same real aggregation over in-memory state in Mock mode). Answers
-/// exactly what was asked: check-ins, most-visited places, event
-/// participation, content/survey/email activity — across every real field
-/// and service this app has, not just events/clubs like the Dashboard tab.
-class _StatsTab extends StatefulWidget {
-  final CampusRepository repository;
-  const _StatsTab({required this.repository});
-
-  @override
-  State<_StatsTab> createState() => _StatsTabState();
-}
-
-class _StatsTabState extends State<_StatsTab> {
-  late Future<AdminStats> _future;
-  int _days = 14;
-
-  @override
-  void initState() {
-    super.initState();
-    _future = widget.repository.getAdminStats(days: _days);
-  }
-
-  void _changeDays(int days) {
-    setState(() {
-      _days = days;
-      _future = widget.repository.getAdminStats(days: _days);
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final strings = AdminLocale.of(context);
-    return FutureBuilder<AdminStats>(
-      future: _future,
-      builder: (context, snap) {
-        if (!snap.hasData) return const Center(child: CircularProgressIndicator());
-        final s = snap.data!;
-        final wide = MediaQuery.of(context).size.width >= 700;
-        return ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            // Honest first, not buried — the one number people usually ask
-            // for first ("kaç kişi indirdi") is exactly the one this
-            // backend can't answer, so it's surfaced plainly instead of
-            // hidden or faked.
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                  color: ArucadColors.mist, borderRadius: BorderRadius.circular(14)),
-              child: Row(children: [
-                const Icon(Icons.info_outline, size: 18, color: ArucadColors.muted),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(s.appUsage.note,
-                      style: const TextStyle(color: ArucadColors.muted, fontSize: 12)),
-                ),
-              ]),
-            ),
-            const SizedBox(height: 8),
-            Text(s.userSummary.note,
-                style: const TextStyle(color: ArucadColors.muted, fontSize: 11.5)),
-
-            const SizedBox(height: 22),
-            _StatsSectionHeader(strings.t('admin_stats_checkins')),
-            const SizedBox(height: 10),
-            GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: wide ? 4 : 2,
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
-              childAspectRatio: 1.6,
-              children: [
-                _StatCard(
-                    label: strings.t('admin_stats_total_checkins'),
-                    value: '${s.checkins.total}',
-                    icon: Icons.pin_drop_outlined,
-                    accentColor: ArucadColors.terracotta,
-                    onTap: () {}),
-                _StatCard(
-                    label: strings.t('admin_stats_visible_checkins'),
-                    value: '${s.checkins.visibleToOthers}',
-                    icon: Icons.visibility_outlined,
-                    accentColor: ArucadColors.sage,
-                    onTap: () {}),
-                _StatCard(
-                    label: strings.t('admin_stats_total_xp'),
-                    value: '${s.userSummary.totalXp}',
-                    icon: Icons.bolt_outlined,
-                    accentColor: ArucadColors.honey,
-                    onTap: () {}),
-                _StatCard(
-                    label: strings.t('admin_stats_banned_accounts'),
-                    value: '${s.userSummary.bannedAccounts}',
-                    icon: Icons.block_outlined,
-                    highlight: s.userSummary.bannedAccounts > 0,
-                    onTap: () {}),
-              ],
-            ),
-            const SizedBox(height: 14),
-            Text(strings.t('admin_stats_most_checked_in_places'),
-                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5)),
-            const SizedBox(height: 8),
-            _RankedBarList(
-              items: [for (final p in s.checkins.mostCheckedInPlaces) (p.placeName, p.total)],
-              emptyLabel: strings.t('admin_stats_no_data_yet'),
-            ),
-            const SizedBox(height: 14),
-            Row(children: [
-              Expanded(
-                child: Text(strings.t('admin_stats_checkins_by_day'),
-                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5)),
-              ),
-              for (final d in [7, 14, 30])
-                Padding(
-                  padding: const EdgeInsets.only(left: 6),
-                  child: SelectableChip(
-                    label: '${d}g',
-                    selected: _days == d,
-                    onSelected: (_) => _changeDays(d),
+              // ---------------------------------------------- Analytics
+              const SizedBox(height: 28),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                    color: ArucadColors.mist, borderRadius: BorderRadius.circular(14)),
+                child: Row(children: [
+                  const Icon(Icons.info_outline, size: 18, color: ArucadColors.muted),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(s.appUsage.note,
+                        style: const TextStyle(color: ArucadColors.muted, fontSize: 12)),
                   ),
+                ]),
+              ),
+              const SizedBox(height: 8),
+              Text(s.userSummary.note,
+                  style: const TextStyle(color: ArucadColors.muted, fontSize: 11.5)),
+
+              const SizedBox(height: 22),
+              _StatsSectionHeader(strings.t('admin_stats_checkins')),
+              const SizedBox(height: 10),
+              GridView.count(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisCount: wide ? 4 : 2,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+                childAspectRatio: 1.6,
+                children: [
+                  _StatCard(
+                      label: strings.t('admin_stats_total_checkins'),
+                      value: '${s.checkins.total}',
+                      icon: Icons.pin_drop_outlined,
+                      accentColor: ArucadColors.terracotta,
+                      onTap: () {}),
+                  _StatCard(
+                      label: strings.t('admin_stats_visible_checkins'),
+                      value: '${s.checkins.visibleToOthers}',
+                      sub: '${s.checkins.hiddenXpOnly} gizli',
+                      icon: Icons.visibility_outlined,
+                      accentColor: ArucadColors.sage,
+                      onTap: () {}),
+                  _StatCard(
+                      label: strings.t('admin_stats_total_xp'),
+                      value: '${s.userSummary.totalXp}',
+                      icon: Icons.bolt_outlined,
+                      accentColor: ArucadColors.honey,
+                      onTap: () {}),
+                  _StatCard(
+                      label: strings.t('admin_stats_banned_accounts'),
+                      value: '${s.userSummary.bannedAccounts}',
+                      sub: '${s.userSummary.deactivatedAccounts} pasif',
+                      icon: Icons.block_outlined,
+                      highlight: s.userSummary.bannedAccounts > 0,
+                      onTap: () => widget.onNavigate(_AdminSection.moderation)),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Text(strings.t('admin_stats_most_checked_in_places'),
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5)),
+              const SizedBox(height: 8),
+              _RankedBarList(
+                items: [for (final p in s.checkins.mostCheckedInPlaces) (p.placeName, p.total)],
+                emptyLabel: strings.t('admin_stats_no_data_yet'),
+              ),
+              const SizedBox(height: 14),
+              Text('En çok check-in yapan öğrenciler',
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5)),
+              const SizedBox(height: 8),
+              _RankedBarList(
+                items: [for (final c in s.checkins.topStudents) (c.label, c.total)],
+                emptyLabel: strings.t('admin_stats_no_data_yet'),
+              ),
+              const SizedBox(height: 14),
+              Text('Yoğun saatler',
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5)),
+              const SizedBox(height: 8),
+              _RankedBarList(
+                items: [for (final h in s.checkins.byHour) ('${h.label}:00', h.total)],
+                emptyLabel: strings.t('admin_stats_no_data_yet'),
+              ),
+              const SizedBox(height: 14),
+              Row(children: [
+                Expanded(
+                  child: Text(strings.t('admin_stats_checkins_by_day'),
+                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5)),
                 ),
-            ]),
-            const SizedBox(height: 8),
-            _DailyTrendChart(data: s.checkins.byDay),
+                for (final dOpt in [7, 14, 30])
+                  Padding(
+                    padding: const EdgeInsets.only(left: 6),
+                    child: SelectableChip(
+                      label: '${dOpt}g',
+                      selected: _days == dOpt,
+                      onSelected: (_) => _changeDays(dOpt),
+                    ),
+                  ),
+              ]),
+              const SizedBox(height: 8),
+              _DailyTrendChart(data: s.checkins.byDay),
 
-            const SizedBox(height: 26),
-            _StatsSectionHeader(strings.t('admin_stats_events')),
-            const SizedBox(height: 10),
-            GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: wide ? 4 : 2,
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
-              childAspectRatio: 1.6,
-              children: [
-                _StatCard(
-                    label: strings.t('admin_stats_total_joins'),
-                    value: '${s.events.totalJoins}',
-                    icon: Icons.how_to_reg_outlined,
-                    accentColor: ArucadColors.slateBlue,
-                    onTap: () {}),
-                _StatCard(
-                    label: strings.t('admin_stats_forms_submitted'),
-                    value: '${s.events.formsSubmitted}',
-                    icon: Icons.assignment_turned_in_outlined,
-                    accentColor: ArucadColors.mistLilac,
-                    onTap: () {}),
-                _StatCard(
-                    label: strings.t('admin_stats_attendance_approved'),
-                    value: '${s.events.attendanceApproved}',
-                    icon: Icons.verified_outlined,
-                    accentColor: ArucadColors.dustyRose,
-                    onTap: () {}),
-                _StatCard(
-                    label: strings.t('admin_stats_pending_review_events'),
-                    value: '${s.events.pendingReview}',
-                    icon: Icons.pending_actions_outlined,
-                    highlight: s.events.pendingReview > 0,
-                    onTap: () {}),
-              ],
-            ),
-            const SizedBox(height: 14),
-            Text(strings.t('admin_stats_most_joined_events'),
-                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5)),
-            const SizedBox(height: 8),
-            _RankedBarList(
-              items: [for (final e in s.events.mostJoinedEvents) (e.title, e.total)],
-              emptyLabel: strings.t('admin_stats_no_data_yet'),
-            ),
+              const SizedBox(height: 26),
+              _StatsSectionHeader('Aktivite Analitiği'),
+              const SizedBox(height: 10),
+              GridView.count(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisCount: wide ? 4 : 2,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+                childAspectRatio: 1.6,
+                children: [
+                  _StatCard(
+                      label: strings.t('admin_stats_total_joins'),
+                      value: '${s.events.totalJoins}',
+                      icon: Icons.how_to_reg_outlined,
+                      accentColor: ArucadColors.slateBlue,
+                      onTap: () {}),
+                  _StatCard(
+                      label: strings.t('admin_stats_forms_submitted'),
+                      value: '${s.events.formsSubmitted}',
+                      icon: Icons.assignment_turned_in_outlined,
+                      accentColor: ArucadColors.mistLilac,
+                      onTap: () {}),
+                  _StatCard(
+                      label: strings.t('admin_stats_attendance_approved'),
+                      value: '${s.events.attendanceApproved}',
+                      sub: '${s.events.attendanceStudentCount} öğrenci',
+                      icon: Icons.verified_outlined,
+                      accentColor: ArucadColors.dustyRose,
+                      onTap: () {}),
+                  _StatCard(
+                      label: strings.t('admin_stats_pending_review_events'),
+                      value: '${s.events.pendingReview}',
+                      sub: '${s.events.rejected} reddedildi',
+                      icon: Icons.pending_actions_outlined,
+                      highlight: s.events.pendingReview > 0,
+                      onTap: () => widget.onNavigate(_AdminSection.pendingActivities)),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Text(strings.t('admin_stats_most_joined_events'),
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5)),
+              const SizedBox(height: 8),
+              _RankedBarList(
+                items: [for (final e in s.events.mostJoinedEvents) (e.title, e.total)],
+                emptyLabel: strings.t('admin_stats_no_data_yet'),
+              ),
+              const SizedBox(height: 14),
+              Text('En çok kullanılan yerler',
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5)),
+              const SizedBox(height: 8),
+              _RankedBarList(
+                items: [for (final p in s.events.mostUsedPlaces) (p.placeName, p.total)],
+                emptyLabel: strings.t('admin_stats_no_data_yet'),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                  'Form: ${s.events.forms.total} toplam · ${s.events.forms.opened} açıldı · '
+                  '${s.events.forms.submitted} gönderildi'
+                  '${s.events.forms.submitRate == null ? '' : ' · %${(s.events.forms.submitRate! * 100).round()} submit oranı'}',
+                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5, color: ArucadColors.muted)),
+              const SizedBox(height: 14),
+              Text('Fakülteye göre katılım',
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5)),
+              const SizedBox(height: 8),
+              _RankedBarList(
+                items: [for (final f in s.events.byFaculty) (f.label, f.total)],
+                emptyLabel: strings.t('admin_stats_no_data_yet'),
+              ),
+              const SizedBox(height: 14),
+              Text('Bölüme göre katılım',
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5)),
+              const SizedBox(height: 8),
+              _RankedBarList(
+                items: [for (final dep in s.events.byDepartment) (dep.label, dep.total)],
+                emptyLabel: strings.t('admin_stats_no_data_yet'),
+              ),
+              const SizedBox(height: 14),
+              Text('Yoklama alan hocalar',
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5)),
+              const SizedBox(height: 8),
+              _RankedBarList(
+                items: [for (final t in s.events.attendanceTakenBy) (t.label, t.total)],
+                emptyLabel: strings.t('admin_stats_no_data_yet'),
+              ),
+              const SizedBox(height: 14),
+              Text('En aktif öğrenciler',
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5)),
+              const SizedBox(height: 8),
+              _RankedBarList(
+                items: [for (final a in s.events.mostActiveStudents) (a.label, a.total)],
+                emptyLabel: strings.t('admin_stats_no_data_yet'),
+              ),
 
-            const SizedBox(height: 26),
-            _StatsSectionHeader(strings.t('admin_stats_social')),
-            const SizedBox(height: 10),
-            GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: wide ? 4 : 2,
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
-              childAspectRatio: 1.6,
-              children: [
-                _StatCard(
-                    label: strings.t('admin_stats_feed_posts'),
-                    value: '${s.social.feedPosts}',
-                    icon: Icons.dynamic_feed_outlined,
-                    accentColor: ArucadColors.slateBlue,
-                    onTap: () {}),
-                _StatCard(
-                    label: strings.t('admin_stats_comments'),
-                    value: '${s.social.comments}',
-                    icon: Icons.chat_bubble_outline,
-                    accentColor: ArucadColors.sage,
-                    onTap: () {}),
-                _StatCard(
-                    label: strings.t('admin_stats_stories'),
-                    value: '${s.social.stories}',
-                    icon: Icons.auto_stories_outlined,
-                    accentColor: ArucadColors.honey,
-                    onTap: () {}),
-                _StatCard(
-                    label: strings.t('admin_stats_reviews'),
-                    value: '${s.social.reviews}',
-                    sub: s.social.reviews > 0
-                        ? '⭐ ${s.social.averageRating.toStringAsFixed(1)} ${strings.t('admin_stats_average_suffix')}'
-                        : null,
-                    icon: Icons.star_outline,
-                    accentColor: ArucadColors.terracotta,
-                    onTap: () {}),
-                _StatCard(
-                    label: strings.t('admin_stats_reports_filed'),
-                    value: '${s.social.moderationReportsFiled}',
-                    sub: s.social.moderationReportsUnresolved > 0
-                        ? '${s.social.moderationReportsUnresolved} ${strings.t('admin_stats_unresolved_suffix')}'
-                        : null,
-                    icon: Icons.flag_outlined,
-                    highlight: s.social.moderationReportsUnresolved > 0,
-                    onTap: () {}),
-              ],
-            ),
+              const SizedBox(height: 26),
+              _StatsSectionHeader(strings.t('admin_stats_social')),
+              const SizedBox(height: 10),
+              GridView.count(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisCount: wide ? 4 : 2,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+                childAspectRatio: 1.6,
+                children: [
+                  _StatCard(
+                      label: strings.t('admin_stats_feed_posts'),
+                      value: '${s.social.feedPosts}',
+                      icon: Icons.dynamic_feed_outlined,
+                      accentColor: ArucadColors.slateBlue,
+                      onTap: () {}),
+                  _StatCard(
+                      label: strings.t('admin_stats_comments'),
+                      value: '${s.social.comments}',
+                      icon: Icons.chat_bubble_outline,
+                      accentColor: ArucadColors.sage,
+                      onTap: () {}),
+                  _StatCard(
+                      label: strings.t('admin_stats_stories'),
+                      value: '${s.social.stories}',
+                      icon: Icons.auto_stories_outlined,
+                      accentColor: ArucadColors.honey,
+                      onTap: () {}),
+                  _StatCard(
+                      label: strings.t('admin_stats_reviews'),
+                      value: '${s.social.reviews}',
+                      sub: s.social.reviews > 0
+                          ? '⭐ ${s.social.averageRating.toStringAsFixed(1)} ${strings.t('admin_stats_average_suffix')}'
+                          : null,
+                      icon: Icons.star_outline,
+                      accentColor: ArucadColors.terracotta,
+                      onTap: () {}),
+                  _StatCard(
+                      label: strings.t('admin_stats_reports_filed'),
+                      value: '${s.social.moderationReportsFiled}',
+                      sub: s.social.moderationReportsUnresolved > 0
+                          ? '${s.social.moderationReportsUnresolved} ${strings.t('admin_stats_unresolved_suffix')}'
+                          : null,
+                      icon: Icons.flag_outlined,
+                      highlight: s.social.moderationReportsUnresolved > 0,
+                      onTap: () => widget.onNavigate(_AdminSection.moderation)),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Text('En çok paylaşım yapan',
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5)),
+              const SizedBox(height: 8),
+              _RankedBarList(
+                items: [for (final p in s.social.topPosters) (p.label, p.total)],
+                emptyLabel: strings.t('admin_stats_no_data_yet'),
+              ),
+              const SizedBox(height: 14),
+              Text('En çok beğeni alan gönderiler',
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5)),
+              const SizedBox(height: 8),
+              _RankedBarList(
+                items: [
+                  for (final p in s.social.mostLiked)
+                    ('${p.name}: ${p.text.length > 30 ? '${p.text.substring(0, 30)}…' : p.text}', p.likes)
+                ],
+                emptyLabel: strings.t('admin_stats_no_data_yet'),
+              ),
+              const SizedBox(height: 14),
+              Text('En çok yorum alan gönderiler',
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5)),
+              const SizedBox(height: 8),
+              _RankedBarList(
+                items: [for (final c in s.social.mostCommented) (c.author, c.total)],
+                emptyLabel: strings.t('admin_stats_no_data_yet'),
+              ),
+              const SizedBox(height: 14),
+              Text('En çok takipçiye sahip',
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5)),
+              const SizedBox(height: 8),
+              _RankedBarList(
+                items: [for (final f in s.social.mostFollowed) (f.label, f.total)],
+                emptyLabel: strings.t('admin_stats_no_data_yet'),
+              ),
+              const SizedBox(height: 14),
+              Text('En çok şikayet edilen içerikler',
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5)),
+              const SizedBox(height: 8),
+              _RankedBarList(
+                items: [for (final r in s.social.mostReportedContent) (r.targetLabel, r.total)],
+                emptyLabel: strings.t('admin_stats_no_data_yet'),
+              ),
+              const SizedBox(height: 14),
+              Text('En aktif öğrenciler',
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5)),
+              const SizedBox(height: 8),
+              _RankedBarList(
+                items: [for (final a in s.social.mostActiveStudents) (a.label, a.total)],
+                emptyLabel: strings.t('admin_stats_no_data_yet'),
+              ),
 
-            const SizedBox(height: 26),
-            _StatsSectionHeader(strings.t('admin_stats_activity_by_kind')),
-            const SizedBox(height: 10),
-            _RankedBarList(
-              items: [
-                for (final k in s.activityByKind) (_activityKindLabel(k.kind, strings), k.total)
-              ],
-              emptyLabel: strings.t('admin_stats_no_data_yet'),
-            ),
+              const SizedBox(height: 26),
+              _StatsSectionHeader(strings.t('admin_stats_activity_by_kind')),
+              const SizedBox(height: 10),
+              _RankedBarList(
+                items: [
+                  for (final k in s.activityByKind) (_activityKindLabel(k.kind, strings), k.total)
+                ],
+                emptyLabel: strings.t('admin_stats_no_data_yet'),
+              ),
 
-            const SizedBox(height: 26),
-            _StatsSectionHeader(strings.t('admin_stats_surveys_email')),
-            const SizedBox(height: 10),
-            GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: wide ? 4 : 2,
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
-              childAspectRatio: 1.6,
-              children: [
-                _StatCard(
-                    label: strings.t('admin_stats_total_surveys'),
-                    value: '${s.surveys.total}',
-                    icon: Icons.poll_outlined,
-                    accentColor: ArucadColors.mistLilac,
-                    onTap: () {}),
-                _StatCard(
-                    label: strings.t('admin_stats_survey_responses'),
-                    value: '${s.surveys.totalResponses}',
-                    icon: Icons.how_to_vote_outlined,
-                    accentColor: ArucadColors.dustyRose,
-                    onTap: () {}),
-                _StatCard(
-                    label: strings.t('admin_stats_emails_sent'),
-                    value: '${s.email.sent}',
-                    icon: Icons.mail_outline,
-                    accentColor: ArucadColors.sage,
-                    onTap: () {}),
-                _StatCard(
-                    label: strings.t('admin_stats_emails_failed'),
-                    value: '${s.email.failed}',
-                    icon: Icons.error_outline,
-                    highlight: s.email.failed > 0,
-                    onTap: () {}),
-              ],
-            ),
+              const SizedBox(height: 26),
+              _StatsSectionHeader('ARUCAD Sor Analitiği'),
+              const SizedBox(height: 10),
+              Text('Toplam soru: ${s.askArucad.totalQuestions}',
+                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5, color: ArucadColors.muted)),
+              const SizedBox(height: 8),
+              Text('Kategoriye göre',
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5)),
+              const SizedBox(height: 8),
+              _RankedBarList(
+                items: [for (final c in s.askArucad.byCategory) (c.label, c.total)],
+                emptyLabel: strings.t('admin_stats_no_data_yet'),
+              ),
+              const SizedBox(height: 14),
+              Text('En çok sorulan sorular',
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5)),
+              const SizedBox(height: 8),
+              _RankedBarList(
+                items: [for (final q in s.askArucad.topQuestions) (q.label, q.total)],
+                emptyLabel: strings.t('admin_stats_no_data_yet'),
+              ),
 
-            const SizedBox(height: 26),
-            _StatsSectionHeader(strings.t('admin_stats_catalog')),
-            const SizedBox(height: 10),
-            GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: wide ? 4 : 2,
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
-              childAspectRatio: 1.6,
-              children: [
-                _StatCard(
-                    label: strings.t('admin_dash_stat_events'),
-                    value: '${s.events.total}',
-                    icon: Icons.event_outlined,
-                    accentColor: ArucadColors.terracotta,
-                    onTap: () {}),
-                _StatCard(
-                    label: strings.t('admin_stats_places'),
-                    value: '${s.catalog.places}',
-                    icon: Icons.map_outlined,
-                    accentColor: ArucadColors.slateBlue,
-                    onTap: () {}),
-                _StatCard(
-                    label: strings.t('admin_dash_stat_clubs'),
-                    value: '${s.catalog.clubs}',
-                    icon: Icons.groups_outlined,
-                    accentColor: ArucadColors.sage,
-                    onTap: () {}),
-                _StatCard(
-                    label: strings.t('admin_dash_stat_sports'),
-                    value: '${s.catalog.sports}',
-                    icon: Icons.sports_outlined,
-                    accentColor: ArucadColors.honey,
-                    onTap: () {}),
-                _StatCard(
-                    label: strings.t('admin_dash_stat_services'),
-                    value: '${s.catalog.services}',
-                    icon: Icons.support_agent_outlined,
-                    accentColor: ArucadColors.dustyRose,
-                    onTap: () {}),
-                _StatCard(
-                    label: strings.t('admin_dash_stat_food_venues'),
-                    value: '${s.catalog.foodVenues}',
-                    icon: Icons.restaurant_outlined,
-                    accentColor: ArucadColors.mistLilac,
-                    onTap: () {}),
-                _StatCard(
-                    label: strings.t('admin_dash_stat_directory'),
-                    value: '${s.catalog.directoryEntries}',
-                    icon: Icons.meeting_room_outlined,
-                    accentColor: ArucadColors.slateBlue,
-                    onTap: () {}),
-                _StatCard(
-                    label: strings.t('admin_dash_stat_media'),
-                    value: '${s.catalog.mediaItems}',
-                    icon: Icons.photo_library_outlined,
-                    accentColor: ArucadColors.terracotta,
-                    onTap: () {}),
-              ],
-            ),
-          ],
-        );
-      },
+              const SizedBox(height: 26),
+              _StatsSectionHeader('Harita Analitiği'),
+              const SizedBox(height: 10),
+              Text('En yoğun bölgeler (bugün)',
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5)),
+              const SizedBox(height: 8),
+              _RankedBarList(
+                items: [for (final p in s.map.busiestPlaces) (p.placeName, p.checkinsToday)],
+                emptyLabel: strings.t('admin_stats_no_data_yet'),
+              ),
+              const SizedBox(height: 14),
+              Text('En sakin bölgeler',
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5)),
+              const SizedBox(height: 8),
+              Wrap(spacing: 6, runSpacing: 6, children: [
+                for (final p in s.map.quietestPlaces)
+                  Chip(label: Text(p.placeName), backgroundColor: ArucadColors.mist),
+                if (s.map.quietestPlaces.isEmpty)
+                  Text(strings.t('admin_stats_no_data_yet'),
+                      style: const TextStyle(color: ArucadColors.muted)),
+              ]),
+              const SizedBox(height: 14),
+              Text('Zaman bazlı yoğunluk (check-in / saat)',
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5)),
+              const SizedBox(height: 8),
+              _RankedBarList(
+                items: [for (final h in s.map.byHour) ('${h.label}:00', h.total)],
+                emptyLabel: strings.t('admin_stats_no_data_yet'),
+              ),
+
+              const SizedBox(height: 26),
+              _StatsSectionHeader(strings.t('admin_stats_surveys_email')),
+              const SizedBox(height: 10),
+              GridView.count(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisCount: wide ? 4 : 2,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+                childAspectRatio: 1.6,
+                children: [
+                  _StatCard(
+                      label: strings.t('admin_stats_total_surveys'),
+                      value: '${s.surveys.total}',
+                      icon: Icons.poll_outlined,
+                      accentColor: ArucadColors.mistLilac,
+                      onTap: () {}),
+                  _StatCard(
+                      label: strings.t('admin_stats_survey_responses'),
+                      value: '${s.surveys.totalResponses}',
+                      icon: Icons.how_to_vote_outlined,
+                      accentColor: ArucadColors.dustyRose,
+                      onTap: () {}),
+                  _StatCard(
+                      label: strings.t('admin_stats_emails_sent'),
+                      value: '${s.email.sent}',
+                      icon: Icons.mail_outline,
+                      accentColor: ArucadColors.sage,
+                      onTap: () {}),
+                  _StatCard(
+                      label: strings.t('admin_stats_emails_failed'),
+                      value: '${s.email.failed}',
+                      icon: Icons.error_outline,
+                      highlight: s.email.failed > 0,
+                      onTap: () {}),
+                ],
+              ),
+
+              const SizedBox(height: 26),
+              _StatsSectionHeader(strings.t('admin_stats_catalog')),
+              const SizedBox(height: 10),
+              GridView.count(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisCount: wide ? 4 : 2,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+                childAspectRatio: 1.6,
+                children: [
+                  _StatCard(
+                      label: strings.t('admin_stats_places'),
+                      value: '${s.catalog.places}',
+                      icon: Icons.map_outlined,
+                      accentColor: ArucadColors.slateBlue,
+                      onTap: () {}),
+                  _StatCard(
+                      label: strings.t('admin_dash_stat_sports'),
+                      value: '${s.catalog.sports}',
+                      icon: Icons.sports_outlined,
+                      accentColor: ArucadColors.honey,
+                      onTap: () => widget.onNavigate(_AdminSection.sports)),
+                ],
+              ),
+            ],
+          ),
     );
   }
 }
@@ -1958,31 +2050,55 @@ class _PendingActivitiesTabState extends State<_PendingActivitiesTab> {
   void _reload() => setState(() => _future = widget.repository.getPendingActivities());
 
   Future<void> _approve(CampusEvent e) async {
-    await widget.repository.approveActivity(e.id);
+    try {
+      await widget.repository.approveActivity(e.id);
+    } catch (err) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Onaylanamadı: $err')));
+      return;
+    }
     await AuditLogStore.log(
         actorName: widget.adminName, action: 'approve', targetType: 'event', targetLabel: e.title);
     _reload();
   }
 
+  // Real, required rejection reason (docs/EKSIKLER.md aktivite/onay
+  // workflow §4: "Red nedeni zorunlu veya desteklenir olmalı") — the
+  // backend now hard-rejects an empty reviewNote, so the dialog matches
+  // that instead of letting the admin submit a blank one and hit an error.
   Future<void> _reject(CampusEvent e) async {
     final noteC = TextEditingController();
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Aktiviteyi reddet'),
-        content: TextField(
-          controller: noteC,
-          decoration: const InputDecoration(labelText: 'Sebep (öğrenciye gösterilir)'),
-          maxLines: 3,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Aktiviteyi reddet'),
+          content: TextField(
+            controller: noteC,
+            decoration: const InputDecoration(labelText: 'Sebep (öğrenciye gösterilir, zorunlu)'),
+            maxLines: 3,
+            onChanged: (_) => setDialogState(() {}),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Vazgeç')),
+            FilledButton(
+              onPressed: noteC.text.trim().isEmpty ? null : () => Navigator.pop(ctx, true),
+              child: const Text('Reddet'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Vazgeç')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Reddet')),
-        ],
       ),
     );
     if (confirmed != true) return;
-    await widget.repository.rejectActivity(e.id, reviewNote: noteC.text.trim());
+    try {
+      await widget.repository.rejectActivity(e.id, reviewNote: noteC.text.trim());
+    } catch (err) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Reddedilemedi: $err')));
+      return;
+    }
     await AuditLogStore.log(
         actorName: widget.adminName, action: 'reject', targetType: 'event', targetLabel: e.title);
     _reload();
@@ -2022,6 +2138,44 @@ class _PendingActivitiesTabState extends State<_PendingActivitiesTab> {
                     const SizedBox(height: 8),
                     Text(e.description, maxLines: 3, overflow: TextOverflow.ellipsis),
                   ],
+                  // Real fields from the completed activity form
+                  // (docs/EKSIKLER.md aktivite/onay workflow §1) — what a
+                  // reviewer actually needs to decide, not just the title.
+                  if (e.purpose != null && e.purpose!.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text('Amaç: ${e.purpose}', style: const TextStyle(fontSize: 12.5)),
+                  ],
+                  if (e.studentNumber != null || e.phone != null) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                        'Öğrenci No: ${e.studentNumber ?? '—'} · Tel: ${e.phone ?? '—'}',
+                        style: const TextStyle(color: ArucadColors.muted, fontSize: 12)),
+                  ],
+                  if (e.faculty != null || e.department != null) ...[
+                    const SizedBox(height: 4),
+                    Text('${e.faculty ?? '—'} · ${e.department ?? '—'}',
+                        style: const TextStyle(color: ArucadColors.muted, fontSize: 12)),
+                  ],
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                        color: (e.assignedStaffName != null
+                                ? ArucadColors.success
+                                : ArucadColors.warning)
+                            .withValues(alpha: .12),
+                        borderRadius: BorderRadius.circular(999)),
+                    child: Text(
+                        e.assignedStaffName != null
+                            ? 'Yönlendirildi: ${e.assignedStaffName}'
+                            : 'Otomatik yönlendirme bulunamadı — manuel inceleme gerekiyor',
+                        style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: e.assignedStaffName != null
+                                ? ArucadColors.success
+                                : ArucadColors.warning)),
+                  ),
                   const SizedBox(height: 10),
                   Row(children: [
                     Expanded(
@@ -2598,8 +2752,9 @@ class _ServicesTabState extends State<_ServicesTab> {
 // ------------------------------------------------------------- Yemek
 
 class _FoodTab extends StatefulWidget {
+  final CampusRepository repository;
   final String adminName;
-  const _FoodTab({required this.adminName});
+  const _FoodTab({required this.repository, required this.adminName});
   @override
   State<_FoodTab> createState() => _FoodTabState();
 }
@@ -2612,14 +2767,14 @@ class _FoodTabState extends State<_FoodTab> {
   @override
   void initState() {
     super.initState();
-    _future = AdminContentStore.foodVenues();
+    _future = widget.repository.getFoodVenues();
   }
 
-  void _reload() => setState(() => _future = AdminContentStore.foodVenues());
+  void _reload() => setState(() => _future = widget.repository.getFoodVenues());
 
   Future<void> _deleteSelected() async {
     for (final id in _selected) {
-      await AdminContentStore.deleteFoodVenue(id);
+      await widget.repository.deleteFoodVenue(id);
     }
     await AuditLogStore.log(
         actorName: widget.adminName,
@@ -2667,7 +2822,7 @@ class _FoodTabState extends State<_FoodTab> {
       ),
     );
     if (saved != true || nameC.text.trim().isEmpty) return;
-    await AdminContentStore.saveFoodVenue(CampusFoodVenue(
+    await widget.repository.upsertFoodVenue(CampusFoodVenue(
       id: existing?.id ?? 'food-${slugify(nameC.text)}',
       name: nameC.text.trim(),
       hours: hoursC.text.trim().isEmpty ? null : hoursC.text.trim(),
@@ -2685,7 +2840,8 @@ class _FoodTabState extends State<_FoodTab> {
   Future<void> _manageCalendar(CampusFoodVenue venue) async {
     final strings = AdminLocale.of(context);
     await Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => _FoodMenuCalendarScreen(venue: venue, strings: strings)));
+        builder: (_) => _FoodMenuCalendarScreen(
+            repository: widget.repository, venue: venue, strings: strings)));
     _reload();
   }
 
@@ -2753,7 +2909,7 @@ class _FoodTabState extends State<_FoodTab> {
                               IconButton(
                                 icon: const Icon(Icons.delete_outline),
                                 onPressed: () async {
-                                  await AdminContentStore.deleteFoodVenue(v.id);
+                                  await widget.repository.deleteFoodVenue(v.id);
                                   await AuditLogStore.log(
                                       actorName: widget.adminName,
                                       action: 'delete',
@@ -2779,13 +2935,14 @@ class _FoodTabState extends State<_FoodTab> {
 /// items/price/hours, so a student picking a date on the Garden's calendar
 /// sees exactly what an admin actually entered for that day.
 class _FoodMenuCalendarScreen extends StatefulWidget {
+  final CampusRepository repository;
   final CampusFoodVenue venue;
   // Passed in explicitly rather than read via `AdminLocale.of(context)`:
   // this screen is reached via `Navigator.push`, which mounts it as a new
   // route outside the `AdminPanelScreen` subtree that `AdminLocale` wraps,
   // so there is no ancestor to look up here.
   final AdminStrings strings;
-  const _FoodMenuCalendarScreen({required this.venue, required this.strings});
+  const _FoodMenuCalendarScreen({required this.repository, required this.venue, required this.strings});
 
   @override
   State<_FoodMenuCalendarScreen> createState() => _FoodMenuCalendarScreenState();
@@ -2798,16 +2955,6 @@ class _FoodMenuCalendarScreenState extends State<_FoodMenuCalendarScreen> {
   void initState() {
     super.initState();
     _menus = [...widget.venue.dailyMenus]..sort((a, b) => a.date.compareTo(b.date));
-  }
-
-  Future<void> _persist() async {
-    await AdminContentStore.saveFoodVenue(CampusFoodVenue(
-      id: widget.venue.id,
-      name: widget.venue.name,
-      hours: widget.venue.hours,
-      dailyMenus: _menus,
-      menuFileUrl: widget.venue.menuFileUrl,
-    ));
   }
 
   Future<void> _editDay([DailyMenu? existing]) async {
@@ -2878,12 +3025,12 @@ class _FoodMenuCalendarScreenState extends State<_FoodMenuCalendarScreen> {
       _menus.add(entry);
       _menus.sort((a, b) => a.date.compareTo(b.date));
     });
-    await _persist();
+    await widget.repository.upsertFoodMenu(widget.venue.id, entry);
   }
 
   Future<void> _deleteDay(DailyMenu menu) async {
     setState(() => _menus.remove(menu));
-    await _persist();
+    await widget.repository.deleteFoodMenu(widget.venue.id, menu.date);
   }
 
   @override
@@ -3302,6 +3449,29 @@ class _PagesTabState extends State<_PagesTab> {
 
 // ------------------------------------------------------- Users & Roles
 
+const _permissionLabels = {
+  'events.manage': 'Etkinlikleri yönet',
+  'pendingActivities.manage': 'Bekleyen aktiviteleri onayla/reddet',
+  'clubs.manage': 'Kulüpleri yönet',
+  'sports.manage': 'Sporları yönet',
+  'services.manage': 'Hizmetleri yönet',
+  'food.manage': 'Yemek menülerini yönet',
+  'media.manage': 'Medya kütüphanesini yönet',
+  'surveys.manage': 'Anketleri yönet',
+  'email.send': 'E-posta gönder',
+  'moderation.moderate': 'Moderasyon yap',
+  'activityLog.view': 'Aktivite günlüğünü gör',
+  'users.manage': 'Kullanıcı ve rolleri yönet',
+  'siteSettings.manage': 'Site ayarlarını yönet',
+};
+
+// Real "Kullanıcılar ve Roller" (docs/EKSIKLER.md admin §9) — the piece
+// explicitly deferred at the end of Prompt 3/5 ("kişi bazında... tek tek
+// override edilebilen bir izin sistemi... henüz yok"). Now backed by real
+// `users` rows (not just pre-provisioned email->role mappings), with a
+// real create-user flow, real per-person checkbox permission overrides,
+// and a real active/deactivate toggle — every checkbox here genuinely
+// changes what that person's account can do (see EnsurePermission).
 class _UsersTab extends StatefulWidget {
   final CampusRepository repository;
   final String adminName;
@@ -3311,122 +3481,207 @@ class _UsersTab extends StatefulWidget {
 }
 
 class _UsersTabState extends State<_UsersTab> {
-  late Future<List<RoleAssignment>> _future;
+  late Future<List<AdminUser>> _future;
 
   @override
   void initState() {
     super.initState();
-    _future = widget.repository.getRoleAssignments();
+    _future = widget.repository.getAdminUsers();
   }
 
-  void _reload() => setState(() => _future = widget.repository.getRoleAssignments());
+  void _reload() => setState(() => _future = widget.repository.getAdminUsers());
 
-  Future<void> _editAssignment([RoleAssignment? existing]) async {
-    final strings = AdminLocale.of(context);
-    final emailC = TextEditingController(text: existing?.email);
-    var role = existing?.role ?? UserRole.student;
+  Future<void> _createUser() async {
+    final nameC = TextEditingController();
+    final emailC = TextEditingController();
+    var role = UserRole.student;
+    final permissions = <String>{};
 
     final saved = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          title: Text(existing == null ? strings.t('admin_role_new') : strings.t('admin_role_edit')),
-          content: _DialogShell(fields: [
-            TextField(
-              controller: emailC,
-              enabled: existing == null,
-              decoration: InputDecoration(labelText: strings.t('admin_role_email')),
-            ),
-            DropdownButtonFormField<UserRole>(
-              initialValue: role,
-              decoration: InputDecoration(labelText: strings.t('admin_field_role')),
-              items: UserRole.values
-                  .map((r) => DropdownMenuItem(value: r, child: Text(r.label)))
-                  .toList(),
-              onChanged: (v) => setDialogState(() => role = v ?? role),
-            ),
-          ]),
+          title: const Text('Yeni kullanıcı oluştur'),
+          content: SizedBox(
+            width: 420,
+            child: _DialogShell(fields: [
+              TextField(controller: nameC, decoration: const InputDecoration(labelText: 'Ad Soyad')),
+              TextField(
+                  controller: emailC,
+                  decoration: const InputDecoration(labelText: 'E-posta (@arucad.edu.tr)')),
+              DropdownButtonFormField<UserRole>(
+                initialValue: role,
+                decoration: const InputDecoration(labelText: 'Rol'),
+                items: UserRole.values
+                    .map((r) => DropdownMenuItem(value: r, child: Text(r.label)))
+                    .toList(),
+                onChanged: (v) => setDialogState(() => role = v ?? role),
+              ),
+              const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('Ek izinler (rol şablonunun üstüne)',
+                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5))),
+              for (final key in kGranularPermissionKeys)
+                CheckboxListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  title: Text(_permissionLabels[key] ?? key, style: const TextStyle(fontSize: 13)),
+                  value: permissions.contains(key),
+                  onChanged: (checked) => setDialogState(
+                      () => checked == true ? permissions.add(key) : permissions.remove(key)),
+                ),
+            ]),
+          ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(strings.t('admin_cancel'))),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(strings.t('admin_save'))),
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Vazgeç')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Oluştur')),
           ],
         ),
       ),
     );
-    if (saved != true || emailC.text.trim().isEmpty) return;
-    await widget.repository
-        .setRoleAssignment(emailC.text.trim(), role, assignedBy: widget.adminName);
-    await AuditLogStore.log(
-        actorName: widget.adminName,
-        action: 'role_change',
-        targetType: 'user',
-        targetLabel: '${emailC.text.trim()} → ${role.label}');
-    _reload();
+    if (saved != true) return;
+    final name = nameC.text.trim();
+    final email = emailC.text.trim();
+    if (name.isEmpty || email.isEmpty) return;
+    try {
+      await widget.repository.createAdminUser(
+          name: name, email: email, role: role, permissions: permissions.toList());
+      _reload();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Oluşturulamadı: $e')));
+    }
   }
 
-  Future<void> _remove(RoleAssignment a) async {
-    await widget.repository.deleteRoleAssignment(a.email);
-    await AuditLogStore.log(
-        actorName: widget.adminName,
-        action: 'role_change',
-        targetType: 'user',
-        targetLabel: '${a.email} → (kaldırıldı, varsayılana döner)');
+  Future<void> _editUser(AdminUser user) async {
+    var role = user.role;
+    final permissions = user.permissions.toSet();
+    var active = user.active;
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: Text(user.name),
+          content: SizedBox(
+            width: 420,
+            child: _DialogShell(fields: [
+              Text(user.email, style: const TextStyle(color: ArucadColors.muted, fontSize: 12.5)),
+              SwitchListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Hesap aktif', style: TextStyle(fontSize: 13)),
+                subtitle: active
+                    ? null
+                    : const Text('Pasif hesaplar giriş yapamaz (admin rotaları hariç)',
+                        style: TextStyle(fontSize: 11)),
+                value: active,
+                onChanged: (v) => setDialogState(() => active = v),
+              ),
+              DropdownButtonFormField<UserRole>(
+                initialValue: role,
+                decoration: const InputDecoration(labelText: 'Rol'),
+                items: UserRole.values
+                    .map((r) => DropdownMenuItem(value: r, child: Text(r.label)))
+                    .toList(),
+                onChanged: (v) => setDialogState(() => role = v ?? role),
+              ),
+              const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('Ek izinler (rol şablonunun üstüne)',
+                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5))),
+              for (final key in kGranularPermissionKeys)
+                CheckboxListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  title: Text(_permissionLabels[key] ?? key, style: const TextStyle(fontSize: 13)),
+                  value: permissions.contains(key),
+                  onChanged: (checked) => setDialogState(
+                      () => checked == true ? permissions.add(key) : permissions.remove(key)),
+                ),
+              const Divider(),
+              Text(
+                  'XP: ${user.xp} · Check-in: ${user.checkins} · Etkinlik katılımı: ${user.eventsJoined}'
+                  '${user.strikes > 0 ? ' · ${user.strikes} ihlal' : ''}',
+                  style: const TextStyle(color: ArucadColors.muted, fontSize: 11.5)),
+            ]),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Vazgeç')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Kaydet')),
+          ],
+        ),
+      ),
+    );
+    if (saved != true) return;
+    if (active != user.active) {
+      await widget.repository.setAdminUserActive(user.id, active);
+    }
+    if (role != user.role || !setEquals(permissions, user.permissions.toSet())) {
+      await widget.repository
+          .updateAdminUserRole(user.id, role: role, permissions: permissions.toList());
+    }
     _reload();
   }
 
   @override
   Widget build(BuildContext context) {
-    final strings = AdminLocale.of(context);
     return Scaffold(
-      floatingActionButton: FloatingActionButton(
-          onPressed: () => _editAssignment(), child: const Icon(Icons.person_add_outlined)),
-      body: FutureBuilder<List<RoleAssignment>>(
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _createUser,
+        icon: const Icon(Icons.person_add_outlined),
+        label: const Text('Kullanıcı Oluştur'),
+      ),
+      body: FutureBuilder<List<AdminUser>>(
         future: _future,
         builder: (context, snap) {
           if (!snap.hasData) return const Center(child: CircularProgressIndicator());
-          final assignments = snap.data!;
+          final users = snap.data!;
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 90),
             children: [
-              Card(
-                color: ArucadColors.mist,
-                child: Padding(
-                  padding: const EdgeInsets.all(14),
-                  child: Text(
-                    strings.t('admin_role_local_note'),
-                    style: const TextStyle(color: ArucadColors.muted, fontSize: 12),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              if (assignments.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 24),
+              if (users.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
                   child: Center(
-                      child: Text(strings.t('admin_role_none_yet'),
-                          style: const TextStyle(color: ArucadColors.muted))),
+                      child: Text('Henüz kullanıcı yok.',
+                          style: TextStyle(color: ArucadColors.muted))),
                 )
               else
-                for (final a in assignments)
+                for (final u in users)
                   Card(
                     child: ListTile(
-                      leading: const Icon(Icons.person_outline, color: ArucadColors.primary),
-                      title: Text(a.email,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.w700)),
+                      leading: CircleAvatar(
+                        backgroundColor: u.active ? categoryAccent(u.name) : ArucadColors.mist,
+                        child: Text(u.name.isEmpty ? '?' : u.name.substring(0, 1),
+                            style: TextStyle(color: u.active ? Colors.white : ArucadColors.muted)),
+                      ),
+                      title: Row(children: [
+                        Flexible(
+                            child: Text(u.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontWeight: FontWeight.w700))),
+                        if (!u.active) ...[
+                          const SizedBox(width: 6),
+                          const _MiniBadge(label: 'PASİF', color: ArucadColors.muted),
+                        ],
+                        if (u.banned) ...[
+                          const SizedBox(width: 6),
+                          const _MiniBadge(label: 'YASAKLI', color: ArucadColors.danger),
+                        ],
+                      ]),
                       subtitle: Text(
-                          strings
-                              .t('admin_role_assigned_by')
-                              .replaceAll('{role}', a.role.label)
-                              .replaceAll('{name}', a.assignedBy),
+                          '${u.email} · ${u.role.label}'
+                          '${u.permissions.isEmpty ? '' : ' +${u.permissions.length}'}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis),
-                      onTap: () => _editAssignment(a),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.delete_outline),
-                        onPressed: () => _remove(a),
-                      ),
+                      trailing: Text('${u.xp} XP',
+                          style: const TextStyle(color: ArucadColors.muted, fontSize: 12)),
+                      onTap: () => _editUser(u),
                     ),
                   ),
             ],
@@ -3435,6 +3690,21 @@ class _UsersTabState extends State<_UsersTab> {
       ),
     );
   }
+}
+
+class _MiniBadge extends StatelessWidget {
+  final String label;
+  final Color color;
+  const _MiniBadge({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration:
+            BoxDecoration(color: color.withValues(alpha: .14), borderRadius: BorderRadius.circular(999)),
+        child: Text(label,
+            style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, color: color)),
+      );
 }
 
 // -------------------------------------------------------- Activity Log
@@ -3535,16 +3805,24 @@ class _ModerationTab extends StatefulWidget {
   State<_ModerationTab> createState() => _ModerationTabState();
 }
 
+enum _ModerationView { reports, banned }
+
 class _ModerationTabState extends State<_ModerationTab> {
   late Future<List<ModerationReport>> _future;
+  late Future<List<AdminUser>> _bannedFuture;
+  _ModerationView _view = _ModerationView.reports;
 
   @override
   void initState() {
     super.initState();
     _future = widget.repository.getReports();
+    _bannedFuture = widget.repository.getBannedUsers();
   }
 
-  void _reload() => setState(() => _future = widget.repository.getReports());
+  void _reload() => setState(() {
+        _future = widget.repository.getReports();
+        _bannedFuture = widget.repository.getBannedUsers();
+      });
 
   Future<void> _act(ModerationReport report, ModerationAction action) async {
     await widget.repository.resolveReport(report.id, action);
@@ -3556,81 +3834,149 @@ class _ModerationTabState extends State<_ModerationTab> {
     _reload();
   }
 
+  Future<void> _unban(AdminUser user) async {
+    await widget.repository.unbanUser(user.id);
+    await AuditLogStore.log(
+        actorName: widget.adminName,
+        action: 'unban',
+        targetType: 'user',
+        targetLabel: user.name);
+    _reload();
+  }
+
   @override
   Widget build(BuildContext context) {
     final strings = AdminLocale.of(context);
-    return FutureBuilder<List<ModerationReport>>(
-      future: _future,
-      builder: (context, snap) {
-        if (!snap.hasData) return const Center(child: CircularProgressIndicator());
-        final reports = snap.data!;
-        if (reports.isEmpty) {
-          return Center(
-              child: Text(strings.t('admin_no_pending_reports'),
-                  style: const TextStyle(color: ArucadColors.muted)));
-        }
-        return ListView.separated(
-          padding: const EdgeInsets.all(16),
-          itemCount: reports.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 10),
-          itemBuilder: (context, i) {
-            final r = reports[i];
-            final resolved = r.action != null;
-            return Card(
-              child: Padding(
-                padding: const EdgeInsets.all(14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(children: [
-                      Icon(
-                          r.kind == ReportedKind.post
-                              ? Icons.dynamic_feed_outlined
-                              : Icons.place_outlined,
-                          size: 18, color: ArucadColors.muted),
-                      const SizedBox(width: 6),
-                      Expanded(
-                          child: Text(r.targetLabel,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontWeight: FontWeight.w800))),
-                      if (resolved)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                              color: ArucadColors.success.withValues(alpha: .12),
-                              borderRadius: BorderRadius.circular(999)),
-                          child: Text(_actionLabel(strings, r.action!),
-                              style: const TextStyle(fontSize: 11, color: ArucadColors.success)),
-                        ),
-                    ]),
-                    const SizedBox(height: 6),
-                    Text('${strings.t('admin_reason_prefix')}: ${r.reason}',
-                        style: const TextStyle(color: ArucadColors.muted)),
-                    if (!resolved) ...[
-                      const SizedBox(height: 10),
-                      Wrap(spacing: 8, children: [
-                        OutlinedButton(
-                            onPressed: () => _act(r, ModerationAction.dismissed),
-                            child: Text(strings.t('admin_action_dismiss'))),
-                        OutlinedButton(
-                            onPressed: () => _act(r, ModerationAction.warned),
-                            child: Text(strings.t('admin_action_warn'))),
-                        FilledButton(
-                            onPressed: () => _act(r, ModerationAction.removed),
-                            style: FilledButton.styleFrom(backgroundColor: ArucadColors.danger),
-                            child: Text(strings.t('admin_content_remove'))),
-                      ]),
-                    ],
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
+    return Column(children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+        child: Row(children: [
+          SelectableChip(
+            label: 'Raporlar',
+            selected: _view == _ModerationView.reports,
+            onSelected: (_) => setState(() => _view = _ModerationView.reports),
+          ),
+          const SizedBox(width: 8),
+          // Real, separate category (docs/EKSIKLER.md admin §10,
+          // "Banlı/yasaklı hesaplar ayrı kategoride tutulmalı") — a ban
+          // (ModerationService's automatic 3-strike consequence) is a
+          // distinct mechanism from a report being resolved, so it gets
+          // its own view here rather than being folded into the report list.
+          SelectableChip(
+            label: 'Banlı Hesaplar',
+            selected: _view == _ModerationView.banned,
+            onSelected: (_) => setState(() => _view = _ModerationView.banned),
+          ),
+        ]),
+      ),
+      Expanded(
+        child: _view == _ModerationView.reports ? _buildReports(strings) : _buildBanned(),
+      ),
+    ]);
   }
+
+  Widget _buildReports(AdminStrings strings) => FutureBuilder<List<ModerationReport>>(
+        future: _future,
+        builder: (context, snap) {
+          if (!snap.hasData) return const Center(child: CircularProgressIndicator());
+          final reports = snap.data!;
+          if (reports.isEmpty) {
+            return Center(
+                child: Text(strings.t('admin_no_pending_reports'),
+                    style: const TextStyle(color: ArucadColors.muted)));
+          }
+          return ListView.separated(
+            padding: const EdgeInsets.all(16),
+            itemCount: reports.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 10),
+            itemBuilder: (context, i) {
+              final r = reports[i];
+              final resolved = r.action != null;
+              return Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(children: [
+                        Icon(
+                            r.kind == ReportedKind.post
+                                ? Icons.dynamic_feed_outlined
+                                : Icons.place_outlined,
+                            size: 18, color: ArucadColors.muted),
+                        const SizedBox(width: 6),
+                        Expanded(
+                            child: Text(r.targetLabel,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontWeight: FontWeight.w800))),
+                        if (resolved)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                                color: ArucadColors.success.withValues(alpha: .12),
+                                borderRadius: BorderRadius.circular(999)),
+                            child: Text(_actionLabel(strings, r.action!),
+                                style: const TextStyle(fontSize: 11, color: ArucadColors.success)),
+                          ),
+                      ]),
+                      const SizedBox(height: 6),
+                      Text('${strings.t('admin_reason_prefix')}: ${r.reason}',
+                          style: const TextStyle(color: ArucadColors.muted)),
+                      if (!resolved) ...[
+                        const SizedBox(height: 10),
+                        Wrap(spacing: 8, children: [
+                          OutlinedButton(
+                              onPressed: () => _act(r, ModerationAction.dismissed),
+                              child: Text(strings.t('admin_action_dismiss'))),
+                          OutlinedButton(
+                              onPressed: () => _act(r, ModerationAction.warned),
+                              child: Text(strings.t('admin_action_warn'))),
+                          FilledButton(
+                              onPressed: () => _act(r, ModerationAction.removed),
+                              style: FilledButton.styleFrom(backgroundColor: ArucadColors.danger),
+                              child: Text(strings.t('admin_content_remove'))),
+                        ]),
+                      ],
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      );
+
+  Widget _buildBanned() => FutureBuilder<List<AdminUser>>(
+        future: _bannedFuture,
+        builder: (context, snap) {
+          if (!snap.hasData) return const Center(child: CircularProgressIndicator());
+          final banned = snap.data!;
+          if (banned.isEmpty) {
+            return const Center(
+                child: Text('Banlı hesap yok.', style: TextStyle(color: ArucadColors.muted)));
+          }
+          return ListView.separated(
+            padding: const EdgeInsets.all(16),
+            itemCount: banned.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 10),
+            itemBuilder: (context, i) {
+              final u = banned[i];
+              return Card(
+                child: ListTile(
+                  leading: const Icon(Icons.block_outlined, color: ArucadColors.danger),
+                  title: Text(u.name, style: const TextStyle(fontWeight: FontWeight.w800)),
+                  subtitle: Text('${u.email} · ${u.strikes} ihlal'),
+                  trailing: OutlinedButton(
+                    onPressed: () => _unban(u),
+                    child: const Text('Yasağı Kaldır'),
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      );
 
   String _actionLabel(AdminStrings strings, ModerationAction action) => switch (action) {
         ModerationAction.dismissed => strings.t('admin_action_dismissed'),
@@ -3672,6 +4018,25 @@ class _SiteSettingsTabState extends State<_SiteSettingsTab> {
   // never echoes the raw key back, so this only ever reflects "is one
   // configured", never the value itself.
   bool _moderationConfigured = false;
+  // Real check-in proximity threshold (docs/EKSIKLER.md §18) — what the
+  // backend's own distance check in CheckinController actually enforces.
+  int _checkinRadius = 150;
+  bool _savingCheckinRadius = false;
+
+  // Real, admin-configurable sign-in allow-list + Entra Client Secret
+  // (docs/EKSIKLER.md admin §13) — genuinely backend-enforced
+  // (AuthController::session() reads the same domain list) and write-only
+  // for the secret (same shape as the moderation key above: never echoed
+  // back to any client).
+  final _domainsC = TextEditingController();
+  final _entraSecretC = TextEditingController();
+  bool _entraSecretConfigured = false;
+  bool _savingAuth = false;
+
+  // Real, admin-configurable default check-in XP — CheckinController reads
+  // this same AppSetting instead of a hardcoded amount.
+  int _checkinXp = 10;
+  bool _savingXp = false;
 
   static const _defaultRedirect =
       'com.example.arucad_campus_prototype:/oauthredirect';
@@ -3686,6 +4051,10 @@ class _SiteSettingsTabState extends State<_SiteSettingsTab> {
     final entra = await SiteSettingsStore.entra();
     final wp = await SiteSettingsStore.wordpress();
     final moderationConfigured = await widget.repository.getImageModerationConfigured();
+    final checkinRadius = await widget.repository.getCheckinRadiusMeters();
+    final allowedDomains = await widget.repository.getAllowedDomains();
+    final entraSecretConfigured = await widget.repository.getEntraClientSecretConfigured();
+    final checkinXp = await widget.repository.getCheckinXpAmount();
     if (!mounted) return;
     setState(() {
       _tenantC.text = entra.tenantId;
@@ -3694,7 +4063,58 @@ class _SiteSettingsTabState extends State<_SiteSettingsTab> {
       _wpUrlC.text = wp.siteUrl;
       _wpTokenC.text = wp.apiToken;
       _moderationConfigured = moderationConfigured;
+      _checkinRadius = checkinRadius;
+      _domainsC.text = allowedDomains.join(', ');
+      _entraSecretConfigured = entraSecretConfigured;
+      _checkinXp = checkinXp;
       _loading = false;
+    });
+  }
+
+  Future<void> _setCheckinRadius(int meters) async {
+    setState(() => _savingCheckinRadius = true);
+    final saved = await widget.repository.setCheckinRadiusMeters(meters);
+    if (!mounted) return;
+    setState(() {
+      _checkinRadius = saved;
+      _savingCheckinRadius = false;
+    });
+  }
+
+  Future<void> _saveAllowedDomains() async {
+    setState(() => _savingAuth = true);
+    final domains = _domainsC.text.split(',').map((d) => d.trim()).where((d) => d.isNotEmpty).toList();
+    final saved = await widget.repository.setAllowedDomains(domains);
+    if (!mounted) return;
+    setState(() {
+      _domainsC.text = saved.join(', ');
+      _savingAuth = false;
+    });
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('İzinli domainler güncellendi.')));
+  }
+
+  Future<void> _saveEntraSecret() async {
+    if (_entraSecretC.text.trim().isEmpty) return;
+    setState(() => _savingAuth = true);
+    final configured = await widget.repository.setEntraClientSecret(_entraSecretC.text.trim());
+    _entraSecretC.clear();
+    if (!mounted) return;
+    setState(() {
+      _entraSecretConfigured = configured;
+      _savingAuth = false;
+    });
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('Client Secret güncellendi.')));
+  }
+
+  Future<void> _setCheckinXp(int amount) async {
+    setState(() => _savingXp = true);
+    final saved = await widget.repository.setCheckinXpAmount(amount);
+    if (!mounted) return;
+    setState(() {
+      _checkinXp = saved;
+      _savingXp = false;
     });
   }
 
@@ -3765,6 +4185,8 @@ class _SiteSettingsTabState extends State<_SiteSettingsTab> {
     _wpUrlC.dispose();
     _wpTokenC.dispose();
     _moderationKeyC.dispose();
+    _domainsC.dispose();
+    _entraSecretC.dispose();
     super.dispose();
   }
 
@@ -3806,6 +4228,56 @@ class _SiteSettingsTabState extends State<_SiteSettingsTab> {
               ? strings.t('admin_saving_ellipsis')
               : strings.t('admin_entra_save')),
         ),
+
+        const SizedBox(height: 30),
+        const Divider(),
+        const SizedBox(height: 18),
+        // Real, backend-enforced settings (docs/EKSIKLER.md admin §13) —
+        // distinct from the on-device Entra fields above: these two
+        // genuinely change server behavior (AuthController::session()'s
+        // domain check) and are never sent back to any client once saved
+        // (same write-only shape as the moderation key below).
+        const Text('Kimlik Doğrulama Ayarları',
+            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+        const SizedBox(height: 6),
+        const Text(
+          'İzinli e-posta domainleri gerçekten backend tarafında uygulanır — buradaki '
+          'listenin dışında kalan bir e-postayla oturum açılamaz. Client Secret ise '
+          'sadece sunucuda saklanır, hiçbir istemciye geri gönderilmez.',
+          style: TextStyle(color: ArucadColors.muted, fontSize: 12.5),
+        ),
+        const SizedBox(height: 14),
+        TextField(
+            controller: _domainsC,
+            decoration: const InputDecoration(
+                labelText: 'İzinli domainler (virgülle ayır)',
+                hintText: '@arucad.edu.tr, @partner.edu.tr')),
+        const SizedBox(height: 10),
+        FilledButton(
+          onPressed: _savingAuth ? null : _saveAllowedDomains,
+          child: Text(_savingAuth ? strings.t('admin_saving_ellipsis') : 'Domainleri Kaydet'),
+        ),
+        const SizedBox(height: 18),
+        Row(children: [
+          Icon(
+              _entraSecretConfigured ? Icons.check_circle : Icons.radio_button_unchecked,
+              size: 16,
+              color: _entraSecretConfigured ? ArucadColors.success : ArucadColors.muted),
+          const SizedBox(width: 6),
+          Text(_entraSecretConfigured ? 'Client Secret tanımlı' : 'Client Secret tanımlı değil',
+              style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
+        ]),
+        const SizedBox(height: 10),
+        TextField(
+            controller: _entraSecretC,
+            obscureText: true,
+            decoration: const InputDecoration(labelText: 'Entra Client Secret')),
+        const SizedBox(height: 10),
+        FilledButton(
+          onPressed: _savingAuth ? null : _saveEntraSecret,
+          child: Text(_savingAuth ? strings.t('admin_saving_ellipsis') : 'Secret Kaydet'),
+        ),
+
         const SizedBox(height: 30),
         const Divider(),
         const SizedBox(height: 18),
@@ -3909,6 +4381,47 @@ class _SiteSettingsTabState extends State<_SiteSettingsTab> {
               child: Text(strings.t('admin_moderation_clear')),
             ),
           ],
+        ]),
+
+        const SizedBox(height: 30),
+        const Divider(),
+        const SizedBox(height: 18),
+        Text(strings.t('admin_checkin_radius_title'),
+            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+        const SizedBox(height: 6),
+        Text(
+          strings.t('admin_checkin_radius_desc'),
+          style: const TextStyle(color: ArucadColors.muted, fontSize: 12.5),
+        ),
+        const SizedBox(height: 12),
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          for (final m in [50, 100, 150, 250, 500])
+            SelectableChip(
+              label: '${m}m',
+              selected: _checkinRadius == m,
+              onSelected: (_) => _savingCheckinRadius ? null : _setCheckinRadius(m),
+            ),
+        ]),
+
+        const SizedBox(height: 30),
+        const Divider(),
+        const SizedBox(height: 18),
+        // Real, admin-configurable default check-in XP — CheckinController
+        // reads this same AppSetting instead of a hardcoded amount.
+        const Text('XP Ayarları', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+        const SizedBox(height: 6),
+        const Text(
+          'Bir check-in\'in gerçekten kaç XP kazandırdığı — backend her check-in\'de bu değeri kullanır.',
+          style: TextStyle(color: ArucadColors.muted, fontSize: 12.5),
+        ),
+        const SizedBox(height: 12),
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          for (final xp in [5, 10, 15, 20, 30, 50])
+            SelectableChip(
+              label: '$xp XP',
+              selected: _checkinXp == xp,
+              onSelected: (_) => _savingXp ? null : _setCheckinXp(xp),
+            ),
         ]),
       ],
     );
@@ -4242,32 +4755,106 @@ class _EmailLogTabState extends State<_EmailLogTab> {
 
   void _reload() => setState(() => _future = widget.repository.getEmailLogs());
 
+  // Real ARUCAD personnel picker (docs/EKSIKLER.md aktivite/onay workflow
+  // §10: "E-posta Günlüğü yerine sadece E-posta... akademik personeller
+  // listelensin, admin kişi seçebilsin, birden fazla kişi seçebilsin") —
+  // alongside (not instead of) the manual free-text field, since not
+  // every recipient is necessarily in the academic-staff directory.
   Future<void> _sendBulk() async {
     final recipientsC = TextEditingController();
     final subjectC = TextEditingController();
     final bodyC = TextEditingController();
+    final staff = await widget.repository.getAcademicStaff();
+    if (!mounted) return;
+    final selectedStaffEmails = <String>{};
+    String staffQuery = '';
+
     final saved = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Toplu E-posta Gönder'),
-        content: _DialogShell(fields: [
-          TextField(
-              controller: recipientsC,
-              decoration: const InputDecoration(
-                  labelText: 'Alıcılar (virgülle ayrılmış)',
-                  hintText: 'ali@arucad.edu.tr, ayse@arucad.edu.tr'),
-              maxLines: 2),
-          TextField(controller: subjectC, decoration: const InputDecoration(labelText: 'Konu')),
-          TextField(
-              controller: bodyC, decoration: const InputDecoration(labelText: 'İçerik'), maxLines: 5),
-        ]),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Vazgeç')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Gönder')),
-        ],
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          final filtered = staff.where((s) {
+            if (s.email == null) return false;
+            if (staffQuery.isEmpty) return true;
+            final q = staffQuery.toLowerCase();
+            return s.name.toLowerCase().contains(q) ||
+                (s.department?.toLowerCase().contains(q) ?? false) ||
+                (s.faculty?.toLowerCase().contains(q) ?? false);
+          }).toList();
+          return AlertDialog(
+            title: const Text('E-posta Gönder'),
+            content: _DialogShell(fields: [
+              if (staff.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 8),
+                  child: Text(
+                      'Akademik personel dizini bu modda yok (Mock) — sadece manuel alıcı girebilirsin.',
+                      style: TextStyle(color: ArucadColors.muted, fontSize: 12)),
+                )
+              else ...[
+                Text('Akademik Personel (${selectedStaffEmails.length} seçili)',
+                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+                const SizedBox(height: 6),
+                TextField(
+                  decoration: const InputDecoration(
+                      hintText: 'İsim, bölüm veya fakülteye göre ara',
+                      prefixIcon: Icon(Icons.search, size: 18)),
+                  onChanged: (v) => setDialogState(() => staffQuery = v),
+                ),
+                const SizedBox(height: 6),
+                SizedBox(
+                  height: 220,
+                  child: ListView.builder(
+                    itemCount: filtered.length,
+                    itemBuilder: (context, i) {
+                      final s = filtered[i];
+                      final selected = selectedStaffEmails.contains(s.email);
+                      return CheckboxListTile(
+                        dense: true,
+                        value: selected,
+                        title: Text(s.name, style: const TextStyle(fontSize: 13)),
+                        subtitle: Text(
+                            [
+                              if (s.title != null) s.title!,
+                              if (s.department != null) s.department!,
+                            ].join(' · '),
+                            style: const TextStyle(fontSize: 11)),
+                        onChanged: (v) => setDialogState(() {
+                          if (v == true) {
+                            selectedStaffEmails.add(s.email!);
+                          } else {
+                            selectedStaffEmails.remove(s.email);
+                          }
+                        }),
+                      );
+                    },
+                  ),
+                ),
+                const Divider(),
+              ],
+              TextField(
+                  controller: recipientsC,
+                  decoration: const InputDecoration(
+                      labelText: 'Ek alıcılar (virgülle ayrılmış)',
+                      hintText: 'ali@arucad.edu.tr, ayse@arucad.edu.tr'),
+                  maxLines: 2),
+              TextField(controller: subjectC, decoration: const InputDecoration(labelText: 'Konu')),
+              TextField(
+                  controller: bodyC,
+                  decoration: const InputDecoration(labelText: 'İçerik'),
+                  maxLines: 5),
+            ]),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Vazgeç')),
+              FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Gönder')),
+            ],
+          );
+        },
       ),
     );
-    final recipients = recipientsC.text.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+    final manualRecipients =
+        recipientsC.text.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty);
+    final recipients = {...selectedStaffEmails, ...manualRecipients}.toList();
     if (saved != true || recipients.isEmpty || subjectC.text.trim().isEmpty) return;
     final sent = await widget.repository.sendBulkEmail(
         recipients: recipients, subject: subjectC.text.trim(), body: bodyC.text.trim());

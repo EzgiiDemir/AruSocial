@@ -12,6 +12,7 @@ use App\Models\FoodDailyMenu;
 use App\Models\FoodVenue;
 use App\Models\Place;
 use App\Models\Quest;
+use App\Models\RoleAssignment;
 use App\Models\ServiceItem;
 use App\Models\Sport;
 use App\Models\Story;
@@ -38,6 +39,17 @@ class DatabaseSeeder extends Seeder
             'interests' => ['Tasarım', 'Fotoğrafçılık', 'Basketbol'],
         ]);
 
+        // Real route-level RBAC (docs/EKSIKLER.md "RBAC permission
+        // enforcement") means someone has to already be superAdmin before
+        // anyone can grant roles at all via the API — a real deployment
+        // bootstraps its first admin the same way, outside the API
+        // (a seeder/artisan command), not by having the API grant itself
+        // permission.
+        RoleAssignment::create([
+            'email' => $me->email, 'role' => 'superAdmin',
+            'assigned_by' => 'seeder', 'assigned_at' => now(),
+        ]);
+
         Quest::create([
             'id' => 'quest-'.Str::uuid(),
             'user_id' => $me->id,
@@ -61,6 +73,64 @@ class DatabaseSeeder extends Seeder
                 'accessible' => $accessible, 'photos' => $photos, 'rating' => $rating,
             ]);
         }
+
+        // Real ARUCAD POI set (docs/EKSIKLER.md harita/POI) — the Rodin
+        // campus's actual named buildings/spaces, not demo placeholders.
+        // `confidence` is honest about provenance: most of these are
+        // precise 6-decimal coordinates, but Arkin Rodin Collection
+        // Gallery (real address vs. Google Places mismatch) and the Age of
+        // Bronze / Art Rooms / Iris workshop-building cluster (identical
+        // shared coordinates — a single site, not independently surveyed
+        // per building) genuinely need on-site verification.
+        $poi = [
+            ['poi-rodin', 'Rodin', 'Yönetim', 35.337305, 33.321303, 'verified',
+                'ARUCAD adını taşıyan Fransız heykeltıraş Auguste Rodin\'e ithaf edilmiş bina. Rektörlük ve Sanat/Tasarım fakülte dekanlıkları burada.'],
+            ['poi-falling-man', 'Falling Man', 'Akademik', 35.337305, 33.321027, 'verified',
+                'Görsel İletişim, Endüstriyel Tasarım, Seramik ve Yeni Medya bölüm başkanlıkları burada.'],
+            ['poi-titan', 'Titan', 'İdari + Akademik', 35.337170, 33.321633, 'verified',
+                'Öğrenci İşleri, Bilgi İşlem, Mimarlık, Dijital Oyun Tasarımı ve Arkeoloji bölüm başkanlıkları — kampüsün en yoğun idari binası.'],
+            ['poi-eve', 'Eve', 'Eğitim', 35.337529, 33.321303, 'verified',
+                '"Eve", Rodin\'in en tanınan kadın nü heykellerinden biri. İngilizce Hazırlık Okulu burada.'],
+            ['poi-daniele', 'Daniele', 'Stüdyo', 35.337772, 33.321688, 'verified',
+                'İsim Rodin\'in "Danaïde" figürüne bir gönderme. Film, fotoğraf, iç mimarlık stüdyoları ve MAC Lab burada.'],
+            ['poi-eternal-spring', 'Eternal Spring', 'Stüdyo', 35.337844, 33.321468, 'verified',
+                'Rodin\'in "Ebedi Bahar" heykelinden adını alır. Dijital baskı atölyesi burada.'],
+            ['poi-meditation', 'Meditation', 'Kütüphane', 35.337754, 33.321358, 'verified',
+                'Rodin\'in içe dönük "İç Ses" figürüne selam veren isim — kütüphane, dijital kütüphane ve konferans salonu burada.'],
+            ['poi-minotaur', 'Minotaur', 'Destek', 35.337844, 33.321270, 'verified',
+                'Güvenlik, Psikolojik Danışmanlık ve Rehberlik Merkezi, Kampüs Koordinatörlüğü burada.'],
+            ['poi-eternal-idol', 'Eternal Idol', 'Pazarlama', 35.337889, 33.321193, 'verified',
+                '"Ebedi Put" — Rodin\'in en duygusal eserlerinden biri. Uluslararası pazarlama ve kurumsal iletişim ofisleri burada.'],
+            ['poi-the-kiss', 'The Kiss', 'Sanat', 35.337799, 33.321082, 'verified',
+                'Rodin\'in dünyaca en ünlü heykeli "Öpücük". Performans stüdyosu, ARUCAD Galerisi ve Sağlık Merkezi burada.'],
+            ['poi-the-garden', 'The Garden', 'Sosyal Alan', 35.337125, 33.320972, 'verified',
+                'Kampüsün açık sosyal alanı.'],
+            ['poi-carpentry-studio', 'Carpentry Studio', 'Atölye', 35.337502, 33.321226, 'verified',
+                'Marangozluk atölyesi.'],
+            ['poi-arkin-rodin-gallery', 'Arkin Rodin Collection Gallery', 'Galeri', 35.337925, 33.320036, 'needs_verification',
+                'ARUCAD\'ın kendi Rodin heykel koleksiyonunun sergilendiği, halka açık galeri. Resmi haritadaki adres ile Google Places kaydı arasında konum farklılığı olduğundan koordinat saha doğrulamasına açık.'],
+            ['poi-dormitory', 'ARUCAD Dormitory', 'Konaklama', 35.331328, 33.318916, 'verified',
+                'Öğrenci yurdu.'],
+            ['poi-bandabuliya-campus', 'Nicosia Bandabuliya Campus', 'Kampüs', 35.175513, 33.365029, 'verified',
+                'Lefkoşa\'daki ikinci kampüs — Müzik ve Sahne Sanatları Fakültesi, Blackbox Sahne, Bandabuliya Cafe.'],
+            ['poi-art-space', 'ARUCAD Art Space', 'Galeri', 35.177726, 33.360248, 'verified',
+                'Lefkoşa\'da sanat galerisi mekânı.'],
+            ['poi-age-of-bronze', 'Age of Bronze', 'Atölye', 35.333593, 33.330680, 'needs_verification',
+                'Heykel stüdyosu ve disiplinlerarası atölyeler. Koordinat ARUCAD WORKSHOPS kaydından türetilmiş, saha doğrulamasına açık.'],
+            ['poi-art-rooms', 'Art Rooms', 'Atölye/Galeri', 35.333593, 33.330680, 'needs_verification',
+                'Age of Bronze ile aynı adres bilgisine sahip — ayrı konumu ayrıca doğrulanmalı.'],
+            ['poi-iris', 'Iris (Atelier Building)', 'Atölye', 35.333593, 33.330680, 'needs_verification',
+                'Seramik, cam üfleme ve döküm atölyeleri. Workshop Buildings grubunda yer aldığı için mevcut veri aynı koordinatı kullanıyor; saha doğrulaması gerekli.'],
+        ];
+        foreach ($poi as [$id, $name, $category, $lat, $lng, $confidence, $desc]) {
+            Place::create([
+                'id' => $id, 'name' => $name, 'category' => $category, 'lat' => $lat, 'lng' => $lng,
+                'coordinate_confidence' => $confidence, 'description' => $desc, 'distance' => '',
+                'density' => 'quiet', 'street' => '', 'accessible' => true, 'photos' => 0, 'rating' => 0,
+            ]);
+        }
+
+        $this->call(AcademicStaffSeeder::class);
 
         AcademicYear::create([
             'id' => '2025-2026', 'label' => '2025-2026', 'starts_on' => '2025-09-01',

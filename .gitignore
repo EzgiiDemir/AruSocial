@@ -1,36 +1,401 @@
-# Root .gitignore — covers all three project folders (frontend/, backend/,
-# sql/) plus this machine's own local tooling overrides. See docs/README.md
-# for the folder layout this maps to.
+# ============================================================
+# AruSocial — Root .gitignore
+# Covers: frontend/, backend/, sql/ and local machine tooling
+# ============================================================
 
-# --- Flutter (frontend/) ---
+
+# ============================================================
+# SECRETS / ENVIRONMENT — NEVER COMMIT
+# ============================================================
+
+.env
+.env.*
+!.env.example
+!.env.example.*
+*.env
+*.env.local
+*.env.development
+*.env.production
+*.env.staging
+
+# API / credential files
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.mobileprovision
+credentials.json
+secrets.json
+service-account*.json
+firebase-adminsdk*.json
+
+# Firebase / Google generated credential files
+google-services.json
+GoogleService-Info.plist
+
+# Local secret/config overrides
+secrets/
+.secret/
+.local/
+.local.*
+
+
+# ============================================================
+# FLUTTER / DART — frontend/
+# ============================================================
+
 .dart_tool/
 .flutter-plugins
 .flutter-plugins-dependencies
 .pub-cache/
+
 build/
+frontend/build/
+
 *.iml
-# Android SDK path is machine-specific — never commit it.
+*.lock
+
+# Flutter generated files
+frontend/.flutter-plugins
+frontend/.flutter-plugins-dependencies
+frontend/.dart_tool/
+
+# Android SDK path — machine specific
 local.properties
-# Gradle's own build cache/lock files — pure local state, never commit.
+frontend/android/local.properties
+
+# Flutter generated ephemeral files
+frontend/.metadata
+
+# Generated localization / plugin files
+frontend/.generated/
+
+# Coverage
+coverage/
+frontend/coverage/
+
+# Flutter web build
+frontend/web/build/
+
+
+# ============================================================
+# ANDROID / GRADLE
+# ============================================================
+
 .gradle/
+frontend/android/.gradle/
 
-# --- Laravel (backend/) ---
-# backend/.gitignore already covers vendor/, .env, storage caches, etc.
+# Gradle generated/build output
+**/build/
+**/.gradle/
 
-# --- SQLite dev database (sql/) ---
-# Runtime data, not source — see sql/README.md for how to recreate it.
+# Android generated files
+*.apk
+*.aab
+*.apks
+*.aab.sha256
+
+# Android signing / release credentials
+key.properties
+**/key.properties
+*.keystore
+*.jks
+
+# Android Studio generated
+captures/
+.externalNativeBuild/
+.cxx/
+
+
+# ============================================================
+# IOS / XCODE
+# ============================================================
+
+# Xcode user-specific data
+**/xcuserdata/
+**/*.xcuserdatad/
+**/*.xcuserstate
+
+# Xcode derived/build data
+DerivedData/
+**/DerivedData/
+
+# iOS build output
+*.ipa
+*.dSYM
+*.dSYM.zip
+
+# CocoaPods
+Pods/
+Podfile.lock
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/
+fastlane/test_output/
+
+# iOS signing
+*.mobileprovision
+*.p12
+
+
+# ============================================================
+# LARAVEL — backend/
+# ============================================================
+
+# Dependencies
+backend/vendor/
+backend/node_modules/
+
+# Environment
+backend/.env
+backend/.env.*
+!backend/.env.example
+
+# Laravel runtime
+backend/storage/framework/cache/*
+backend/storage/framework/sessions/*
+backend/storage/framework/testing/*
+backend/storage/framework/views/*
+backend/storage/logs/*
+
+# Keep Laravel directory structure
+!backend/storage/framework/cache/.gitignore
+!backend/storage/framework/sessions/.gitignore
+!backend/storage/framework/testing/.gitignore
+!backend/storage/framework/views/.gitignore
+!backend/storage/logs/.gitignore
+
+# Laravel generated cache
+backend/bootstrap/cache/*
+!backend/bootstrap/cache/.gitignore
+
+# Public/user uploaded runtime files
+backend/storage/app/public/*
+backend/storage/app/private/*
+
+# Keep storage placeholders
+!backend/storage/app/.gitignore
+!backend/storage/app/public/.gitignore
+!backend/storage/app/private/.gitignore
+
+# Laravel compiled/runtime files
+backend/.phpunit.result.cache
+
+# Vite / frontend dependencies if used inside backend
+backend/public/build/
+backend/public/hot
+
+# Laravel Telescope / debug dumps
+*.log
+storage/debugbar/
+
+
+# ============================================================
+# DATABASE / LOCAL SQL
+# ============================================================
+
+# SQLite runtime database
 sql/database.sqlite
 sql/database.sqlite-*
 
-# --- Editors / IDEs ---
+# SQLite journals / WAL
+*.sqlite-shm
+*.sqlite-wal
+*.sqlite-journal
+
+# Local database dumps
+*.dump
+*.db
+*.db-journal
+
+# Keep schema/source SQL files tracked
+!sql/schema.sql
+!sql/README.md
+
+
+# ============================================================
+# PHP / COMPOSER
+# ============================================================
+
+composer.phar
+.phpunit.result.cache
+
+# PHPStan / Psalm caches
+.phpstan/
+.phpstan.cache
+.psalm/
+.psalm-cache/
+
+# PHP CS Fixer
+.php-cs-fixer.cache
+
+
+# ============================================================
+# NODE / NPM
+# ============================================================
+
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+.npm/
+.yarn/
+.pnpm-store/
+
+# Package manager local state
+.npmrc.local
+
+
+# ============================================================
+# IDE / EDITORS
+# ============================================================
+
 .idea/
 .vscode/
 
-# --- This machine's local PHP extension override ---
-# fileinfo/pdo_sqlite/sqlite3 enabled here because this machine's system
-# php.ini doesn't have them and isn't writable without admin rights —
-# machine-specific, not project config. See backend/README.md.
+# VS Code local settings that may contain paths/secrets
+*.code-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+Desktop.ini
+
+
+# ============================================================
+# LOCAL MACHINE CONFIG
+# ============================================================
+
+# Local PHP extension override
 .phpconfig/
 
-# --- Local AI coding tool state (not project source) ---
+# Local AI coding tool state
 .claude/
+
+# Other local coding-agent/tool state
+.cursor/
+.cursorrules.local
+.windsurf/
+.codium/
+
+# Temporary local files
+tmp/
+temp/
+*.tmp
+*.temp
+
+
+# ============================================================
+# LOGS / DEBUG / RUNTIME
+# ============================================================
+
+*.log
+*.pid
+*.seed
+
+# Local crash dumps
+*.stackdump
+*.dmp
+
+# Debug output
+debug/
+logs/
+
+
+# ============================================================
+# BACKUPS / GENERATED / OLD PROJECT COPIES
+# ============================================================
+
+# Local backup directories
+*_backup/
+*_backups/
+backup/
+backups/
+
+# Explicit old native backup folders
+app_native_backup/
+gradle_native_backup/
+
+# Editor backup files
+*.bak
+*.backup
+*.old
+
+# Generated archives
+*.zip
+*.tar
+*.tar.gz
+*.7z
+
+
+# ============================================================
+# GENERATED DOCUMENTATION / EXPORTS
+# ============================================================
+
+# Local generated exports
+exports/
+generated/
+dist/
+
+# Keep project documentation itself tracked
+!docs/
+!docs/*.md
+
+
+# ============================================================
+# TEST ARTIFACTS
+# ============================================================
+
+test-results/
+test-results.xml
+junit.xml
+reports/
+
+# Playwright / Cypress if added later
+playwright-report/
+test-results/
+cypress/videos/
+cypress/screenshots/
+
+
+# ============================================================
+# OS / LOCAL TOOLING
+# ============================================================
+
+.history/
+.nvmrc.local
+.tool-versions.local
+
+
+# ============================================================
+# IMPORTANT
+# ============================================================
+# NEVER add real API keys, passwords, tokens, certificates,
+# Firebase credentials, Entra secrets or SMTP credentials
+# to Git.
+#
+# Use:
+#   .env.example
+#   backend/.env.example
+# or another documented secret-management mechanism.
+#
+# If a secret was EVER committed, removing it from the current
+# file is NOT enough. Rotate/revoke the secret and remove it
+# from Git history before pushing.

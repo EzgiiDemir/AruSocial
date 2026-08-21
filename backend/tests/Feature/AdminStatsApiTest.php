@@ -16,7 +16,7 @@ class AdminStatsApiTest extends TestCase
 
     private function seedUser(): User
     {
-        return User::create(['name' => 'Test Student', 'email' => 'test@arucad.edu.tr', 'password' => bcrypt('x')]);
+        return $this->actingAsAdmin();
     }
 
     public function test_stats_honestly_reports_app_downloads_as_untrackable(): void

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
@@ -38,6 +39,27 @@ class ApiClient {
       headers: await _combinedHeaders(headers),
       body: body == null ? null : jsonEncode(body),
     );
+    return _decodeResponse(response);
+  }
+
+  // Real multipart upload (FAZ 6A §7) — `post()` above can only ever send
+  // JSON, so a real file upload to a real backend endpoint (not a base64
+  // string smuggled into a JSON body) needed genuinely new capability, not
+  // just another repository method.
+  Future<Map<String, dynamic>> postMultipart(
+    String path, {
+    required Uint8List bytes,
+    required String fileName,
+    required String fieldName,
+    Map<String, String>? fields,
+  }) async {
+    final request = http.MultipartRequest('POST', _uri(path));
+    final authHeaders = await authTokenAdapter?.authorizeHeaders() ?? {};
+    request.headers.addAll(authHeaders);
+    request.fields.addAll(fields ?? {});
+    request.files.add(http.MultipartFile.fromBytes(fieldName, bytes, filename: fileName));
+    final streamed = await _client.send(request);
+    final response = await http.Response.fromStream(streamed);
     return _decodeResponse(response);
   }
 

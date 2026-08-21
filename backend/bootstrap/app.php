@@ -23,10 +23,36 @@ return Application::configure(basePath: dirname(__DIR__))
         // bypassed the '' default). Removed so the client's actual JSON
         // values round-trip unchanged.
         $middleware->remove(\Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull::class);
-        $middleware->alias(['not-banned' => \App\Http\Middleware\EnsureNotBanned::class]);
+        $middleware->alias([
+            'not-banned' => \App\Http\Middleware\EnsureNotBanned::class,
+            'permission' => \App\Http\Middleware\EnsurePermission::class,
+        ]);
+        // Pure JSON API, no `login` named route to redirect an
+        // unauthenticated request to — Laravel's default `Authenticate`
+        // middleware calls route('login') to build that redirect and,
+        // finding none, throws a real RouteNotFoundException that masked
+        // the intended 401 as a 500. This makes "no/expired token" render
+        // as the clean 401 auth:sanctum is actually supposed to produce.
+        $middleware->redirectGuestsTo(fn () => null);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );
+        // Same {data, meta, error} envelope every other endpoint uses (see
+        // ApiResponds::fail()) — a missing/expired token would otherwise
+        // render Laravel's default {"message": "Unauthenticated."} shape,
+        // which ApiClient can still fall back to parsing but without a
+        // real error.code the way every other real failure has one.
+        $exceptions->render(function (\Illuminate\Auth\AuthenticationException $e, Request $request) {
+            if (! $request->is('api/*')) {
+                return null;
+            }
+
+            return response()->json([
+                'data' => null,
+                'meta' => ['request_id' => 'req-'.\Illuminate\Support\Str::uuid()],
+                'error' => ['code' => 'UNAUTHENTICATED', 'message' => 'A valid session token is required.'],
+            ], 401);
+        });
     })->create();

@@ -33,7 +33,7 @@ class AdminStrings {
     'admin_nav_media': {AdminLanguage.tr: 'Medya Kütüphanesi', AdminLanguage.en: 'Media Library'},
     'admin_nav_surveys': {AdminLanguage.tr: 'Anketler', AdminLanguage.en: 'Surveys'},
     'admin_nav_academic_years': {AdminLanguage.tr: 'Akademik Yıllar', AdminLanguage.en: 'Academic Years'},
-    'admin_nav_email_log': {AdminLanguage.tr: 'E-posta Günlüğü', AdminLanguage.en: 'Email Log'},
+    'admin_nav_email_log': {AdminLanguage.tr: 'E-posta', AdminLanguage.en: 'Email'},
     'admin_nav_users': {AdminLanguage.tr: 'Kullanıcılar & Roller', AdminLanguage.en: 'Users & Roles'},
     'admin_nav_moderation': {AdminLanguage.tr: 'Moderasyon', AdminLanguage.en: 'Moderation'},
     'admin_nav_activity_log': {AdminLanguage.tr: 'Aktivite Günlüğü', AdminLanguage.en: 'Activity Log'},
@@ -135,6 +135,18 @@ class AdminStrings {
     },
     'admin_stats_catalog': {AdminLanguage.tr: 'İçerik Kataloğu', AdminLanguage.en: 'Content Catalog'},
     'admin_stats_places': {AdminLanguage.tr: 'Mekân', AdminLanguage.en: 'Places'},
+
+    // Site Settings tab — check-in radius
+    'admin_checkin_radius_title': {
+      AdminLanguage.tr: 'Check-in Mesafe Eşiği', AdminLanguage.en: 'Check-in Distance Threshold',
+    },
+    'admin_checkin_radius_desc': {
+      AdminLanguage.tr: 'Öğrenci bir mekâna check-in yapabilmek için gerçek GPS konumuyla bu mesafenin '
+          'içinde olmalı — backend bunu her check-in isteğinde gerçekten hesaplıyor, sadece istemcinin '
+          'söylediğine güvenmiyor.',
+      AdminLanguage.en: 'A student must be within this real GPS distance of a place to check in — the '
+          'backend genuinely recomputes this on every request, it never trusts what the client claims.',
+    },
 
     // Shared list toolbar
     'admin_toolbar_selected_suffix': {AdminLanguage.tr: 'seçildi', AdminLanguage.en: 'selected'},

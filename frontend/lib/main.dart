@@ -5,6 +5,7 @@ import 'app/app.dart';
 import 'app/config/app_config.dart';
 import 'core/auth/entra_auth_provider.dart';
 import 'core/network/api_client.dart';
+import 'core/network/session_token_adapter.dart';
 import 'core/platform/url_strategy.dart';
 import 'core/services/contracts.dart';
 import 'core/services/mock_auth_provider.dart';
@@ -62,15 +63,19 @@ void main() async {
   // SharedPreferences) so a plain `flutter run` keeps working with zero
   // setup. Pass `--dart-define=USE_REST_API=true --dart-define=API_BASE_URL=
   // http://10.0.2.2:4000/api/v1` (Android emulator) or `http://localhost:
-  // 4000/api/v1` (web/desktop) to talk to the real Node/SQLite server in
+  // 4000/api/v1` (web/desktop) to talk to the real Laravel/SQLite server in
   // backend/ instead — see docs/GERCEK_PROJEYE_GECIS.md for exact steps.
-  // No auth token adapter yet: there's no real identity provider issuing
-  // one until a real Entra tenant is configured (see EntraAuthProvider).
+  // Real, per-user session auth (docs/EKSIKLER.md "Gerçek JWT/session
+  // authentication"): every request now carries whatever real bearer token
+  // SessionStore holds — set once sign-in completes (see app.dart's
+  // _finishSignIn), read fresh on every call since it doesn't exist yet
+  // at this point in startup.
   const useRestApi = bool.fromEnvironment('USE_REST_API');
   const apiBaseUrl =
       String.fromEnvironment('API_BASE_URL', defaultValue: 'http://10.0.2.2:4000/api/v1');
   final CampusRepository repository = useRestApi
-      ? RestCampusRepository(client: ApiClient(baseUrl: apiBaseUrl))
+      ? RestCampusRepository(
+          client: ApiClient(baseUrl: apiBaseUrl, authTokenAdapter: SessionTokenAdapter()))
       : MockCampusRepository();
 
   runApp(

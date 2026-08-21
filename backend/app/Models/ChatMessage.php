@@ -10,10 +10,10 @@ class ChatMessage extends Model
     protected $keyType = 'string';
     public $timestamps = false;
 
-    protected $fillable = ['id', 'user_id', 'peer_name', 'from_me', 'text', 'sent_at'];
+    protected $fillable = ['id', 'user_id', 'peer_name', 'from_me', 'text', 'sent_at', 'read_at'];
 
     protected function casts(): array
     {
-        return ['from_me' => 'boolean', 'sent_at' => 'datetime'];
+        return ['from_me' => 'boolean', 'sent_at' => 'datetime', 'read_at' => 'datetime'];
     }
 }

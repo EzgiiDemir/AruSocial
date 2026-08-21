@@ -35,7 +35,7 @@ class SportController extends Controller
             'facility' => $request->input('facility', ''),
             'contact' => $request->input('contact'),
         ]);
-        AuditLogger::log($request->input('actorName', 'admin'), $isNew ? 'create' : 'update', 'sport', $name);
+        AuditLogger::log($this->currentUser()->name, $isNew ? 'create' : 'update', 'sport', $name);
 
         return $this->ok($this->toJson($sport));
     }
@@ -44,7 +44,7 @@ class SportController extends Controller
     {
         $sport = Sport::find($id);
         if ($sport) {
-            AuditLogger::log($request->input('actorName', 'admin'), 'delete', 'sport', $sport->name);
+            AuditLogger::log($this->currentUser()->name, 'delete', 'sport', $sport->name);
             $sport->delete();
         }
 

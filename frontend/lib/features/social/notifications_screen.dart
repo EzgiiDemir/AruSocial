@@ -74,6 +74,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   IconData _inboxIcon(String kind) => switch (kind) {
         'follow' => Icons.person_add_alt_1_outlined,
+        'message' => Icons.chat_bubble_outline,
+        'like' => Icons.favorite_outline,
+        'comment' => Icons.mode_comment_outlined,
+        'activity_approved' => Icons.check_circle_outline,
+        'activity_rejected' => Icons.cancel_outlined,
+        'activity_join' => Icons.event_available_outlined,
         _ => Icons.notifications_outlined,
       };
 

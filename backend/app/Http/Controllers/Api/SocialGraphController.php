@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Notification as InboxNotification;
 use App\Models\SocialBlock;
 use App\Models\SocialFollow;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -48,18 +49,24 @@ class SocialGraphController extends Controller
             return $this->ok(['following' => false]);
         }
         SocialFollow::create(['follower_user_id' => $me->id, 'followed_name' => $peer, 'created_at' => now()]);
-        // A real notification row — this is the honest version of "the
-        // followed user gets notified": in this single-real-account
-        // prototype there's no second real inbox to receive it, but the
-        // mechanism (and the row) is genuine, not simulated.
-        InboxNotification::create([
-            'id' => 'notif-'.Str::uuid(),
-            'user_id' => $me->id,
-            'kind' => 'follow',
-            'title' => 'Yeni takipçi',
-            'body' => "{$me->name} seni takip etmeye başladı.",
-            'created_at' => now(),
-        ]);
+        // Real bug fix (docs/EKSIKLER.md sosyal §1/§9): this used to write
+        // the notification to the *follower's own* inbox — the exact
+        // wrong side (the notification "yeni takipçi" should reach the
+        // person who got followed, not the person doing the following).
+        // Resolved by name the same way ChatController resolves a real
+        // peer account: if it's a real second user, they genuinely get
+        // notified; if not, there's honestly no one real to notify.
+        $followedUser = User::where('name', $peer)->first();
+        if ($followedUser && $followedUser->id !== $me->id) {
+            InboxNotification::create([
+                'id' => 'notif-'.Str::uuid(),
+                'user_id' => $followedUser->id,
+                'kind' => 'follow',
+                'title' => 'Yeni takipçi',
+                'body' => "{$me->name} seni takip etmeye başladı.",
+                'created_at' => now(),
+            ]);
+        }
 
         return $this->ok(['following' => true]);
     }

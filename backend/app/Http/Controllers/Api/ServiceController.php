@@ -64,7 +64,7 @@ class ServiceController extends Controller
             'hours' => $request->input('hours'),
             'body' => $request->input('body', []),
         ]);
-        AuditLogger::log($request->input('actorName', 'admin'), $isNew ? 'create' : 'update', 'service', $title);
+        AuditLogger::log($this->currentUser()->name, $isNew ? 'create' : 'update', 'service', $title);
 
         return $this->ok($this->toJson($service));
     }
@@ -73,7 +73,7 @@ class ServiceController extends Controller
     {
         $service = ServiceItem::find($id);
         if ($service) {
-            AuditLogger::log($request->input('actorName', 'admin'), 'delete', 'service', $service->title);
+            AuditLogger::log($this->currentUser()->name, 'delete', 'service', $service->title);
             $service->delete();
         }
 

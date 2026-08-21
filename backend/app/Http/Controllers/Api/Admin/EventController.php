@@ -4,13 +4,18 @@ namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Api\Concerns\ApiResponds;
 use App\Http\Controllers\Controller;
+use App\Mail\ActivityApprovedMail;
+use App\Mail\ActivityRejectedMail;
 use App\Models\Event;
 use App\Models\EventJoin;
 use App\Models\EventParticipationType;
+use App\Models\Notification as InboxNotification;
 use App\Services\ActivityLogger;
 use App\Services\AuditLogger;
+use App\Services\EmailService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class EventController extends Controller
 {
@@ -39,6 +44,17 @@ class EventController extends Controller
             'reviewNote' => $e->review_note,
             'createdByUserId' => $e->created_by_user_id,
             'academicYearId' => $e->academic_year_id,
+            'endTime' => $e->end_time,
+            'studentNumber' => $e->student_number,
+            'phone' => $e->phone,
+            'faculty' => $e->faculty,
+            'department' => $e->department,
+            'estimatedAttendees' => $e->estimated_attendees,
+            'purpose' => $e->purpose,
+            'requirements' => $e->requirements,
+            'posterUrl' => $e->poster_url,
+            'assignedStaffId' => $e->assigned_staff_id,
+            'assignedStaffName' => $e->assignedStaff?->name,
             'participationTypes' => $e->participationTypes->map(fn ($t) => ['id' => $t->id, 'label' => $t->label]),
         ];
     }
@@ -96,7 +112,7 @@ class EventController extends Controller
                 'academic_year_id' => $request->input('academicYearId'),
             ]
         );
-        AuditLogger::log($request->input('actorName', 'admin'), $isNew ? 'create' : 'update', 'event', $title);
+        AuditLogger::log($this->currentUser()->name, $isNew ? 'create' : 'update', 'event', $title);
 
         return $this->ok($this->eventToJson($event->fresh('participationTypes')));
     }
@@ -105,18 +121,22 @@ class EventController extends Controller
     {
         $event = Event::find($id);
         if ($event) {
-            AuditLogger::log($request->input('actorName', 'admin'), 'delete', 'event', $event->title);
+            AuditLogger::log($this->currentUser()->name, 'delete', 'event', $event->title);
             $event->delete();
         }
 
         return $this->ok(['deleted' => true]);
     }
 
-    // Real "Kendi Aktiviteni Oluştur" review queue (docs/EKSIKLER.md §5).
+    // Real "Kendi Aktiviteni Oluştur" review queue (docs/EKSIKLER.md
+    // aktivite/onay workflow §3): only activities whose form is actually
+    // completed show up here — 'form_required' (form not yet filled) is
+    // deliberately excluded, matching "form doldurulmadan yetkiliye
+    // gitmemeli".
     public function pendingActivities(): JsonResponse
     {
-        $events = Event::with('participationTypes')
-            ->where('workflow_status', 'pending_review')
+        $events = Event::with(['participationTypes', 'assignedStaff'])
+            ->where('workflow_status', 'pending_approval')
             ->orderByDesc('id')->get();
 
         return $this->ok($events->map(fn ($e) => $this->eventToJson($e)));
@@ -126,6 +146,13 @@ class EventController extends Controller
     {
         $event = Event::find($id);
         if (! $event) return $this->fail(404, 'EVENT_NOT_FOUND', 'Event not found.');
+        // Real gate (docs/EKSIKLER.md aktivite/onay workflow): can't
+        // approve an activity whose form was never completed/routed —
+        // same "form doldurulmadan onay yok" principle already enforced
+        // for event-join attendance (EventJoin::form_submitted_at).
+        if ($event->workflow_status === 'form_required') {
+            return $this->fail(400, 'FORM_NOT_SUBMITTED', 'Aktivite formu henüz doldurulmadı.');
+        }
 
         // 'published', not 'approved' — the public index() filter requires
         // workflow_status='published' to show an event at all, so anything
@@ -134,7 +161,23 @@ class EventController extends Controller
         if ($event->created_by_user_id) {
             ActivityLogger::log($event->created_by_user_id, 'eventJoin', "Aktiviten onaylandı: {$event->title}", 'Yayında');
         }
-        AuditLogger::log($request->input('actorName', 'admin'), 'approve', 'event', $event->title);
+        AuditLogger::log($this->currentUser()->name, 'approve', 'event', $event->title);
+
+        $student = $event->creator;
+        if ($student?->email) {
+            EmailService::send($student->email, "Aktiviteniz onaylandı: {$event->title}",
+                'event-activity-approved', new ActivityApprovedMail($event));
+        }
+        if ($event->created_by_user_id) {
+            InboxNotification::create([
+                'id' => 'notif-'.Str::uuid(),
+                'user_id' => $event->created_by_user_id,
+                'kind' => 'activity_approved',
+                'title' => 'Aktiviten onaylandı',
+                'body' => "\"{$event->title}\" yayında.",
+                'created_at' => now(),
+            ]);
+        }
 
         return $this->ok($this->eventToJson($event->fresh('participationTypes')));
     }
@@ -144,12 +187,35 @@ class EventController extends Controller
         $event = Event::find($id);
         if (! $event) return $this->fail(404, 'EVENT_NOT_FOUND', 'Event not found.');
 
-        $note = $request->input('reviewNote', '');
+        // A real, required reason (docs/EKSIKLER.md aktivite/onay workflow
+        // §4: "Red nedeni zorunlu veya desteklenir olmalı") — not silently
+        // optional.
+        $note = trim((string) $request->input('reviewNote', ''));
+        if ($note === '') {
+            return $this->fail(400, 'VALIDATION', 'reviewNote is required to reject an activity.');
+        }
+
         $event->update(['workflow_status' => 'rejected', 'review_note' => $note]);
         if ($event->created_by_user_id) {
-            ActivityLogger::log($event->created_by_user_id, 'eventJoin', "Aktiviten reddedildi: {$event->title}", $note ?: 'Sebep belirtilmedi');
+            ActivityLogger::log($event->created_by_user_id, 'eventJoin', "Aktiviten reddedildi: {$event->title}", $note);
         }
-        AuditLogger::log($request->input('actorName', 'admin'), 'reject', 'event', $event->title);
+        AuditLogger::log($this->currentUser()->name, 'reject', 'event', $event->title);
+
+        $student = $event->creator;
+        if ($student?->email) {
+            EmailService::send($student->email, "Aktivite değerlendirmesi: {$event->title}",
+                'event-activity-rejected', new ActivityRejectedMail($event, $note));
+        }
+        if ($event->created_by_user_id) {
+            InboxNotification::create([
+                'id' => 'notif-'.Str::uuid(),
+                'user_id' => $event->created_by_user_id,
+                'kind' => 'activity_rejected',
+                'title' => 'Aktiviten reddedildi',
+                'body' => "\"{$event->title}\": {$note}",
+                'created_at' => now(),
+            ]);
+        }
 
         return $this->ok($this->eventToJson($event->fresh('participationTypes')));
     }
@@ -168,13 +234,18 @@ class EventController extends Controller
             ['id' => $id],
             ['event_id' => $eventId, 'label' => $label, 'sort_order' => (int) $request->input('sortOrder', 0)]
         );
+        AuditLogger::log($this->currentUser()->name, 'update', 'participation_type', "{$event->title} → {$label}");
 
         return $this->ok(['id' => $type->id, 'label' => $type->label]);
     }
 
     public function destroyParticipationType(string $eventId, string $typeId): JsonResponse
     {
-        EventParticipationType::where('id', $typeId)->where('event_id', $eventId)->delete();
+        $type = EventParticipationType::where('id', $typeId)->where('event_id', $eventId)->first();
+        if ($type) {
+            AuditLogger::log($this->currentUser()->name, 'delete', 'participation_type', $type->label);
+            $type->delete();
+        }
 
         return $this->ok(['deleted' => true]);
     }
@@ -218,7 +289,7 @@ class EventController extends Controller
             return $this->fail(400, 'FORM_NOT_SUBMITTED', 'Öğrenci katılım formunu henüz doldurmadı.');
         }
 
-        $actorName = $request->input('actorName', 'admin');
+        $actorName = $this->currentUser()->name;
         $join->update(['approved_at' => now(), 'approved_by' => $actorName]);
 
         $event = Event::find($eventId);

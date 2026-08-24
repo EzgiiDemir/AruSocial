@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:arucad_campus_prototype/core/l10n/app_strings.dart';
 import 'package:arucad_campus_prototype/core/models/campus_models.dart';
+import 'package:arucad_campus_prototype/core/services/content_moderation.dart';
 import 'package:arucad_campus_prototype/core/services/contracts.dart';
 import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
 import 'package:arucad_campus_prototype/features/social/social_profile_screen.dart';
@@ -36,19 +37,25 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     });
   }
 
-  Future<void> _refresh() async {
-    final feed = await widget.repository.getFeed();
-    final updated = feed.where((p) => p.id == _post.id).toList();
-    if (updated.isNotEmpty && mounted) setState(() => _post = updated.first);
-  }
-
   Future<void> _like() async {
+    // Optimistic, then reconciled against the server — and rolled back if
+    // the server never accepted it. See _SocialScreenState._like.
+    final before = _post;
     setState(() {
       final liked = !_post.likedByMe;
       _post = _post.copyWith(likedByMe: liked, likes: liked ? _post.likes + 1 : _post.likes - 1);
     });
-    await widget.repository.toggleLike(_post.id);
-    await _refresh();
+    try {
+      final updated = await widget.repository.toggleLike(_post.id);
+      if (!mounted) return;
+      setState(() => _post = updated);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _post = before);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Beğeni kaydedilemedi.')),
+      );
+    }
   }
 
   Future<void> _toggleSave() async {
@@ -59,9 +66,34 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   Future<void> _addComment() async {
     final text = _commentController.text.trim();
     if (text.isEmpty) return;
-    await widget.repository.addComment(_post.id, text);
-    _commentController.clear();
-    await _refresh();
+    final previous = _post;
+    setState(() {
+      _post = _post.copyWith(comments: [
+        ..._post.comments,
+        PostComment(
+          id: 'tmp-${DateTime.now().millisecondsSinceEpoch}',
+          author: _myName ?? '',
+          text: text,
+          meta: 'şimdi',
+        ),
+      ]);
+    });
+    try {
+      final updated = await widget.repository.addComment(previous.id, text);
+      _commentController.clear();
+      if (!mounted) return;
+      setState(() => _post = updated);
+    } on ContentModerationException catch (e) {
+      if (!mounted) return;
+      setState(() => _post = previous);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.reason)));
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _post = previous);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Yorum kaydedilemedi.')),
+      );
+    }
   }
 
   void _openAuthorProfile(BuildContext context) {

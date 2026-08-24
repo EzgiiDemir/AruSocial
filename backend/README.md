@@ -16,9 +16,21 @@ cd backend
 composer install
 php artisan migrate:fresh --seed   # creates + seeds database/database.sqlite
 php artisan serve --port=4000
+php artisan reverb:start
 ```
 
-Health check: `GET http://localhost:4000/up` (Laravel's built-in health route).
+Health check: `GET http://localhost:4000/api/v1/health` — answers on the same
+`/api/v1` base path the Flutter app is configured with, so it verifies the
+exact URL the app uses (`GET /api/v1` itself answers identically). Reports
+whether the database is reachable too:
+
+```json
+{"data":{"status":"ok","service":"arucad-campus-api","version":"v1","database":"ok"},
+ "meta":{"request_id":"req-…"},"error":null}
+```
+
+Laravel's own built-in `GET http://localhost:4000/up` still works and checks
+the framework only.
 
 ### If Composer/PHP complain about missing `fileinfo`/`pdo_sqlite`/`sqlite3`
 
@@ -46,15 +58,24 @@ Off by default — a plain `flutter run` still uses `MockCampusRepository`
 with zero setup. To use this real backend instead:
 
 ```bash
-# Android emulator (10.0.2.2 is the emulator's alias for the host machine)
-flutter run --dart-define=USE_REST_API=true --dart-define=API_BASE_URL=http://10.0.2.2:4000/api/v1
+# Web / desktop / Android emulator — port 4000 on this machine is the
+# default, and each platform resolves it correctly on its own
+flutter run -d chrome --dart-define=USE_REST_API=true \
+  --dart-define=REVERB_APP_KEY=arucad-local-key \
+  --dart-define=REVERB_HOST=localhost \
+  --dart-define=REVERB_PORT=8080 \
+  --dart-define=REVERB_SCHEME=http
+flutter run -d emulator-5554 --dart-define=USE_REST_API=true
 
-# Web / desktop (same machine as the backend)
-flutter run -d web-server --dart-define=USE_REST_API=true --dart-define=API_BASE_URL=http://localhost:4000/api/v1
-
-# A real phone on the same Wi-Fi as this machine — use this machine's LAN IP instead of localhost
+# A real phone on the same Wi-Fi can't reach this machine's loopback, so
+# it needs the LAN IP explicitly (and `php artisan serve --host=0.0.0.0`)
 flutter run --dart-define=USE_REST_API=true --dart-define=API_BASE_URL=http://<this-machine-LAN-IP>:4000/api/v1
 ```
+
+`API_BASE_URL` always wins when given. Without it the default is
+`http://localhost:4000/api/v1`, except on Android where it's
+`http://10.0.2.2:4000/api/v1` — the emulator's own loopback is the
+emulator, and 10.0.2.2 is the alias it routes back to the host.
 
 ## Verify it end-to-end without a browser or emulator
 
@@ -72,27 +93,46 @@ wire contract stable across the rewrite.
 
 ## SQLite now, PostgreSQL for production
 
-Local dev uses SQLite (`database/database.sqlite`, zero extra setup) —
-Laravel's own default. The migrations in `database/migrations/` are
-written with Eloquent's schema builder only (no raw SQLite-specific SQL),
-so switching the production datasource to PostgreSQL is a `.env` change,
-not a schema rewrite:
+Local dev uses SQLite (`../sql/database.sqlite` via `DB_DATABASE`, zero extra
+setup). The same Laravel migrations run on PostgreSQL. Default `.env` stays
+SQLite; switching a *reachable* Postgres is an explicit `.env` change, not a
+schema rewrite. Production cutover is not done in this repo.
+
+Local vs staging vs production `.env` boundaries (no deploy):
+`docs/ENVIRONMENTS.md`. Staging/production boot refuses SQLite, debug,
+and localhost Reverb/APP_URL.
 
 ```env
-DB_CONNECTION=pgsql
-DB_HOST=127.0.0.1
-DB_PORT=5432
-DB_DATABASE=arucad
-DB_USERNAME=arucad
-DB_PASSWORD=...
+# default local (keep this)
+DB_CONNECTION=sqlite
+DB_DATABASE=../sql/database.sqlite
+
+# optional PostgreSQL
+# DB_CONNECTION=pgsql
+# DB_HOST=127.0.0.1
+# DB_PORT=5432
+# DB_DATABASE=arucad
+# DB_USERNAME=arucad
+# DB_PASSWORD=
 ```
 
-then `php artisan migrate --seed` against that real Postgres instance. The
-`pdo_pgsql`/`pgsql` PHP extensions are already enabled in this environment
-— only a real, reachable PostgreSQL *server* is missing here (no package
-manager available in this sandbox to install one, and provisioning a real
-production database is ARUCAD's own infrastructure decision — see
-`docs/GERCEK_PROJEYE_GECIS.md`).
+then `php artisan migrate --seed` against that Postgres instance.
+
+SQLite tests (default, what `php artisan test` runs):
+
+```bash
+php artisan test
+```
+
+PostgreSQL tests (needs a reachable server; CI starts `postgres:16`):
+
+```bash
+php artisan test --configuration=phpunit.pgsql.xml
+```
+
+`phpunit.pgsql.xml` uses `arucad` / `arucad` / `arucad_test` on `127.0.0.1:5432`.
+The `pdo_pgsql` PHP extension must be enabled. Do not point the default
+phpunit.xml at Postgres — local/CI SQLite must keep working.
 
 ## What this covers
 
@@ -113,9 +153,84 @@ posts, role assignments, audit log, content revisions. See
 
 ## Auth
 
-No real token validation yet — every request is treated as the single
-seeded demo account (Laravel Sanctum is installed and ready, but nothing
-issues or checks a real token). Real per-user auth needs a real Microsoft
-Entra tenant (only ARUCAD's own IT admin can create the App Registration)
-plus the backend validating that token and mapping Entra groups to
-`UserRole` — see the doc for the exact steps.
+Every route under `/api/v1` requires a real Sanctum bearer token, except
+the two diagnostics endpoints (`/api/v1`, `/api/v1/health`) and the one
+that hands a token out:
+
+```
+POST /api/v1/auth/session   {"email": "...", "password": "..."}
+  → {"data": {"user": {...}, "token": "..."}, "meta": {...}, "error": null}
+
+POST /api/v1/auth/logout    (Authorization: Bearer ...)
+  → revokes exactly the token it was called with
+```
+
+Sign-in is restricted to `AUTH_ALLOWED_EMAIL_DOMAIN` (default
+`@arucad.edu.tr`) and the password is really checked against the stored
+hash. There's no student directory to pre-provision accounts from, so a
+first sign-in registers the account with the password given — every later
+sign-in has to match it. A request with no token, or a revoked one, gets a
+`401` with `error.code = AUTH_REQUIRED`.
+
+The authenticated user is resolved per request from that token
+(`request()->user()`, via `ApiResponds::currentUser()`), so two people on
+the same backend are now genuinely two accounts.
+
+## Authorization
+
+Being signed in is not being an admin. Every `/admin/*` route (plus the
+media library and content revisions, which only the Admin Panel calls)
+names the permission it requires, and a signed-in student holds none of
+them:
+
+```
+no token        → 401 AUTH_REQUIRED
+wrong person    → 403 FORBIDDEN
+banned account  → 403 ACCOUNT_BANNED
+```
+
+Permissions come from `App\Services\GranularPermissions`, which is the one
+place the rules live:
+
+- each admin section has its own key (`events.manage`, `moderation.moderate`,
+  `users.manage`, …), used directly as the route's middleware argument;
+- each key belongs to a capability bucket, and each product role covers
+  certain buckets — the same three capabilities `UserRole` already
+  expresses in the Flutter client, kept identical on purpose;
+- `superAdmin` passes everything, as one explicit central rule;
+- `role_assignments.permissions` (nullable JSON) grants one person extra
+  keys on top of their role. Additive only: it can never take away access
+  the role itself grants.
+
+`role_assignments` is the single source of truth for authorization.
+`users.role` is a profile display field and grants nothing — `GET /me`
+reports the role that is actually enforced.
+
+A ban applies to the account, not to a URL: there is no `/admin/*`
+exemption.
+
+## Likes
+
+A like is a row in `post_likes`, keyed `(user_id, post_id)` with a unique
+index — so one account can like a post once, and the database is what
+enforces it rather than a controller checking first.
+
+`feed_posts` has no `liked_by_me` or `likes` column any more. Both were
+answers to per-user questions stored on the post itself: `liked_by_me` made
+one person's like show for everyone, and a counter next to the rows it
+counts is a second answer waiting to disagree with the first. The API keeps
+both field names:
+
+```
+likes      = post_likes for this post, counted
+likedByMe  = does a post_likes row exist for this post and the caller
+```
+
+so two accounts reading the same post get the same `likes` and their own
+`likedByMe`. `POST /feed/{id}/like` toggles the caller's own row and can
+only ever touch that row.
+
+**Not yet:** Microsoft Entra as a production identity provider. It needs a
+real tenant (only ARUCAD's IT admin can create the App Registration) plus
+backend validation of its tokens and a mapping from Entra groups to
+`UserRole` — see `docs/GERCEK_PROJEYE_GECIS.md`.

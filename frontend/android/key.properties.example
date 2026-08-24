@@ -1,0 +1,14 @@
+# P3-13 — copy to android/key.properties (gitignored, never commit the real
+# file) once a real release keystore exists. KEYSTORE_REQUIRED until then —
+# see docs/EXTERNAL_ACCOUNTS.md §7.
+#
+# Generate a real keystore (one time, keep it outside the repo entirely,
+# e.g. a password manager / secure build server, never in this folder):
+#   keytool -genkey -v -keystore /secure/path/arucad-release.jks \
+#     -keyalg RSA -keysize 2048 -validity 10000 -alias arucad
+#
+# storeFile below may be an absolute path, or relative to android/app/.
+storeFile=/secure/path/arucad-release.jks
+storePassword=
+keyAlias=arucad
+keyPassword=

@@ -12,23 +12,11 @@ class ProfileController extends Controller
 {
     use ApiResponds;
 
-    // Matches CampusUserDto.fromJson in lib/core/network/campus_dtos.dart.
+    // Matches CampusUserDto.fromJson in lib/core/network/campus_dtos.dart —
+    // see User::toApiArray(), shared with the login response.
     public function me(): JsonResponse
     {
-        $u = $this->currentUser();
-
-        return $this->ok([
-            'id' => (string) $u->id,
-            'name' => $u->name,
-            'role' => $u->role,
-            'level' => $u->level,
-            'xp' => $u->xp,
-            'places' => $u->places,
-            'events' => $u->events,
-            'memories' => $u->memories,
-            'interests' => $u->interests ?? [],
-            'avatarUrl' => $u->avatar_url,
-        ]);
+        return $this->ok($this->currentUser()->toApiArray());
     }
 
     // Matches QuestDto.fromJson.

@@ -13,11 +13,19 @@ class EventApiTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // These tests walk both sides of the same flow — a student joining
+        // an event and an admin approving the roster — so the acting
+        // account holds the admin permissions and simply also does the
+        // student-facing calls, which no permission restricts.
+        $this->actingAsRole();
+    }
+
     private function seedUser(): User
     {
-        return User::create([
-            'name' => 'Test Student', 'email' => 'test@arucad.edu.tr', 'password' => bcrypt('x'),
-        ]);
+        return $this->actingAsRole();
     }
 
     public function test_events_index_only_returns_published_by_default(): void

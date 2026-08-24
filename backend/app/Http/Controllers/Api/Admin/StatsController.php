@@ -56,9 +56,14 @@ class StatsController extends Controller
             ],
             'userSummary' => [
                 'realAccountCount' => User::count(),
-                'note' => 'Bu prototipte tek gerçek giriş hesabı var (çoklu kullanıcı kimlik doğrulaması yok) — '.
-                    'aşağıdaki tüm sayılar gerçek veritabanı satırları, ama hepsi bu tek hesabın etkinliği.',
-                'totalXp' => (int) (User::first()?->xp ?? 0),
+                'note' => 'Aşağıdaki sayılar gerçek veritabanı satırlarıdır ve her hesap kendi kimliğiyle '.
+                    'giriş yaptığı için gerçekten kullanıcı bazında ayrışır.',
+                // Was User::first()?->xp — the single-account assumption
+                // that stopped being true when real per-user sign-in
+                // landed: it reported one arbitrary account's XP as the
+                // whole campus total. Same aggregate style as totalStrikes
+                // right below, which was always correct.
+                'totalXp' => (int) User::sum('xp'),
                 'totalStrikes' => (int) User::sum('strikes'),
                 'bannedAccounts' => User::whereNotNull('banned_at')->count(),
             ],
@@ -74,9 +79,14 @@ class StatsController extends Controller
                     ->orderByDesc('total')
                     ->limit(10)
                     ->get(),
+                // date() is valid on SQLite and PostgreSQL. GROUP BY must
+                // repeat the expression — PostgreSQL rejects GROUP BY of
+                // the SELECT alias (`day`) that SQLite allows.
                 'byDay' => Checkin::where('created_at', '>=', $since)
-                    ->selectRaw("date(created_at) as day, count(*) as total")
-                    ->groupBy('day')->orderBy('day')->get(),
+                    ->selectRaw('date(created_at) as day, count(*) as total')
+                    ->groupByRaw('date(created_at)')
+                    ->orderByRaw('date(created_at)')
+                    ->get(),
             ],
 
             // ------------------------------------------------- Events

@@ -67,28 +67,73 @@ class _PeopleScreenState extends State<PeopleScreen> {
   }
 
   Future<void> _toggleFollow(String name) async {
-    await widget.repository.toggleFollow(name);
-    if (!mounted) return;
+    final wasFollowing = _following.contains(name);
     setState(() {
-      if (_following.contains(name)) {
+      if (wasFollowing) {
         _following.remove(name);
       } else {
         _following.add(name);
       }
     });
+    try {
+      final nowFollowing = await widget.repository.toggleFollow(name);
+      if (!mounted) return;
+      setState(() {
+        if (nowFollowing) {
+          _following.add(name);
+        } else {
+          _following.remove(name);
+        }
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        if (wasFollowing) {
+          _following.add(name);
+        } else {
+          _following.remove(name);
+        }
+      });
+    }
   }
 
   Future<void> _toggleBlock(String name) async {
-    final nowBlocked = await widget.repository.toggleBlock(name);
-    if (!mounted) return;
+    final wasBlocked = _blocked.contains(name);
+    final wasFollowing = _following.contains(name);
     setState(() {
-      if (nowBlocked) {
+      if (wasBlocked) {
+        _blocked.remove(name);
+      } else {
         _blocked.add(name);
         _following.remove(name);
-      } else {
-        _blocked.remove(name);
       }
     });
+    try {
+      final nowBlocked = await widget.repository.toggleBlock(name);
+      if (!mounted) return;
+      setState(() {
+        if (nowBlocked) {
+          _blocked.add(name);
+          _following.remove(name);
+        } else {
+          _blocked.remove(name);
+        }
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        if (wasBlocked) {
+          _blocked.add(name);
+        } else {
+          _blocked.remove(name);
+        }
+        if (wasFollowing) {
+          _following.add(name);
+        } else {
+          _following.remove(name);
+        }
+      });
+    }
   }
 
   @override

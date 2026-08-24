@@ -5,7 +5,6 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:arucad_campus_prototype/core/config/campus_life_config.dart';
 import 'package:arucad_campus_prototype/core/l10n/app_strings.dart';
 import 'package:arucad_campus_prototype/core/models/campus_models.dart';
-import 'package:arucad_campus_prototype/core/services/admin_content_store.dart';
 import 'package:arucad_campus_prototype/core/services/contracts.dart';
 import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
 import 'package:arucad_campus_prototype/features/clubs/club_detail_screen.dart';
@@ -70,7 +69,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
       widget.repository.getClubs(),
       widget.repository.getSports(),
       widget.repository.getServices(),
-      AdminContentStore.foodVenues(),
+      widget.repository.getFoodVenues(),
       widget.repository.getMe(),
     ]);
     if (!mounted) return;

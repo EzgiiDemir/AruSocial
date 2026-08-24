@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Api\Concerns\ApiResponds;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\StoreMediaRequest;
 use App\Models\MediaItem;
 use App\Services\AuditLogger;
 use Illuminate\Http\JsonResponse;
@@ -40,12 +41,9 @@ class MediaController extends Controller
         return $this->ok(MediaItem::orderByDesc('uploaded_at')->get()->map(fn ($m) => $this->toJson($m)));
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(StoreMediaRequest $request): JsonResponse
     {
         $file = $request->file('file');
-        if (! $file || ! $file->isValid()) {
-            return $this->fail(400, 'VALIDATION', 'A valid file upload is required.');
-        }
         if ($file->getSize() > self::MAX_BYTES) {
             return $this->fail(400, 'FILE_TOO_LARGE', 'File exceeds the 8MB limit.');
         }
@@ -54,7 +52,7 @@ class MediaController extends Controller
         }
 
         $id = 'media-'.\Illuminate\Support\Str::uuid();
-        $path = $file->store('media', 'public');
+        $path = $file->store('media', MediaItem::disk());
         $item = MediaItem::create([
             'id' => $id,
             'file_path' => $path,
@@ -62,10 +60,10 @@ class MediaController extends Controller
             'mime_type' => $file->getMimeType(),
             'size_bytes' => $file->getSize(),
             'uploaded_at' => now(),
-            'uploaded_by' => $request->input('actorName', 'admin'),
+            'uploaded_by' => $this->currentUser()->name,
             'used_in' => [],
         ]);
-        AuditLogger::log($item->uploaded_by, 'create', 'media', $item->file_name);
+        AuditLogger::logAsCurrentUser('create', 'media', $item->file_name);
 
         return $this->ok($this->toJson($item), 201);
     }
@@ -78,6 +76,9 @@ class MediaController extends Controller
         if ($request->has('fileName')) $item->file_name = $request->input('fileName');
         if ($request->has('usedIn')) $item->used_in = $request->input('usedIn');
         $item->save();
+        if ($request->has('fileName')) {
+            AuditLogger::logAsCurrentUser('update', 'media', $item->file_name);
+        }
 
         return $this->ok($this->toJson($item));
     }
@@ -86,8 +87,8 @@ class MediaController extends Controller
     {
         $item = MediaItem::find($id);
         if ($item) {
-            Storage::disk('public')->delete($item->file_path);
-            AuditLogger::log($request->input('actorName', 'admin'), 'delete', 'media', $item->file_name);
+            Storage::disk(MediaItem::disk())->delete($item->file_path);
+            AuditLogger::logAsCurrentUser('delete', 'media', $item->file_name);
             $item->delete();
         }
 

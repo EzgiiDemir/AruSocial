@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -8,9 +7,10 @@ import 'package:arucad_campus_prototype/core/models/geo_point.dart';
 import 'package:arucad_campus_prototype/core/auth/app_settings_store.dart';
 import 'package:arucad_campus_prototype/core/l10n/app_strings.dart';
 import 'package:arucad_campus_prototype/core/models/campus_models.dart';
+import 'package:arucad_campus_prototype/core/models/media_item.dart';
+import 'package:arucad_campus_prototype/core/network/api_client.dart';
 import 'package:arucad_campus_prototype/core/services/content_moderation.dart';
 import 'package:arucad_campus_prototype/core/services/contracts.dart';
-import 'package:arucad_campus_prototype/core/services/media_library_store.dart';
 import 'package:arucad_campus_prototype/core/services/notification_service.dart';
 import 'package:arucad_campus_prototype/core/services/photo_picker_service.dart';
 import 'package:arucad_campus_prototype/core/services/place_photo_store.dart';
@@ -64,14 +64,23 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
   Future<void> _setCoverPhoto(BuildContext context) async {
     final bytes = await PhotoPickerService.pick(context, imageQuality: 75, maxWidth: 1080);
     if (bytes == null) return;
-    // Also registers in the Media Library (with a real "used in" tag) so an
-    // admin can see it centrally, not just on this one place's hero.
-    final media = await MediaLibraryStore.upload(bytes,
-        fileName: '${place.name}-cover.jpg', uploadedBy: 'Öğrenci');
-    await MediaLibraryStore.markUsed(media.id, 'place-cover:${place.id}');
-    await PlacePhotoStore.setPhoto(place.id, media.dataUri);
-    if (!mounted) return;
-    setState(() => _coverPhoto = media.dataUri);
+    try {
+      final media = await repository.uploadMedia(bytes, fileName: '${place.name}-cover.jpg');
+      await repository.markMediaUsed(media.id, 'place-cover:${place.id}');
+      await PlacePhotoStore.setPhoto(place.id, media.displaySrc);
+      if (!mounted) return;
+      setState(() => _coverPhoto = media.displaySrc);
+    } catch (e) {
+      if (!context.mounted) return;
+      final denied = e is ApiClientException && e.statusCode == 403;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(denied
+            ? 'Kapak fotografini yuklemen icin yetkin yok.'
+            : e is ApiClientException
+                ? e.message
+                : 'Kapak fotografı yuklenemedi.'),
+      ));
+    }
   }
 
   @override
@@ -116,7 +125,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
                             ),
                           ),
                         )
-                      : _CoverPhotoImage(dataUri: _coverPhoto!),
+                      : _CoverPhotoImage(src: _coverPhoto!),
                 ),
                 Positioned(
                   right: 10,
@@ -570,14 +579,13 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
 }
 
 class _CoverPhotoImage extends StatelessWidget {
-  final String dataUri;
-  const _CoverPhotoImage({required this.dataUri});
+  final String src;
+  const _CoverPhotoImage({required this.src});
 
   @override
   Widget build(BuildContext context) {
     try {
-      final bytes = base64Decode(dataUri.split(',').last);
-      return Image.memory(bytes, fit: BoxFit.cover);
+      return mediaPreview(src);
     } catch (_) {
       return Container(
           color: ArucadColors.mist,

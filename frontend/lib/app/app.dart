@@ -13,10 +13,14 @@ import '../core/network/api_client.dart';
 import '../core/services/audit_log_store.dart';
 import '../core/services/contracts.dart';
 import '../core/services/mock_auth_provider.dart';
+import '../core/services/push_notification_service.dart';
+import '../core/services/push_payload.dart';
 import '../core/theme/arucad_theme.dart';
 import '../features/admin/admin_panel_screen.dart';
 import '../features/auth/settings_screen.dart';
 import '../features/campus_shell.dart';
+import '../features/social/chat_screen.dart';
+import '../features/social/notifications_screen.dart';
 
 /// Lets code below the login screen show feedback (e.g. "location denied")
 /// without needing a Scaffold ancestor at the exact point it's called from.
@@ -119,13 +123,32 @@ class _DemoSessionState extends State<_DemoSession> {
   String? error;
   String language = 'TR';
   UserRole role = UserRole.student;
+  late final PushNotificationService _push;
+  StreamSubscription<PushPayload>? _pushOpened;
 
   @override
   void initState() {
     super.initState();
+    _push = PushNotificationService.forRepository(widget.repository);
+    _pushOpened = _push.opened.listen(_onPushOpened);
     AppSettingsStore.language().then((lang) {
       if (mounted) setState(() => language = lang);
     });
+  }
+
+  @override
+  void dispose() {
+    _pushOpened?.cancel();
+    unawaited(_push.dispose());
+    super.dispose();
+  }
+
+  void _onPushOpened(PushPayload payload) {
+    if (!signedIn || !mounted) return;
+    final page = payload.opensChat
+        ? ChatThreadScreen(repository: widget.repository, peer: payload.peer!)
+        : NotificationsScreen(repository: widget.repository);
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
   }
 
   Future<void> _finishSignIn(String method, bool ok) async {
@@ -140,11 +163,7 @@ class _DemoSessionState extends State<_DemoSession> {
     final baseRole = widget.authProvider is MockAuthProvider
         ? (widget.authProvider as MockAuthProvider).role
         : UserRole.student;
-    final signedInEmail = widget.authProvider is MockAuthProvider
-        ? (widget.authProvider as MockAuthProvider).currentEmail
-        : (widget.authProvider is EntraAuthProvider
-            ? (widget.authProvider as EntraAuthProvider).currentEmail
-            : null);
+    final signedInEmail = widget.authProvider.currentEmail;
     // A real, admin-editable email→role table overrides the base role when
     // set — this is what makes role assignment genuinely manageable from
     // Kullanıcılar & Roller instead of only ever being the one hardcoded
@@ -152,7 +171,7 @@ class _DemoSessionState extends State<_DemoSession> {
     // lookup; in Mock mode it's still per-device (see RoleAssignmentStore).
     final assignedRole = await widget.repository.roleFor(signedInEmail);
     if (!mounted) return;
-    await AuditLogStore.log(
+    await AuditLogStore.logIfMock(widget.repository,
         actorName: profile.name, action: 'login', targetType: 'auth', targetLabel: method);
     setState(() {
       user = profile;
@@ -160,6 +179,7 @@ class _DemoSessionState extends State<_DemoSession> {
       error = null;
       role = assignedRole ?? baseRole;
     });
+    unawaited(_push.start());
     unawaited(_ensureLocationPermission());
   }
 
@@ -202,14 +222,14 @@ class _DemoSessionState extends State<_DemoSession> {
       await _finishSignIn(method, ok);
     } on ApiClientException catch (e) {
       if (!mounted) return;
-      // A real, server-enforced consequence of the moderation strike
-      // system (ModerationService/EnsureNotBanned on the backend) —
-      // shown here instead of the raw "ApiClientException: HTTP 403…"
-      // string, since sign-in is the one place every banned account is
-      // guaranteed to pass through.
-      setState(() => error = e.code == 'ACCOUNT_BANNED'
-          ? e.message
-          : e.toString());
+      // These are real, expected outcomes of signing in, and the backend
+      // already phrases each one for the person reading it: a banned
+      // account (ModerationService/EnsureNotBanned), a wrong password, an
+      // address outside the university domain. Showing its message beats
+      // "ApiClientException: HTTP 401…", which only helps for the
+      // unexpected failures the fallback still covers.
+      const userFacing = {'ACCOUNT_BANNED', 'INVALID_CREDENTIALS', 'DOMAIN_NOT_ALLOWED'};
+      setState(() => error = userFacing.contains(e.code) ? e.message : e.toString());
       widget.analyticsTracker
           .track('auth_failure', {'method': method, 'error': e.code ?? e.toString()});
     } catch (e) {
@@ -260,9 +280,16 @@ class _DemoSessionState extends State<_DemoSession> {
   void _logout() {
     widget.analyticsTracker.track('auth_logout', {});
     if (user != null) {
-      unawaited(AuditLogStore.log(
+      unawaited(AuditLogStore.logIfMock(widget.repository,
           actorName: user!.name, action: 'logout', targetType: 'auth', targetLabel: ''));
     }
+    // Revoking the session token server-side is what makes this a real
+    // logout rather than the UI merely forgetting — in REST mode the token
+    // is deleted from `personal_access_tokens` and stops working
+    // immediately. Not awaited so the login screen appears at once; the
+    // provider clears local state regardless of how the call goes.
+    unawaited(_push.stopAndUnregister());
+    unawaited(widget.authProvider.signOut());
     setState(() {
       signedIn = false;
       user = null;

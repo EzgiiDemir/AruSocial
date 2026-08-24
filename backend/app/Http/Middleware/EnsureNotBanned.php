@@ -2,7 +2,6 @@
 
 namespace App\Http\Middleware;
 
-use App\Models\User;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -16,18 +15,21 @@ class EnsureNotBanned
 {
     public function handle(Request $request, Closure $next): Response
     {
-        // Admin routes stay reachable even for a banned account — with
-        // only one real demo user in this prototype (no separate admin
-        // identity), blocking /admin/* too would make a ban permanently
-        // un-reversible via the API itself. A real deployment with real
-        // per-user auth would gate this on role instead of path.
-        if ($request->is('api/v1/admin/*')) {
-            return $next($request);
-        }
-
-        // Same single-demo-account pattern as ApiResponds::currentUser() —
-        // no real per-request auth yet, so this checks the one seeded user.
-        $user = User::first();
+        // A ban now blocks every protected endpoint for everyone, admins
+        // included. There used to be a `/admin/*` exemption here, because
+        // with one shared demo account a ban would have locked the only
+        // person who could lift it out of the tools to lift it. Real
+        // per-user auth removed that trap — whoever reviews a ban is a
+        // different account that isn't banned — and the exemption had
+        // become a hole instead: any banned account could still reach the
+        // admin API by choosing an /admin/* path. Ban is a property of the
+        // account, so it's enforced on the account, never on the URL.
+        //
+        // The real authenticated user, not "whichever user row came first"
+        // — a ban used to lock out every account at once because this read
+        // User::first(). Null only if this middleware ever runs outside
+        // `auth:sanctum`, in which case there's no ban to enforce.
+        $user = $request->user();
         if ($user !== null && $user->banned_at !== null) {
             return response()->json([
                 'data' => null,

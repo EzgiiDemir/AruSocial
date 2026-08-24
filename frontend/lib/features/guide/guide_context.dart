@@ -1,6 +1,5 @@
 import 'package:arucad_campus_prototype/core/config/campus_life_config.dart';
 import 'package:arucad_campus_prototype/core/models/campus_models.dart';
-import 'package:arucad_campus_prototype/core/services/admin_content_store.dart';
 import 'package:arucad_campus_prototype/core/services/contracts.dart';
 
 /// Every real domain Ask ARUCAD should be able to answer about — loaded once
@@ -40,7 +39,7 @@ class GuideContext {
       repository.getClubs(),
       repository.getSports(),
       repository.getServices(),
-      AdminContentStore.foodVenues(),
+      repository.getFoodVenues(),
     ]);
     return GuideContext(
       places: results[0] as List<CampusPlace>,

@@ -104,8 +104,10 @@ Bu turda eklenen/düzeltilen gerçek işler (hepsi test edilmiş):
 
 ## 2. PostgreSQL
 
-- 🔧 Migration'lar Postgres-uyumlu — geçiş sadece `.env` değişikliği
-- 🔴 Gerçek erişilebilir bir sunucu yok (bkz. `docs/EXTERNAL_ACCOUNTS.md` §6)
+- ✅ Migration'lar SQLite + PostgreSQL'de aynı (P3-3). `php artisan test` SQLite;
+  CI `postgres:16` + `phpunit.pgsql.xml`. Default `.env` hâlâ SQLite.
+- 🔴 Production cutover yok — gerçek erişilebilir prod sunucusu, data
+  migration, backup/HA yok (bkz. `docs/EXTERNAL_ACCOUNTS.md` §6)
 
 ## 3. Local Store'ların Backend'e Taşınması
 
@@ -128,7 +130,8 @@ Bu turda eklenen/düzeltilen gerçek işler (hepsi test edilmiş):
   — hepsi gerçek backend'e bağlı
 - ✅ **Yeni:** Uygunsuz içerik artık gerçek bir sunucu-taraflı sonuca
   bağlı — bkz. §16
-- ❌ Gerçek zamanlı chat — hâlâ poll-bazlı, WebSocket/Socket.IO yok
+- ✅ Gerçek zamanlı chat — REST geçmiş kaynağı; Reverb private channel teslimatı (P3-1)
+- ✅ FCM push — mevcut `POST /push-tokens` kaydı; inbox satırı + queue job ile cihaz teslimi (P3-2). Gerçek Firebase projesi `.env` `FIREBASE_*` + Android `google-services.json` / iOS APNs (git'e secret yok).
 
 ## 5. Etkinlik/Aktivite Sistemi
 
@@ -148,16 +151,16 @@ Bu turda eklenen/düzeltilen gerçek işler (hepsi test edilmiş):
 
 - 🔧 WordPress/WPForms'tan form+entry çekme gerçek, tek yönlü
 - ❌ JSON export/import, form versioning, form → etkinlik bağlantısı
-- ✅ SMTP yapılandırması, email template, email log, retry — gerçek
-  Laravel mail pipeline (`MAIL_MAILER=log`); 🔴 gerçek SMTP hesabı
-  bağlanınca `.env`-only geçiş (bkz. `docs/EXTERNAL_ACCOUNTS.md` §5)
+- ✅ SMTP — Laravel `Mail` + `MAIL_MAILER=smtp` (P3-5). Local `log`.
+  Gerçek kutu için sunucu `.env` `MAIL_*` (bkz. `docs/EXTERNAL_ACCOUNTS.md` §5)
 - ✅ Kulüp başkanına + öğrenciye 2 e-postalık katılım akışı + gerçek
   yoklama onayı (§5)
 - ✅ Toplu e-posta — admin UI'ı + e-posta günlüğü + retry
 
 ## 7. Push Notification
 
-- 🔴 Firebase/FCM + iOS APNs (bkz. `docs/EXTERNAL_ACCOUNTS.md` §2)
+- ✅ Backend FCM gönderimi + Flutter token kaydı / tap routing (P3-2)
+- 🔧 Gerçek Firebase projesi, Android `google-services.json`, iOS APNs key (bkz. `docs/EXTERNAL_ACCOUNTS.md` §2) — kod hazır, hesap yoksa no-op
 
 ## 8. Anket / Oylama
 
@@ -275,11 +278,14 @@ görüntüsüyle bildir.
 
 ## 19. Monitoring
 
-- ❌ Sentry/Crashlytics, backend monitoring, error logging, uptime izleme
+- ✅ Sentry error monitoring (P3-6, backend `sentry/sentry-laravel` +
+  Flutter `sentry_flutter`; DSN boşsa local'de kapalı; secret scrub;
+  `docs/ENVIRONMENTS.md`) — performance tracing/dashboard kurulumu, uptime
+  izleme hâlâ yapılmadı (gerçek Sentry organization/DSN yok)
 
 ## 20. Production / Yayın
 
-- ❌ Development/Staging/Production ortam ayrımı
+- ✅ Local / staging / production config ayrımı (P3-4, `docs/ENVIRONMENTS.md`)
 - 🔴 Gerçek hosting/sunucu, HTTPS, deployment, Google Play/App Store,
   Privacy Policy/Terms/KVKK/GDPR — hepsi gerçek hesap+hukuki karar
   gerektiriyor

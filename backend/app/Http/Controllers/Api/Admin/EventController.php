@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Api\Concerns\ApiResponds;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\UpsertAdminEventRequest;
+use App\Http\Requests\UpsertParticipationTypeRequest;
 use App\Models\Event;
 use App\Models\EventJoin;
 use App\Models\EventParticipationType;
@@ -58,13 +60,10 @@ class EventController extends Controller
             ->first();
     }
 
-    public function upsert(Request $request): JsonResponse
+    public function upsert(UpsertAdminEventRequest $request): JsonResponse
     {
         $id = $request->input('id');
         $title = $request->input('title');
-        if (! $id || ! $title) {
-            return $this->fail(400, 'VALIDATION', 'id and title are required.');
-        }
 
         $placeId = $request->input('placeId');
         $eventDate = $request->input('eventDate');
@@ -96,7 +95,7 @@ class EventController extends Controller
                 'academic_year_id' => $request->input('academicYearId'),
             ]
         );
-        AuditLogger::log($request->input('actorName', 'admin'), $isNew ? 'create' : 'update', 'event', $title);
+        AuditLogger::logAsCurrentUser($isNew ? 'create' : 'update', 'event', $title);
 
         return $this->ok($this->eventToJson($event->fresh('participationTypes')));
     }
@@ -105,7 +104,7 @@ class EventController extends Controller
     {
         $event = Event::find($id);
         if ($event) {
-            AuditLogger::log($request->input('actorName', 'admin'), 'delete', 'event', $event->title);
+            AuditLogger::logAsCurrentUser('delete', 'event', $event->title);
             $event->delete();
         }
 
@@ -134,7 +133,7 @@ class EventController extends Controller
         if ($event->created_by_user_id) {
             ActivityLogger::log($event->created_by_user_id, 'eventJoin', "Aktiviten onaylandı: {$event->title}", 'Yayında');
         }
-        AuditLogger::log($request->input('actorName', 'admin'), 'approve', 'event', $event->title);
+        AuditLogger::logAsCurrentUser('approve', 'event', $event->title);
 
         return $this->ok($this->eventToJson($event->fresh('participationTypes')));
     }
@@ -149,19 +148,18 @@ class EventController extends Controller
         if ($event->created_by_user_id) {
             ActivityLogger::log($event->created_by_user_id, 'eventJoin', "Aktiviten reddedildi: {$event->title}", $note ?: 'Sebep belirtilmedi');
         }
-        AuditLogger::log($request->input('actorName', 'admin'), 'reject', 'event', $event->title);
+        AuditLogger::logAsCurrentUser('reject', 'event', $event->title);
 
         return $this->ok($this->eventToJson($event->fresh('participationTypes')));
     }
 
     // Admin participation-type management (docs/EKSIKLER.md §5) —
     // "Katılımcı / Gönüllü / Organizasyon / Görevli" per event, editable.
-    public function upsertParticipationType(Request $request, string $eventId): JsonResponse
+    public function upsertParticipationType(UpsertParticipationTypeRequest $request, string $eventId): JsonResponse
     {
         $event = Event::find($eventId);
         if (! $event) return $this->fail(404, 'EVENT_NOT_FOUND', 'Event not found.');
         $label = $request->input('label');
-        if (! $label) return $this->fail(400, 'VALIDATION', 'label is required.');
 
         $id = $request->input('id') ?: 'ptype-'.\Illuminate\Support\Str::uuid();
         $type = EventParticipationType::updateOrCreate(
@@ -230,7 +228,7 @@ class EventController extends Controller
                 'Yoklama alındı',
             );
         }
-        AuditLogger::log($actorName, 'approve_attendance', 'event_join', "{$join->user?->name} → {$event?->title}");
+        AuditLogger::logAsCurrentUser('approve_attendance', 'event_join', "{$join->user?->name} → {$event?->title}");
 
         return $this->ok(['approved' => true]);
     }

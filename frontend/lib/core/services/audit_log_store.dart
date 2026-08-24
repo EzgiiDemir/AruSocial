@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/audit_log_entry.dart';
+import 'contracts.dart';
+import 'rest_campus_repository.dart';
 
 export '../models/audit_log_entry.dart' show AuditLogEntry;
 
@@ -44,5 +46,23 @@ class AuditLogStore {
     final capped = next.length > _cap ? next.sublist(0, _cap) : next;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kEntries, jsonEncode(capped.map((e) => e.toJson()).toList()));
+  }
+
+  /// REST admin mutations are recorded in `admin_audit_log` on the server.
+  /// SharedPreferences stays the mock/demo writer only.
+  static Future<void> logIfMock(
+    CampusRepository repository, {
+    required String actorName,
+    required String action,
+    required String targetType,
+    required String targetLabel,
+  }) async {
+    if (repository is RestCampusRepository) return;
+    await log(
+      actorName: actorName,
+      action: action,
+      targetType: targetType,
+      targetLabel: targetLabel,
+    );
   }
 }

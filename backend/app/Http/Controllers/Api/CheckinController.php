@@ -49,12 +49,10 @@ class CheckinController extends Controller
         if ($visibleToOthers) {
             FeedPost::create([
                 'id' => $this->newId('post'),
-                'author_id' => (string) $me->id,
+                'author_id' => $me->id,
                 'name' => $me->name,
                 'text' => "{$place->name} konumunda check-in yaptı",
                 'meta' => 'az önce · +10 XP',
-                'likes' => 0,
-                'liked_by_me' => false,
                 'visibility' => 'everyone',
                 'post_type' => 'normal',
                 'official' => false,

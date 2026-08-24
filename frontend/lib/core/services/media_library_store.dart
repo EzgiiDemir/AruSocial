@@ -5,11 +5,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/media_item.dart';
 
-/// Real, on-device Media Library — same `SharedPreferences`-backed pattern
-/// as `AdminContentStore`, one JSON blob of every uploaded item. Images
-/// only for now: this repo has no real object storage (S3/Cloud Storage)
-/// to host video/large files, and stuffing large binaries into
-/// SharedPreferences doesn't scale — see docs/PUBLISH_READINESS.md.
+/// Real, on-device Media Library for **Mock** mode. Rest mode talks to
+/// `GET/POST /media` via `CampusRepository` and stores files on Laravel's
+/// public disk. This store is kept so `USE_REST_API=false` still works
+/// offline; it is not the REST canonical source. Existing base64 blobs
+/// already in SharedPreferences (`admin.media.items.v1`) are not auto-
+/// migrated to the backend.
 class MediaLibraryStore {
   static const _kItems = 'admin.media.items.v1';
 

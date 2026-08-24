@@ -35,4 +35,15 @@ return [
         ],
     ],
 
+    // FCM HTTP v1. Placeholders only in .env.example — never commit a real
+    // private key. Empty values bind NullFcmClient (inbox still persists).
+    'fcm' => [
+        'project_id' => env('FIREBASE_PROJECT_ID'),
+        'client_email' => env('FIREBASE_CLIENT_EMAIL'),
+        'private_key' => env('FIREBASE_PRIVATE_KEY'),
+        // Staging/production may set true once a Firebase project exists.
+        // Empty credentials still bind NullFcmClient when this is false (P3-2).
+        'required' => (bool) env('FCM_REQUIRED', false),
+    ],
+
 ];

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Api\Concerns\ApiResponds;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\UpsertSportRequest;
 use App\Models\Sport;
 use App\Services\AuditLogger;
 use Illuminate\Http\JsonResponse;
@@ -23,11 +24,10 @@ class SportController extends Controller
         return $this->ok(Sport::all()->map(fn ($s) => $this->toJson($s)));
     }
 
-    public function upsert(Request $request): JsonResponse
+    public function upsert(UpsertSportRequest $request): JsonResponse
     {
         $id = $request->input('id');
         $name = $request->input('name');
-        if (! $id || ! $name) return $this->fail(400, 'VALIDATION', 'id and name are required.');
 
         $isNew = ! Sport::where('id', $id)->exists();
         $sport = Sport::updateOrCreate(['id' => $id], [
@@ -35,7 +35,7 @@ class SportController extends Controller
             'facility' => $request->input('facility', ''),
             'contact' => $request->input('contact'),
         ]);
-        AuditLogger::log($request->input('actorName', 'admin'), $isNew ? 'create' : 'update', 'sport', $name);
+        AuditLogger::logAsCurrentUser($isNew ? 'create' : 'update', 'sport', $name);
 
         return $this->ok($this->toJson($sport));
     }
@@ -44,7 +44,7 @@ class SportController extends Controller
     {
         $sport = Sport::find($id);
         if ($sport) {
-            AuditLogger::log($request->input('actorName', 'admin'), 'delete', 'sport', $sport->name);
+            AuditLogger::logAsCurrentUser('delete', 'sport', $sport->name);
             $sport->delete();
         }
 

@@ -22,6 +22,7 @@ class EntraAuthProvider implements AuthProvider, AuthTokenAdapter {
   /// The signed-in account's real email, parsed from the Entra ID token —
   /// used to look up a locally-assigned role via `RoleAssignmentStore`
   /// (Entra itself doesn't hand this app a roles claim yet).
+  @override
   String? get currentEmail => _email;
 
   EntraAuthProvider({
@@ -90,6 +91,16 @@ class EntraAuthProvider implements AuthProvider, AuthTokenAdapter {
 
   @override
   Future<String?> getAccessToken() async => _accessToken;
+
+  @override
+  Future<void> signOut() async {
+    // No end-session call to the tenant yet — this scaffold only performs
+    // the authorization-code exchange, so dropping the tokens it holds is
+    // all it can honestly claim to do. A real single-sign-out belongs with
+    // the production identity milestone.
+    _accessToken = null;
+    _email = null;
+  }
 
   @override
   Future<Map<String, String>> authorizeHeaders() async {

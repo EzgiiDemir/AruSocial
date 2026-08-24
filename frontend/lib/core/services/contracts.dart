@@ -9,11 +9,14 @@ import '../models/campus_models.dart';
 import '../models/chat_message.dart';
 import '../models/content_block.dart';
 import '../models/content_revision.dart';
-import '../models/email_log.dart';
+import '../models/media_item.dart';
 import '../models/event_participant.dart';
 import '../models/inbox_notification.dart';
+import '../models/email_log.dart';
+import '../models/page_slice.dart';
 import '../models/role_assignment.dart';
 import '../models/survey.dart';
+import 'site_settings_store.dart';
 
 /// Real outcome of a [CampusRepository.joinEvent] call — mirrors the
 /// backend's `participationStatus` response so the join popup can show
@@ -92,6 +95,7 @@ abstract class CampusRepository {
   Future<List<CampusEvent>> getEvents({bool includeUnpublished = false, String? academicYearId});
   Future<List<Quest>> getQuests();
   Future<List<FeedPost>> getFeed();
+  Future<PageSlice<FeedPost>> getFeedPage({int page = 1, int perPage = 20});
   Future<void> createPost(String text,
       {String? imageUrl,
       Uint8List? imageBytes,
@@ -99,8 +103,12 @@ abstract class CampusRepository {
       PostCategory postType = PostCategory.normal,
       String? courseTag,
       String? locationTag});
-  Future<void> toggleLike(String postId);
-  Future<void> addComment(String postId, String text);
+  /// Toggles the signed-in account's like. The returned post is the
+  /// backend's own view of `likes` / `likedByMe` after the write — the
+  /// caller must not invent those numbers locally and then assume they
+  /// stuck.
+  Future<FeedPost> toggleLike(String postId);
+  Future<FeedPost> addComment(String postId, String text);
   Future<void> reportPost(String postId, String reason);
   Future<List<CampusStory>> getStories();
   Future<void> addStory(
@@ -149,6 +157,19 @@ abstract class CampusRepository {
   /// moderation API key. Returns the new configured state.
   Future<bool> setImageModerationApiKey(String apiKey);
 
+  /// Public Entra client config + WordPress site URL. REST hits
+  /// `GET/POST /admin/settings/site` (`users.manage`). The WordPress
+  /// token is write-only: send it to update, omit it to leave the stored
+  /// secret alone, send `''` to clear. GET never includes the token.
+  /// Mock mode keeps [SiteSettingsStore] so `USE_REST_API=false` still
+  /// works offline.
+  Future<SiteSettings> getSiteSettings();
+  Future<SiteSettings> updateSiteSettings({
+    EntraSiteConfig? entra,
+    String? wordpressSiteUrl,
+    String? wordpressApiToken,
+  });
+
   /// Real, live-aggregated usage statistics for the Admin Panel's
   /// İstatistikler tab (check-ins, most-visited places, event
   /// participation, content/survey/email counts) — see [AdminStats].
@@ -169,6 +190,25 @@ abstract class CampusRepository {
   Future<List<CampusService>> getServices();
   Future<void> upsertService(CampusService service);
   Future<void> deleteService(String id);
+
+  // Food venues + per-day menus. Rest mode hits GET /food-venues and the
+  // existing /admin/food-venues* writes; Mock mode keeps the on-device
+  // AdminContentStore copy so USE_REST_API=false still works offline.
+  Future<List<CampusFoodVenue>> getFoodVenues();
+  Future<void> upsertFoodVenue(CampusFoodVenue venue);
+  Future<void> deleteFoodVenue(String id);
+  Future<void> upsertFoodMenu(String venueId, DailyMenu menu);
+  Future<void> deleteFoodMenu(String venueId, DateTime date);
+
+  // Media library. Rest mode hits GET/POST /media (multipart upload) and
+  // POST /media/{id}[/delete]; Mock mode keeps the on-device
+  // MediaLibraryStore (dataUri in SharedPreferences) so USE_REST_API=false
+  // still works offline. Binary files never belong in the REST path's prefs.
+  Future<List<MediaItem>> getMedia();
+  Future<MediaItem> uploadMedia(Uint8List bytes, {required String fileName});
+  Future<void> renameMedia(String id, String fileName);
+  Future<void> deleteMedia(String id);
+  Future<void> markMediaUsed(String id, String ref);
 
   // Building directory + generic Pages — same real-backend-in-Rest-mode/
   // local-in-Mock-mode split as Clubs/Sports/Services.
@@ -191,6 +231,7 @@ abstract class CampusRepository {
   // locally-side) — read-only from the UI; every admin write elsewhere
   // logs to this automatically.
   Future<List<AuditLogEntry>> getAuditLog();
+  Future<PageSlice<AuditLogEntry>> getAuditLogPage({int page = 1, int perPage = 20});
 
   // Content revision history ("Sürüm Geçmişi") for the block editor —
   // keyed the same way locally and remotely (e.g. `event:123`).
@@ -205,8 +246,8 @@ abstract class CampusRepository {
   Future<bool> toggleFollow(String peer);
   Future<bool> toggleBlock(String peer);
 
-  // Chat — real, shared per-peer threads in Rest mode (still poll-based,
-  // not a live socket — see docs/EKSIKLER.md §4).
+  // Chat — REST is the history source of truth; Rest mode also listens
+  // on Reverb private channels for new rows (see docs/API_CONTRACT.md).
   Future<List<String>> getChatThreadPeers(List<String> knownPeers);
   Future<List<ChatMessage>> getChatMessages(String peer);
   Future<ChatMessage> sendChatMessage(String peer, String text);
@@ -215,8 +256,14 @@ abstract class CampusRepository {
   // to NotificationsScreen's existing feed/activity synthesis, not a
   // replacement (see that screen's own doc comment on why).
   Future<List<InboxNotification>> getInboxNotifications();
+  Future<PageSlice<InboxNotification>> getInboxNotificationsPage(
+      {int page = 1, int perPage = 20});
   Future<void> markNotificationRead(String id);
   Future<void> markAllNotificationsRead();
+
+  /// Device FCM token. Rest mode POSTs `/push-tokens`; mock is a no-op.
+  Future<void> registerPushToken({required String token, required String platform});
+  Future<void> unregisterPushToken(String token);
 
   // Survey/poll — student-facing active list + vote, admin management.
   Future<List<Survey>> getActiveSurveys();
@@ -280,6 +327,7 @@ abstract class CampusRepository {
 
   // Admin bulk email + email log/retry.
   Future<List<EmailLogEntry>> getEmailLogs();
+  Future<PageSlice<EmailLogEntry>> getEmailLogsPage({int page = 1, int perPage = 20});
   Future<String?> retryEmail(String id);
   Future<int> sendBulkEmail(
       {required List<String> recipients, required String subject, required String body});
@@ -290,6 +338,18 @@ abstract class AuthProvider {
   Future<bool> signInWithCredentials(String identifier, String password);
   Future<bool> unlockWithBiometrics({String? email});
   Future<String?> getAccessToken();
+
+  /// The account the current session belongs to, once signed in. The
+  /// admin-editable email→role table (`CampusRepository.roleFor`) is keyed
+  /// on it, so every provider has to be able to answer — otherwise the app
+  /// can only resolve a role for the provider types it happens to recognise
+  /// by name.
+  String? get currentEmail;
+
+  /// Ends the session for real. Whatever this provider handed out — a
+  /// server-side token, cached credentials — is revoked and cleared here,
+  /// so that logging out is more than the UI forgetting.
+  Future<void> signOut();
 }
 
 abstract class MapProvider {

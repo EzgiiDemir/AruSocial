@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Api\Concerns\ApiResponds;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\UpsertPageRequest;
 use App\Models\AdminPage;
 use App\Services\AuditLogger;
 use Illuminate\Http\JsonResponse;
@@ -44,14 +45,11 @@ class PageController extends Controller
         return $this->ok($this->toJson($page));
     }
 
-    public function upsert(Request $request): JsonResponse
+    public function upsert(UpsertPageRequest $request): JsonResponse
     {
         $id = $request->input('id');
         $title = $request->input('title');
         $slug = $request->input('slug');
-        if (! $id || ! $title || ! $slug) {
-            return $this->fail(400, 'VALIDATION', 'id, title and slug are required.');
-        }
 
         $isNew = ! AdminPage::where('id', $id)->exists();
         $page = AdminPage::updateOrCreate(['id' => $id], [
@@ -62,7 +60,7 @@ class PageController extends Controller
             'updated_at' => now(),
             'updated_by' => $request->input('actorName', 'admin'),
         ]);
-        AuditLogger::log($request->input('actorName', 'admin'), $isNew ? 'create' : 'update', 'page', $title);
+        AuditLogger::logAsCurrentUser($isNew ? 'create' : 'update', 'page', $title);
 
         return $this->ok($this->toJson($page));
     }
@@ -71,7 +69,7 @@ class PageController extends Controller
     {
         $page = AdminPage::find($id);
         if ($page) {
-            AuditLogger::log($request->input('actorName', 'admin'), 'delete', 'page', $page->title);
+            AuditLogger::logAsCurrentUser('delete', 'page', $page->title);
             $page->delete();
         }
 

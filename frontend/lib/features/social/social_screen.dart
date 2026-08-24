@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'package:arucad_campus_prototype/core/l10n/app_strings.dart';
 import 'package:arucad_campus_prototype/core/models/campus_models.dart';
+import 'package:arucad_campus_prototype/core/models/page_slice.dart';
 import 'package:arucad_campus_prototype/core/services/content_moderation.dart';
 import 'package:arucad_campus_prototype/core/services/contracts.dart';
 import 'package:arucad_campus_prototype/core/services/image_moderation_service.dart';
@@ -15,7 +16,7 @@ import 'package:arucad_campus_prototype/features/social/post_detail_screen.dart'
 import 'package:arucad_campus_prototype/features/social/social_profile_screen.dart';
 import 'package:arucad_campus_prototype/features/widgets/campus_widgets.dart';
 
-const _pageSize = kPageSize;
+const _apiPageSize = 20;
 enum _FeedFilter { forYou, following, campus, courses, events }
 const _storyColors = [
   ArucadColors.primary,
@@ -40,7 +41,9 @@ class _SocialScreenState extends State<SocialScreen> {
   Set<String> _following = {};
   String? _myName;
   bool _loading = true;
-  int _visibleCount = _pageSize;
+  bool _loadingMore = false;
+  bool _feedHasMore = true;
+  int _feedPage = 0;
   _FeedFilter _filter = _FeedFilter.forYou;
   Set<String> _saved = {};
 
@@ -70,7 +73,7 @@ class _SocialScreenState extends State<SocialScreen> {
 
   Future<void> _load() async {
     final results = await Future.wait([
-      widget.repository.getFeed(),
+      widget.repository.getFeedPage(page: 1, perPage: _apiPageSize),
       widget.repository.getStories(),
       widget.repository.getBlocked(),
       widget.repository.getFollowing(),
@@ -78,15 +81,38 @@ class _SocialScreenState extends State<SocialScreen> {
       widget.repository.getSavedPostIds(),
     ]);
     if (!mounted) return;
+    final page = results[0] as PageSlice<FeedPost>;
     setState(() {
-      _posts = results[0] as List<FeedPost>;
+      _posts = page.items;
+      _feedPage = page.currentPage;
+      _feedHasMore = page.hasMore;
       _stories = results[1] as List<CampusStory>;
       _blocked = results[2] as Set<String>;
       _following = results[3] as Set<String>;
       _myName = (results[4] as CampusUser).name;
       _saved = results[5] as Set<String>;
       _loading = false;
+      _loadingMore = false;
     });
+  }
+
+  Future<void> _loadMore() async {
+    if (_loadingMore || !_feedHasMore || _loading) return;
+    setState(() => _loadingMore = true);
+    try {
+      final page = await widget.repository.getFeedPage(
+          page: _feedPage + 1, perPage: _apiPageSize);
+      if (!mounted) return;
+      final seen = _posts.map((p) => p.id).toSet();
+      setState(() {
+        _posts = [..._posts, ...page.items.where((p) => !seen.contains(p.id))];
+        _feedPage = page.currentPage;
+        _feedHasMore = page.hasMore;
+        _loadingMore = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loadingMore = false);
+    }
   }
 
   @override
@@ -142,17 +168,16 @@ class _SocialScreenState extends State<SocialScreen> {
   Widget _buildFeed(BuildContext context) {
     final strings = AppLocale.of(context);
     final filtered = _filteredPosts;
-    final pageCount = _visibleCount.clamp(0, filtered.length);
-    final hasMore = pageCount < filtered.length;
+    final hasMore = _feedHasMore;
 
     return RefreshIndicator(
       onRefresh: _load,
       child: NotificationListener<ScrollNotification>(
         onNotification: (notification) {
-          if (!hasMore) return false;
+          if (!hasMore || _loadingMore) return false;
           if (notification.metrics.pixels >=
               notification.metrics.maxScrollExtent - 300) {
-            setState(() => _visibleCount += _pageSize);
+            _loadMore();
           }
           return false;
         },
@@ -185,7 +210,6 @@ class _SocialScreenState extends State<SocialScreen> {
                                 selected: _filter == entry.key,
                                 onSelected: (_) => setState(() {
                                   _filter = entry.key;
-                                  _visibleCount = _pageSize;
                                 }),
                               ),
                             ),
@@ -207,7 +231,7 @@ class _SocialScreenState extends State<SocialScreen> {
                               style: const TextStyle(color: ArucadColors.muted))),
                     )
                   else ...[
-                    for (int i = 0; i < pageCount; i++)
+                    for (int i = 0; i < filtered.length; i++)
                       Padding(
                         padding: EdgeInsets.only(top: i == 0 ? 0 : 12),
                         child: _PostCard(
@@ -230,13 +254,19 @@ class _SocialScreenState extends State<SocialScreen> {
                       Padding(
                         padding: const EdgeInsets.only(top: 14),
                         child: Center(
-                          child: OutlinedButton.icon(
-                            onPressed: () =>
-                                setState(() => _visibleCount += _pageSize),
-                            icon: const Icon(Icons.expand_more),
-                            label: Text(
-                                '${strings.t('social_load_more')} (${filtered.length - pageCount})'),
-                          ),
+                          child: _loadingMore
+                              ? const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 8),
+                                  child: SizedBox(
+                                      width: 24,
+                                      height: 24,
+                                      child: CircularProgressIndicator(strokeWidth: 2)),
+                                )
+                              : OutlinedButton.icon(
+                                  onPressed: _loadMore,
+                                  icon: const Icon(Icons.expand_more),
+                                  label: Text(strings.t('social_load_more')),
+                                ),
                         ),
                       ),
                   ],
@@ -247,8 +277,12 @@ class _SocialScreenState extends State<SocialScreen> {
   }
 
   Future<void> _like(String postId) async {
-    // Optimistic-ish: flip locally first so the tap feels instant, then sync
-    // with the repository's real state.
+    // Optimistic: flip locally first so the tap feels instant. The guess is
+    // only ever a guess — the server decides, and the reload below replaces
+    // it with the real per-user state. If the call fails, put back exactly
+    // what was on screen instead of leaving a heart the backend never
+    // recorded.
+    final before = _posts;
     setState(() {
       _posts = _posts.map((p) {
         if (p.id != postId) return p;
@@ -257,9 +291,21 @@ class _SocialScreenState extends State<SocialScreen> {
             likedByMe: liked, likes: liked ? p.likes + 1 : p.likes - 1);
       }).toList();
     });
-    await widget.repository.toggleLike(postId);
-    if (!mounted) return;
-    await _load();
+    try {
+      final updated = await widget.repository.toggleLike(postId);
+      if (!mounted) return;
+      // The response is the real per-user state. Replacing the optimistic
+      // guess with it is what keeps two accounts from sharing a heart.
+      setState(() {
+        _posts = _posts.map((p) => p.id == updated.id ? updated : p).toList();
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _posts = before);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Beğeni kaydedilemedi.')),
+      );
+    }
   }
 
   Future<void> _toggleSave(String postId) async {
@@ -289,28 +335,73 @@ class _SocialScreenState extends State<SocialScreen> {
   }
 
   Future<void> _toggleFollow(String name) async {
-    await widget.repository.toggleFollow(name);
-    if (!mounted) return;
+    final wasFollowing = _following.contains(name);
     setState(() {
-      if (_following.contains(name)) {
+      if (wasFollowing) {
         _following.remove(name);
       } else {
         _following.add(name);
       }
     });
+    try {
+      final nowFollowing = await widget.repository.toggleFollow(name);
+      if (!mounted) return;
+      setState(() {
+        if (nowFollowing) {
+          _following.add(name);
+        } else {
+          _following.remove(name);
+        }
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        if (wasFollowing) {
+          _following.add(name);
+        } else {
+          _following.remove(name);
+        }
+      });
+    }
   }
 
   Future<void> _toggleBlock(String name) async {
-    final nowBlocked = await widget.repository.toggleBlock(name);
-    if (!mounted) return;
+    final wasBlocked = _blocked.contains(name);
+    final wasFollowing = _following.contains(name);
     setState(() {
-      if (nowBlocked) {
+      if (wasBlocked) {
+        _blocked.remove(name);
+      } else {
         _blocked.add(name);
         _following.remove(name);
-      } else {
-        _blocked.remove(name);
       }
     });
+    try {
+      final nowBlocked = await widget.repository.toggleBlock(name);
+      if (!mounted) return;
+      setState(() {
+        if (nowBlocked) {
+          _blocked.add(name);
+          _following.remove(name);
+        } else {
+          _blocked.remove(name);
+        }
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        if (wasBlocked) {
+          _blocked.add(name);
+        } else {
+          _blocked.remove(name);
+        }
+        if (wasFollowing) {
+          _following.add(name);
+        } else {
+          _following.remove(name);
+        }
+      });
+    }
   }
 
   Future<void> _openStory(BuildContext context, int index) async {
@@ -524,24 +615,43 @@ class _SocialScreenState extends State<SocialScreen> {
                     onPressed: () async {
                       final text = commentController.text.trim();
                       if (text.isEmpty) return;
+                      final previous = comments;
+                      setSheetState(() {
+                        comments = [
+                          ...comments,
+                          PostComment(
+                            id: 'tmp-${DateTime.now().millisecondsSinceEpoch}',
+                            author: _myName ?? '',
+                            text: text,
+                            meta: 'şimdi',
+                          ),
+                        ];
+                      });
                       try {
-                        await widget.repository.addComment(post.id, text);
+                        final updated =
+                            await widget.repository.addComment(post.id, text);
+                        commentController.clear();
+                        if (!ctx.mounted) return;
+                        setSheetState(() => comments = updated.comments);
+                        if (mounted) {
+                          setState(() {
+                            _posts = _posts
+                                .map((p) => p.id == updated.id ? updated : p)
+                                .toList();
+                          });
+                        }
                       } on ContentModerationException catch (e) {
+                        setSheetState(() => comments = previous);
                         if (!ctx.mounted) return;
                         ScaffoldMessenger.of(ctx)
                             .showSnackBar(SnackBar(content: Text(e.reason)));
-                        return;
+                      } catch (_) {
+                        setSheetState(() => comments = previous);
+                        if (!ctx.mounted) return;
+                        ScaffoldMessenger.of(ctx).showSnackBar(
+                          const SnackBar(content: Text('Yorum kaydedilemedi.')),
+                        );
                       }
-                      commentController.clear();
-                      final refreshed = await widget.repository.getFeed();
-                      final updated = refreshed
-                          .where((p) => p.id == post.id)
-                          .map((p) => p.comments)
-                          .toList();
-                      if (updated.isNotEmpty) {
-                        setSheetState(() => comments = updated.first);
-                      }
-                      if (mounted) setState(() => _posts = refreshed);
                     },
                     icon: const Icon(Icons.send, color: ArucadColors.primary),
                   ),

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'package:arucad_campus_prototype/core/models/content_block.dart';
+import 'package:arucad_campus_prototype/core/models/media_item.dart';
 import 'package:arucad_campus_prototype/core/services/contracts.dart';
 import 'package:arucad_campus_prototype/core/services/draft_store.dart';
 import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
@@ -100,6 +101,7 @@ Future<List<ContentBlock>> openBlockEditor(
   required String title,
   required List<ContentBlock> initialBlocks,
   required String uploaderName,
+  required CampusRepository repository,
   String? draftKey,
 }) async {
   final result = await Navigator.of(context).push<List<ContentBlock>>(
@@ -108,6 +110,7 @@ Future<List<ContentBlock>> openBlockEditor(
         title: title,
         initialBlocks: initialBlocks,
         uploaderName: uploaderName,
+        repository: repository,
         draftKey: draftKey,
       ),
     ),
@@ -119,12 +122,14 @@ class _BlockEditorPage extends StatefulWidget {
   final String title;
   final List<ContentBlock> initialBlocks;
   final String uploaderName;
+  final CampusRepository repository;
   final String? draftKey;
 
   const _BlockEditorPage({
     required this.title,
     required this.initialBlocks,
     required this.uploaderName,
+    required this.repository,
     this.draftKey,
   });
 
@@ -224,6 +229,7 @@ class _BlockEditorPageState extends State<_BlockEditorPage> {
         child: ContentBlockEditor(
           initialBlocks: _blocks,
           uploaderName: widget.uploaderName,
+          repository: widget.repository,
           onChanged: _onChanged,
         ),
       ),
@@ -263,12 +269,14 @@ class ContentBlockEditor extends StatefulWidget {
   final List<ContentBlock> initialBlocks;
   final ValueChanged<List<ContentBlock>> onChanged;
   final String uploaderName;
+  final CampusRepository repository;
 
   const ContentBlockEditor({
     super.key,
     required this.initialBlocks,
     required this.onChanged,
     required this.uploaderName,
+    required this.repository,
   });
 
   @override
@@ -362,6 +370,7 @@ class ContentBlockEditorState extends State<ContentBlockEditor> {
             index: i,
             block: blocks[i],
             uploaderName: widget.uploaderName,
+            repository: widget.repository,
             onChanged: (b) => _update(i, b),
             onDelete: () => _delete(i),
             onDuplicate: () => _duplicate(i),
@@ -381,6 +390,7 @@ class _BlockCard extends StatelessWidget {
   final int index;
   final ContentBlock block;
   final String uploaderName;
+  final CampusRepository repository;
   final ValueChanged<ContentBlock> onChanged;
   final VoidCallback onDelete;
   final VoidCallback onDuplicate;
@@ -390,6 +400,7 @@ class _BlockCard extends StatelessWidget {
     required this.index,
     required this.block,
     required this.uploaderName,
+    required this.repository,
     required this.onChanged,
     required this.onDelete,
     required this.onDuplicate,
@@ -425,7 +436,12 @@ class _BlockCard extends StatelessWidget {
                   onPressed: onDelete,
                   icon: const Icon(Icons.delete_outline)),
             ]),
-            _BlockBody(block: block, uploaderName: uploaderName, onChanged: onChanged),
+            _BlockBody(
+              block: block,
+              uploaderName: uploaderName,
+              repository: repository,
+              onChanged: onChanged,
+            ),
           ]),
         ),
       );
@@ -434,8 +450,14 @@ class _BlockCard extends StatelessWidget {
 class _BlockBody extends StatelessWidget {
   final ContentBlock block;
   final String uploaderName;
+  final CampusRepository repository;
   final ValueChanged<ContentBlock> onChanged;
-  const _BlockBody({required this.block, required this.uploaderName, required this.onChanged});
+  const _BlockBody({
+    required this.block,
+    required this.uploaderName,
+    required this.repository,
+    required this.onChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -529,26 +551,27 @@ class _BlockBody extends StatelessWidget {
           ),
         ]);
       case BlockType.image:
-        final dataUri = block.props['dataUri'] as String?;
+        final src = mediaSrcFromProps(block.props);
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          if (dataUri != null)
+          if (src != null)
             ClipRRect(
               borderRadius: BorderRadius.circular(10),
               child: AspectRatio(
                 aspectRatio: 16 / 9,
-                child: Image.memory(Uri.parse(dataUri).data!.contentAsBytes(), fit: BoxFit.cover),
+                child: mediaPreview(src),
               ),
             ),
           const SizedBox(height: 6),
           OutlinedButton.icon(
             onPressed: () async {
-              final item = await pickMediaItem(context, uploaderName: uploaderName);
+              final item = await pickMediaItem(context,
+                  repository: repository, uploaderName: uploaderName);
               if (item == null) return;
               onChanged(block.copyWith(
-                  props: {...block.props, 'mediaId': item.id, 'dataUri': item.dataUri}));
+                  props: {...block.props, ...mediaRefFromItem(item)}));
             },
             icon: const Icon(Icons.photo_library_outlined, size: 16),
-            label: Text(dataUri == null ? 'Medya Kütüphanesinden Seç' : 'Değiştir'),
+            label: Text(src == null ? 'Medya Kütüphanesinden Seç' : 'Değiştir'),
           ),
           const SizedBox(height: 6),
           TextFormField(
@@ -568,23 +591,25 @@ class _BlockBody extends StatelessWidget {
                 scrollDirection: Axis.horizontal,
                 itemCount: items.length,
                 separatorBuilder: (_, __) => const SizedBox(width: 6),
-                itemBuilder: (context, i) => ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.memory(
-                      Uri.parse(items[i]['dataUri'] as String).data!.contentAsBytes(),
-                      width: 80,
-                      fit: BoxFit.cover),
-                ),
+                itemBuilder: (context, i) {
+                  final src = mediaSrcFromProps(items[i]);
+                  if (src == null) return const SizedBox.shrink();
+                  return ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: SizedBox(width: 80, child: mediaPreview(src)),
+                  );
+                },
               ),
             ),
           const SizedBox(height: 6),
           OutlinedButton.icon(
             onPressed: () async {
-              final picked = await pickMultipleMediaItems(context, uploaderName: uploaderName);
+              final picked = await pickMultipleMediaItems(context,
+                  repository: repository, uploaderName: uploaderName);
               if (picked.isEmpty) return;
               final next = [
                 ...items,
-                for (final m in picked) {'mediaId': m.id, 'dataUri': m.dataUri},
+                for (final m in picked) mediaRefFromItem(m),
               ];
               onChanged(block.copyWith(props: {...block.props, 'items': next}));
             },

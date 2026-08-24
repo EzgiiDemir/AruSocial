@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Api\Concerns\ApiResponds;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\PaginatedListRequest;
 use App\Models\AdminAuditLog;
 use Illuminate\Http\JsonResponse;
 
@@ -11,17 +12,17 @@ class AuditLogController extends Controller
 {
     use ApiResponds;
 
-    public function index(): JsonResponse
+    public function index(PaginatedListRequest $request): JsonResponse
     {
-        $rows = AdminAuditLog::orderByDesc('at')->limit(200)->get();
+        $query = AdminAuditLog::query()->orderByDesc('at')->orderByDesc('id');
 
-        return $this->ok($rows->map(fn ($r) => [
+        return $this->okPage($query, $request, fn ($r) => [
             'id' => $r->id,
             'actorName' => $r->actor_name,
             'action' => $r->action,
             'targetType' => $r->target_type,
             'targetLabel' => $r->target_label,
             'at' => $r->at?->toIso8601String(),
-        ]));
+        ]);
     }
 }

@@ -379,6 +379,20 @@ class AdminStrings {
     'admin_wp_form_noun': {AdminLanguage.tr: 'form', AdminLanguage.en: 'form'},
     'admin_wp_fetched_suffix': {AdminLanguage.tr: 'çekildi.', AdminLanguage.en: 'fetched.'},
     'admin_wp_connection_failed': {AdminLanguage.tr: 'Bağlantı başarısız', AdminLanguage.en: 'Connection failed'},
+    'admin_wp_save': {AdminLanguage.tr: 'WordPress Ayarlarını Kaydet', AdminLanguage.en: 'Save WordPress Settings'},
+    'admin_wp_saved_toast': {
+      AdminLanguage.tr: 'Kaydedildi. Token sunucuda tutulur, bu cihaza geri okunmaz.',
+      AdminLanguage.en: 'Saved. The token stays on the server and is not read back onto this device.',
+    },
+    'admin_wp_clear': {AdminLanguage.tr: 'Tokenı Kaldır', AdminLanguage.en: 'Remove Token'},
+    'admin_wp_token_configured': {
+      AdminLanguage.tr: 'Sunucuda bir WordPress token yapılandırılmış',
+      AdminLanguage.en: 'A server-side WordPress token is configured',
+    },
+    'admin_wp_token_not_configured': {
+      AdminLanguage.tr: 'Henüz token yok — çekme denemesi için token gir',
+      AdminLanguage.en: 'No token yet — enter one to try a fetch',
+    },
 
     // Site Settings tab — moderation
     'admin_moderation_title': {AdminLanguage.tr: 'İçerik Moderasyonu (Görsel)', AdminLanguage.en: 'Content Moderation (Image)'},

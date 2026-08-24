@@ -12,19 +12,24 @@ import '../models/campus_models.dart';
 import '../models/content_block.dart';
 import '../models/content_revision.dart';
 import '../models/email_log.dart';
+import '../models/media_item.dart';
 import '../models/event_participant.dart';
 import '../models/inbox_notification.dart';
+import '../models/page_slice.dart';
 import '../models/survey.dart';
 import 'admin_content_store.dart';
+import 'media_library_store.dart';
 import 'admin_page_store.dart';
 import 'audit_log_store.dart';
 import 'building_directory_store.dart';
+import 'chat_realtime_service.dart';
 import 'chat_store.dart';
 import 'content_moderation.dart';
 import 'content_revision_store.dart';
 import 'contracts.dart';
 import 'role_assignment_store.dart';
 import 'saved_posts_store.dart';
+import 'site_settings_store.dart';
 import 'social_graph_store.dart';
 
 class MockCampusRepository implements CampusRepository {
@@ -321,6 +326,26 @@ class MockCampusRepository implements CampusRepository {
   @override
   Future<List<FeedPost>> getFeed() async => List.unmodifiable(_feed);
 
+  PageSlice<T> _pageOf<T>(List<T> all, {int page = 1, int perPage = 20}) {
+    final total = all.length;
+    final lastPage = total == 0 ? 1 : ((total + perPage - 1) ~/ perPage);
+    final safePage = page < 1 ? 1 : page;
+    final start = (safePage - 1) * perPage;
+    final items =
+        start >= total ? <T>[] : all.skip(start).take(perPage).toList();
+    return PageSlice(
+      items: List.unmodifiable(items),
+      currentPage: safePage,
+      perPage: perPage,
+      total: total,
+      lastPage: lastPage,
+    );
+  }
+
+  @override
+  Future<PageSlice<FeedPost>> getFeedPage({int page = 1, int perPage = 20}) async =>
+      _pageOf(_feed, page: page, perPage: perPage);
+
   static const _checkInXp = 30;
 
   @override
@@ -526,6 +551,72 @@ class MockCampusRepository implements CampusRepository {
   Future<void> deleteService(String id) => AdminContentStore.deleteService(id);
 
   @override
+  Future<List<CampusFoodVenue>> getFoodVenues() => AdminContentStore.foodVenues();
+
+  @override
+  Future<void> upsertFoodVenue(CampusFoodVenue venue) =>
+      AdminContentStore.saveFoodVenue(venue);
+
+  @override
+  Future<void> deleteFoodVenue(String id) => AdminContentStore.deleteFoodVenue(id);
+
+  @override
+  Future<void> upsertFoodMenu(String venueId, DailyMenu menu) async {
+    final venues = await AdminContentStore.foodVenues();
+    final venue = venues.firstWhere((v) => v.id == venueId);
+    final next = [
+      for (final m in venue.dailyMenus)
+        if (m.date.year != menu.date.year ||
+            m.date.month != menu.date.month ||
+            m.date.day != menu.date.day)
+          m,
+      menu,
+    ];
+    await AdminContentStore.saveFoodVenue(CampusFoodVenue(
+      id: venue.id,
+      name: venue.name,
+      hours: venue.hours,
+      dailyMenus: next,
+      menuFileUrl: venue.menuFileUrl,
+    ));
+  }
+
+  @override
+  Future<void> deleteFoodMenu(String venueId, DateTime date) async {
+    final venues = await AdminContentStore.foodVenues();
+    final venue = venues.firstWhere((v) => v.id == venueId);
+    await AdminContentStore.saveFoodVenue(CampusFoodVenue(
+      id: venue.id,
+      name: venue.name,
+      hours: venue.hours,
+      dailyMenus: [
+        for (final m in venue.dailyMenus)
+          if (m.date.year != date.year || m.date.month != date.month || m.date.day != date.day)
+            m,
+      ],
+      menuFileUrl: venue.menuFileUrl,
+    ));
+  }
+
+  @override
+  Future<List<MediaItem>> getMedia() => MediaLibraryStore.items();
+
+  @override
+  Future<MediaItem> uploadMedia(Uint8List bytes, {required String fileName}) =>
+      MediaLibraryStore.upload(bytes, fileName: fileName, uploadedBy: 'Admin');
+
+  @override
+  Future<void> renameMedia(String id, String fileName) =>
+      MediaLibraryStore.rename(id, fileName);
+
+  @override
+  Future<void> deleteMedia(String id) => MediaLibraryStore.delete(id);
+
+  @override
+  Future<void> markMediaUsed(String id, String ref) =>
+      MediaLibraryStore.markUsed(id, ref);
+
+  @override
   Future<List<DirectoryEntry>> getDirectoryEntries() => BuildingDirectoryStore.entries();
 
   @override
@@ -561,6 +652,10 @@ class MockCampusRepository implements CampusRepository {
   Future<List<AuditLogEntry>> getAuditLog() => AuditLogStore.entries();
 
   @override
+  Future<PageSlice<AuditLogEntry>> getAuditLogPage({int page = 1, int perPage = 20}) async =>
+      _pageOf(await AuditLogStore.entries(), page: page, perPage: perPage);
+
+  @override
   Future<List<ContentRevision>> getRevisions(String contentKey) =>
       ContentRevisionStore.revisionsFor(contentKey);
 
@@ -588,15 +683,25 @@ class MockCampusRepository implements CampusRepository {
 
   @override
   Future<List<String>> getChatThreadPeers(List<String> knownPeers) =>
-      ChatStore.threadPeers(knownPeers);
+      ChatStore.threadPeers(_user.name, knownPeers);
 
   @override
-  Future<List<ChatMessage>> getChatMessages(String peer) => ChatStore.messages(peer);
+  Future<List<ChatMessage>> getChatMessages(String peer) =>
+      ChatStore.messages(_user.name, peer);
 
   @override
   Future<ChatMessage> sendChatMessage(String peer, String text) async {
-    await ChatStore.send(peer, text);
-    return (await ChatStore.messages(peer)).last;
+    final saved = await ChatStore.send(_user.name, peer, text);
+    InMemoryChatConnector.instance.publish({
+      'id': saved.id,
+      'fromMe': saved.fromMe,
+      'text': saved.text,
+      'sentAt': saved.sentAt.toIso8601String(),
+      'sender': _user.name,
+      'peer': peer,
+      'conversationId': 'mock',
+    });
+    return saved.copyWith(conversationId: 'mock', sender: _user.name);
   }
 
   // Mock mode has no real backend notification pipeline — no other real
@@ -606,10 +711,21 @@ class MockCampusRepository implements CampusRepository {
   Future<List<InboxNotification>> getInboxNotifications() async => const [];
 
   @override
+  Future<PageSlice<InboxNotification>> getInboxNotificationsPage(
+          {int page = 1, int perPage = 20}) async =>
+      _pageOf(const <InboxNotification>[], page: page, perPage: perPage);
+
+  @override
   Future<void> markNotificationRead(String id) async {}
 
   @override
   Future<void> markAllNotificationsRead() async {}
+
+  @override
+  Future<void> registerPushToken({required String token, required String platform}) async {}
+
+  @override
+  Future<void> unregisterPushToken(String token) async {}
 
   final List<_MockSurvey> _surveys = [
     _MockSurvey(
@@ -965,6 +1081,10 @@ class MockCampusRepository implements CampusRepository {
   Future<List<EmailLogEntry>> getEmailLogs() async =>
       List.unmodifiable(_emailLogs.reversed);
 
+  @override
+  Future<PageSlice<EmailLogEntry>> getEmailLogsPage({int page = 1, int perPage = 20}) async =>
+      _pageOf(await getEmailLogs(), page: page, perPage: perPage);
+
   // Mock mode has no real mail pipeline — nothing to actually retry.
   @override
   Future<String?> retryEmail(String id) async => null;
@@ -1006,6 +1126,41 @@ class MockCampusRepository implements CampusRepository {
 
   @override
   Future<bool> setImageModerationApiKey(String apiKey) async => false;
+
+  @override
+  Future<SiteSettings> getSiteSettings() async {
+    final entra = await SiteSettingsStore.entra();
+    final wp = await SiteSettingsStore.wordpress();
+    return SiteSettings(
+      entra: entra,
+      wordpressSiteUrl: wp.siteUrl,
+      wordpressApiTokenConfigured: wp.apiToken.isNotEmpty,
+      wordpressApiToken: wp.apiToken,
+    );
+  }
+
+  @override
+  Future<SiteSettings> updateSiteSettings({
+    EntraSiteConfig? entra,
+    String? wordpressSiteUrl,
+    String? wordpressApiToken,
+  }) async {
+    if (entra != null) {
+      await SiteSettingsStore.setEntra(
+        tenantId: entra.tenantId,
+        clientId: entra.clientId,
+        redirectUri: entra.redirectUri,
+      );
+    }
+    if (wordpressSiteUrl != null || wordpressApiToken != null) {
+      final current = await SiteSettingsStore.wordpress();
+      await SiteSettingsStore.setWordPress(
+        siteUrl: wordpressSiteUrl ?? current.siteUrl,
+        apiToken: wordpressApiToken ?? current.apiToken,
+      );
+    }
+    return getSiteSettings();
+  }
 
   // Real aggregation over Mock mode's own in-memory state (docs/EKSIKLER.md
   // admin istatistik modülü) — same shape `Admin\StatsController` returns,
@@ -1138,7 +1293,7 @@ class MockCampusRepository implements CampusRepository {
         clubs: clubs.length,
         sports: sports.length,
         services: services.length,
-        foodVenues: 0,
+        foodVenues: (await getFoodVenues()).length,
         directoryEntries: directory.length,
         mediaItems: 0,
       ),
@@ -1223,9 +1378,11 @@ class MockCampusRepository implements CampusRepository {
   }
 
   @override
-  Future<void> toggleLike(String postId) async {
+  Future<FeedPost> toggleLike(String postId) async {
     final index = _feed.indexWhere((p) => p.id == postId);
-    if (index == -1) return;
+    if (index == -1) {
+      throw StateError('Post $postId is not in the mock feed.');
+    }
     final post = _feed[index];
     final liked = !post.likedByMe;
     _feed[index] = post.copyWith(
@@ -1252,13 +1409,16 @@ class MockCampusRepository implements CampusRepository {
         ),
       );
     }
+    return _feed[index];
   }
 
   @override
-  Future<void> addComment(String postId, String text) async {
+  Future<FeedPost> addComment(String postId, String text) async {
     assertTextAllowed(text);
     final index = _feed.indexWhere((p) => p.id == postId);
-    if (index == -1) return;
+    if (index == -1) {
+      throw StateError('post not found');
+    }
     final post = _feed[index];
     final comment = PostComment(
       id: 'comment-${DateTime.now().millisecondsSinceEpoch}',
@@ -1269,6 +1429,7 @@ class MockCampusRepository implements CampusRepository {
     _feed[index] = post.copyWith(comments: [...post.comments, comment]);
     _logActivity(ActivityKind.comment, 'Yorum yaptın: ${post.name}', text,
         xp: 5);
+    return _feed[index];
   }
 
   @override
@@ -1358,7 +1519,7 @@ class MockCampusRepository implements CampusRepository {
       }
     }
     if (q.contains('menü') || q.contains('menu') || q.contains('yemek') || q.contains('garden')) {
-      for (final venue in await AdminContentStore.foodVenues()) {
+      for (final venue in await getFoodVenues()) {
         final todayMenu = venue.menuForDay(DateTime.now());
         if (todayMenu == null) {
           return '${venue.name} için bugünün menüsü henüz girilmedi. Discover → The Garden '

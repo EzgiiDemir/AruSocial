@@ -11,7 +11,10 @@ use App\Models\FeedPost;
 use App\Models\FoodDailyMenu;
 use App\Models\FoodVenue;
 use App\Models\Place;
+use App\Models\PostComment;
+use App\Models\PostLike;
 use App\Models\Quest;
+use App\Models\RoleAssignment;
 use App\Models\ServiceItem;
 use App\Models\Sport;
 use App\Models\Story;
@@ -36,6 +39,34 @@ class DatabaseSeeder extends Seeder
             'events' => 3,
             'memories' => 9,
             'interests' => ['Tasarım', 'Fotoğrafçılık', 'Basketbol'],
+        ]);
+
+        // The admin account documented in docs/TESTING.md. Before real
+        // authentication it only existed inside MockAuthProvider, so in REST
+        // mode there was nothing to sign in as; now it needs a real row with
+        // a real password hash. The elevated role comes from
+        // role_assignments, which is what the app actually reads at sign-in
+        // — users.role alone is not what grants panel access.
+        $admin = User::create([
+            'name' => 'Ezgi Demir',
+            'email' => 'ezgi.demir@arucad.edu.tr',
+            'password' => bcrypt('Ez26m!r'),
+            'role' => 'superAdmin',
+        ]);
+        RoleAssignment::create([
+            'email' => $admin->email,
+            'role' => 'superAdmin',
+            'assigned_by' => 'seed',
+            'assigned_at' => now(),
+        ]);
+
+        $selin = User::create([
+            'name' => 'Selin Kaya',
+            'email' => 'selin.kaya@arucad.edu.tr',
+            'password' => bcrypt('demo-password'),
+            'role' => 'student',
+            'level' => 3,
+            'xp' => 640,
         ]);
 
         Quest::create([
@@ -87,19 +118,37 @@ class DatabaseSeeder extends Seeder
             ]);
         }
 
-        FeedPost::create([
-            'id' => 'post-'.Str::uuid(), 'author_id' => (string) $me->id, 'name' => 'ARUCAD',
-            'text' => 'Bahar Şenliği başvuruları açıldı! 🎉', 'meta' => '2 saat önce', 'likes' => 14,
+        $announcement = FeedPost::create([
+            'id' => 'post-'.Str::uuid(), 'author_id' => $me->id, 'name' => 'ARUCAD',
+            'text' => 'Bahar Şenliği başvuruları açıldı! 🎉', 'meta' => '2 saat önce',
             'post_type' => 'etkinlik', 'official' => true, 'created_at' => now(),
         ]);
         FeedPost::create([
-            'id' => 'post-'.Str::uuid(), 'author_id' => (string) $me->id, 'name' => 'Ege Aydın',
-            'text' => "Atelier'de yeni sömestr projelerine başladık.", 'meta' => '5 saat önce', 'likes' => 6,
+            'id' => 'post-'.Str::uuid(), 'author_id' => $me->id, 'name' => 'Ege Aydın',
+            'text' => "Atelier'de yeni sömestr projelerine başladık.",
+            'meta' => '5 saat önce', 'created_at' => now(),
+        ]);
+
+        // These posts used to be seeded with invented counters (14 and 6
+        // likes) that no account had actually given. The count now comes
+        // from post_likes, so a seeded like has to be a real person liking
+        // it — which means the demo feed shows small, true numbers instead
+        // of large, made-up ones.
+        PostLike::create([
+            'id' => 'like-'.Str::uuid(), 'post_id' => $announcement->id,
+            'user_id' => $admin->id, 'created_at' => now(),
+        ]);
+        PostComment::create([
+            'id' => 'comment-'.Str::uuid(),
+            'post_id' => $announcement->id,
+            'user_id' => $selin->id,
+            'text' => 'Harika haber, oradayım!',
+            'meta' => '1 saat önce',
             'created_at' => now(),
         ]);
 
         Story::create([
-            'id' => 'story-'.Str::uuid(), 'author_id' => (string) $me->id, 'author_name' => 'Ege Aydın',
+            'id' => 'story-'.Str::uuid(), 'author_id' => $me->id, 'author_name' => 'Ege Aydın',
             'text' => 'Bugün stüdyoda!', 'background_color_value' => 0xFF5B4DFF, 'created_at' => now(),
         ]);
 

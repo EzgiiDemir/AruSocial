@@ -2,36 +2,55 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'package:arucad_campus_prototype/core/models/media_item.dart';
-import 'package:arucad_campus_prototype/core/services/media_library_store.dart';
+import 'package:arucad_campus_prototype/core/network/api_client.dart';
+import 'package:arucad_campus_prototype/core/services/contracts.dart';
 import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
+
+String _mediaErrorMessage(Object error) {
+  if (error is ApiClientException) {
+    if (error.statusCode == 401) return 'Oturum gerekli.';
+    if (error.statusCode == 403) return 'Bu islem icin yetkin yok.';
+    if (error.code == 'FILE_TOO_LARGE') return 'Dosya 8MB sinirini asiyor.';
+    if (error.code == 'UNSUPPORTED_FILE_TYPE') {
+      return 'Sadece JPEG, PNG, WEBP veya GIF yuklenebilir.';
+    }
+    return error.message;
+  }
+  return '$error';
+}
 
 /// Opens the Media Library as a picker (used by the block editor's Image
 /// block) — returns the item the admin picked, whether newly uploaded or
 /// already in the library. Returns null if the sheet was dismissed.
-Future<MediaItem?> pickMediaItem(BuildContext context, {required String uploaderName}) {
+Future<MediaItem?> pickMediaItem(BuildContext context,
+    {required CampusRepository repository, required String uploaderName}) {
   return showModalBottomSheet<MediaItem>(
     context: context,
     isScrollControlled: true,
-    builder: (ctx) => _MediaPickerSheet(uploaderName: uploaderName, multiple: false),
+    builder: (ctx) => _MediaPickerSheet(
+        repository: repository, uploaderName: uploaderName, multiple: false),
   );
 }
 
 /// Same as [pickMediaItem] but allows selecting several images at once —
 /// used by the Gallery block.
 Future<List<MediaItem>> pickMultipleMediaItems(BuildContext context,
-    {required String uploaderName}) async {
+    {required CampusRepository repository, required String uploaderName}) async {
   final result = await showModalBottomSheet<List<MediaItem>>(
     context: context,
     isScrollControlled: true,
-    builder: (ctx) => _MediaPickerSheet(uploaderName: uploaderName, multiple: true),
+    builder: (ctx) => _MediaPickerSheet(
+        repository: repository, uploaderName: uploaderName, multiple: true),
   );
   return result ?? const [];
 }
 
 class _MediaPickerSheet extends StatefulWidget {
+  final CampusRepository repository;
   final String uploaderName;
   final bool multiple;
-  const _MediaPickerSheet({required this.uploaderName, required this.multiple});
+  const _MediaPickerSheet(
+      {required this.repository, required this.uploaderName, required this.multiple});
 
   @override
   State<_MediaPickerSheet> createState() => _MediaPickerSheetState();
@@ -45,10 +64,10 @@ class _MediaPickerSheetState extends State<_MediaPickerSheet> {
   @override
   void initState() {
     super.initState();
-    _future = MediaLibraryStore.items();
+    _future = widget.repository.getMedia();
   }
 
-  void _reload() => setState(() => _future = MediaLibraryStore.items());
+  void _reload() => setState(() => _future = widget.repository.getMedia());
 
   Future<void> _upload() async {
     setState(() => _uploading = true);
@@ -61,8 +80,12 @@ class _MediaPickerSheetState extends State<_MediaPickerSheet> {
               .toList();
       for (final file in picked) {
         final bytes = await file.readAsBytes();
-        await MediaLibraryStore.upload(bytes,
-            fileName: file.name, uploadedBy: widget.uploaderName);
+        await widget.repository.uploadMedia(bytes, fileName: file.name);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(_mediaErrorMessage(e))));
       }
     } finally {
       if (mounted) {
@@ -188,7 +211,7 @@ class _MediaThumb extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     try {
-      return Image.memory(Uri.parse(item.dataUri).data!.contentAsBytes(), fit: BoxFit.cover);
+      return mediaPreview(item.displaySrc);
     } catch (_) {
       return Container(
           color: ArucadColors.mist,
@@ -200,7 +223,8 @@ class _MediaThumb extends StatelessWidget {
 /// The full "Medya Kütüphanesi" admin tab — browse everything uploaded,
 /// see where it's used, rename or delete it.
 class MediaLibraryTab extends StatefulWidget {
-  const MediaLibraryTab({super.key});
+  final CampusRepository repository;
+  const MediaLibraryTab({super.key, required this.repository});
 
   @override
   State<MediaLibraryTab> createState() => _MediaLibraryTabState();
@@ -212,17 +236,24 @@ class _MediaLibraryTabState extends State<MediaLibraryTab> {
   @override
   void initState() {
     super.initState();
-    _future = MediaLibraryStore.items();
+    _future = widget.repository.getMedia();
   }
 
-  void _reload() => setState(() => _future = MediaLibraryStore.items());
+  void _reload() => setState(() => _future = widget.repository.getMedia());
 
   Future<void> _upload() async {
     final picker = ImagePicker();
     final picked = await picker.pickMultiImage(imageQuality: 80);
-    for (final file in picked) {
-      final bytes = await file.readAsBytes();
-      await MediaLibraryStore.upload(bytes, fileName: file.name, uploadedBy: 'Admin');
+    try {
+      for (final file in picked) {
+        final bytes = await file.readAsBytes();
+        await widget.repository.uploadMedia(bytes, fileName: file.name);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(_mediaErrorMessage(e))));
+      }
     }
     _reload();
   }
@@ -241,7 +272,7 @@ class _MediaLibraryTabState extends State<MediaLibraryTab> {
       ),
     );
     if (ok != true || controller.text.trim().isEmpty) return;
-    await MediaLibraryStore.rename(item.id, controller.text.trim());
+    await widget.repository.renameMedia(item.id, controller.text.trim());
     _reload();
   }
 
@@ -261,7 +292,7 @@ class _MediaLibraryTabState extends State<MediaLibraryTab> {
       ),
     );
     if (ok != true) return;
-    await MediaLibraryStore.delete(item.id);
+    await widget.repository.deleteMedia(item.id);
     _reload();
   }
 

@@ -3,9 +3,12 @@
 // uses, without needing a browser or emulator. Run the backend first
 // (`cd backend && php artisan serve --port=4000`), then:
 //
-//   dart run tool/verify_rest_backend.dart [baseUrl]
+//   dart run tool/verify_rest_backend.dart [baseUrl] [--email x] [--password y]
 //
-// Default baseUrl is http://localhost:4000/api/v1.
+// Default baseUrl is http://localhost:4000/api/v1, and the credentials
+// default to the seeded super admin — the API requires a real Sanctum token
+// now, and the admin checks below require real permissions, so this signs in
+// first and runs everything else as that user.
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -16,15 +19,42 @@ import 'package:arucad_campus_prototype/core/models/campus_models.dart';
 import 'package:arucad_campus_prototype/core/models/content_block.dart';
 import 'package:arucad_campus_prototype/core/models/survey.dart';
 import 'package:arucad_campus_prototype/core/network/api_client.dart';
+import 'package:arucad_campus_prototype/core/network/auth_token_adapter.dart';
 import 'package:arucad_campus_prototype/core/services/contracts.dart';
 import 'package:arucad_campus_prototype/core/services/rest_campus_repository.dart';
+import 'package:arucad_campus_prototype/core/services/site_settings_store.dart';
 import 'package:http/http.dart' as http;
 
 Future<void> main(List<String> args) async {
   final baseUrl = args.isNotEmpty ? args[0] : 'http://localhost:4000/api/v1';
   stdout.writeln('Verifying RestCampusRepository against $baseUrl ...\n');
-  final repo = RestCampusRepository(client: ApiClient(baseUrl: baseUrl));
+
   final http.Client raw = http.Client();
+
+  // Every endpoint below /api/v1 except health and login now requires a real
+  // Sanctum token, so this has to sign in like the app does before it can
+  // check anything. It signs in as the seeded super admin because the checks
+  // below cover the admin endpoints too, and those now demand real
+  // permissions — a student account would (correctly) get 403 on half of
+  // them. Overridable for a backend seeded differently.
+  final email = _arg(args, '--email') ?? 'ezgi.demir@arucad.edu.tr';
+  final password = _arg(args, '--password') ?? 'Ez26m!r';
+  final String token;
+  try {
+    token = await _signIn(raw, baseUrl, email, password);
+  } catch (e) {
+    stdout.writeln('  FAIL sign in as $email -> $e');
+    stdout.writeln('\nCould not authenticate, so nothing else can be checked. '
+        'Is the database seeded (php artisan migrate:fresh --seed)?');
+    raw.close();
+    exit(1);
+  }
+  stdout.writeln('  OK   POST /auth/session as $email\n');
+
+  final repo = RestCampusRepository(
+    client: ApiClient(baseUrl: baseUrl, authTokenAdapter: _StaticToken(token)),
+  );
+  final authHeader = {'Authorization': 'Bearer $token'};
 
   var failures = 0;
   Future<void> check(String label, Future<void> Function() body) async {
@@ -41,7 +71,7 @@ Future<void> main(List<String> args) async {
   // RBAC, ...) don't have Dart model classes yet — these hit them
   // directly over HTTP and check the raw JSON shape instead.
   Future<dynamic> getJson(String path) async {
-    final res = await raw.get(Uri.parse('$baseUrl$path'));
+    final res = await raw.get(Uri.parse('$baseUrl$path'), headers: authHeader);
     if (res.statusCode < 200 || res.statusCode >= 300) {
       throw 'GET $path -> HTTP ${res.statusCode}: ${res.body}';
     }
@@ -168,6 +198,30 @@ Future<void> main(List<String> args) async {
     if (afterClear) throw 'clearing the key did not report configured=false';
   });
 
+  await check('admin: repo.getSiteSettings()/updateSiteSettings() public round-trip', () async {
+    final before = await repo.getSiteSettings();
+    await repo.updateSiteSettings(
+      entra: EntraSiteConfig(
+        tenantId: 't-verify-p23',
+        clientId: before.entra.clientId,
+        redirectUri: before.entra.redirectUri,
+      ),
+      wordpressSiteUrl: before.wordpressSiteUrl.isEmpty
+          ? 'https://verify.example.com'
+          : before.wordpressSiteUrl,
+    );
+    final got = await repo.getSiteSettings();
+    if (got.entra.tenantId != 't-verify-p23') {
+      throw 'entra tenantId did not persist';
+    }
+    if (got.wordpressApiToken.isNotEmpty) {
+      throw 'GET model carried a WordPress token';
+    }
+    final raw = jsonEncode(await getJson('/admin/settings/site'));
+    if (raw.contains('"apiToken"')) throw 'GET JSON included apiToken';
+    await repo.updateSiteSettings(entra: before.entra, wordpressSiteUrl: before.wordpressSiteUrl);
+  });
+
   // A real image upload with no moderation key configured must be
   // accepted (skip policy) rather than blocked — checked without ever
   // configuring a real OpenAI key here, since a *flagged* image would be
@@ -190,9 +244,30 @@ Future<void> main(List<String> args) async {
     final services = await repo.getServices();
     if (services.isEmpty) throw 'no services returned';
   });
-  await check('GET /food-venues includes real daily menus', () async {
-    final venues = await getJson('/food-venues') as List;
+  await check('repo.getFoodVenues() returns real seed data', () async {
+    final venues = await repo.getFoodVenues();
     if (venues.isEmpty) throw 'no food venues returned';
+    if (venues.every((v) => v.dailyMenus.isEmpty)) {
+      throw 'food venues have no daily menus';
+    }
+  });
+  await check('repo.getMedia()/uploadMedia()/deleteMedia() round-trip', () async {
+    const png = <int>[
+      0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D,
+      0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+      0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53, 0xDE, 0x00, 0x00, 0x00,
+      0x0C, 0x49, 0x44, 0x41, 0x54, 0x08, 0xD7, 0x63, 0xF8, 0xCF, 0xC0, 0x00,
+      0x00, 0x00, 0x03, 0x00, 0x01, 0x00, 0x18, 0xDD, 0x8D, 0xB4, 0x00, 0x00,
+      0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
+    ];
+    final created = await repo.uploadMedia(Uint8List.fromList(png), fileName: 'verify.png');
+    if (created.url == null || created.url!.isEmpty) throw 'upload returned no url';
+    if (created.url!.startsWith('data:')) throw 'REST upload returned a data URI';
+    var items = await repo.getMedia();
+    if (!items.any((m) => m.id == created.id)) throw 'uploaded media not listed';
+    await repo.deleteMedia(created.id);
+    items = await repo.getMedia();
+    if (items.any((m) => m.id == created.id)) throw 'media still present after delete';
   });
   await check('repo.getDirectoryEntries()/upsert/delete round-trip', () async {
     await repo.upsertDirectoryEntry(const DirectoryEntry(
@@ -305,26 +380,32 @@ Future<void> main(List<String> args) async {
   });
 
   await check('repo.toggleFollow()/getFollowing() round-trip', () async {
-    final nowFollowing = await repo.toggleFollow('Verify Peer');
+    // Must be a real seeded account — follows are user_id → user_id, so a
+    // made-up display name no longer creates a row.
+    const peer = 'Ege Aydın';
+    final nowFollowing = await repo.toggleFollow(peer);
     if (!nowFollowing) throw 'follow did not register';
     final following = await repo.getFollowing();
-    if (!following.contains('Verify Peer')) throw 'peer not in following list';
-    final nowUnfollowed = await repo.toggleFollow('Verify Peer');
+    if (!following.contains(peer)) throw 'peer not in following list';
+    final nowUnfollowed = await repo.toggleFollow(peer);
     if (nowUnfollowed) throw 'unfollow (toggle) did not register';
   });
 
   await check('repo.sendChatMessage()/getChatMessages() round-trip', () async {
-    final sent = await repo.sendChatMessage('Verify Peer', 'merhaba');
+    const peer = 'Ege Aydın';
+    final sent = await repo.sendChatMessage(peer, 'merhaba');
     if (sent.text != 'merhaba' || !sent.fromMe) throw 'unexpected sent message shape';
-    final messages = await repo.getChatMessages('Verify Peer');
+    final messages = await repo.getChatMessages(peer);
     if (messages.isEmpty || messages.last.text != 'merhaba') throw 'message not persisted';
     final threads = await repo.getChatThreadPeers(const []);
-    if (!threads.contains('Verify Peer')) throw 'Verify Peer missing from thread list';
+    if (!threads.contains(peer)) throw 'peer missing from thread list';
   });
 
-  await check('repo.getInboxNotifications() has real entries, markAllNotificationsRead() works', () async {
+  await check('follower does not receive their own follow notification; markAllNotificationsRead() works', () async {
     final notifications = await repo.getInboxNotifications();
-    if (notifications.isEmpty) throw 'expected at least one notification (from the follow above)';
+    if (notifications.any((n) => n.kind == 'follow')) {
+      throw 'follower inbox must not contain the follow notification';
+    }
     await repo.markAllNotificationsRead();
     final afterMark = await repo.getInboxNotifications();
     if (afterMark.any((n) => !n.read)) throw 'expected every notification to be read after markAllRead';
@@ -471,4 +552,36 @@ Future<void> main(List<String> args) async {
   stdout.writeln('\n${me != null ? "Signed in as ${me!.name}. " : ""}'
       '${failures == 0 ? "All checks passed — the backend is real and reachable." : "$failures check(s) FAILED."}');
   if (failures > 0) exit(1);
+}
+
+String? _arg(List<String> args, String name) {
+  final i = args.indexOf(name);
+  return (i >= 0 && i + 1 < args.length) ? args[i + 1] : null;
+}
+
+Future<String> _signIn(
+    http.Client raw, String baseUrl, String email, String password) async {
+  final res = await raw.post(
+    Uri.parse('$baseUrl/auth/session'),
+    headers: const {'Content-Type': 'application/json'},
+    body: jsonEncode({'email': email, 'password': password}),
+  );
+  if (res.statusCode != 200) {
+    throw 'HTTP ${res.statusCode}: ${res.body}';
+  }
+  final token = jsonDecode(res.body)['data']?['token'] as String?;
+  if (token == null || token.isEmpty) throw 'no token in response';
+  return token;
+}
+
+/// The token this run signed in with, handed to ApiClient the same way
+/// SessionTokenAdapter does in the app — so these checks exercise the real
+/// Authorization header path rather than a special case.
+class _StaticToken extends AuthTokenAdapter {
+  _StaticToken(this._token);
+
+  final String _token;
+
+  @override
+  Future<String?> getAccessToken() async => _token;
 }

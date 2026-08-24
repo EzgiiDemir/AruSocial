@@ -14,6 +14,7 @@ class MockAuthProvider extends AuthTokenAdapter implements AuthProvider {
   bool _signedIn = false;
   String? _currentEmail;
 
+  @override
   String? get currentEmail => _currentEmail;
 
   /// There's no real Entra/backend role claim yet (see README roadmap) —
@@ -56,5 +57,14 @@ class MockAuthProvider extends AuthTokenAdapter implements AuthProvider {
   @override
   Future<String?> getAccessToken() async {
     return _signedIn ? 'demo.token.arucad' : null;
+  }
+
+  /// Nothing to revoke: this provider's "token" is a constant string no
+  /// server ever issued. Dropping the in-memory session is the whole of
+  /// what signing out means offline.
+  @override
+  Future<void> signOut() async {
+    _signedIn = false;
+    _currentEmail = null;
   }
 }

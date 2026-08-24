@@ -20,9 +20,17 @@ class ApiClient {
   Future<Map<String, dynamic>> get(
     String path, {
     Map<String, String>? headers,
+    Map<String, String>? query,
   }) async {
+    var uri = _uri(path);
+    if (query != null && query.isNotEmpty) {
+      uri = uri.replace(queryParameters: {
+        ...uri.queryParameters,
+        ...query,
+      });
+    }
     final response = await _client.get(
-      _uri(path),
+      uri,
       headers: await _combinedHeaders(headers),
     );
     return _decodeResponse(response);
@@ -42,13 +50,35 @@ class ApiClient {
   }
 
   Future<Map<String, String>> _combinedHeaders(
-      Map<String, String>? headers) async {
+      Map<String, String>? headers, {bool json = true}) async {
     final authHeaders = await authTokenAdapter?.authorizeHeaders() ?? {};
     return {
-      'Content-Type': 'application/json',
+      if (json) 'Content-Type': 'application/json',
+      'Accept': 'application/json',
       ...authHeaders,
       ...?headers,
     };
+  }
+
+  /// Multipart upload for `/media`. Must not set JSON Content-Type — the
+  /// client generates the multipart boundary. Auth headers still apply.
+  Future<Map<String, dynamic>> postMultipart(
+    String path, {
+    required List<int> bytes,
+    required String fileName,
+    String fieldName = 'file',
+    Map<String, String>? fields,
+  }) async {
+    final request = http.MultipartRequest('POST', _uri(path));
+    request.headers.addAll(await _combinedHeaders(null, json: false));
+    if (fields != null) request.fields.addAll(fields);
+    request.files.add(http.MultipartFile.fromBytes(
+      fieldName,
+      bytes,
+      filename: fileName,
+    ));
+    final streamed = await _client.send(request);
+    return _decodeResponse(await http.Response.fromStream(streamed));
   }
 
   Map<String, dynamic> _decodeResponse(http.Response response) {

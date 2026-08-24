@@ -5,13 +5,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../config/campus_life_config.dart';
 
 /// The real, editable-at-runtime backing store for Discover's Clubs, Sports
-/// and Campus Services — this is what makes "don't hardcode the club list,
-/// let an admin manage it" true today: edits made in the in-app Admin
-/// Panel are written here and read back by Discover, no Dart code change
-/// required. It's local-device persistence (`shared_preferences`), not a
-/// shared multi-admin backend — a real CMS would replace this class with
-/// API calls without any other screen needing to change, since they only
-/// ever talk to `AdminContentStore`.
+/// and Campus Services in **Mock** mode. Rest mode talks to the Laravel
+/// catalog endpoints instead. Food venues used to live only here; Rest
+/// mode now reads/writes `GET/POST /food-venues` via `CampusRepository`.
+/// Mock mode still persists food here so `USE_REST_API=false` stays offline.
 class AdminContentStore {
   static const _kClubs = 'admin.content.clubs.v1';
   static const _kSports = 'admin.content.sports.v1';

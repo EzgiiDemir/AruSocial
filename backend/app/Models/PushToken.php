@@ -13,4 +13,11 @@ class PushToken extends Model
     {
         return ['created_at' => 'datetime'];
     }
+
+    protected static function booted(): void
+    {
+        static::creating(function (self $token): void {
+            $token->created_at ??= now();
+        });
+    }
 }

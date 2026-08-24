@@ -46,3 +46,35 @@ jobs:
         run: cp .env.example .env
       - run: php artisan key:generate
       - run: php artisan test
+
+  backend-pgsql:
+    name: Backend (PostgreSQL PHPUnit)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: arucad_test
+          POSTGRES_USER: arucad
+          POSTGRES_PASSWORD: arucad
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U arucad -d arucad_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: fileinfo, pdo_pgsql, pgsql, mbstring
+      - run: composer install --no-interaction --prefer-dist
+      - name: Copy .env
+        run: cp .env.example .env
+      - run: php artisan key:generate
+      - run: php artisan test --configuration=phpunit.pgsql.xml

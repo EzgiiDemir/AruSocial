@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:arucad_campus_prototype/core/models/content_block.dart';
+import 'package:arucad_campus_prototype/core/models/media_item.dart';
 import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
 
 /// Read-only render of a block list on a real detail screen (Event/Club/
@@ -84,15 +85,15 @@ class BlockRenderer extends StatelessWidget {
           ),
         );
       case BlockType.image:
-        final dataUri = block.props['dataUri'] as String?;
-        if (dataUri == null) return const SizedBox.shrink();
+        final src = mediaSrcFromProps(block.props);
+        if (src == null) return const SizedBox.shrink();
         return Padding(
           padding: const EdgeInsets.only(bottom: 10),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(14),
             child: AspectRatio(
               aspectRatio: 16 / 9,
-              child: Image.memory(Uri.parse(dataUri).data!.contentAsBytes(), fit: BoxFit.cover),
+              child: mediaPreview(src),
             ),
           ),
         );
@@ -108,12 +109,12 @@ class BlockRenderer extends StatelessWidget {
               itemCount: rawItems.length,
               separatorBuilder: (_, __) => const SizedBox(width: 8),
               itemBuilder: (context, i) {
-                final dataUri = Map<String, dynamic>.from(rawItems[i] as Map)['dataUri'] as String?;
-                if (dataUri == null) return const SizedBox.shrink();
+                final src = mediaSrcFromProps(
+                    Map<String, dynamic>.from(rawItems[i] as Map));
+                if (src == null) return const SizedBox.shrink();
                 return ClipRRect(
                   borderRadius: BorderRadius.circular(10),
-                  child: Image.memory(Uri.parse(dataUri).data!.contentAsBytes(),
-                      width: 110, fit: BoxFit.cover),
+                  child: SizedBox(width: 110, child: mediaPreview(src)),
                 );
               },
             ),

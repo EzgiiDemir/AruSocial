@@ -22,6 +22,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Sign-in Email Domain
+    |--------------------------------------------------------------------------
+    |
+    | Which accounts may open a session at all (POST /api/v1/auth/session).
+    | Mirrors the Flutter client's own allowlist in MockAuthProvider, but
+    | enforced here where a modified client can't skip it. Configurable so a
+    | staging or partner domain doesn't need a code change.
+    |
+    */
+
+    'allowed_email_domain' => env('AUTH_ALLOWED_EMAIL_DOMAIN', '@arucad.edu.tr'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Authentication Guards
     |--------------------------------------------------------------------------
     |

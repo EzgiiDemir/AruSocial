@@ -4,9 +4,9 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Api\Concerns\ApiResponds;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\ToggleSavedPostRequest;
 use App\Models\SavedPost;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 
 class SavedPostController extends Controller
 {
@@ -20,11 +20,10 @@ class SavedPostController extends Controller
         return $this->ok($ids);
     }
 
-    public function toggle(Request $request): JsonResponse
+    public function toggle(ToggleSavedPostRequest $request): JsonResponse
     {
         $me = $this->currentUser();
         $postId = $request->input('postId');
-        if (! $postId) return $this->fail(400, 'VALIDATION', 'postId is required.');
 
         $existing = SavedPost::where('user_id', $me->id)->where('post_id', $postId)->first();
         if ($existing) {

@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Api\Concerns\ApiResponds;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\PaginatedListRequest;
+use App\Http\Requests\SendBulkEmailRequest;
 use App\Mail\BulkAnnouncementMail;
 use App\Models\EmailLog;
 use App\Services\AuditLogger;
@@ -15,11 +17,11 @@ class EmailController extends Controller
 {
     use ApiResponds;
 
-    public function logs(): JsonResponse
+    public function logs(PaginatedListRequest $request): JsonResponse
     {
-        $rows = EmailLog::orderByDesc('sent_at')->limit(200)->get();
+        $query = EmailLog::query()->orderByDesc('sent_at')->orderByDesc('id');
 
-        return $this->ok($rows->map(fn ($l) => [
+        return $this->okPage($query, $request, fn ($l) => [
             'id' => $l->id,
             'toEmail' => $l->to_email,
             'subject' => $l->subject,
@@ -28,7 +30,7 @@ class EmailController extends Controller
             'error' => $l->error,
             'attempts' => $l->attempts,
             'sentAt' => $l->sent_at?->toIso8601String(),
-        ]));
+        ]);
     }
 
     public function retry(string $id): JsonResponse
@@ -44,14 +46,11 @@ class EmailController extends Controller
 
     // Toplu e-posta — kulüp/etkinlik duyurusu, ayrı ayrı ya da tüm listeye
     // (docs/EKSIKLER.md §10/§6).
-    public function bulk(Request $request): JsonResponse
+    public function bulk(SendBulkEmailRequest $request): JsonResponse
     {
         $recipients = (array) $request->input('recipients', []);
         $subject = $request->input('subject');
         $body = $request->input('body');
-        if (empty($recipients) || ! $subject || ! $body) {
-            return $this->fail(400, 'VALIDATION', 'recipients, subject and body are required.');
-        }
 
         $results = [];
         foreach ($recipients as $email) {
@@ -59,8 +58,7 @@ class EmailController extends Controller
             $log = EmailService::send($email, $subject, 'bulk-announcement', $mail);
             $results[] = ['email' => $email, 'status' => $log->status];
         }
-        AuditLogger::log(
-            $request->input('actorName', 'admin'),
+        AuditLogger::logAsCurrentUser(
             'send_email',
             'bulk_announcement',
             "$subject → ".count($recipients).' alıcı'

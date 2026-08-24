@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Api\Concerns\ApiResponds;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\UpsertServiceRequest;
 use App\Models\ServiceItem;
 use App\Services\AuditLogger;
 use Illuminate\Http\JsonResponse;
@@ -44,11 +45,10 @@ class ServiceController extends Controller
         return $this->ok($this->toJson($service));
     }
 
-    public function upsert(Request $request): JsonResponse
+    public function upsert(UpsertServiceRequest $request): JsonResponse
     {
         $id = $request->input('id');
         $title = $request->input('title');
-        if (! $id || ! $title) return $this->fail(400, 'VALIDATION', 'id and title are required.');
 
         $isNew = ! ServiceItem::where('id', $id)->exists();
         $service = ServiceItem::updateOrCreate(['id' => $id], [
@@ -64,7 +64,7 @@ class ServiceController extends Controller
             'hours' => $request->input('hours'),
             'body' => $request->input('body', []),
         ]);
-        AuditLogger::log($request->input('actorName', 'admin'), $isNew ? 'create' : 'update', 'service', $title);
+        AuditLogger::logAsCurrentUser($isNew ? 'create' : 'update', 'service', $title);
 
         return $this->ok($this->toJson($service));
     }
@@ -73,7 +73,7 @@ class ServiceController extends Controller
     {
         $service = ServiceItem::find($id);
         if ($service) {
-            AuditLogger::log($request->input('actorName', 'admin'), 'delete', 'service', $service->title);
+            AuditLogger::logAsCurrentUser('delete', 'service', $service->title);
             $service->delete();
         }
 

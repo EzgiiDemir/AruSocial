@@ -44,26 +44,29 @@ verildikten SONRA yapılacak ayrı bir backend işi.
 
 ## 2. Firebase (push bildirimleri)
 
-**Kod tarafı:** `firebase_core` paketi kurulu, `main.dart`'ta
-`Firebase.initializeApp()` çağrılıyor (yapılandırma yoksa sessizce
-atlanıyor, hata basmıyor — bkz. kod yorumu).
+**Kod tarafı (P3-2):** Backend `HttpFcmClient` + `DeliverFcmNotification` job
+inbox satırı yazıldıktan sonra FCM HTTP v1 çağırır. Flutter
+`firebase_messaging` token'ı mevcut `POST /push-tokens` ucuna kaydeder.
+`FIREBASE_PROJECT_ID` / `FIREBASE_CLIENT_EMAIL` / `FIREBASE_PRIVATE_KEY`
+boşsa gönderim no-op'tur; inbox satırı yine yazılır. Gerçek private key
+git'e / Flutter bundle'a / API cevabına konmaz.
 
 **ARUCAD'in yapması gerekenler:**
-1. [Firebase Console](https://console.firebase.google.com) → yeni proje
-   oluştur (veya mevcut ARUCAD Google Workspace projesini kullan).
-2. Android app ekle → paket adı `com.example.arucad_campus_prototype` →
-   `google-services.json` indir.
-3. iOS app ekle (gerekiyorsa) → `GoogleService-Info.plist` indir.
-4. Bana şunları ver: indirilen `google-services.json` /
-   `GoogleService-Info.plist` dosyaları, veya FlutterFire CLI ile
-   `firebase_options.dart` üretmemi istiyorsan Firebase proje erişimi.
+1. [Firebase Console](https://console.firebase.google.com) → proje oluştur.
+2. Android app → paket **`com.arucad.arucadCampusPrototype`** (P3-13'te
+   `com.example.*`'tan güncellendi — bkz. §7 karar notu) →
+   `google-services.json` (yalnızca local; gitignore'da).
+3. iOS: APNs key + `GoogleService-Info.plist` + Xcode Push Notifications
+   capability. `Runner.entitlements` `aps-environment=development` iskeleti
+   var; gerçek Apple hesabı / provisioning bu milestonda yok.
+4. Service account (Firebase Admin / Cloud Messaging) JSON'dan
+   `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`
+   → yalnız `backend/.env`.
+5. FlutterFire CLI ile `lib/firebase_options.dart` üret (gitignore).
 
-**Ben ne yapacağım (dosyalar gelince):**
-- `google-services.json` → `frontend/android/app/`
-- `GoogleService-Info.plist` → `frontend/ios/Runner/`
-- `firebase_messaging` paketini gerçek sürümle ekleyip Android/iOS/web
-  entegrasyonunu tamamlamak, backend'den (`backend/`) bildirim
-  gönderebilecek bir uç eklemek.
+**Teslimat ayrımı:** uygulama açık + Reverb bağlı → in-app chat.
+Arka plan / killed / websocket kapalı → FCM OS bildirimi. Ön planda OS
+banner bastırılır.
 
 ---
 
@@ -117,40 +120,72 @@ sürümünden farklı olarak.
 
 ## 5. SMTP / E-posta sağlayıcısı
 
-**Kod tarafı:** ❌ henüz yazılmadı (bkz. `docs/EKSIKLER.md`).
+**Kod tarafı hazır (P3-5):** Laravel standart SMTP (`MAIL_MAILER=smtp`).
+Local default `log` — gerçek kutuya gitmez. Production boot `smtp` +
+host/from/username/password ister. Provider API (SendGrid/Mailgun REST)
+yok; host SMTP yeter.
 
-**ARUCAD'in yapması gereken (ne zaman istersen):** SendGrid/Postmark gibi
-bir sağlayıcı hesabı, veya ARUCAD'in kendi Google Workspace/Exchange SMTP
-kimlik bilgileri (host, port, kullanıcı adı, şifre/app-password).
+**ARUCAD'in yapması gereken:** SMTP host/port/kullanıcı/şifre (Workspace,
+Exchange, veya herhangi bir SMTP). Değerler yalnız sunucu `.env`.
 
-**Nereye giriliyor:** `backend/.env`'de `MAIL_*` değişkenleri (Laravel'in
-kendi standart mail yapılandırması) — key/şifre geldiğinde gerçek
-`nodemailer`-benzeri (Laravel'de `Mail` facade) entegrasyonunu yazarım.
+**Nereye giriliyor:** `backend/.env` `MAIL_*` (placeholder: `.env.example`).
 
 ---
 
 ## 6. PostgreSQL (gerçek üretim veritabanı)
 
-**Kod tarafı hazır:** Migration'lar Postgres'e taşınmaya hazır (bkz.
-`sql/README.md`).
+**Kod tarafı hazır (P3-3):** Aynı Laravel migration'lar SQLite (local/test)
+ve PostgreSQL'de çalışır. `sql/schema.sql` SQLite snapshot olarak kalır;
+prod dump değildir. CI PostgreSQL job'ı `phpunit.pgsql.xml` çalıştırır.
 
 **ARUCAD'in yapması gereken:** Gerçek, erişilebilir bir PostgreSQL sunucusu
 — Railway/Render/Fly.io gibi bir yönetilen servis, ya da ARUCAD'in kendi
 sunucusu. Bana host/port/database adı/kullanıcı adı/şifre lazım.
+Production cutover (gerçek sunucu, backup, HA) bu milestone'da (P3-8)
+**hâlâ yapılmadı** — `READY_FOR_CUTOVER`. SQLite → Postgres veri taşıma
+scripti artık hazır (`php artisan db:migrate-sqlite-to-pgsql --dry-run`,
+bkz. `docs/DEPLOYMENT.md` ve `docs/TESTING.md` §6b) — idempotent, dry-run
+destekli, gerçek yazım için `--confirm-source-backup` ister, hiçbir veriyi
+otomatik silmez.
 
 **Nereye giriliyor:** `backend/.env`'de `DB_CONNECTION=pgsql` +
-`DB_HOST`/`DB_PORT`/`DB_DATABASE`/`DB_USERNAME`/`DB_PASSWORD`.
+`DB_HOST`/`DB_PORT`/`DB_DATABASE`/`DB_USERNAME`/`DB_PASSWORD`. Default
+local `DB_CONNECTION=sqlite` kalır.
 
 ---
 
 ## 7. Apple Developer / Google Play Developer
 
 **Kod tarafı:** iOS iskeleti (`frontend/ios/`) hazır ama bu ortamda
-derlenip test edilemez (gerçek bir Mac + Xcode gerekiyor).
+derlenip test edilemez (gerçek bir Mac + Xcode gerekiyor — bkz.
+`docs/AUDIT_GERCEK_URUN.md` P3-14 notu, `BLOCKED_EXTERNAL_DEPENDENCY`).
 
 **ARUCAD'in yapması gereken:** Apple Developer Program üyeliği ($99/yıl),
 Google Play Console geliştirici hesabı ($25 tek seferlik). Bunlar
 tamamen ARUCAD'in kendi hesapları olmalı — ben oluşturamam.
+
+**Android applicationId (P3-13 — KARAR GEREKİYOR):** `com.example.*`
+placeholder'ı, repo'da zaten var olan iOS bundle id'siyle
+(`com.arucad.arucadCampusPrototype`, `ios/Runner.xcodeproj/project.pbxproj`)
+birebir eşleşecek şekilde `com.arucad.arucadCampusPrototype` yapıldı
+(`frontend/android/app/build.gradle.kts` `applicationId`/`namespace`).
+Bu, kendi kafama göre uydurulmuş yeni bir isim **değil** — repodaki mevcut
+tek gerçek ARUCAD konvansiyonunu iki platforma da uyguladı. **Ama bu string
+daha önce ARUCAD ile teyit edilmediyse, gerçek Play Console kaydından/ilk
+yüklemeden ÖNCE mutlaka onaylanmalı** — bir kez Play Console'a yüklenen
+`applicationId` bir daha değiştirilemez. Microsoft Entra OAuth redirect
+scheme'i (`com.example.arucad_campus_prototype`) kasıtlı olarak
+değiştirilmedi (iOS'ta zaten aynı ayrım var — bkz. §1); bu, ayrı bir karar.
+
+**Android release keystore (P3-13 — `KEYSTORE_REQUIRED`):** Gerçek bir
+production keystore repo'da yok ve olmamalı. `frontend/android/app/build.gradle.kts`
+artık `android/key.properties` varsa gerçek imzalama, yoksa (bugünkü durum)
+debug anahtarlarına düşüyor — `frontend/android/key.properties.example`'a
+bak. ARUCAD (veya belirlenen release sorumlusu) gerçek bir keystore
+üretmeli (`keytool -genkey ...`, örnek `key.properties.example` içinde) ve
+onu **hiçbir zaman** bu repoya değil, güvenli bir yere (parola yöneticisi /
+CI secret store) koymalı — kaybedilirse Play Store'da aynı uygulamayı bir
+daha güncelleyemezsiniz.
 
 ---
 
@@ -159,9 +194,12 @@ tamamen ARUCAD'in kendi hesapları olmalı — ben oluşturamam.
 | Servis | Kod hazır mı | Bekleyen bilgi |
 |---|---|---|
 | Microsoft Entra | ✅ | Tenant ID, Client ID |
-| Firebase / Push | ✅ (yapılandırma bekliyor) | `google-services.json` / `GoogleService-Info.plist` |
+| Firebase / Push (Android) | ✅ (yapılandırma bekliyor) | `google-services.json` (paket: `com.arucad.arucadCampusPrototype`) |
+| Firebase / Push (iOS) | ✅ (yapılandırma bekliyor) | `GoogleService-Info.plist`, Apple Developer hesabı olmadan tamamlanamaz |
+| Sentry | ✅ (P3-6 kod hazır) | Gerçek organizasyon + `SENTRY_DSN` (backend + Flutter) |
 | Groq AI | ✅ | API key |
 | Görsel Moderasyon | ✅ | API key |
-| SMTP | ❌ (yazılmadı) | Sağlayıcı kimlik bilgileri + kod işi |
-| PostgreSQL | ✅ (migration'lar hazır) | Sunucu bağlantı bilgileri |
-| Apple/Google Developer | Uygulanamaz burada | Hesap oluşturma (sadece ARUCAD) |
+| SMTP | ✅ (P3-5 standart SMTP) | `SMTP_ACCOUNT_REQUIRED` — host/port/user/password |
+| PostgreSQL | ✅ (P3-3 uyumluluk + P3-8 data migration script) | `READY_FOR_CUTOVER` — prod sunucu erişimi |
+| Android release keystore | ✅ (P3-13 signing config hazır) | `KEYSTORE_REQUIRED` — gerçek `.jks` |
+| Apple/Google Developer | Uygulanamaz burada | Hesap oluşturma (sadece ARUCAD), `APPLE_DEVELOPER_ACCOUNT_REQUIRED` |

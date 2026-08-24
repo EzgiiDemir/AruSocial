@@ -14,19 +14,23 @@ the app" are two different, clearly-labeled things.
   php artisan migrate:fresh --seed
   ```
 
-- **`schema.sql`** — a real, generated reference dump of the current
-  table definitions (`CREATE TABLE ...` statements pulled straight from
-  `sqlite_master`, not hand-written) — read this if you just want to see
-  the schema without running anything. It goes stale the moment a
-  migration changes; regenerate it with:
+- **`schema.sql`** — a generated snapshot of the current Laravel
+  migration state (`CREATE TABLE` / index SQL from `sqlite_master`). It
+  is documentation / a readable mirror, not the source of truth and not
+  a dump of live `database.sqlite` contents. It goes stale the moment a
+  migration changes.
+
+  Regenerating **must not** use the live database. Migrate a throwaway
+  SQLite file, then dump:
 
   ```bash
   cd backend
-  php artisan tinker --execute="
-    \$rows = DB::select(\"SELECT sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name\");
-    file_put_contents('../sql/schema.sql', implode(\"\n\n\", array_map(fn(\$r) => \$r->sql . ';', \$rows)));
-  "
+  php scripts/dump_schema.php
   ```
+
+  Table order in the dump is alphabetical (`sqlite_master ORDER BY name`),
+  not topological. Import with `PRAGMA foreign_keys = OFF` first, then
+  turn foreign keys on. Do not put seed `INSERT`s in this file.
 
 ## Why the actual schema *definitions* still live in `backend/`
 
@@ -38,9 +42,14 @@ truth; `backend/database/migrations/` is the source of truth.
 
 ## PostgreSQL
 
-This is SQLite because no PostgreSQL server is available in this
-environment (see `docs/EKSIKLER.md`). Nothing about this folder assumes
-SQLite specifically — when a real Postgres instance exists, point
-`backend/.env`'s `DB_CONNECTION`/`DB_HOST`/`DB_DATABASE` at it and run
-`php artisan migrate --seed` there instead. This folder's `database.sqlite`
-just stops being used at that point; nothing here needs to move.
+`schema.sql` is a **SQLite** `sqlite_master` snapshot. Do not convert it
+into a PostgreSQL dump; Laravel migrations are the source of truth for
+both drivers (`php artisan migrate` on SQLite or `pgsql`).
+
+Local default remains SQLite (`database.sqlite`). When a real Postgres
+instance exists, point `backend/.env` at it (`DB_CONNECTION=pgsql` plus
+host/port/database/user/password) and run `php artisan migrate --seed`
+there. That is opt-in; it is not a production cutover. Feature tests on
+Postgres: `php artisan test --configuration=phpunit.pgsql.xml` (CI starts
+a `postgres:16` service). This folder's `database.sqlite` just stops being
+used for that process; nothing here needs to move.

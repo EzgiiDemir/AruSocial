@@ -14,10 +14,46 @@ class Notification extends Model
     protected $keyType = 'string';
     public $timestamps = false;
 
-    protected $fillable = ['id', 'user_id', 'kind', 'title', 'body', 'read_at', 'created_at'];
+    protected $fillable = ['id', 'user_id', 'actor_user_id', 'kind', 'title', 'body', 'read_at', 'created_at'];
 
     protected function casts(): array
     {
         return ['read_at' => 'datetime', 'created_at' => 'datetime'];
+    }
+
+    // Recipient is who should see it; actor is who did the thing. Names
+    // belong in title/body as presentation, never as the owner. A person
+    // never receives a row for their own action.
+    /**
+     * @param  array<string, mixed>  $data  Extra FCM data (conversationId, messageId, peer, …)
+     */
+    public static function notify(User $recipient, User $actor, string $kind, string $title, string $body, array $data = []): ?self
+    {
+        if ((int) $recipient->id === (int) $actor->id) {
+            return null;
+        }
+
+        $row = self::create([
+            'id' => 'notif-'.(string) \Illuminate\Support\Str::uuid(),
+            'user_id' => $recipient->id,
+            'actor_user_id' => $actor->id,
+            'kind' => $kind,
+            'title' => $title,
+            'body' => $body,
+            'created_at' => now(),
+        ]);
+
+        \App\Jobs\DeliverFcmNotification::dispatch(
+            userId: (int) $row->user_id,
+            title: $title,
+            body: $body,
+            data: array_merge([
+                'type' => $kind,
+                'notificationId' => $row->id,
+            ], $data),
+            dedupeKey: $row->id,
+        );
+
+        return $row;
     }
 }

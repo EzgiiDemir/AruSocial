@@ -13,9 +13,15 @@ class ModerationApiTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->actingAsUser();
+    }
+
     private function seedUser(): User
     {
-        return User::create(['name' => 'Test Student', 'email' => 'test@arucad.edu.tr', 'password' => bcrypt('x')]);
+        return $this->actingAsUser();
     }
 
     public function test_a_post_with_blocked_text_is_rejected_and_not_created(): void
@@ -66,20 +72,31 @@ class ModerationApiTest extends TestCase
         $this->assertEquals('ACCOUNT_BANNED', $response->json('error.code'));
     }
 
-    public function test_admin_routes_stay_reachable_even_for_a_banned_account(): void
+    // This asserted the opposite until authorization landed: /admin/* was
+    // exempt from the ban check, because with one shared demo account a ban
+    // would have locked the only person who could lift it out of the tools
+    // to lift it. Real per-user auth ended that — whoever reviews a ban is
+    // a different, unbanned account — and the exemption had turned into a
+    // way for any banned account to keep reaching the admin API just by
+    // choosing an /admin/* path.
+    public function test_a_ban_reaches_admin_routes_too(): void
     {
-        $user = $this->seedUser();
-        $user->update(['banned_at' => now()]);
-
+        $moderator = $this->actingAsRole('moderator');
         $this->getJson('/api/v1/admin/audit-log')->assertOk();
+
+        $moderator->update(['banned_at' => now()]);
+
+        $this->getJson('/api/v1/admin/audit-log')
+            ->assertStatus(403)
+            ->assertJsonPath('error.code', 'ACCOUNT_BANNED');
     }
 
     public function test_a_blocked_comment_is_rejected(): void
     {
-        $this->seedUser();
+        $user = $this->seedUser();
         $post = FeedPost::create([
-            'id' => 'post-1', 'author_id' => '1', 'name' => 'Someone', 'text' => 'hi',
-            'meta' => 'now', 'likes' => 0, 'created_at' => now(),
+            'id' => 'post-1', 'author_id' => $user->id, 'name' => $user->name, 'text' => 'hi',
+            'meta' => 'now', 'created_at' => now(),
         ]);
 
         $response = $this->postJson("/api/v1/feed/{$post->id}/comments", ['text' => 'bu piç bir yorum']);
@@ -176,6 +193,8 @@ class ModerationApiTest extends TestCase
 
     public function test_admin_moderation_settings_round_trip_without_ever_echoing_the_key(): void
     {
+        $this->actingAsRole('moderator');
+
         $before = $this->getJson('/api/v1/admin/settings/moderation');
         $before->assertOk();
         $this->assertFalse($before->json('data.configured'));

@@ -10,6 +10,14 @@ class ClubApiTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // These exercise the admin club endpoints, which now require the
+        // clubs.manage permission — see AuthorizationTest for who holds it.
+        $this->actingAsRole();
+    }
+
     public function test_admin_can_create_and_delete_a_club(): void
     {
         $create = $this->postJson('/api/v1/admin/clubs', [

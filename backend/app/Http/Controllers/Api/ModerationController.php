@@ -4,10 +4,10 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Api\Concerns\ApiResponds;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\CheckModerationImageRequest;
 use App\Services\ImageModerationService;
 use App\Services\ModerationService;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 
 class ModerationController extends Controller
 {
@@ -21,12 +21,9 @@ class ModerationController extends Controller
     // lives server-side — see AppSetting/AdminSettingsController) and, if
     // flagged, records a real strike toward the same 3-strike ban as
     // flagged text before rejecting the upload.
-    public function checkImage(Request $request): JsonResponse
+    public function checkImage(CheckModerationImageRequest $request): JsonResponse
     {
         $base64 = $request->input('imageBase64');
-        if (! $base64) {
-            return $this->fail(400, 'VALIDATION', 'imageBase64 is required.');
-        }
         $bytes = base64_decode($base64, true);
         if ($bytes === false) {
             return $this->fail(400, 'VALIDATION', 'imageBase64 is not valid base64.');

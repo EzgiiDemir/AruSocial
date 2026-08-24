@@ -9,6 +9,13 @@ class RoleAssignmentApiTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // Reading and writing role assignments is the super-admin bucket.
+        $this->actingAsRole();
+    }
+
     public function test_assigning_a_role_persists_and_is_readable_back(): void
     {
         $assign = $this->postJson('/api/v1/admin/roles', [

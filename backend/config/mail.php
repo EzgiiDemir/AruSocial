@@ -39,10 +39,17 @@ return [
 
         'smtp' => [
             'transport' => 'smtp',
-            'scheme' => env('MAIL_SCHEME'),
+            // Laravel 13 reads scheme (smtp/smtps). MAIL_ENCRYPTION=ssl maps
+            // to smtps; tls/empty leaves scheme unset so port 465 still
+            // becomes smtps and 587 stays STARTTLS smtp.
+            'scheme' => env('MAIL_SCHEME') ?: match (strtolower((string) (env('MAIL_ENCRYPTION') ?? ''))) {
+                'ssl', 'smtps' => 'smtps',
+                default => null,
+            },
             'url' => env('MAIL_URL'),
             'host' => env('MAIL_HOST', '127.0.0.1'),
             'port' => env('MAIL_PORT', 2525),
+            'encryption' => env('MAIL_ENCRYPTION'),
             'username' => env('MAIL_USERNAME'),
             'password' => env('MAIL_PASSWORD'),
             'timeout' => null,

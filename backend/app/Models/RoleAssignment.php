@@ -11,10 +11,10 @@ class RoleAssignment extends Model
     protected $keyType = 'string';
     public $timestamps = false;
 
-    protected $fillable = ['email', 'role', 'assigned_by', 'assigned_at'];
+    protected $fillable = ['email', 'role', 'permissions', 'assigned_by', 'assigned_at'];
 
     protected function casts(): array
     {
-        return ['assigned_at' => 'datetime'];
+        return ['assigned_at' => 'datetime', 'permissions' => 'array'];
     }
 }

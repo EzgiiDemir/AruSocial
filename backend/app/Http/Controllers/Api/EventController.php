@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Api\Concerns\ApiResponds;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\CreateOwnActivityRequest;
 use App\Mail\EventParticipationClubMail;
 use App\Mail\EventParticipationFormCompletedMail;
 use App\Mail\EventParticipationFormMail;
@@ -225,14 +226,11 @@ class EventController extends Controller
     // Real "kendi aktiviteni oluştur" flow (docs/EKSIKLER.md §5): a
     // student submits a draft that starts in pending_review, not
     // published — nothing goes live without an admin approving it.
-    public function createOwnActivity(Request $request): JsonResponse
+    public function createOwnActivity(CreateOwnActivityRequest $request): JsonResponse
     {
         $me = $this->currentUser();
         $title = $request->input('title');
         $placeId = $request->input('placeId');
-        if (! $title || ! $placeId) {
-            return $this->fail(400, 'VALIDATION', 'title and placeId are required.');
-        }
         if (! \App\Models\Place::where('id', $placeId)->exists()) {
             return $this->fail(400, 'INVALID_PLACE', 'placeId must reference a real, admin-defined place.');
         }

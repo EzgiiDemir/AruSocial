@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers\Api\Concerns;
 
+use App\Http\Requests\PaginatedListRequest;
 use App\Models\User;
+use Illuminate\Auth\AuthenticationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Str;
 
@@ -11,20 +13,49 @@ use Illuminate\Support\Str;
 // so RestCampusRepository's parsing code needed zero changes to point here.
 trait ApiResponds
 {
-    protected function ok($data, int $status = 200): JsonResponse
+    protected function ok($data, int $status = 200, ?array $pagination = null): JsonResponse
     {
+        $meta = ['request_id' => $this->requestId()];
+        if ($pagination !== null) {
+            $meta['pagination'] = $pagination;
+        }
+
         return response()->json([
             'data' => $data,
-            'meta' => ['request_id' => 'req-'.Str::uuid()],
+            'meta' => $meta,
             'error' => null,
         ], $status);
+    }
+
+    /**
+     * Length-aware page: filter/sort already applied on $query.
+     * Query params `page` (default 1) and `perPage` (default 20, max 50).
+     *
+     * @param  callable(mixed): mixed  $map
+     */
+    protected function okPage($query, PaginatedListRequest $request, callable $map): JsonResponse
+    {
+        $page = max(1, (int) $request->input('page', 1));
+        $perPage = (int) $request->input('perPage', 20);
+        $paginator = $query->paginate($perPage, ['*'], 'page', $page);
+
+        return $this->ok(
+            $paginator->getCollection()->map($map)->values(),
+            200,
+            [
+                'currentPage' => $paginator->currentPage(),
+                'perPage' => $paginator->perPage(),
+                'total' => $paginator->total(),
+                'lastPage' => $paginator->lastPage(),
+            ],
+        );
     }
 
     protected function fail(int $status, string $code, string $message): JsonResponse
     {
         return response()->json([
             'data' => null,
-            'meta' => ['request_id' => 'req-'.Str::uuid()],
+            'meta' => ['request_id' => $this->requestId()],
             'error' => ['code' => $code, 'message' => $message],
         ], $status);
     }
@@ -34,12 +65,36 @@ trait ApiResponds
         return $prefix.'-'.Str::uuid();
     }
 
-    // No real identity provider is wired up yet (needs a real Microsoft
-    // Entra tenant only ARUCAD can create — see docs/GERCEK_PROJEYE_GECIS.md).
-    // Every request is treated as the single seeded demo account, honestly,
-    // rather than pretending to validate a bearer token nothing can check.
+    // One request_id per HTTP request rather than per response call, stored
+    // on the request itself so AttachSentryContext's `request_id` Sentry tag
+    // (set earlier in the middleware stack) always matches the id a client
+    // sees in `meta.request_id` for the same request (P3-6 §9).
+    protected function requestId(): string
+    {
+        $request = request();
+        $existing = $request?->attributes->get('_request_id');
+        if (is_string($existing) && $existing !== '') {
+            return $existing;
+        }
+
+        $generated = 'req-'.Str::uuid();
+        $request?->attributes->set('_request_id', $generated);
+
+        return $generated;
+    }
+
+    // The real user this request authenticated as, resolved from its
+    // Sanctum bearer token. Every route that reaches this is behind
+    // `auth:sanctum`, so a missing user means the middleware was bypassed
+    // rather than an anonymous-but-allowed request — reported as the same
+    // 401 envelope instead of failing later on a null.
     protected function currentUser(): User
     {
-        return User::firstOrFail();
+        $user = request()->user();
+        if (! $user instanceof User) {
+            throw new AuthenticationException;
+        }
+
+        return $user;
     }
 }

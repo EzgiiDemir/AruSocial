@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Api\Concerns\ApiResponds;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\UpsertDirectoryEntryRequest;
 use App\Models\DirectoryEntry;
 use App\Services\AuditLogger;
 use Illuminate\Http\JsonResponse;
@@ -31,14 +32,11 @@ class DirectoryController extends Controller
         return $this->ok(DirectoryEntry::all()->map(fn ($e) => $this->toJson($e)));
     }
 
-    public function upsert(Request $request): JsonResponse
+    public function upsert(UpsertDirectoryEntryRequest $request): JsonResponse
     {
         $id = $request->input('id');
         $building = $request->input('building');
         $occupantName = $request->input('occupantName');
-        if (! $id || ! $building || ! $occupantName) {
-            return $this->fail(400, 'VALIDATION', 'id, building and occupantName are required.');
-        }
 
         $isNew = ! DirectoryEntry::where('id', $id)->exists();
         $entry = DirectoryEntry::updateOrCreate(['id' => $id], [
@@ -49,7 +47,7 @@ class DirectoryController extends Controller
             'occupant_role' => $request->input('occupantRole'),
             'related_service_id' => $request->input('relatedServiceId'),
         ]);
-        AuditLogger::log($request->input('actorName', 'admin'), $isNew ? 'create' : 'update', 'directory_entry', $occupantName);
+        AuditLogger::logAsCurrentUser($isNew ? 'create' : 'update', 'directory_entry', $occupantName);
 
         return $this->ok($this->toJson($entry));
     }
@@ -58,7 +56,7 @@ class DirectoryController extends Controller
     {
         $entry = DirectoryEntry::find($id);
         if ($entry) {
-            AuditLogger::log($request->input('actorName', 'admin'), 'delete', 'directory_entry', $entry->occupant_name);
+            AuditLogger::logAsCurrentUser('delete', 'directory_entry', $entry->occupant_name);
             $entry->delete();
         }
 

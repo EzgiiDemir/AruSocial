@@ -2,6 +2,10 @@
 
 namespace App\Providers;
 
+use App\Services\FcmClient;
+use App\Services\HttpFcmClient;
+use App\Services\NullFcmClient;
+use App\Support\EnvironmentGuard;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
@@ -13,7 +17,16 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->singleton(FcmClient::class, function ($app) {
+            $projectId = (string) config('services.fcm.project_id');
+            $clientEmail = (string) config('services.fcm.client_email');
+            $privateKey = (string) config('services.fcm.private_key');
+            if ($projectId === '' || $clientEmail === '' || $privateKey === '') {
+                return new NullFcmClient;
+            }
+
+            return new HttpFcmClient($projectId, $clientEmail, $privateKey);
+        });
     }
 
     /**
@@ -21,6 +34,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        EnvironmentGuard::assertSafe();
+
         // The "api" named limiter used by `throttle:api` in routes/api.php
         // — Laravel 11+'s minimal skeleton doesn't pre-register this the
         // way older versions did, so it must be defined explicitly or the

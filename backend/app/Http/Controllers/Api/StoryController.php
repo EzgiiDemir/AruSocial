@@ -17,7 +17,7 @@ class StoryController extends Controller
     {
         return [
             'id' => $s->id,
-            'authorId' => $s->author_id,
+            'authorId' => (string) $s->author_id,
             'authorName' => $s->author_name,
             'text' => $s->text,
             'visibility' => $s->visibility,
@@ -42,7 +42,7 @@ class StoryController extends Controller
         }
         $story = Story::create([
             'id' => $this->newId('story'),
-            'author_id' => (string) $me->id,
+            'author_id' => $me->id,
             'author_name' => $me->name,
             'text' => $text,
             'background_color_value' => $request->input('backgroundColorValue'),

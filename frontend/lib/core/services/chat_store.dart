@@ -6,39 +6,70 @@ import '../models/chat_message.dart';
 
 export '../models/chat_message.dart' show ChatMessage;
 
-/// Real, persisted per-peer message threads — but single-device only.
+/// Device-local chat persistence for Mock mode.
 ///
-/// This prototype has no backend, socket, or push connection, so a message
-/// "sent" here is genuinely saved and re-appears on next open — the send/
-/// compose/read UI is real — but it is never actually delivered to another
-/// person's device. There's no simulated auto-reply either: faking a
-/// classmate's response would be dishonest. True real-time, two-way
-/// messaging needs a server; it's tracked as a P0 gap in
-/// docs/PUBLISH_READINESS.md rather than faked here.
+/// Rows are stored per unordered name pair with an explicit sender, so the
+/// same history is visible from both sides and [ChatMessage.fromMe] is
+/// computed for whoever is currently looking — matching the REST contract.
+/// There is still only one signed-in Mock user on a device.
 class ChatStore {
-  static String _key(String peer) => 'chat.thread.v1.$peer';
+  static const _prefix = 'chat.thread.v2.';
 
-  static Future<List<ChatMessage>> messages(String peer) async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_key(peer));
-    if (raw == null) return const [];
-    return (jsonDecode(raw) as List)
-        .map((e) => ChatMessage.fromJson(e as Map<String, dynamic>))
+  static String _pairKey(String a, String b) {
+    final names = [a, b]..sort();
+    return '${names[0]}\u0001${names[1]}';
+  }
+
+  static String _prefsKey(String a, String b) => '$_prefix${_pairKey(a, b)}';
+
+  static Future<List<ChatMessage>> messages(String me, String peer) async {
+    final rows = await _load(me, peer);
+    return rows
+        .map((row) => ChatMessage(
+              id: row['id'] as String,
+              fromMe: row['sender'] == me,
+              text: row['text'] as String,
+              sentAt: DateTime.parse(row['sentAt'] as String),
+            ))
         .toList();
   }
 
-  static Future<void> send(String peer, String text) async {
-    final current = await messages(peer);
-    current.add(ChatMessage(
-        id: 'msg-${DateTime.now().microsecondsSinceEpoch}', fromMe: true, text: text));
+  static Future<ChatMessage> send(String me, String peer, String text) async {
+    final rows = await _load(me, peer);
+    final message = ChatMessage(
+      id: 'msg-${DateTime.now().microsecondsSinceEpoch}',
+      fromMe: true,
+      text: text,
+    );
+    rows.add({
+      'id': message.id,
+      'sender': me,
+      'text': text,
+      'sentAt': message.sentAt.toIso8601String(),
+    });
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_key(peer), jsonEncode(current.map((m) => m.toJson()).toList()));
+    await prefs.setString(_prefsKey(me, peer), jsonEncode(rows));
+    return message;
   }
 
-  /// Which of [knownPeers] already have message history — used to build
-  /// the thread list without showing every peer as a thread by default.
-  static Future<List<String>> threadPeers(List<String> knownPeers) async {
+  static Future<List<String>> threadPeers(String me, List<String> knownPeers) async {
     final prefs = await SharedPreferences.getInstance();
-    return knownPeers.where((peer) => prefs.containsKey(_key(peer))).toList();
+    final peers = <String>{};
+    for (final key in prefs.getKeys()) {
+      if (!key.startsWith(_prefix)) continue;
+      final pair = key.substring(_prefix.length).split('\u0001');
+      if (pair.length != 2) continue;
+      if (pair[0] == me) peers.add(pair[1]);
+      if (pair[1] == me) peers.add(pair[0]);
+    }
+    if (knownPeers.isEmpty) return peers.toList();
+    return knownPeers.where(peers.contains).toList();
+  }
+
+  static Future<List<Map<String, dynamic>>> _load(String me, String peer) async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_prefsKey(me, peer));
+    if (raw == null) return [];
+    return (jsonDecode(raw) as List).cast<Map<String, dynamic>>();
   }
 }

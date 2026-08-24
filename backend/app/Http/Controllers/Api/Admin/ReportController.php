@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\Admin;
 use App\Http\Controllers\Api\Concerns\ApiResponds;
 use App\Http\Controllers\Controller;
 use App\Models\ModerationReport;
+use App\Services\AuditLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -34,6 +35,7 @@ class ReportController extends Controller
         }
         $report->action = $request->input('action');
         $report->save();
+        AuditLogger::logAsCurrentUser('moderation', $report->kind, $report->target_label.' → '.$report->action);
 
         return $this->ok(['resolved' => true]);
     }

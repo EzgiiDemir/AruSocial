@@ -38,14 +38,7 @@ class PlaceController extends Controller
 
     private function reviewToJson(Review $r): array
     {
-        return [
-            'id' => $r->id,
-            'placeId' => $r->place_id,
-            'author' => $r->author,
-            'rating' => $r->rating,
-            'comment' => $r->comment,
-            'meta' => $r->meta,
-        ];
+        return $r->toApiArray();
     }
 
     public function index(): JsonResponse
@@ -65,7 +58,7 @@ class PlaceController extends Controller
 
     public function reviews(string $id): JsonResponse
     {
-        $reviews = Review::where('place_id', $id)->orderByDesc('created_at')->get();
+        $reviews = Review::with('user')->where('place_id', $id)->orderByDesc('created_at')->get();
 
         return $this->ok($reviews->map(fn ($r) => $this->reviewToJson($r)));
     }
@@ -86,12 +79,13 @@ class PlaceController extends Controller
         $review = Review::create([
             'id' => $this->newId('review'),
             'place_id' => $place->id,
-            'author' => $me->name,
+            'user_id' => $me->id,
             'rating' => $rating,
             'comment' => $comment,
             'meta' => 'az önce',
             'created_at' => now(),
         ]);
+        $review->setRelation('user', $me);
 
         ActivityLogger::log(
             $me->id,

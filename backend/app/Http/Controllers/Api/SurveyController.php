@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Api\Concerns\ApiResponds;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\UpsertSurveyRequest;
+use App\Http\Requests\VoteSurveyRequest;
 use App\Models\Survey;
 use App\Models\SurveyOption;
 use App\Models\SurveyResponse;
@@ -71,14 +73,11 @@ class SurveyController extends Controller
         return $this->ok($surveys->map(fn ($s) => $this->toJson($s)));
     }
 
-    public function upsert(Request $request): JsonResponse
+    public function upsert(UpsertSurveyRequest $request): JsonResponse
     {
         $id = $request->input('id') ?: 'survey-'.Str::uuid();
         $question = $request->input('question');
         $options = $request->input('options', []);
-        if (! $question || count($options) < 2) {
-            return $this->fail(400, 'VALIDATION', 'question and at least 2 options are required.');
-        }
 
         $isNew = ! Survey::where('id', $id)->exists();
         $survey = Survey::updateOrCreate(['id' => $id], [
@@ -108,12 +107,12 @@ class SurveyController extends Controller
                 ]);
             }
         }
-        AuditLogger::log($request->input('actorName', 'admin'), $isNew ? 'create' : 'update', 'survey', $question);
+        AuditLogger::logAsCurrentUser($isNew ? 'create' : 'update', 'survey', $question);
 
         return $this->ok($this->toJson($survey->fresh('options')));
     }
 
-    public function vote(Request $request, string $id): JsonResponse
+    public function vote(VoteSurveyRequest $request, string $id): JsonResponse
     {
         $me = $this->currentUser();
         $survey = Survey::find($id);
@@ -121,7 +120,6 @@ class SurveyController extends Controller
         if (! $survey->active) return $this->fail(400, 'SURVEY_INACTIVE', 'This survey is no longer active.');
 
         $optionIds = (array) $request->input('optionIds', []);
-        if (empty($optionIds)) return $this->fail(400, 'VALIDATION', 'optionIds is required.');
         if (! $survey->multiple_choice && count($optionIds) > 1) {
             return $this->fail(400, 'VALIDATION', 'This survey only accepts a single choice.');
         }
@@ -143,7 +141,7 @@ class SurveyController extends Controller
     {
         $survey = Survey::find($id);
         if ($survey) {
-            AuditLogger::log($request->input('actorName', 'admin'), 'delete', 'survey', $survey->question);
+            AuditLogger::logAsCurrentUser('delete', 'survey', $survey->question);
             $survey->delete();
         }
 

@@ -13,6 +13,8 @@ import 'package:arucad_campus_prototype/core/models/content_revision.dart';
 import 'package:arucad_campus_prototype/core/models/email_log.dart';
 import 'package:arucad_campus_prototype/core/models/event_participant.dart';
 import 'package:arucad_campus_prototype/core/models/inbox_notification.dart';
+import 'package:arucad_campus_prototype/core/models/media_item.dart';
+import 'package:arucad_campus_prototype/core/models/page_slice.dart';
 import 'package:arucad_campus_prototype/core/models/role_assignment.dart';
 import 'package:arucad_campus_prototype/core/models/survey.dart';
 import 'package:arucad_campus_prototype/core/network/api_client.dart';
@@ -20,6 +22,7 @@ import 'package:arucad_campus_prototype/core/network/campus_dtos.dart';
 
 import 'content_moderation.dart';
 import 'contracts.dart';
+import 'site_settings_store.dart';
 
 class RestCampusRepository implements CampusRepository {
   RestCampusRepository({required this.client});
@@ -59,6 +62,21 @@ class RestCampusRepository implements CampusRepository {
   }
 
   final ApiClient client;
+
+  static const _pageSize = 20;
+
+  Future<PageSlice<T>> _getPage<T>(
+    String path,
+    T Function(Map<String, dynamic>) parse, {
+    int page = 1,
+    int perPage = _pageSize,
+  }) async {
+    final response = await client.get(path, query: {
+      'page': '$page',
+      'perPage': '$perPage',
+    });
+    return PageSlice.fromEnvelope(response, parse);
+  }
 
   @override
   Future<CampusUser> getMe() async {
@@ -115,6 +133,10 @@ class RestCampusRepository implements CampusRepository {
   }
 
   @override
+  Future<PageSlice<FeedPost>> getFeedPage({int page = 1, int perPage = 20}) =>
+      _getPage('/feed', FeedPost.fromJson, page: page, perPage: perPage);
+
+  @override
   Future<void> createPost(String text,
       {String? imageUrl,
       Uint8List? imageBytes,
@@ -143,7 +165,7 @@ class RestCampusRepository implements CampusRepository {
       final map = item as Map<String, dynamic>;
       return CampusStory(
         id: map['id'] as String,
-        authorId: map['authorId'] as String? ?? '',
+        authorId: '${map['authorId'] ?? ''}',
         authorName: map['authorName'] as String,
         text: map['text'] as String?,
         visibility: map['visibility'] == 'onlyMe'
@@ -185,13 +207,15 @@ class RestCampusRepository implements CampusRepository {
   }
 
   @override
-  Future<void> toggleLike(String postId) async {
-    await client.post('/feed/$postId/like');
+  Future<FeedPost> toggleLike(String postId) async {
+    final response = await client.post('/feed/$postId/like');
+    return FeedPost.fromJson(response['data'] as Map<String, dynamic>);
   }
 
   @override
-  Future<void> addComment(String postId, String text) async {
-    await _postModerated('/feed/$postId/comments', body: {'text': text});
+  Future<FeedPost> addComment(String postId, String text) async {
+    final response = await _postModerated('/feed/$postId/comments', body: {'text': text});
+    return FeedPost.fromJson(response['data'] as Map<String, dynamic>);
   }
 
   @override
@@ -342,6 +366,100 @@ class RestCampusRepository implements CampusRepository {
     await client.post('/admin/services/$id/delete');
   }
 
+  String _ymd(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  @override
+  Future<List<CampusFoodVenue>> getFoodVenues() async {
+    final response = await client.get('/food-venues');
+    final items = response['data'] as List<dynamic>;
+    return items
+        .map((item) => CampusFoodVenue.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  @override
+  Future<void> upsertFoodVenue(CampusFoodVenue venue) async {
+    await client.post('/admin/food-venues', body: {
+      'id': venue.id,
+      'name': venue.name,
+      if (venue.hours != null) 'hours': venue.hours,
+      if (venue.menuFileUrl != null) 'menuFileUrl': venue.menuFileUrl,
+    });
+  }
+
+  @override
+  Future<void> deleteFoodVenue(String id) async {
+    await client.post('/admin/food-venues/$id/delete');
+  }
+
+  @override
+  Future<void> upsertFoodMenu(String venueId, DailyMenu menu) async {
+    await client.post('/admin/food-venues/$venueId/menus', body: {
+      'date': _ymd(menu.date),
+      'items': menu.items,
+      if (menu.price != null) 'price': menu.price,
+      if (menu.hours != null) 'hours': menu.hours,
+    });
+  }
+
+  @override
+  Future<void> deleteFoodMenu(String venueId, DateTime date) async {
+    await client.post('/admin/food-venues/$venueId/menus/${_ymd(date)}/delete');
+  }
+
+  String _absoluteMediaUrl(String url) {
+    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) {
+      return url;
+    }
+    final origin = client.baseUrl.replaceFirst(RegExp(r'/api/v1/?$'), '');
+    return url.startsWith('/') ? '$origin$url' : '$origin/$url';
+  }
+
+  MediaItem _mediaFrom(Map<String, dynamic> json) {
+    final item = MediaItem.fromJson(json);
+    final url = item.url;
+    if (url == null || url.isEmpty) return item;
+    return item.copyWith(url: _absoluteMediaUrl(url));
+  }
+
+  @override
+  Future<List<MediaItem>> getMedia() async {
+    final response = await client.get('/media');
+    final items = response['data'] as List<dynamic>;
+    return items.map((item) => _mediaFrom(item as Map<String, dynamic>)).toList();
+  }
+
+  @override
+  Future<MediaItem> uploadMedia(Uint8List bytes, {required String fileName}) async {
+    final response = await client.postMultipart(
+      '/media',
+      bytes: bytes,
+      fileName: fileName,
+    );
+    return _mediaFrom(response['data'] as Map<String, dynamic>);
+  }
+
+  @override
+  Future<void> renameMedia(String id, String fileName) async {
+    await client.post('/media/$id', body: {'fileName': fileName});
+  }
+
+  @override
+  Future<void> deleteMedia(String id) async {
+    await client.post('/media/$id/delete');
+  }
+
+  @override
+  Future<void> markMediaUsed(String id, String ref) async {
+    final items = await getMedia();
+    final item = items.firstWhere((m) => m.id == id);
+    if (item.usedIn.contains(ref)) return;
+    await client.post('/media/$id', body: {
+      'usedIn': [...item.usedIn, ref],
+    });
+  }
+
   @override
   Future<List<DirectoryEntry>> getDirectoryEntries() async {
     final response = await client.get('/directory');
@@ -410,6 +528,10 @@ class RestCampusRepository implements CampusRepository {
   }
 
   @override
+  Future<PageSlice<AuditLogEntry>> getAuditLogPage({int page = 1, int perPage = 20}) =>
+      _getPage('/admin/audit-log', AuditLogEntry.fromJson, page: page, perPage: perPage);
+
+  @override
   Future<List<ContentRevision>> getRevisions(String contentKey) async {
     final response = await client.get('/content/$contentKey/revisions');
     final items = response['data'] as List<dynamic>;
@@ -467,14 +589,16 @@ class RestCampusRepository implements CampusRepository {
 
   @override
   Future<List<ChatMessage>> getChatMessages(String peer) async {
-    final response = await client.get('/chat/$peer/messages');
+    final encoded = Uri.encodeComponent(peer);
+    final response = await client.get('/chat/$encoded/messages');
     final items = response['data'] as List<dynamic>;
     return items.map((item) => ChatMessage.fromJson(item as Map<String, dynamic>)).toList();
   }
 
   @override
   Future<ChatMessage> sendChatMessage(String peer, String text) async {
-    final response = await client.post('/chat/$peer/messages', body: {'text': text});
+    final encoded = Uri.encodeComponent(peer);
+    final response = await client.post('/chat/$encoded/messages', body: {'text': text});
     return ChatMessage.fromJson(response['data'] as Map<String, dynamic>);
   }
 
@@ -486,6 +610,11 @@ class RestCampusRepository implements CampusRepository {
   }
 
   @override
+  Future<PageSlice<InboxNotification>> getInboxNotificationsPage(
+          {int page = 1, int perPage = 20}) =>
+      _getPage('/notifications', InboxNotification.fromJson, page: page, perPage: perPage);
+
+  @override
   Future<void> markNotificationRead(String id) async {
     await client.post('/notifications/$id/read');
   }
@@ -493,6 +622,16 @@ class RestCampusRepository implements CampusRepository {
   @override
   Future<void> markAllNotificationsRead() async {
     await client.post('/notifications/read-all');
+  }
+
+  @override
+  Future<void> registerPushToken({required String token, required String platform}) async {
+    await client.post('/push-tokens', body: {'token': token, 'platform': platform});
+  }
+
+  @override
+  Future<void> unregisterPushToken(String token) async {
+    await client.post('/push-tokens/unregister', body: {'token': token});
   }
 
   @override
@@ -666,6 +805,10 @@ class RestCampusRepository implements CampusRepository {
   }
 
   @override
+  Future<PageSlice<EmailLogEntry>> getEmailLogsPage({int page = 1, int perPage = 20}) =>
+      _getPage('/admin/email-logs', EmailLogEntry.fromJson, page: page, perPage: perPage);
+
+  @override
   Future<String?> retryEmail(String id) async {
     final response = await client.post('/admin/email-logs/$id/retry');
     return (response['data'] as Map<String, dynamic>)['status'] as String?;
@@ -712,6 +855,36 @@ class RestCampusRepository implements CampusRepository {
     final response =
         await client.post('/admin/settings/moderation', body: {'apiKey': apiKey});
     return (response['data'] as Map<String, dynamic>)['configured'] as bool? ?? false;
+  }
+
+  @override
+  Future<SiteSettings> getSiteSettings() async {
+    final response = await client.get('/admin/settings/site');
+    return SiteSettings.fromJson(response['data'] as Map<String, dynamic>);
+  }
+
+  @override
+  Future<SiteSettings> updateSiteSettings({
+    EntraSiteConfig? entra,
+    String? wordpressSiteUrl,
+    String? wordpressApiToken,
+  }) async {
+    final body = <String, dynamic>{};
+    if (entra != null) {
+      body['entra'] = {
+        'tenantId': entra.tenantId,
+        'clientId': entra.clientId,
+        'redirectUri': entra.redirectUri,
+      };
+    }
+    if (wordpressSiteUrl != null || wordpressApiToken != null) {
+      body['wordpress'] = <String, dynamic>{
+        if (wordpressSiteUrl != null) 'siteUrl': wordpressSiteUrl,
+        if (wordpressApiToken != null) 'apiToken': wordpressApiToken,
+      };
+    }
+    final response = await client.post('/admin/settings/site', body: body);
+    return SiteSettings.fromJson(response['data'] as Map<String, dynamic>);
   }
 
   @override

@@ -23,6 +23,11 @@ class MediaItem extends Model
 
     public function url(): string
     {
-        return Storage::disk('public')->url($this->file_path);
+        return Storage::disk(self::disk())->url($this->file_path);
+    }
+
+    public static function disk(): string
+    {
+        return (string) config('filesystems.media_disk', 'public');
     }
 }

@@ -456,7 +456,7 @@ class FeedPost {
   factory FeedPost.fromJson(Map<String, dynamic> json) {
     return FeedPost(
       id: json['id'] as String,
-      authorId: json['authorId'] as String? ?? '',
+      authorId: '${json['authorId'] ?? ''}',
       name: json['name'] as String,
       text: json['text'] as String,
       meta: json['meta'] as String,

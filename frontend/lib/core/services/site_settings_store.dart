@@ -31,12 +31,49 @@ class WordPressSiteConfig {
   bool get isConfigured => siteUrl.isNotEmpty;
 }
 
-/// Admin-entered configuration for real external integrations (Microsoft
-/// Entra sign-in, a WordPress/WPForms data source). Unlike
-/// `AdminContentStore` (seed campus content), these are credentials, so
-/// nothing here ships with a default value — the app works with none of
-/// this set, and only attempts the real integration once an admin fills it
-/// in from the Admin Panel's Site Settings tab.
+/// Public site-settings payload the admin UI and REST client share.
+/// [wordpressApiToken] is never filled from a GET body — REST
+/// [SiteSettings.fromJson] always leaves it empty, even if a server
+/// mistakenly echoed one. Mock mode may populate it from local prefs.
+class SiteSettings {
+  final EntraSiteConfig entra;
+  final String wordpressSiteUrl;
+  final bool wordpressApiTokenConfigured;
+  final String wordpressApiToken;
+
+  const SiteSettings({
+    required this.entra,
+    required this.wordpressSiteUrl,
+    required this.wordpressApiTokenConfigured,
+    this.wordpressApiToken = '',
+  });
+
+  factory SiteSettings.fromJson(Map<String, dynamic> json) {
+    final entraRaw = json['entra'];
+    final entra = entraRaw is Map
+        ? Map<String, dynamic>.from(entraRaw)
+        : const <String, dynamic>{};
+    final wpRaw = json['wordpress'];
+    final wp = wpRaw is Map
+        ? Map<String, dynamic>.from(wpRaw)
+        : const <String, dynamic>{};
+    return SiteSettings(
+      entra: EntraSiteConfig(
+        tenantId: entra['tenantId'] as String? ?? '',
+        clientId: entra['clientId'] as String? ?? '',
+        redirectUri: entra['redirectUri'] as String? ?? '',
+      ),
+      wordpressSiteUrl: wp['siteUrl'] as String? ?? '',
+      wordpressApiTokenConfigured: wp['apiTokenConfigured'] as bool? ?? false,
+      wordpressApiToken: '',
+    );
+  }
+}
+
+/// On-device Entra / WordPress values used by Mock mode
+/// (`USE_REST_API=false`) and by the non-REST Entra login path in
+/// `main.dart`. REST mode does not treat this store as canonical —
+/// `RestCampusRepository` reads and writes `GET/POST /admin/settings/site`.
 class SiteSettingsStore {
   static const _kTenant = 'site.entra.tenantId';
   static const _kClient = 'site.entra.clientId';

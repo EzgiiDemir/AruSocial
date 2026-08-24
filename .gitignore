@@ -21,6 +21,9 @@ local.properties
 # Runtime data, not source — see sql/README.md for how to recreate it.
 sql/database.sqlite
 sql/database.sqlite-*
+# Timestamped copies taken before a `migrate:fresh` — same runtime data,
+# just older, so they don't belong in source control either.
+sql/backups/
 
 # --- Editors / IDEs ---
 .idea/
@@ -32,5 +35,9 @@ sql/database.sqlite-*
 # machine-specific, not project config. See backend/README.md.
 .phpconfig/
 
-# --- Local AI coding tool state (not project source) ---
-.claude/
+# Firebase / FCM — never commit real project files or generated options.
+frontend/android/app/google-services.json
+frontend/ios/Runner/GoogleService-Info.plist
+frontend/lib/firebase_options.dart
+backend/.env
+

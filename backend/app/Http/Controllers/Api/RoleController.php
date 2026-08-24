@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Api\Concerns\ApiResponds;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\UpsertRoleAssignmentRequest;
 use App\Models\RoleAssignment;
 use App\Services\AuditLogger;
+use App\Services\GranularPermissions;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -22,6 +24,7 @@ class RoleController extends Controller
         return [
             'email' => $r->email,
             'role' => $r->role,
+            'permissions' => $r->permissions ?? [],
             'assignedAt' => $r->assigned_at?->toIso8601String(),
             'assignedBy' => $r->assigned_by,
         ];
@@ -32,28 +35,44 @@ class RoleController extends Controller
         return $this->ok(RoleAssignment::all()->map(fn ($r) => $this->toJson($r)));
     }
 
-    public function roleFor(string $email): JsonResponse
+    // Every account calls this for its own address right after signing in,
+    // to find out what it may do — so unlike the rest of this controller it
+    // can't require users.manage. Instead it's a self-lookup: you may read
+    // your own role, and reading anyone else's takes the same permission as
+    // changing it. Without that second half this would be an open roster of
+    // who the admins are, which is a useful thing for an attacker to know.
+    public function roleFor(Request $request, string $email): JsonResponse
     {
-        $assignment = RoleAssignment::find($email);
+        $isSelf = strcasecmp($email, (string) $this->currentUser()->email) === 0;
+        if (! $isSelf && ! GranularPermissions::allows($this->currentUser(), 'users.manage')) {
+            return $this->fail(403, 'FORBIDDEN', 'Bu işlem için yetkin yok.');
+        }
 
-        return $this->ok(['role' => $assignment?->role]);
+        return $this->ok(['role' => RoleAssignment::find($email)?->role]);
     }
 
-    public function upsert(Request $request): JsonResponse
+    public function upsert(UpsertRoleAssignmentRequest $request): JsonResponse
     {
         $email = $request->input('email');
         $role = $request->input('role');
-        $validRoles = ['student', 'clubManager', 'contentEditor', 'moderator', 'careerStaff', 'studentAffairs', 'superAdmin'];
-        if (! $email || ! in_array($role, $validRoles, true)) {
-            return $this->fail(400, 'VALIDATION', 'email is required and role must be a valid UserRole.');
-        }
 
         $assignedBy = $request->input('assignedBy', 'admin');
-        $assignment = RoleAssignment::updateOrCreate(
-            ['email' => $email],
-            ['role' => $role, 'assigned_by' => $assignedBy, 'assigned_at' => now()]
-        );
-        AuditLogger::log($assignedBy, 'role_change', 'user', "$email → $role");
+        $attributes = ['role' => $role, 'assigned_by' => $assignedBy, 'assigned_at' => now()];
+
+        // Per-person extras on top of the role template, and only when the
+        // caller actually sends the field — omitting it has to leave an
+        // existing person's overrides alone rather than silently wiping
+        // them. Unknown keys are dropped instead of rejected: they grant
+        // nothing either way, and failing the whole role change over a
+        // stale key would be worse than ignoring it.
+        if ($request->has('permissions')) {
+            $attributes['permissions'] = GranularPermissions::sanitize(
+                (array) $request->input('permissions', []),
+            );
+        }
+
+        $assignment = RoleAssignment::updateOrCreate(['email' => $email], $attributes);
+        AuditLogger::logAsCurrentUser('role_change', 'user', "$email → $role");
 
         return $this->ok($this->toJson($assignment));
     }
@@ -62,7 +81,7 @@ class RoleController extends Controller
     {
         $assignment = RoleAssignment::find($email);
         if ($assignment) {
-            AuditLogger::log($request->input('actorName', 'admin'), 'delete', 'role_assignment', $email);
+            AuditLogger::logAsCurrentUser('delete', 'role_assignment', $email);
             $assignment->delete();
         }
 

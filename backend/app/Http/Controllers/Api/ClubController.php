@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Api\Concerns\ApiResponds;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\UpsertClubRequest;
 use App\Models\Club;
 use App\Services\AuditLogger;
 use Illuminate\Http\JsonResponse;
@@ -42,11 +43,10 @@ class ClubController extends Controller
         return $this->ok($this->toJson($club));
     }
 
-    public function upsert(Request $request): JsonResponse
+    public function upsert(UpsertClubRequest $request): JsonResponse
     {
         $id = $request->input('id');
         $name = $request->input('name');
-        if (! $id || ! $name) return $this->fail(400, 'VALIDATION', 'id and name are required.');
 
         $isNew = ! Club::where('id', $id)->exists();
         $club = Club::updateOrCreate(['id' => $id], [
@@ -55,7 +55,7 @@ class ClubController extends Controller
             'description' => $request->input('description', ''),
             'body' => $request->input('body', []),
         ]);
-        AuditLogger::log($request->input('actorName', 'admin'), $isNew ? 'create' : 'update', 'club', $name);
+        AuditLogger::logAsCurrentUser($isNew ? 'create' : 'update', 'club', $name);
 
         return $this->ok($this->toJson($club));
     }
@@ -64,7 +64,7 @@ class ClubController extends Controller
     {
         $club = Club::find($id);
         if ($club) {
-            AuditLogger::log($request->input('actorName', 'admin'), 'delete', 'club', $club->name);
+            AuditLogger::logAsCurrentUser('delete', 'club', $club->name);
             $club->delete();
         }
 

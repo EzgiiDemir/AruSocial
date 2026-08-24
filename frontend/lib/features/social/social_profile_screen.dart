@@ -102,15 +102,35 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
   }
 
   Future<void> _toggleFollow() async {
-    await widget.repository.toggleFollow(_displayName);
-    if (!mounted) return;
+    final name = _displayName;
+    final wasFollowing = _following.contains(name);
     setState(() {
-      if (_following.contains(_displayName)) {
-        _following.remove(_displayName);
+      if (wasFollowing) {
+        _following.remove(name);
       } else {
-        _following.add(_displayName);
+        _following.add(name);
       }
     });
+    try {
+      final nowFollowing = await widget.repository.toggleFollow(name);
+      if (!mounted) return;
+      setState(() {
+        if (nowFollowing) {
+          _following.add(name);
+        } else {
+          _following.remove(name);
+        }
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        if (wasFollowing) {
+          _following.add(name);
+        } else {
+          _following.remove(name);
+        }
+      });
+    }
   }
 
   Future<void> _changeAvatar() async {

@@ -11,11 +11,10 @@ import 'package:arucad_campus_prototype/core/models/content_block.dart';
 import 'package:arucad_campus_prototype/core/models/email_log.dart';
 import 'package:arucad_campus_prototype/core/models/event_participant.dart';
 import 'package:arucad_campus_prototype/core/models/survey.dart';
-import 'package:arucad_campus_prototype/core/services/admin_content_store.dart';
+import 'package:arucad_campus_prototype/core/network/api_client.dart';
 import 'package:arucad_campus_prototype/core/services/admin_settings_store.dart';
 import 'package:arucad_campus_prototype/core/services/audit_log_store.dart';
 import 'package:arucad_campus_prototype/core/services/contracts.dart';
-import 'package:arucad_campus_prototype/core/services/media_library_store.dart';
 import 'package:arucad_campus_prototype/core/services/role_assignment_store.dart';
 import 'package:arucad_campus_prototype/core/services/site_settings_store.dart';
 import 'package:arucad_campus_prototype/core/services/wordpress_data_source.dart';
@@ -25,12 +24,14 @@ import 'package:arucad_campus_prototype/features/admin/media/media_library_scree
 import 'package:arucad_campus_prototype/features/widgets/campus_widgets.dart';
 
 /// The real "admin panel" this prototype can actually deliver: content
-/// (events/clubs/sports/services) and moderation, editable at runtime and
-/// persisted on-device via `AdminContentStore` / the repository — no more
-/// hardcoded Dart lists. A real product would run this as a separate web
-/// app (`admin.sociallife.arucad.edu.tr`) with real Entra roles behind it;
-/// this screen is the honest, buildable version of that idea inside the
-/// same Flutter client, gated by `UserRole.canManageContent/canModerate`.
+/// (events/clubs/sports/services/food) and moderation, editable at runtime
+/// through `CampusRepository`. Rest mode writes food venues to the Laravel
+/// catalog; Mock mode still uses on-device `AdminContentStore` so
+/// `USE_REST_API=false` stays offline. A real product would run this as a
+/// separate web app (`admin.sociallife.arucad.edu.tr`) with real Entra
+/// roles behind it; this screen is the honest, buildable version of that
+/// idea inside the same Flutter client, gated by
+/// `UserRole.canManageContent/canModerate`.
 class AdminPanelScreen extends StatefulWidget {
   final CampusRepository repository;
   final UserRole role;
@@ -132,12 +133,13 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
           _SportsTab(repository: widget.repository, adminName: widget.user.name),
         _AdminSection.services =>
           _ServicesTab(repository: widget.repository, uploaderName: widget.user.name),
-        _AdminSection.food => _FoodTab(adminName: widget.user.name),
+        _AdminSection.food =>
+          _FoodTab(repository: widget.repository, adminName: widget.user.name),
         _AdminSection.directory =>
           _DirectoryTab(repository: widget.repository, adminName: widget.user.name),
         _AdminSection.pages =>
           _PagesTab(repository: widget.repository, uploaderName: widget.user.name),
-        _AdminSection.media => const MediaLibraryTab(),
+        _AdminSection.media => MediaLibraryTab(repository: widget.repository),
         _AdminSection.surveys =>
           _SurveysTab(repository: widget.repository, adminName: widget.user.name),
         _AdminSection.academicYears =>
@@ -568,11 +570,11 @@ class _DashboardTabState extends State<_DashboardTab> {
       widget.repository.getClubs(),
       widget.repository.getSports(),
       widget.repository.getServices(),
-      AdminContentStore.foodVenues(),
+      widget.repository.getFoodVenues(),
       widget.repository.getDirectoryEntries(),
       widget.repository.getReports(),
-      MediaLibraryStore.items(),
-      AuditLogStore.entries(),
+      widget.repository.getMedia(),
+      widget.repository.getAuditLog(),
     ]);
     final events = results[0] as List<CampusEvent>;
     final reports = results[6] as List<ModerationReport>;
@@ -594,6 +596,7 @@ class _DashboardTabState extends State<_DashboardTab> {
   Widget build(BuildContext context) => FutureBuilder<_DashboardData>(
         future: _future,
         builder: (context, snap) {
+          if (snap.hasError) return _AdminLoadError(error: snap.error!);
           if (!snap.hasData) return const Center(child: CircularProgressIndicator());
           final d = snap.data!;
           final strings = AdminLocale.of(context);
@@ -773,7 +776,8 @@ class _StatsTabState extends State<_StatsTab> {
     return FutureBuilder<AdminStats>(
       future: _future,
       builder: (context, snap) {
-        if (!snap.hasData) return const Center(child: CircularProgressIndicator());
+        if (snap.hasError) return _AdminLoadError(error: snap.error!);
+          if (!snap.hasData) return const Center(child: CircularProgressIndicator());
         final s = snap.data!;
         final wide = MediaQuery.of(context).size.width >= 700;
         return ListView(
@@ -1433,7 +1437,7 @@ class _EventsTabState extends State<_EventsTab> {
     for (final id in _selected) {
       await widget.repository.deleteEvent(id);
     }
-    await AuditLogStore.log(
+    await AuditLogStore.logIfMock(widget.repository,
         actorName: widget.uploaderName,
         action: 'delete',
         targetType: 'event',
@@ -1573,6 +1577,7 @@ class _EventsTabState extends State<_EventsTab> {
                       title: strings.t('admin_event_content_title'),
                       initialBlocks: body,
                       uploaderName: widget.uploaderName,
+                      repository: widget.repository,
                       draftKey: existing == null ? null : 'event:${existing.id}');
                   setDialogState(() => body = result);
                 },
@@ -1671,7 +1676,7 @@ class _EventsTabState extends State<_EventsTab> {
       body: body,
       ));
       await widget.repository.recordRevision('event:$id', body, widget.uploaderName);
-      await AuditLogStore.log(
+      await AuditLogStore.logIfMock(widget.repository,
           actorName: widget.uploaderName,
           action: existing == null ? 'create' : 'update',
           targetType: 'event',
@@ -1854,7 +1859,8 @@ class _EventsTabState extends State<_EventsTab> {
           child: FutureBuilder<List<CampusEvent>>(
             future: _future,
             builder: (context, snap) {
-              if (!snap.hasData) return const Center(child: CircularProgressIndicator());
+              if (snap.hasError) return _AdminLoadError(error: snap.error!);
+          if (!snap.hasData) return const Center(child: CircularProgressIndicator());
               final events = snap.data!
                   .where((e) => e.title.toLowerCase().contains(_query.toLowerCase()))
                   .toList();
@@ -1912,7 +1918,7 @@ class _EventsTabState extends State<_EventsTab> {
                               icon: const Icon(Icons.delete_outline),
                               onPressed: () async {
                                 await widget.repository.deleteEvent(e.id);
-                                await AuditLogStore.log(
+                                await AuditLogStore.logIfMock(widget.repository,
                                     actorName: widget.uploaderName,
                                     action: 'delete',
                                     targetType: 'event',
@@ -1959,7 +1965,7 @@ class _PendingActivitiesTabState extends State<_PendingActivitiesTab> {
 
   Future<void> _approve(CampusEvent e) async {
     await widget.repository.approveActivity(e.id);
-    await AuditLogStore.log(
+    await AuditLogStore.logIfMock(widget.repository,
         actorName: widget.adminName, action: 'approve', targetType: 'event', targetLabel: e.title);
     _reload();
   }
@@ -1983,7 +1989,7 @@ class _PendingActivitiesTabState extends State<_PendingActivitiesTab> {
     );
     if (confirmed != true) return;
     await widget.repository.rejectActivity(e.id, reviewNote: noteC.text.trim());
-    await AuditLogStore.log(
+    await AuditLogStore.logIfMock(widget.repository,
         actorName: widget.adminName, action: 'reject', targetType: 'event', targetLabel: e.title);
     _reload();
   }
@@ -1993,7 +1999,8 @@ class _PendingActivitiesTabState extends State<_PendingActivitiesTab> {
     return FutureBuilder<List<CampusEvent>>(
       future: _future,
       builder: (context, snap) {
-        if (!snap.hasData) return const Center(child: CircularProgressIndicator());
+        if (snap.hasError) return _AdminLoadError(error: snap.error!);
+          if (!snap.hasData) return const Center(child: CircularProgressIndicator());
         final events = snap.data!;
         if (events.isEmpty) {
           return const Center(
@@ -2075,7 +2082,7 @@ class _ClubsTabState extends State<_ClubsTab> {
     for (final id in _selected) {
       await widget.repository.deleteClub(id);
     }
-    await AuditLogStore.log(
+    await AuditLogStore.logIfMock(widget.repository,
         actorName: widget.uploaderName,
         action: 'delete',
         targetType: 'club',
@@ -2112,6 +2119,7 @@ class _ClubsTabState extends State<_ClubsTab> {
                       title: strings.t('admin_club_content_title'),
                       initialBlocks: body,
                       uploaderName: widget.uploaderName,
+                      repository: widget.repository,
                       draftKey: existing == null ? null : 'club:${existing.id}');
                   setDialogState(() => body = result);
                 },
@@ -2149,7 +2157,7 @@ class _ClubsTabState extends State<_ClubsTab> {
       body: body,
     ));
     await widget.repository.recordRevision('club:$id', body, widget.uploaderName);
-    await AuditLogStore.log(
+    await AuditLogStore.logIfMock(widget.repository,
         actorName: widget.uploaderName,
         action: existing == null ? 'create' : 'update',
         targetType: 'club',
@@ -2175,7 +2183,8 @@ class _ClubsTabState extends State<_ClubsTab> {
           child: FutureBuilder<List<CampusClub>>(
             future: _future,
             builder: (context, snap) {
-              if (!snap.hasData) return const Center(child: CircularProgressIndicator());
+              if (snap.hasError) return _AdminLoadError(error: snap.error!);
+          if (!snap.hasData) return const Center(child: CircularProgressIndicator());
               final clubs = snap.data!
                   .where((c) => c.name.toLowerCase().contains(_query.toLowerCase()))
                   .toList();
@@ -2212,7 +2221,7 @@ class _ClubsTabState extends State<_ClubsTab> {
                               icon: const Icon(Icons.delete_outline),
                               onPressed: () async {
                                 await widget.repository.deleteClub(c.id);
-                                await AuditLogStore.log(
+                                await AuditLogStore.logIfMock(widget.repository,
                                     actorName: widget.uploaderName,
                                     action: 'delete',
                                     targetType: 'club',
@@ -2259,7 +2268,7 @@ class _SportsTabState extends State<_SportsTab> {
     for (final id in _selected) {
       await widget.repository.deleteSport(id);
     }
-    await AuditLogStore.log(
+    await AuditLogStore.logIfMock(widget.repository,
         actorName: widget.adminName,
         action: 'delete',
         targetType: 'sport',
@@ -2298,7 +2307,7 @@ class _SportsTabState extends State<_SportsTab> {
       facility: facilityC.text.trim(),
       contact: contactC.text.trim().isEmpty ? null : contactC.text.trim(),
     ));
-    await AuditLogStore.log(
+    await AuditLogStore.logIfMock(widget.repository,
         actorName: widget.adminName,
         action: existing == null ? 'create' : 'update',
         targetType: 'sport',
@@ -2324,7 +2333,8 @@ class _SportsTabState extends State<_SportsTab> {
           child: FutureBuilder<List<CampusSport>>(
             future: _future,
             builder: (context, snap) {
-              if (!snap.hasData) return const Center(child: CircularProgressIndicator());
+              if (snap.hasError) return _AdminLoadError(error: snap.error!);
+          if (!snap.hasData) return const Center(child: CircularProgressIndicator());
               final sports = snap.data!
                   .where((s) => s.name.toLowerCase().contains(_query.toLowerCase()))
                   .toList();
@@ -2360,7 +2370,7 @@ class _SportsTabState extends State<_SportsTab> {
                               icon: const Icon(Icons.delete_outline),
                               onPressed: () async {
                                 await widget.repository.deleteSport(s.id);
-                                await AuditLogStore.log(
+                                await AuditLogStore.logIfMock(widget.repository,
                                     actorName: widget.adminName,
                                     action: 'delete',
                                     targetType: 'sport',
@@ -2407,7 +2417,7 @@ class _ServicesTabState extends State<_ServicesTab> {
     for (final id in _selected) {
       await widget.repository.deleteService(id);
     }
-    await AuditLogStore.log(
+    await AuditLogStore.logIfMock(widget.repository,
         actorName: widget.uploaderName,
         action: 'delete',
         targetType: 'service',
@@ -2451,6 +2461,7 @@ class _ServicesTabState extends State<_ServicesTab> {
                       title: strings.t('admin_service_content_title'),
                       initialBlocks: body,
                       uploaderName: widget.uploaderName,
+                      repository: widget.repository,
                       draftKey: existing == null ? null : 'service:${existing.id}');
                   setDialogState(() => body = result);
                 },
@@ -2512,7 +2523,7 @@ class _ServicesTabState extends State<_ServicesTab> {
       body: body,
     ));
     await widget.repository.recordRevision('service:$id', body, widget.uploaderName);
-    await AuditLogStore.log(
+    await AuditLogStore.logIfMock(widget.repository,
         actorName: widget.uploaderName,
         action: existing == null ? 'create' : 'update',
         targetType: 'service',
@@ -2538,7 +2549,8 @@ class _ServicesTabState extends State<_ServicesTab> {
           child: FutureBuilder<List<CampusService>>(
             future: _future,
             builder: (context, snap) {
-              if (!snap.hasData) return const Center(child: CircularProgressIndicator());
+              if (snap.hasError) return _AdminLoadError(error: snap.error!);
+          if (!snap.hasData) return const Center(child: CircularProgressIndicator());
               final services = snap.data!
                   .where((s) => s.title.toLowerCase().contains(_query.toLowerCase()))
                   .toList();
@@ -2575,7 +2587,7 @@ class _ServicesTabState extends State<_ServicesTab> {
                               icon: const Icon(Icons.delete_outline),
                               onPressed: () async {
                                 await widget.repository.deleteService(s.id);
-                                await AuditLogStore.log(
+                                await AuditLogStore.logIfMock(widget.repository,
                                     actorName: widget.uploaderName,
                                     action: 'delete',
                                     targetType: 'service',
@@ -2598,8 +2610,9 @@ class _ServicesTabState extends State<_ServicesTab> {
 // ------------------------------------------------------------- Yemek
 
 class _FoodTab extends StatefulWidget {
+  final CampusRepository repository;
   final String adminName;
-  const _FoodTab({required this.adminName});
+  const _FoodTab({required this.repository, required this.adminName});
   @override
   State<_FoodTab> createState() => _FoodTabState();
 }
@@ -2612,16 +2625,16 @@ class _FoodTabState extends State<_FoodTab> {
   @override
   void initState() {
     super.initState();
-    _future = AdminContentStore.foodVenues();
+    _future = widget.repository.getFoodVenues();
   }
 
-  void _reload() => setState(() => _future = AdminContentStore.foodVenues());
+  void _reload() => setState(() => _future = widget.repository.getFoodVenues());
 
   Future<void> _deleteSelected() async {
     for (final id in _selected) {
-      await AdminContentStore.deleteFoodVenue(id);
+      await widget.repository.deleteFoodVenue(id);
     }
-    await AuditLogStore.log(
+    await AuditLogStore.logIfMock(widget.repository,
         actorName: widget.adminName,
         action: 'delete',
         targetType: 'food_venue',
@@ -2667,14 +2680,14 @@ class _FoodTabState extends State<_FoodTab> {
       ),
     );
     if (saved != true || nameC.text.trim().isEmpty) return;
-    await AdminContentStore.saveFoodVenue(CampusFoodVenue(
+    await widget.repository.upsertFoodVenue(CampusFoodVenue(
       id: existing?.id ?? 'food-${slugify(nameC.text)}',
       name: nameC.text.trim(),
       hours: hoursC.text.trim().isEmpty ? null : hoursC.text.trim(),
       dailyMenus: existing?.dailyMenus ?? const [],
       menuFileUrl: fileUrlC.text.trim().isEmpty ? null : fileUrlC.text.trim(),
     ));
-    await AuditLogStore.log(
+    await AuditLogStore.logIfMock(widget.repository,
         actorName: widget.adminName,
         action: existing == null ? 'create' : 'update',
         targetType: 'food_venue',
@@ -2685,7 +2698,8 @@ class _FoodTabState extends State<_FoodTab> {
   Future<void> _manageCalendar(CampusFoodVenue venue) async {
     final strings = AdminLocale.of(context);
     await Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => _FoodMenuCalendarScreen(venue: venue, strings: strings)));
+        builder: (_) => _FoodMenuCalendarScreen(
+            repository: widget.repository, venue: venue, strings: strings)));
     _reload();
   }
 
@@ -2707,7 +2721,8 @@ class _FoodTabState extends State<_FoodTab> {
           child: FutureBuilder<List<CampusFoodVenue>>(
             future: _future,
             builder: (context, snap) {
-              if (!snap.hasData) return const Center(child: CircularProgressIndicator());
+              if (snap.hasError) return _AdminLoadError(error: snap.error!);
+          if (!snap.hasData) return const Center(child: CircularProgressIndicator());
               final venues = snap.data!
                   .where((v) => v.name.toLowerCase().contains(_query.toLowerCase()))
                   .toList();
@@ -2753,8 +2768,8 @@ class _FoodTabState extends State<_FoodTab> {
                               IconButton(
                                 icon: const Icon(Icons.delete_outline),
                                 onPressed: () async {
-                                  await AdminContentStore.deleteFoodVenue(v.id);
-                                  await AuditLogStore.log(
+                                  await widget.repository.deleteFoodVenue(v.id);
+                                  await AuditLogStore.logIfMock(widget.repository,
                                       actorName: widget.adminName,
                                       action: 'delete',
                                       targetType: 'food_venue',
@@ -2779,13 +2794,15 @@ class _FoodTabState extends State<_FoodTab> {
 /// items/price/hours, so a student picking a date on the Garden's calendar
 /// sees exactly what an admin actually entered for that day.
 class _FoodMenuCalendarScreen extends StatefulWidget {
+  final CampusRepository repository;
   final CampusFoodVenue venue;
   // Passed in explicitly rather than read via `AdminLocale.of(context)`:
   // this screen is reached via `Navigator.push`, which mounts it as a new
   // route outside the `AdminPanelScreen` subtree that `AdminLocale` wraps,
   // so there is no ancestor to look up here.
   final AdminStrings strings;
-  const _FoodMenuCalendarScreen({required this.venue, required this.strings});
+  const _FoodMenuCalendarScreen(
+      {required this.repository, required this.venue, required this.strings});
 
   @override
   State<_FoodMenuCalendarScreen> createState() => _FoodMenuCalendarScreenState();
@@ -2800,14 +2817,12 @@ class _FoodMenuCalendarScreenState extends State<_FoodMenuCalendarScreen> {
     _menus = [...widget.venue.dailyMenus]..sort((a, b) => a.date.compareTo(b.date));
   }
 
-  Future<void> _persist() async {
-    await AdminContentStore.saveFoodVenue(CampusFoodVenue(
-      id: widget.venue.id,
-      name: widget.venue.name,
-      hours: widget.venue.hours,
-      dailyMenus: _menus,
-      menuFileUrl: widget.venue.menuFileUrl,
-    ));
+  Future<void> _persistMenu(DailyMenu menu) async {
+    await widget.repository.upsertFoodMenu(widget.venue.id, menu);
+  }
+
+  Future<void> _persistDelete(DailyMenu menu) async {
+    await widget.repository.deleteFoodMenu(widget.venue.id, menu.date);
   }
 
   Future<void> _editDay([DailyMenu? existing]) async {
@@ -2878,12 +2893,12 @@ class _FoodMenuCalendarScreenState extends State<_FoodMenuCalendarScreen> {
       _menus.add(entry);
       _menus.sort((a, b) => a.date.compareTo(b.date));
     });
-    await _persist();
+    await _persistMenu(entry);
   }
 
   Future<void> _deleteDay(DailyMenu menu) async {
     setState(() => _menus.remove(menu));
-    await _persist();
+    await _persistDelete(menu);
   }
 
   @override
@@ -2962,7 +2977,7 @@ class _DirectoryTabState extends State<_DirectoryTab> {
     for (final id in _selected) {
       await widget.repository.deleteDirectoryEntry(id);
     }
-    await AuditLogStore.log(
+    await AuditLogStore.logIfMock(widget.repository,
         actorName: widget.adminName,
         action: 'delete',
         targetType: 'directory_entry',
@@ -3021,7 +3036,7 @@ class _DirectoryTabState extends State<_DirectoryTab> {
       occupantRole: orNull(roleC.text),
       relatedServiceId: relatedServiceId,
     ));
-    await AuditLogStore.log(
+    await AuditLogStore.logIfMock(widget.repository,
         actorName: widget.adminName,
         action: existing == null ? 'create' : 'update',
         targetType: 'directory_entry',
@@ -3051,7 +3066,8 @@ class _DirectoryTabState extends State<_DirectoryTab> {
               child: FutureBuilder<List<DirectoryEntry>>(
                 future: _future,
                 builder: (context, snap) {
-                  if (!snap.hasData) return const Center(child: CircularProgressIndicator());
+                  if (snap.hasError) return _AdminLoadError(error: snap.error!);
+          if (!snap.hasData) return const Center(child: CircularProgressIndicator());
                   final entries = snap.data!
                       .where((e) =>
                           e.occupantName.toLowerCase().contains(_query.toLowerCase()))
@@ -3108,7 +3124,7 @@ class _DirectoryTabState extends State<_DirectoryTab> {
                                   icon: const Icon(Icons.delete_outline),
                                   onPressed: () async {
                                     await widget.repository.deleteDirectoryEntry(e.id);
-                                    await AuditLogStore.log(
+                                    await AuditLogStore.logIfMock(widget.repository,
                                         actorName: widget.adminName,
                                         action: 'delete',
                                         targetType: 'directory_entry',
@@ -3181,6 +3197,7 @@ class _PagesTabState extends State<_PagesTab> {
                       title: strings.t('admin_page_content_title'),
                       initialBlocks: blocks,
                       uploaderName: widget.uploaderName,
+                      repository: widget.repository,
                       draftKey: existing == null ? null : 'page:${existing.id}');
                   setDialogState(() => blocks = result);
                 },
@@ -3227,7 +3244,7 @@ class _PagesTabState extends State<_PagesTab> {
       updatedBy: widget.uploaderName,
     ));
     await widget.repository.recordRevision('page:$id', blocks, widget.uploaderName);
-    await AuditLogStore.log(
+    await AuditLogStore.logIfMock(widget.repository,
         actorName: widget.uploaderName,
         action: existing == null ? 'create' : 'update',
         targetType: 'page',
@@ -3237,7 +3254,7 @@ class _PagesTabState extends State<_PagesTab> {
 
   Future<void> _delete(AdminPage page) async {
     await widget.repository.deletePage(page.id);
-    await AuditLogStore.log(
+    await AuditLogStore.logIfMock(widget.repository,
         actorName: widget.uploaderName,
         action: 'delete',
         targetType: 'page',
@@ -3254,6 +3271,7 @@ class _PagesTabState extends State<_PagesTab> {
       body: FutureBuilder<List<AdminPage>>(
         future: _future,
         builder: (context, snap) {
+          if (snap.hasError) return _AdminLoadError(error: snap.error!);
           if (!snap.hasData) return const Center(child: CircularProgressIndicator());
           final pages = snap.data!;
           if (pages.isEmpty) {
@@ -3356,7 +3374,7 @@ class _UsersTabState extends State<_UsersTab> {
     if (saved != true || emailC.text.trim().isEmpty) return;
     await widget.repository
         .setRoleAssignment(emailC.text.trim(), role, assignedBy: widget.adminName);
-    await AuditLogStore.log(
+    await AuditLogStore.logIfMock(widget.repository,
         actorName: widget.adminName,
         action: 'role_change',
         targetType: 'user',
@@ -3366,7 +3384,7 @@ class _UsersTabState extends State<_UsersTab> {
 
   Future<void> _remove(RoleAssignment a) async {
     await widget.repository.deleteRoleAssignment(a.email);
-    await AuditLogStore.log(
+    await AuditLogStore.logIfMock(widget.repository,
         actorName: widget.adminName,
         action: 'role_change',
         targetType: 'user',
@@ -3383,6 +3401,7 @@ class _UsersTabState extends State<_UsersTab> {
       body: FutureBuilder<List<RoleAssignment>>(
         future: _future,
         builder: (context, snap) {
+          if (snap.hasError) return _AdminLoadError(error: snap.error!);
           if (!snap.hasData) return const Center(child: CircularProgressIndicator());
           final assignments = snap.data!;
           return ListView(
@@ -3447,13 +3466,57 @@ class _ActivityLogTab extends StatefulWidget {
 }
 
 class _ActivityLogTabState extends State<_ActivityLogTab> {
-  late Future<List<AuditLogEntry>> _future;
-  int _visible = kPageSize;
+  static const _apiPageSize = 20;
+  List<AuditLogEntry> _entries = const [];
+  bool _loading = true;
+  bool _loadingMore = false;
+  bool _hasMore = false;
+  int _page = 0;
+  int _total = 0;
 
   @override
   void initState() {
     super.initState();
-    _future = widget.repository.getAuditLog();
+    _refresh();
+  }
+
+  Future<void> _refresh() async {
+    final initial = _entries.isEmpty;
+    if (initial) setState(() => _loading = true);
+    try {
+      final page = await widget.repository.getAuditLogPage(page: 1, perPage: _apiPageSize);
+      if (!mounted) return;
+      setState(() {
+        _entries = page.items;
+        _page = page.currentPage;
+        _hasMore = page.hasMore;
+        _total = page.total;
+        _loading = false;
+        _loadingMore = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _loadMore() async {
+    if (_loadingMore || !_hasMore || _loading) return;
+    setState(() => _loadingMore = true);
+    try {
+      final page = await widget.repository.getAuditLogPage(page: _page + 1, perPage: _apiPageSize);
+      if (!mounted) return;
+      final seen = _entries.map((e) => e.id).toSet();
+      setState(() {
+        _entries = [..._entries, ...page.items.where((e) => !seen.contains(e.id))];
+        _page = page.currentPage;
+        _hasMore = page.hasMore;
+        _total = page.total;
+        _loadingMore = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loadingMore = false);
+    }
   }
 
   (IconData, Color) _visual(String action) => switch (action) {
@@ -3470,57 +3533,53 @@ class _ActivityLogTabState extends State<_ActivityLogTab> {
   @override
   Widget build(BuildContext context) {
     final strings = AdminLocale.of(context);
-    return FutureBuilder<List<AuditLogEntry>>(
-      future: _future,
-      builder: (context, snap) {
-        if (!snap.hasData) return const Center(child: CircularProgressIndicator());
-        final entries = snap.data!;
-        if (entries.isEmpty) {
-          return Center(
-            child: Text(strings.t('admin_no_activity_yet'),
-                style: const TextStyle(color: ArucadColors.muted)),
-          );
-        }
-        final shown = _visible.clamp(0, entries.length);
-        return ListView.separated(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-          itemCount: shown + 1,
-          separatorBuilder: (_, __) => const SizedBox(height: 8),
-          itemBuilder: (context, i) {
-            if (i == shown) {
-              return LoadMoreButton(
-                shown: shown,
-                total: entries.length,
-                itemLabel: strings.t('admin_record_noun'),
-                onTap: () => setState(() => _visible += kPageSize),
-              );
-            }
-            final e = entries[i];
-            final (icon, color) = _visual(e.action);
-            return Card(
-              child: ListTile(
-                dense: true,
-                leading: CircleAvatar(
-                    radius: 16,
-                    backgroundColor: color.withValues(alpha: .14),
-                    child: Icon(icon, size: 16, color: color)),
-                title: Text('${e.actorName} · ${e.action}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-                subtitle: Text(
-                    e.targetLabel.isEmpty ? e.targetType : '${e.targetType}: ${e.targetLabel}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 12)),
-                trailing: Text(
-                    '${e.at.day}.${e.at.month} ${e.at.hour.toString().padLeft(2, '0')}:${e.at.minute.toString().padLeft(2, '0')}',
-                    style: const TextStyle(color: ArucadColors.muted, fontSize: 11)),
-              ),
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_entries.isEmpty) {
+      return Center(
+        child: Text(strings.t('admin_no_activity_yet'),
+            style: const TextStyle(color: ArucadColors.muted)),
+      );
+    }
+    return RefreshIndicator(
+      onRefresh: _refresh,
+      child: ListView.separated(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+        itemCount: _entries.length + 1,
+        separatorBuilder: (_, __) => const SizedBox(height: 8),
+        itemBuilder: (context, i) {
+          if (i == _entries.length) {
+            return LoadMoreButton(
+              shown: _entries.length,
+              total: _total,
+              itemLabel: strings.t('admin_record_noun'),
+              onTap: _hasMore && !_loadingMore ? _loadMore : () {},
             );
-          },
-        );
-      },
+          }
+          final e = _entries[i];
+          final (icon, color) = _visual(e.action);
+          return Card(
+            child: ListTile(
+              dense: true,
+              leading: CircleAvatar(
+                  radius: 16,
+                  backgroundColor: color.withValues(alpha: .14),
+                  child: Icon(icon, size: 16, color: color)),
+              title: Text('${e.actorName} · ${e.action}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+              subtitle: Text(
+                  e.targetLabel.isEmpty ? e.targetType : '${e.targetType}: ${e.targetLabel}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 12)),
+              trailing: Text(
+                  '${e.at.day}.${e.at.month} ${e.at.hour.toString().padLeft(2, '0')}:${e.at.minute.toString().padLeft(2, '0')}',
+                  style: const TextStyle(color: ArucadColors.muted, fontSize: 11)),
+            ),
+          );
+        },
+      ),
     );
   }
 }
@@ -3548,7 +3607,7 @@ class _ModerationTabState extends State<_ModerationTab> {
 
   Future<void> _act(ModerationReport report, ModerationAction action) async {
     await widget.repository.resolveReport(report.id, action);
-    await AuditLogStore.log(
+    await AuditLogStore.logIfMock(widget.repository,
         actorName: widget.adminName,
         action: 'moderation',
         targetType: report.kind.name,
@@ -3562,7 +3621,8 @@ class _ModerationTabState extends State<_ModerationTab> {
     return FutureBuilder<List<ModerationReport>>(
       future: _future,
       builder: (context, snap) {
-        if (!snap.hasData) return const Center(child: CircularProgressIndicator());
+        if (snap.hasError) return _AdminLoadError(error: snap.error!);
+          if (!snap.hasData) return const Center(child: CircularProgressIndicator());
         final reports = snap.data!;
         if (reports.isEmpty) {
           return Center(
@@ -3641,11 +3701,11 @@ class _ModerationTabState extends State<_ModerationTab> {
 
 // ------------------------------------------------------------- Site Settings
 
-/// Real, on-device configuration for the two external systems the product
-/// brief asked for: Microsoft Entra sign-in and a WordPress/WPForms data
-/// pull. Filling these in genuinely changes app behavior on next launch
-/// (see `main.dart` and `SiteSettingsStore`) — there is no fake "saved!"
-/// toast here that doesn't actually do anything.
+/// Public Entra client IDs and WordPress site URL, plus write-only secrets.
+/// REST mode reads/writes through [CampusRepository] (`GET/POST
+/// /admin/settings/site`). Mock mode still uses [SiteSettingsStore].
+/// Filling Entra in mock mode still changes sign-in on next launch
+/// (`main.dart`) — there is no fake "saved!" toast here.
 class _SiteSettingsTab extends StatefulWidget {
   final CampusRepository repository;
   final String actorName;
@@ -3663,11 +3723,14 @@ class _SiteSettingsTabState extends State<_SiteSettingsTab> {
   final _moderationKeyC = TextEditingController();
 
   bool _loading = true;
+  Object? _loadError;
   bool _savingEntra = false;
+  bool _savingWp = false;
   bool _savingModeration = false;
   bool _wpBusy = false;
   String? _wpResult;
   bool _wpError = false;
+  bool _wpTokenConfigured = false;
   // Real, server-side-only setting (docs/EKSIKLER.md §26) — the backend
   // never echoes the raw key back, so this only ever reflects "is one
   // configured", never the value itself.
@@ -3683,19 +3746,31 @@ class _SiteSettingsTabState extends State<_SiteSettingsTab> {
   }
 
   Future<void> _load() async {
-    final entra = await SiteSettingsStore.entra();
-    final wp = await SiteSettingsStore.wordpress();
-    final moderationConfigured = await widget.repository.getImageModerationConfigured();
-    if (!mounted) return;
-    setState(() {
-      _tenantC.text = entra.tenantId;
-      _clientC.text = entra.clientId;
-      _redirectC.text = entra.redirectUri.isEmpty ? _defaultRedirect : entra.redirectUri;
-      _wpUrlC.text = wp.siteUrl;
-      _wpTokenC.text = wp.apiToken;
-      _moderationConfigured = moderationConfigured;
-      _loading = false;
-    });
+    try {
+      final settings = await widget.repository.getSiteSettings();
+      final moderationConfigured =
+          await widget.repository.getImageModerationConfigured();
+      if (!mounted) return;
+      setState(() {
+        _tenantC.text = settings.entra.tenantId;
+        _clientC.text = settings.entra.clientId;
+        _redirectC.text = settings.entra.redirectUri.isEmpty
+            ? _defaultRedirect
+            : settings.entra.redirectUri;
+        _wpUrlC.text = settings.wordpressSiteUrl;
+        _wpTokenC.text = settings.wordpressApiToken;
+        _wpTokenConfigured = settings.wordpressApiTokenConfigured;
+        _moderationConfigured = moderationConfigured;
+        _loadError = null;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loadError = e;
+        _loading = false;
+      });
+    }
   }
 
   Future<void> _saveModeration() async {
@@ -3713,21 +3788,63 @@ class _SiteSettingsTabState extends State<_SiteSettingsTab> {
 
   Future<void> _saveEntra() async {
     setState(() => _savingEntra = true);
-    await SiteSettingsStore.setEntra(
-      tenantId: _tenantC.text.trim(),
-      clientId: _clientC.text.trim(),
-      redirectUri: _redirectC.text.trim(),
-    );
-    if (!mounted) return;
-    setState(() => _savingEntra = false);
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(AdminLocale.of(context).t('admin_entra_saved_toast'))));
+    try {
+      await widget.repository.updateSiteSettings(
+        entra: EntraSiteConfig(
+          tenantId: _tenantC.text.trim(),
+          clientId: _clientC.text.trim(),
+          redirectUri: _redirectC.text.trim(),
+        ),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(AdminLocale.of(context).t('admin_entra_saved_toast'))));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    } finally {
+      if (mounted) setState(() => _savingEntra = false);
+    }
   }
 
-  Future<void> _saveWordPress() => SiteSettingsStore.setWordPress(
-        siteUrl: _wpUrlC.text.trim(),
-        apiToken: _wpTokenC.text.trim(),
+  Future<void> _saveWordPress({bool showToast = true}) async {
+    setState(() => _savingWp = true);
+    final typedToken = _wpTokenC.text.trim();
+    try {
+      final updated = await widget.repository.updateSiteSettings(
+        wordpressSiteUrl: _wpUrlC.text.trim(),
+        wordpressApiToken: typedToken.isEmpty ? null : typedToken,
       );
+      if (typedToken.isNotEmpty) _wpTokenC.clear();
+      if (!mounted) return;
+      setState(() => _wpTokenConfigured = updated.wordpressApiTokenConfigured);
+      if (showToast) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(AdminLocale.of(context).t('admin_wp_saved_toast'))));
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      rethrow;
+    } finally {
+      if (mounted) setState(() => _savingWp = false);
+    }
+  }
+
+  Future<void> _clearWordPressToken() async {
+    setState(() => _savingWp = true);
+    try {
+      final updated = await widget.repository.updateSiteSettings(wordpressApiToken: '');
+      _wpTokenC.clear();
+      if (!mounted) return;
+      setState(() => _wpTokenConfigured = updated.wordpressApiTokenConfigured);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    } finally {
+      if (mounted) setState(() => _savingWp = false);
+    }
+  }
 
   Future<void> _pull(
     Future<List<Map<String, dynamic>>> Function() call,
@@ -3738,8 +3855,8 @@ class _SiteSettingsTabState extends State<_SiteSettingsTab> {
       _wpResult = null;
       _wpError = false;
     });
-    await _saveWordPress();
     try {
+      await _saveWordPress(showToast: false);
       final data = await call();
       if (!mounted) return;
       final strings = AdminLocale.of(context);
@@ -3771,6 +3888,7 @@ class _SiteSettingsTabState extends State<_SiteSettingsTab> {
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_loadError != null) return _AdminLoadError(error: _loadError!);
     final strings = AdminLocale.of(context);
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 90),
@@ -3825,6 +3943,37 @@ class _SiteSettingsTabState extends State<_SiteSettingsTab> {
             controller: _wpTokenC,
             obscureText: true,
             decoration: InputDecoration(labelText: strings.t('admin_wp_api_token'))),
+        const SizedBox(height: 10),
+        Row(children: [
+          Icon(
+              _wpTokenConfigured ? Icons.check_circle : Icons.radio_button_unchecked,
+              size: 16,
+              color: _wpTokenConfigured ? ArucadColors.success : ArucadColors.muted),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+                _wpTokenConfigured
+                    ? strings.t('admin_wp_token_configured')
+                    : strings.t('admin_wp_token_not_configured'),
+                style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
+          ),
+        ]),
+        const SizedBox(height: 12),
+        Row(children: [
+          FilledButton(
+            onPressed: _savingWp ? null : () => _saveWordPress(),
+            child: Text(_savingWp
+                ? strings.t('admin_saving_ellipsis')
+                : strings.t('admin_wp_save')),
+          ),
+          if (_wpTokenConfigured) ...[
+            const SizedBox(width: 8),
+            TextButton(
+              onPressed: _savingWp ? null : _clearWordPressToken,
+              child: Text(strings.t('admin_wp_clear')),
+            ),
+          ],
+        ]),
         const SizedBox(height: 14),
         Row(children: [
           Expanded(
@@ -4035,7 +4184,7 @@ class _SurveysTabState extends State<_SurveysTab> {
       active: active,
       options: options,
     );
-    await AuditLogStore.log(
+    await AuditLogStore.logIfMock(widget.repository,
         actorName: widget.adminName,
         action: existing == null ? 'create' : 'update',
         targetType: 'survey',
@@ -4045,7 +4194,7 @@ class _SurveysTabState extends State<_SurveysTab> {
 
   Future<void> _delete(Survey s) async {
     await widget.repository.deleteSurvey(s.id);
-    await AuditLogStore.log(
+    await AuditLogStore.logIfMock(widget.repository,
         actorName: widget.adminName, action: 'delete', targetType: 'survey', targetLabel: s.question);
     _reload();
   }
@@ -4058,6 +4207,7 @@ class _SurveysTabState extends State<_SurveysTab> {
       body: FutureBuilder<List<Survey>>(
         future: _future,
         builder: (context, snap) {
+          if (snap.hasError) return _AdminLoadError(error: snap.error!);
           if (!snap.hasData) return const Center(child: CircularProgressIndicator());
           final surveys = snap.data!;
           if (surveys.isEmpty) {
@@ -4171,7 +4321,7 @@ class _AcademicYearsTabState extends State<_AcademicYearsTab> {
       endsOn: ends,
       isActive: isActive,
     );
-    await AuditLogStore.log(
+    await AuditLogStore.logIfMock(widget.repository,
         actorName: widget.adminName,
         action: existing == null ? 'create' : 'update',
         targetType: 'academic_year',
@@ -4187,6 +4337,7 @@ class _AcademicYearsTabState extends State<_AcademicYearsTab> {
       body: FutureBuilder<List<AcademicYear>>(
         future: _future,
         builder: (context, snap) {
+          if (snap.hasError) return _AdminLoadError(error: snap.error!);
           if (!snap.hasData) return const Center(child: CircularProgressIndicator());
           final years = snap.data!;
           return ListView.separated(
@@ -4232,15 +4383,57 @@ class _EmailLogTab extends StatefulWidget {
 }
 
 class _EmailLogTabState extends State<_EmailLogTab> {
-  late Future<List<EmailLogEntry>> _future;
+  static const _apiPageSize = 20;
+  List<EmailLogEntry> _logs = const [];
+  bool _loading = true;
+  bool _loadingMore = false;
+  bool _hasMore = false;
+  int _page = 0;
+  int _total = 0;
 
   @override
   void initState() {
     super.initState();
-    _future = widget.repository.getEmailLogs();
+    _refresh();
   }
 
-  void _reload() => setState(() => _future = widget.repository.getEmailLogs());
+  Future<void> _refresh() async {
+    final initial = _logs.isEmpty;
+    if (initial) setState(() => _loading = true);
+    try {
+      final page = await widget.repository.getEmailLogsPage(page: 1, perPage: _apiPageSize);
+      if (!mounted) return;
+      setState(() {
+        _logs = page.items;
+        _page = page.currentPage;
+        _hasMore = page.hasMore;
+        _total = page.total;
+        _loading = false;
+        _loadingMore = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _loadMore() async {
+    if (_loadingMore || !_hasMore || _loading) return;
+    setState(() => _loadingMore = true);
+    try {
+      final page = await widget.repository.getEmailLogsPage(page: _page + 1, perPage: _apiPageSize);
+      if (!mounted) return;
+      final seen = _logs.map((e) => e.id).toSet();
+      setState(() {
+        _logs = [..._logs, ...page.items.where((e) => !seen.contains(e.id))];
+        _page = page.currentPage;
+        _hasMore = page.hasMore;
+        _total = page.total;
+        _loadingMore = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loadingMore = false);
+    }
+  }
 
   Future<void> _sendBulk() async {
     final recipientsC = TextEditingController();
@@ -4274,12 +4467,12 @@ class _EmailLogTabState extends State<_EmailLogTab> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('$sent / ${recipients.length} e-posta gönderildi.')));
-    _reload();
+    _refresh();
   }
 
   Future<void> _retry(EmailLogEntry log) async {
     await widget.repository.retryEmail(log.id);
-    _reload();
+    _refresh();
   }
 
   @override
@@ -4290,46 +4483,98 @@ class _EmailLogTabState extends State<_EmailLogTab> {
         icon: const Icon(Icons.send_outlined),
         label: const Text('Toplu E-posta'),
       ),
-      body: FutureBuilder<List<EmailLogEntry>>(
-        future: _future,
-        builder: (context, snap) {
-          if (!snap.hasData) return const Center(child: CircularProgressIndicator());
-          final logs = snap.data!;
-          if (logs.isEmpty) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(32),
-                child: Text('Henüz gönderilmiş e-posta yok.',
-                    style: TextStyle(color: ArucadColors.muted)),
-              ),
-            );
-          }
-          return ListView.separated(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 90),
-            itemCount: logs.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 8),
-            itemBuilder: (context, i) {
-              final l = logs[i];
-              final ok = l.status == 'sent';
-              return Card(
-                child: ListTile(
-                  leading: Icon(ok ? Icons.check_circle_outline : Icons.error_outline,
-                      color: ok ? ArucadColors.success : ArucadColors.danger),
-                  title: Text(l.subject, maxLines: 1, overflow: TextOverflow.ellipsis),
-                  subtitle: Text(
-                      '${l.toEmail} · ${l.template}${l.error != null ? " · ${l.error}" : ""}',
-                      maxLines: 2, overflow: TextOverflow.ellipsis),
-                  trailing: ok
-                      ? null
-                      : IconButton(
-                          icon: const Icon(Icons.refresh, size: 20),
-                          onPressed: () => _retry(l),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _logs.isEmpty
+              ? const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(32),
+                    child: Text('Henüz gönderilmiş e-posta yok.',
+                        style: TextStyle(color: ArucadColors.muted)),
+                  ),
+                )
+              : RefreshIndicator(
+                  onRefresh: _refresh,
+                  child: ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 90),
+                    itemCount: _logs.length + 1,
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (context, i) {
+                      if (i == _logs.length) {
+                        return LoadMoreButton(
+                          shown: _logs.length,
+                          total: _total,
+                          itemLabel: 'kayıt',
+                          onTap: _hasMore && !_loadingMore ? _loadMore : () {},
+                        );
+                      }
+                      final l = _logs[i];
+                      final ok = l.status == 'sent';
+                      return Card(
+                        child: ListTile(
+                          leading: Icon(ok ? Icons.check_circle_outline : Icons.error_outline,
+                              color: ok ? ArucadColors.success : ArucadColors.danger),
+                          title: Text(l.subject, maxLines: 1, overflow: TextOverflow.ellipsis),
+                          subtitle: Text(
+                              '${l.toEmail} · ${l.template}${l.error != null ? " · ${l.error}" : ""}',
+                              maxLines: 2, overflow: TextOverflow.ellipsis),
+                          trailing: ok
+                              ? null
+                              : IconButton(
+                                  icon: const Icon(Icons.refresh, size: 20),
+                                  onPressed: () => _retry(l),
+                                ),
                         ),
+                      );
+                    },
+                  ),
                 ),
-              );
-            },
-          );
-        },
+    );
+  }
+}
+
+/// What a panel section shows when its data can't be loaded.
+///
+/// The common case is now a real one: the backend authorizes each admin
+/// section separately (`EnsurePermission`), so a role that can open the
+/// panel at all may still be refused a particular tab. Before this, every
+/// section treated "no data yet" and "the server said no" identically and
+/// spun forever, which reads as a broken app rather than as a boundary
+/// doing its job.
+class _AdminLoadError extends StatelessWidget {
+  final Object error;
+  const _AdminLoadError({required this.error});
+
+  @override
+  Widget build(BuildContext context) {
+    final e = error;
+    final denied = e is ApiClientException && e.statusCode == 403;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(denied ? Icons.lock_outline : Icons.error_outline,
+                size: 36, color: ArucadColors.muted),
+            const SizedBox(height: 12),
+            Text(
+              denied ? 'Bu bölüm için yetkin yok.' : 'Bu bölüm yüklenemedi.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              denied
+                  ? 'Erişim gerekiyorsa bir yöneticiden rolünü güncellemesini iste.'
+                  : e is ApiClientException
+                      ? e.message
+                      : '$e',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: ArucadColors.muted, fontSize: 13),
+            ),
+          ],
+        ),
       ),
     );
   }

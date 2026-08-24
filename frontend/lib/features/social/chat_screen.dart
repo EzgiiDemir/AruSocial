@@ -1,13 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
-import 'package:arucad_campus_prototype/core/services/chat_store.dart';
+import 'package:arucad_campus_prototype/core/models/campus_models.dart';
+import 'package:arucad_campus_prototype/core/models/chat_message.dart';
+import 'package:arucad_campus_prototype/core/services/chat_realtime_service.dart';
 import 'package:arucad_campus_prototype/core/services/contracts.dart';
 import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
 
-/// Message threads list — real, shared per-peer history in Rest mode (a
-/// real backend `ChatController`), still local-only in Mock mode. See the
-/// scope banner in [build] for the honest, mode-accurate disclaimer: even
-/// in Rest mode this is poll-based, not a live two-way socket connection.
+/// Message threads list — REST is still the history source of truth.
+/// Reverb delivers new rows while this screen is in the foreground.
 class ChatThreadsScreen extends StatefulWidget {
   final CampusRepository repository;
   final List<String> knownPeers;
@@ -17,17 +19,64 @@ class ChatThreadsScreen extends StatefulWidget {
   State<ChatThreadsScreen> createState() => _ChatThreadsScreenState();
 }
 
-class _ChatThreadsScreenState extends State<ChatThreadsScreen> {
+class _ChatThreadsScreenState extends State<ChatThreadsScreen> with WidgetsBindingObserver {
   late Future<List<String>> _threadsFuture;
+  ChatRealtimeService? _realtime;
+  StreamSubscription<ChatMessage>? _messageSub;
+  StreamSubscription<void>? _resyncSub;
+  CampusUser? _me;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _threadsFuture = widget.repository.getChatThreadPeers(widget.knownPeers);
+    unawaited(_bindRealtime());
   }
 
   void _reload() =>
       setState(() => _threadsFuture = widget.repository.getChatThreadPeers(widget.knownPeers));
+
+  Future<void> _bindRealtime() async {
+    try {
+      final me = await widget.repository.getMe();
+      if (!mounted) return;
+      _me = me;
+      final realtime = ChatRealtimeService.forRepository(widget.repository);
+      _realtime = realtime;
+      _messageSub = realtime.messages.listen((_) {
+        if (mounted) _reload();
+      });
+      _resyncSub = realtime.resynced.listen((_) {
+        if (mounted) _reload();
+      });
+      await realtime.start(userId: me.id, userName: me.name);
+    } catch (_) {
+      // Realtime is optional; REST list still loads.
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final me = _me;
+    final realtime = _realtime;
+    if (me == null || realtime == null) return;
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
+      unawaited(realtime.pause());
+    } else if (state == AppLifecycleState.resumed) {
+      unawaited(realtime.resume(userId: me.id, userName: me.name));
+      _reload();
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    unawaited(_messageSub?.cancel() ?? Future.value());
+    unawaited(_resyncSub?.cancel() ?? Future.value());
+    unawaited(_realtime?.dispose() ?? Future.value());
+    super.dispose();
+  }
 
   Future<void> _startNew() async {
     final peer = await showModalBottomSheet<String>(
@@ -61,7 +110,12 @@ class _ChatThreadsScreenState extends State<ChatThreadsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Mesajlar')),
+      appBar: AppBar(
+        title: const Text('Mesajlar'),
+        actions: [
+          IconButton(onPressed: _reload, icon: const Icon(Icons.refresh)),
+        ],
+      ),
       floatingActionButton: FloatingActionButton(
           heroTag: 'social-chat-new-fab',
           onPressed: _startNew,
@@ -72,9 +126,8 @@ class _ChatThreadsScreenState extends State<ChatThreadsScreen> {
           color: ArucadColors.mist,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           child: const Text(
-            'Mesajlar gerçek zamanlı değil — yeni mesaj görmek için sayfayı '
-            'yeniden aç. Canlı, anlık teslim için sunucu tarafında bir soket '
-            'bağlantısı gerekiyor ve bu prototipte henüz yok.',
+            'Yeni mesajlar anlık gelir. Bağlantı koparsa geçmiş REST ile yenilenir; '
+            'manuel yenileme yedek olarak duruyor.',
             style: TextStyle(color: ArucadColors.muted, fontSize: 11.5),
           ),
         ),
@@ -142,69 +195,185 @@ class ChatThreadScreen extends StatefulWidget {
   State<ChatThreadScreen> createState() => _ChatThreadScreenState();
 }
 
-class _ChatThreadScreenState extends State<ChatThreadScreen> {
-  late Future<List<ChatMessage>> _future;
+class _ChatThreadScreenState extends State<ChatThreadScreen> with WidgetsBindingObserver {
+  List<ChatMessage> _messages = const [];
+  bool _loading = true;
   final _controller = TextEditingController();
+  ChatRealtimeService? _realtime;
+  StreamSubscription<ChatMessage>? _messageSub;
+  StreamSubscription<void>? _resyncSub;
+  CampusUser? _me;
+  String? _conversationId;
 
   @override
   void initState() {
     super.initState();
-    _future = widget.repository.getChatMessages(widget.peer);
+    WidgetsBinding.instance.addObserver(this);
+    unawaited(_load());
+  }
+
+  Future<void> _load() async {
+    try {
+      final rows = await widget.repository.getChatMessages(widget.peer);
+      if (!mounted) return;
+      _conversationId = rows
+          .map((m) => m.conversationId)
+          .firstWhere((id) => id != null && id.isNotEmpty, orElse: () => _conversationId);
+      setState(() {
+        _messages = rows;
+        _loading = false;
+      });
+      await _ensureRealtime();
+      final conversationId = _conversationId;
+      if (conversationId != null) {
+        await _realtime?.watchConversation(conversationId);
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _ensureRealtime() async {
+    if (_realtime != null) return;
+    try {
+      final me = _me ?? await widget.repository.getMe();
+      if (!mounted) return;
+      _me = me;
+      final realtime = ChatRealtimeService.forRepository(widget.repository);
+      _realtime = realtime;
+      _messageSub = realtime.messages.listen(_onIncoming);
+      _resyncSub = realtime.resynced.listen((_) {
+        unawaited(_load());
+      });
+      await realtime.start(
+        userId: me.id,
+        userName: me.name,
+        conversationId: _conversationId,
+      );
+    } catch (_) {
+      // Socket optional — composer/send still go through REST.
+    }
+  }
+
+  void _onIncoming(ChatMessage incoming) {
+    if (!_isForThisThread(incoming)) return;
+    _conversationId ??= incoming.conversationId;
+    if (!mounted) return;
+    setState(() => _messages = ChatRealtimeService.upsert(_messages, incoming));
+  }
+
+  bool _isForThisThread(ChatMessage incoming) {
+    if (_conversationId != null &&
+        incoming.conversationId != null &&
+        incoming.conversationId == _conversationId) {
+      return true;
+    }
+    if (incoming.sender == widget.peer) return true;
+    return incoming.fromMe;
   }
 
   Future<void> _send() async {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
     _controller.clear();
-    await widget.repository.sendChatMessage(widget.peer, text);
-    setState(() => _future = widget.repository.getChatMessages(widget.peer));
+    final optimistic = ChatMessage(
+      id: 'tmp-${DateTime.now().microsecondsSinceEpoch}',
+      fromMe: true,
+      text: text,
+      sender: _me?.name,
+    );
+    setState(() => _messages = [..._messages, optimistic]);
+    try {
+      final saved = await widget.repository.sendChatMessage(widget.peer, text);
+      if (!mounted) return;
+      _conversationId ??= saved.conversationId;
+      setState(() => _messages = ChatRealtimeService.upsert(
+            _messages.where((m) => m.id != optimistic.id).toList(),
+            saved,
+          ));
+      final conversationId = saved.conversationId ?? _conversationId;
+      if (conversationId != null) {
+        await _realtime?.watchConversation(conversationId);
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _messages = _messages.where((m) => m.id != optimistic.id).toList());
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final me = _me;
+    final realtime = _realtime;
+    if (me == null || realtime == null) return;
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
+      unawaited(realtime.pause());
+    } else if (state == AppLifecycleState.resumed) {
+      unawaited(realtime.resume(
+        userId: me.id,
+        userName: me.name,
+        conversationId: _conversationId,
+      ));
+      unawaited(_load());
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _controller.dispose();
+    unawaited(_messageSub?.cancel() ?? Future.value());
+    unawaited(_resyncSub?.cancel() ?? Future.value());
+    unawaited(_realtime?.dispose() ?? Future.value());
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(widget.peer)),
+      appBar: AppBar(
+        title: Text(widget.peer),
+        actions: [
+          IconButton(onPressed: _load, icon: const Icon(Icons.refresh)),
+        ],
+      ),
       body: Column(children: [
         Expanded(
-          child: FutureBuilder<List<ChatMessage>>(
-            future: _future,
-            builder: (context, snap) {
-              if (!snap.hasData) return const Center(child: CircularProgressIndicator());
-              final messages = snap.data!;
-              if (messages.isEmpty) {
-                return const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Text('Henüz mesaj yok — ilk mesajı sen yaz.',
-                        style: TextStyle(color: ArucadColors.muted)),
-                  ),
-                );
-              }
-              return ListView.builder(
-                reverse: true,
-                padding: const EdgeInsets.all(16),
-                itemCount: messages.length,
-                itemBuilder: (context, i) {
-                  final m = messages[messages.length - 1 - i];
-                  return Align(
-                    alignment: m.fromMe ? Alignment.centerRight : Alignment.centerLeft,
-                    child: Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                      constraints: BoxConstraints(
-                          maxWidth: MediaQuery.of(context).size.width * 0.72),
-                      decoration: BoxDecoration(
-                        color: m.fromMe ? ArucadColors.primary : ArucadColors.mist,
-                        borderRadius: BorderRadius.circular(16),
+          child: _loading
+              ? const Center(child: CircularProgressIndicator())
+              : _messages.isEmpty
+                  ? const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Text('Henüz mesaj yok — ilk mesajı sen yaz.',
+                            style: TextStyle(color: ArucadColors.muted)),
                       ),
-                      child: Text(m.text,
-                          style: TextStyle(color: m.fromMe ? Colors.white : ArucadColors.ink)),
+                    )
+                  : ListView.builder(
+                      reverse: true,
+                      padding: const EdgeInsets.all(16),
+                      itemCount: _messages.length,
+                      itemBuilder: (context, i) {
+                        final m = _messages[_messages.length - 1 - i];
+                        return Align(
+                          alignment: m.fromMe ? Alignment.centerRight : Alignment.centerLeft,
+                          child: Container(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            constraints: BoxConstraints(
+                                maxWidth: MediaQuery.of(context).size.width * 0.72),
+                            decoration: BoxDecoration(
+                              color: m.fromMe ? ArucadColors.primary : ArucadColors.mist,
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Text(m.text,
+                                style: TextStyle(
+                                    color: m.fromMe ? Colors.white : ArucadColors.ink)),
+                          ),
+                        );
+                      },
                     ),
-                  );
-                },
-              );
-            },
-          ),
         ),
         SafeArea(
           child: Padding(

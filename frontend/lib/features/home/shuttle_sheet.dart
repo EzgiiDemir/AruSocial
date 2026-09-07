@@ -3,19 +3,22 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'package:arucad_campus_prototype/core/config/shuttle_config.dart';
+import 'package:arucad_campus_prototype/core/services/contracts.dart';
 import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
 
-Future<void> showShuttleSheet(BuildContext context) {
+Future<void> showShuttleSheet(BuildContext context,
+    {required CampusRepository repository}) {
   return showModalBottomSheet<void>(
     context: context,
     backgroundColor: Colors.transparent,
     isScrollControlled: true,
-    builder: (_) => const ShuttleSheet(),
+    builder: (_) => ShuttleSheet(repository: repository),
   );
 }
 
 class ShuttleSheet extends StatefulWidget {
-  const ShuttleSheet({super.key});
+  final CampusRepository repository;
+  const ShuttleSheet({super.key, required this.repository});
 
   @override
   State<ShuttleSheet> createState() => _ShuttleSheetState();
@@ -24,10 +27,12 @@ class ShuttleSheet extends StatefulWidget {
 class _ShuttleSheetState extends State<ShuttleSheet> {
   Timer? _ticker;
   String? _expanded;
+  late Future<List<ShuttleRoute>> _future;
 
   @override
   void initState() {
     super.initState();
+    _future = widget.repository.getShuttleRoutes();
     // Keep the countdowns fresh while the sheet is open.
     _ticker = Timer.periodic(const Duration(seconds: 30), (_) {
       if (mounted) setState(() {});
@@ -67,13 +72,37 @@ class _ShuttleSheetState extends State<ShuttleSheet> {
           ]),
           const SizedBox(height: 12),
           Flexible(
-            child: ListView.separated(
-              shrinkWrap: true,
-              itemCount: shuttleRoutes.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 10),
-              itemBuilder: (context, index) {
-                final route = shuttleRoutes[index];
-                final expanded = _expanded == route.id;
+            child: FutureBuilder<List<ShuttleRoute>>(
+              future: _future,
+              builder: (context, snap) {
+                if (snap.connectionState != ConnectionState.done) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                }
+                if (snap.hasError) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Text('Servis saatleri yüklenemedi.',
+                        style: TextStyle(color: ArucadColors.muted)),
+                  );
+                }
+                final routes = snap.data ?? const [];
+                if (routes.isEmpty) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Text('Henüz servis hattı eklenmedi.',
+                        style: TextStyle(color: ArucadColors.muted)),
+                  );
+                }
+                return ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: routes.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 10),
+                  itemBuilder: (context, index) {
+                    final route = routes[index];
+                    final expanded = _expanded == route.id;
                 final outbound = nextDeparture(route.departures, now);
                 final inbound = route.returns == null
                     ? null
@@ -145,6 +174,8 @@ class _ShuttleSheetState extends State<ShuttleSheet> {
                           ]),
                     ),
                   ),
+                );
+                  },
                 );
               },
             ),

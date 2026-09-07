@@ -6,6 +6,7 @@ use App\Models\RoleAssignment;
 use App\Models\User;
 use App\Services\FcmClient;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
+use Illuminate\Http\UploadedFile;
 use Laravel\Sanctum\Sanctum;
 use Tests\Fakes\FakeFcmClient;
 
@@ -74,6 +75,29 @@ abstract class TestCase extends BaseTestCase
         $this->app->instance(FcmClient::class, $fake);
 
         return $fake;
+    }
+
+    /**
+     * JPEG magic bytes without requiring the GD extension (Windows PHP often
+     * ships without it). Size check in MediaController runs before magic.
+     */
+    protected function fakeJpeg(string $name = 'shot.jpg'): UploadedFile
+    {
+        return UploadedFile::fake()->createWithContent(
+            $name,
+            "\xFF\xD8\xFF\xE0\x00\x10JFIF\x00".str_repeat('A', 64),
+        );
+    }
+
+    /** Coordinates matching CreatesPlaces / AchievementTest seed places. */
+    protected function checkinNear(string $placeId, float $lat = 35.337502, float $lng = 33.321226, bool $visible = true): array
+    {
+        return [
+            'placeId' => $placeId,
+            'latitude' => $lat,
+            'longitude' => $lng,
+            'visibleToOthers' => $visible,
+        ];
     }
 
     protected static function isIntegerColumnType(string $type): bool

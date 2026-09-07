@@ -71,6 +71,11 @@ class RoleController extends Controller
             );
         }
 
+        $existing = RoleAssignment::find($email);
+        if ($existing && $this->wouldRemoveLastSuperAdmin($existing, $role)) {
+            return $this->fail(409, 'LAST_SUPER_ADMIN', 'Son süper yönetici rolü kaldırılamaz.');
+        }
+
         $assignment = RoleAssignment::updateOrCreate(['email' => $email], $attributes);
         AuditLogger::logAsCurrentUser('role_change', 'user', "$email → $role");
 
@@ -80,11 +85,26 @@ class RoleController extends Controller
     public function destroy(Request $request, string $email): JsonResponse
     {
         $assignment = RoleAssignment::find($email);
+        if ($assignment && $this->wouldRemoveLastSuperAdmin($assignment, null)) {
+            return $this->fail(409, 'LAST_SUPER_ADMIN', 'Son süper yönetici rolü kaldırılamaz.');
+        }
         if ($assignment) {
             AuditLogger::logAsCurrentUser('delete', 'role_assignment', $email);
             $assignment->delete();
         }
 
         return $this->ok(['deleted' => true]);
+    }
+
+    private function wouldRemoveLastSuperAdmin(RoleAssignment $assignment, ?string $nextRole): bool
+    {
+        if ($assignment->role !== GranularPermissions::SUPER_ROLE) {
+            return false;
+        }
+        if ($nextRole === GranularPermissions::SUPER_ROLE) {
+            return false;
+        }
+
+        return RoleAssignment::where('role', GranularPermissions::SUPER_ROLE)->count() <= 1;
     }
 }

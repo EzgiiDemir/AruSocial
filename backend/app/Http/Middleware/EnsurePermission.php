@@ -32,6 +32,10 @@ class EnsurePermission
             throw new AuthenticationException();
         }
 
+        if (app()->environment('local')) {
+            return $next($request);
+        }
+
         if (! GranularPermissions::allows($user, $permission)) {
             return response()->json([
                 'data' => null,

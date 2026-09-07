@@ -1,4 +1,5 @@
 import '../models/campus_models.dart';
+import 'media_url.dart';
 
 class CampusUserDto {
   CampusUserDto({
@@ -12,6 +13,14 @@ class CampusUserDto {
     required this.memories,
     required this.interests,
     this.avatarUrl,
+    this.department,
+    this.year,
+    this.university,
+    this.clubs = const [],
+    this.achievements = const [],
+    this.projects = const [],
+    this.isPrivateProfile = false,
+    this.isLocked = false,
   });
 
   final String id;
@@ -24,6 +33,14 @@ class CampusUserDto {
   final int memories;
   final List<String> interests;
   final String? avatarUrl;
+  final String? department;
+  final String? year;
+  final String? university;
+  final List<String> clubs;
+  final List<String> achievements;
+  final List<String> projects;
+  final bool isPrivateProfile;
+  final bool isLocked;
 
   factory CampusUserDto.fromJson(Map<String, dynamic> json) {
     return CampusUserDto(
@@ -36,7 +53,15 @@ class CampusUserDto {
       events: json['events'] as int,
       memories: json['memories'] as int,
       interests: (json['interests'] as List<dynamic>).cast<String>(),
-      avatarUrl: json['avatarUrl'] as String?,
+      avatarUrl: MediaUrl.resolve(json['avatarUrl'] as String?),
+      isPrivateProfile: json['isPrivateProfile'] as bool? ?? false,
+      isLocked: json['isLocked'] as bool? ?? false,
+      department: json['department'] as String?,
+      year: json['year'] as String?,
+      university: json['university'] as String?,
+      clubs: (json['clubs'] as List<dynamic>?)?.cast<String>() ?? const [],
+      achievements: (json['achievements'] as List<dynamic>?)?.cast<String>() ?? const [],
+      projects: (json['projects'] as List<dynamic>?)?.cast<String>() ?? const [],
     );
   }
 
@@ -52,6 +77,14 @@ class CampusUserDto {
       memories: memories,
       interests: interests,
       avatarUrl: avatarUrl,
+      department: department,
+      year: year,
+      university: university,
+      clubs: clubs,
+      achievements: achievements,
+      projects: projects,
+      isPrivateProfile: isPrivateProfile,
+      isLocked: isLocked,
     );
   }
 }
@@ -68,9 +101,13 @@ class CampusPlaceDto {
     required this.density,
     required this.street,
     required this.tourUrl,
+    this.tourTarget,
     required this.accessible,
     required this.photos,
     required this.rating,
+    this.coverUrl,
+    this.recentCheckins = 0,
+    this.recentCheckinEntries = const [],
   });
 
   final String id;
@@ -83,9 +120,13 @@ class CampusPlaceDto {
   final String density;
   final String street;
   final String? tourUrl;
+  final String? tourTarget;
   final bool accessible;
   final int photos;
   final double rating;
+  final String? coverUrl;
+  final int recentCheckins;
+  final List<CampusCheckinEntry> recentCheckinEntries;
 
   factory CampusPlaceDto.fromJson(Map<String, dynamic> json) {
     return CampusPlaceDto(
@@ -99,9 +140,16 @@ class CampusPlaceDto {
       density: json['density'] as String,
       street: json['street'] as String,
       tourUrl: json['tourUrl'] as String?,
+      tourTarget: json['tourTarget'] as String?,
       accessible: json['accessible'] as bool,
       photos: json['photos'] as int,
       rating: (json['rating'] as num).toDouble(),
+      coverUrl: json['coverUrl'] as String?,
+      recentCheckins: (json['recentCheckins'] as num?)?.toInt() ?? 0,
+      recentCheckinEntries: (json['recentCheckinEntries'] as List<dynamic>?)
+              ?.map((e) => CampusCheckinEntry.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const [],
     );
   }
 
@@ -117,9 +165,13 @@ class CampusPlaceDto {
       density: density,
       street: street,
       tourUrl: tourUrl,
+      tourTarget: tourTarget,
       accessible: accessible,
       photos: photos,
       rating: rating,
+      coverUrl: coverUrl,
+      recentCheckins: recentCheckins,
+      recentCheckinEntries: recentCheckinEntries,
     );
   }
 }

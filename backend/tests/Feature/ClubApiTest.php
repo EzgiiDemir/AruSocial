@@ -21,7 +21,7 @@ class ClubApiTest extends TestCase
     public function test_admin_can_create_and_delete_a_club(): void
     {
         $create = $this->postJson('/api/v1/admin/clubs', [
-            'id' => 'club-1', 'name' => 'Test Club', 'category' => 'Sanat',
+            'id' => 'club-1', 'name' => 'Test Club', 'category' => 'Art',
         ]);
         $create->assertOk();
         $this->assertDatabaseHas('clubs', ['id' => 'club-1', 'name' => 'Test Club']);
@@ -42,9 +42,9 @@ class ClubApiTest extends TestCase
 
     public function test_every_admin_write_is_recorded_in_the_audit_log(): void
     {
-        Club::create(['id' => 'club-1', 'name' => 'Existing', 'category' => 'Sanat']);
+        Club::create(['id' => 'club-1', 'name' => 'Existing', 'category' => 'Art']);
 
-        $this->postJson('/api/v1/admin/clubs', ['id' => 'club-1', 'name' => 'Renamed', 'category' => 'Sanat']);
+        $this->postJson('/api/v1/admin/clubs', ['id' => 'club-1', 'name' => 'Renamed', 'category' => 'Art']);
 
         $this->assertDatabaseHas('admin_audit_log', ['target_type' => 'club', 'action' => 'update']);
     }

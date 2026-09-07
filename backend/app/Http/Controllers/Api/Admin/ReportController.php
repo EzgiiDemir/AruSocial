@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Api\Concerns\ApiResponds;
 use App\Http\Controllers\Controller;
+use App\Models\FeedPost;
 use App\Models\ModerationReport;
+use App\Models\Review;
 use App\Services\AuditLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -37,6 +39,28 @@ class ReportController extends Controller
         $report->save();
         AuditLogger::logAsCurrentUser('moderation', $report->kind, $report->target_label.' → '.$report->action);
 
+        // "Removed" used to only flip this report's own status — the
+        // reported post itself stayed live, so a moderator's decision had
+        // no real effect a student would ever see. Now it actually takes
+        // the post down.
+        if ($report->action === 'removed' && $report->kind === 'post') {
+            FeedPost::where('id', $report->target_id)->delete();
+        }
+
         return $this->ok(['resolved' => true]);
+    }
+
+    // Reviews have no report queue of their own (low volume — the
+    // ceremony of a full ModerationReport row isn't worth it) — a
+    // moderator removing one is a direct action instead.
+    public function destroyReview(string $id): JsonResponse
+    {
+        $review = Review::find($id);
+        if ($review) {
+            AuditLogger::logAsCurrentUser('moderation', 'review', "Yorum silindi: {$review->id}");
+            $review->delete();
+        }
+
+        return $this->ok(['deleted' => true]);
     }
 }

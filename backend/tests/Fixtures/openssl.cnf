@@ -1,0 +1,11 @@
+HOME = .
+RANDFILE = $ENV::HOME/.rnd
+
+[ req ]
+distinguished_name = req_distinguished_name
+default_bits = 2048
+default_md = sha256
+prompt = no
+
+[ req_distinguished_name ]
+CN = entra-test

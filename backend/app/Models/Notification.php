@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 // Named to match the real in-app notification inbox concept — not to be
 // confused with Illuminate\Notifications\Notification (Laravel's queued
@@ -14,11 +15,20 @@ class Notification extends Model
     protected $keyType = 'string';
     public $timestamps = false;
 
-    protected $fillable = ['id', 'user_id', 'actor_user_id', 'kind', 'title', 'body', 'read_at', 'created_at'];
+    protected $fillable = ['id', 'user_id', 'actor_user_id', 'kind', 'title', 'body', 'data', 'read_at', 'created_at'];
 
     protected function casts(): array
     {
-        return ['read_at' => 'datetime', 'created_at' => 'datetime'];
+        return [
+            'data' => 'array',
+            'read_at' => 'datetime',
+            'created_at' => 'datetime',
+        ];
+    }
+
+    public function actor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'actor_user_id');
     }
 
     // Recipient is who should see it; actor is who did the thing. Names
@@ -40,6 +50,7 @@ class Notification extends Model
             'kind' => $kind,
             'title' => $title,
             'body' => $body,
+            'data' => $data === [] ? null : $data,
             'created_at' => now(),
         ]);
 

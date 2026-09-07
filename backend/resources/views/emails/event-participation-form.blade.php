@@ -4,7 +4,7 @@
   <h2>Katılım formu</h2>
   <p><strong>{{ $event->title }}</strong> etkinliğine katılımını tamamlamak için son bir adım kaldı.</p>
   @if($formUrl)
-    <p><a href="{{ $formUrl }}" style="background:#2B4C7E; color:white; padding:10px 18px; border-radius:8px; text-decoration:none;">Formu Doldur</a></p>
+    <p><a href="{{ $formUrl }}" style="background:#000F9F; color:white; padding:10px 18px; border-radius:8px; text-decoration:none;">Formu Doldur</a></p>
   @else
     <p>Bu etkinlik için henüz bir form bağlanmamış — uygulama içinden katılımını doğrudan onaylayabilirsin.</p>
   @endif

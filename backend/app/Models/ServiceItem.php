@@ -14,6 +14,7 @@ class ServiceItem extends Model
     protected $fillable = [
         'id', 'title', 'category', 'description', 'contact', 'building',
         'floor', 'room', 'contact_person', 'topics', 'hours', 'body',
+        'responsible_staff_id',
     ];
 
     protected function casts(): array

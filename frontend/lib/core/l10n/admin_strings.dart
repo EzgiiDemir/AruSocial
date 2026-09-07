@@ -1,13 +1,23 @@
 import 'package:flutter/widgets.dart';
 
-/// The admin panel's own language — deliberately separate from the main
-/// app's [AppLanguage]/[AppStrings] (see `app_strings.dart`): the admin
-/// panel is used independently of a student session and only needs
-/// Turkish/English, not the app's TR/EN/RU set.
-enum AdminLanguage { tr, en }
+part 'admin_strings_ru.dart';
 
-AdminLanguage adminLanguageFromCode(String code) =>
-    code.toUpperCase() == 'EN' ? AdminLanguage.en : AdminLanguage.tr;
+/// Staff-facing panels (admin + trainer) use the same TR / EN / RU set as
+/// the student app, persisted separately so a student session does not
+/// overwrite CMS language.
+enum AdminLanguage { tr, en, ru }
+
+AdminLanguage adminLanguageFromCode(String code) => switch (code.toUpperCase()) {
+      'EN' => AdminLanguage.en,
+      'RU' => AdminLanguage.ru,
+      _ => AdminLanguage.tr,
+    };
+
+String adminLanguageCode(AdminLanguage language) => switch (language) {
+      AdminLanguage.en => 'EN',
+      AdminLanguage.ru => 'RU',
+      AdminLanguage.tr => 'TR',
+    };
 
 /// Small, hand-maintained translation table for the CMS-style admin panel
 /// (`AdminPanelScreen` and everything under it): sidebar/top bar chrome,
@@ -37,7 +47,15 @@ class AdminStrings {
     'admin_nav_users': {AdminLanguage.tr: 'Kullanıcılar & Roller', AdminLanguage.en: 'Users & Roles'},
     'admin_nav_moderation': {AdminLanguage.tr: 'Moderasyon', AdminLanguage.en: 'Moderation'},
     'admin_nav_activity_log': {AdminLanguage.tr: 'Aktivite Günlüğü', AdminLanguage.en: 'Activity Log'},
-    'admin_nav_site_settings': {AdminLanguage.tr: 'Site Ayarları', AdminLanguage.en: 'Site Settings'},
+    'admin_nav_site_settings': {AdminLanguage.tr: 'Entegrasyonlar', AdminLanguage.en: 'Integrations'},
+    'admin_nav_applications': {AdminLanguage.tr: 'Başvurular', AdminLanguage.en: 'Applications'},
+    'admin_nav_places': {AdminLanguage.tr: 'Mekânlar', AdminLanguage.en: 'Places'},
+    'admin_nav_shuttle': {AdminLanguage.tr: 'Servis Hatları', AdminLanguage.en: 'Shuttle Routes'},
+    'admin_nav_onboarding': {AdminLanguage.tr: 'İlk 30 Gün', AdminLanguage.en: 'First 30 Days'},
+    'admin_nav_career': {AdminLanguage.tr: 'Kariyer', AdminLanguage.en: 'Career'},
+    'admin_nav_staff': {AdminLanguage.tr: 'Personel / Randevu', AdminLanguage.en: 'Staff / Appointments'},
+    'admin_nav_achievements': {AdminLanguage.tr: 'Başarımlar', AdminLanguage.en: 'Achievements'},
+    'admin_nav_system_health': {AdminLanguage.tr: 'Sistem Sağlığı', AdminLanguage.en: 'System Health'},
     'admin_section_platforms': {AdminLanguage.tr: 'PLATFORMLAR', AdminLanguage.en: 'PLATFORMS'},
     'admin_section_content': {AdminLanguage.tr: 'İÇERİK', AdminLanguage.en: 'CONTENT'},
     'admin_section_media': {AdminLanguage.tr: 'MEDYA', AdminLanguage.en: 'MEDIA'},
@@ -290,12 +308,10 @@ class AdminStrings {
     // Misc chrome scattered across list tabs
     'admin_empty_events': {AdminLanguage.tr: 'Henüz etkinlik yok', AdminLanguage.en: 'No events yet'},
     'admin_role_local_note': {
-      AdminLanguage.tr: 'Bu atamalar gerçek kaydediliyor, ama henüz hiçbir API isteğini bu role '
-          'göre reddetmiyor — gerçek Entra grup/rol eşlemesi ve yetki zorlaması henüz yok '
-          '(bkz. docs/EKSIKLER.md §1, §11). ezgi.demir@arucad.edu.tr her zaman Yönetici olarak kalır.',
-      AdminLanguage.en: 'Assignments here are saved for real, but no API request is rejected based on '
-          'role yet — real Entra group/role mapping and access enforcement don\'t exist yet '
-          '(see docs/EKSIKLER.md §1, §11). ezgi.demir@arucad.edu.tr always stays Admin.'
+      AdminLanguage.tr: 'Rol atamaları sunucuda kaydedilir ve her yönetim isteğinde yetki olarak uygulanır. '
+          'Kurumsal Entra grup eşlemesi etkinleştirildiğinde aynı yetkiler ilgili gruplarla eşlenir.',
+      AdminLanguage.en: 'Role assignments are stored on the server and enforced on every management request. '
+          'When institutional Entra group mapping is enabled, the same permissions can be mapped to those groups.'
     },
     'admin_role_none_yet': {AdminLanguage.tr: 'Henüz özel rol ataması yok.', AdminLanguage.en: 'No custom role assignments yet.'},
     'admin_role_assigned_by': {AdminLanguage.tr: '{role} · {name} atadı', AdminLanguage.en: '{role} · assigned by {name}'},
@@ -427,9 +443,72 @@ class AdminStrings {
       AdminLanguage.tr: 'Kaydedildi. Bundan sonra yüklenen post/story fotoğrafları gerçekten bu API ile taranacak.',
       AdminLanguage.en: 'Saved. Post/story photos uploaded from now on will genuinely be scanned with this API.'
     },
+
+    // Trainer panel chrome (same language enum as admin)
+    'trainer_nav_dashboard': {AdminLanguage.tr: 'Genel Bakış', AdminLanguage.en: 'Overview'},
+    'trainer_nav_events': {AdminLanguage.tr: 'Etkinlikler', AdminLanguage.en: 'Events'},
+    'trainer_nav_applications': {AdminLanguage.tr: 'Başvurular', AdminLanguage.en: 'Applications'},
+    'trainer_nav_campus_ops': {AdminLanguage.tr: 'Kariyer / Randevu', AdminLanguage.en: 'Career / Appointments'},
+    'trainer_nav_roster': {AdminLanguage.tr: 'Ekip', AdminLanguage.en: 'Team'},
+    'trainer_nav_department': {AdminLanguage.tr: 'Bölümüm', AdminLanguage.en: 'My Department'},
+    'trainer_section_dept': {AdminLanguage.tr: 'BÖLÜM YÖNETİMİ', AdminLanguage.en: 'DEPARTMENT'},
+    'trainer_section_account': {AdminLanguage.tr: 'HESABIM', AdminLanguage.en: 'ACCOUNT'},
+    'trainer_role_chip': {AdminLanguage.tr: 'Trainer', AdminLanguage.en: 'Trainer'},
+    'trainer_dash_summary': {AdminLanguage.tr: 'Bölüm Özeti', AdminLanguage.en: 'Department Summary'},
+    'trainer_dash_my_events': {AdminLanguage.tr: 'Etkinliklerim', AdminLanguage.en: 'My Events'},
+    'trainer_dash_pending_apps': {AdminLanguage.tr: 'Bekleyen başvurular', AdminLanguage.en: 'Pending applications'},
+    'trainer_dash_team': {AdminLanguage.tr: 'Bölüm ekibi', AdminLanguage.en: 'Department team'},
+    'trainer_dash_upcoming': {AdminLanguage.tr: 'Yaklaşan etkinlik', AdminLanguage.en: 'Upcoming events'},
+    'trainer_dash_quick': {AdminLanguage.tr: 'Hızlı İşlemler', AdminLanguage.en: 'Quick Actions'},
+    'trainer_dash_add_event': {AdminLanguage.tr: 'Etkinlik Ekle', AdminLanguage.en: 'Add Event'},
+    'trainer_dash_review_apps': {AdminLanguage.tr: 'Başvuruları İncele', AdminLanguage.en: 'Review Applications'},
+    'trainer_dash_view_team': {AdminLanguage.tr: 'Ekibi Görüntüle', AdminLanguage.en: 'View Team'},
+    'trainer_dash_upcoming_list': {AdminLanguage.tr: 'Yaklaşan Etkinliklerim', AdminLanguage.en: 'My Upcoming Events'},
+    'trainer_load_failed': {AdminLanguage.tr: 'Yüklenemedi', AdminLanguage.en: 'Could not load'},
+    'trainer_publish': {AdminLanguage.tr: 'Yayınla', AdminLanguage.en: 'Publish'},
+    'trainer_delete_event': {AdminLanguage.tr: 'Etkinlik silinsin mi?', AdminLanguage.en: 'Delete this event?'},
+    'trainer_delete': {AdminLanguage.tr: 'Sil', AdminLanguage.en: 'Delete'},
+    'trainer_attendance': {AdminLanguage.tr: 'Katılımcılar / Yoklama', AdminLanguage.en: 'Attendees / Attendance'},
+    'trainer_form_pending': {AdminLanguage.tr: 'Form bekleniyor', AdminLanguage.en: 'Form pending'},
+    'trainer_approve': {AdminLanguage.tr: 'Onayla', AdminLanguage.en: 'Approve'},
+    'trainer_reject': {AdminLanguage.tr: 'Reddet', AdminLanguage.en: 'Reject'},
+    'trainer_revision': {AdminLanguage.tr: 'Revizyon iste', AdminLanguage.en: 'Request revision'},
+    'trainer_apps_title': {AdminLanguage.tr: 'Bölüm başvuruları', AdminLanguage.en: 'Department applications'},
+    'trainer_apps_sub': {
+      AdminLanguage.tr: 'Bölümüne yapılan başvurular — onayla, reddet ya da revizyon iste.',
+      AdminLanguage.en: 'Applications to your department — approve, reject, or request a revision.',
+    },
+    'trainer_roster_title': {AdminLanguage.tr: 'Bölüm ekibi', AdminLanguage.en: 'Department team'},
+    'trainer_roster_sub': {
+      AdminLanguage.tr: 'Aynı bölümdeki aktif personel — salt okunur.',
+      AdminLanguage.en: 'Active staff in the same department — read only.',
+    },
+    'trainer_dept_title': {AdminLanguage.tr: 'Bölümüm', AdminLanguage.en: 'My Department'},
+    'trainer_dept_sub': {
+      AdminLanguage.tr: 'Bu hesabın gerçek kapsamı — ARUCAD akademik yapısından.',
+      AdminLanguage.en: 'This account’s real scope — from ARUCAD’s academic structure.',
+    },
+    'trainer_permissions': {AdminLanguage.tr: 'Yetkilerim', AdminLanguage.en: 'My permissions'},
+    'trainer_tab_career': {AdminLanguage.tr: 'Kariyer', AdminLanguage.en: 'Career'},
+    'trainer_tab_consult': {AdminLanguage.tr: 'Danışmanlık', AdminLanguage.en: 'Consultation'},
+    'trainer_tab_appointments': {AdminLanguage.tr: 'Randevular', AdminLanguage.en: 'Appointments'},
+    'trainer_empty_career': {AdminLanguage.tr: 'Kariyer başvurusu yok.', AdminLanguage.en: 'No career applications.'},
+    'trainer_empty_consult': {AdminLanguage.tr: 'Danışmanlık başvurusu yok.', AdminLanguage.en: 'No consultation applications.'},
+    'trainer_empty_appt': {AdminLanguage.tr: 'Randevu yok.', AdminLanguage.en: 'No appointments.'},
+    'trainer_student': {AdminLanguage.tr: 'Öğrenci', AdminLanguage.en: 'Student'},
+    'trainer_complete': {AdminLanguage.tr: 'Tamamlandı', AdminLanguage.en: 'Completed'},
+    'trainer_cancel': {AdminLanguage.tr: 'İptal', AdminLanguage.en: 'Cancel'},
   };
 
-  String t(String key) => _table[key]?[language] ?? key;
+  String t(String key) {
+    if (language == AdminLanguage.ru) {
+      final ru = _adminRu[key];
+      if (ru != null) return ru;
+    }
+    final row = _table[key];
+    if (row == null) return key;
+    return row[language] ?? row[AdminLanguage.en] ?? row[AdminLanguage.tr] ?? key;
+  }
 }
 
 class AdminLocale extends InheritedWidget {

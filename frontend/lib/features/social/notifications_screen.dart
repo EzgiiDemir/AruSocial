@@ -6,14 +6,13 @@ import 'package:arucad_campus_prototype/core/models/inbox_notification.dart';
 import 'package:arucad_campus_prototype/core/models/page_slice.dart';
 import 'package:arucad_campus_prototype/core/services/contracts.dart';
 import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
+import 'package:arucad_campus_prototype/features/profile/my_applications_screen.dart';
+import 'package:arucad_campus_prototype/features/social/chat_screen.dart';
+import 'package:arucad_campus_prototype/features/social/post_detail_screen.dart';
+import 'package:arucad_campus_prototype/features/social/social_profile_screen.dart';
+import 'package:arucad_campus_prototype/features/widgets/campus_back_button.dart';
+import 'package:arucad_campus_prototype/features/widgets/campus_widgets.dart';
 
-/// Real notifications built entirely from data that genuinely exists.
-/// Official ARUCAD announcements landing in the feed and the student's own
-/// logged activity are always included; in Rest mode, real backend-
-/// delivered notifications (e.g. a genuine follow event — see
-/// `SocialGraphController`) are merged in too. Mock mode never has any of
-/// those, since there's no other real user in a single-device prototype to
-/// have actually generated one.
 class NotificationsScreen extends StatefulWidget {
   final CampusRepository repository;
   const NotificationsScreen({super.key, required this.repository});
@@ -26,70 +25,92 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   static const _apiPageSize = 20;
 
   List<InboxNotification> _inbox = const [];
-  List<FeedPost> _official = const [];
+  List<FollowRequestPeer> _requests = const [];
+  List<FeedPost> _feed = const [];
   List<ActivityItem> _activity = const [];
   bool _loading = true;
   bool _loadingMore = false;
   bool _inboxHasMore = false;
   int _inboxPage = 0;
+  String _query = '';
+  int _visible = kPageSize;
+  final _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    // Real, backend-tracked read state — opening this screen is the one
-    // real "the student has now seen these" signal available.
     widget.repository.markAllNotificationsRead();
     _refresh();
   }
 
-  List<_NotificationItem> get _items => [
-        for (final n in _inbox)
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  List<_NotificationItem> get _items {
+    final q = _query.trim().toLowerCase();
+    bool matches(String a, String b) =>
+        q.isEmpty ||
+        a.toLowerCase().contains(q) ||
+        b.toLowerCase().contains(q);
+
+    final items = <_NotificationItem>[
+      for (final n in _inbox)
+        if (matches(n.title, n.body))
           _NotificationItem(
             icon: _inboxIcon(n.kind),
-            color: ArucadColors.success,
+            color: n.kind == 'follow_request'
+                ? ArucadColors.yellow
+                : ArucadColors.success,
             title: n.title,
             subtitle: n.body,
             meta: n.createdAt == null ? '' : _relativeMeta(n.createdAt!),
             read: n.read,
+            kind: n.kind,
+            actorName: n.actorName,
+            actorAvatarUrl: n.actorAvatarUrl,
+            onTap: () => _openInbox(n),
           ),
-        for (final post in _official)
-          _NotificationItem(
-            icon: Icons.campaign_outlined,
-            color: ArucadColors.primary,
-            announcementAuthor: post.name,
-            subtitle: post.text,
-            meta: post.meta,
-          ),
-        for (final a in _activity)
+      for (final a in _activity)
+        if (matches(a.title, a.subtitle))
           _NotificationItem(
             icon: _activityIcon(a.kind),
             color: ArucadColors.blue,
             title: a.title,
             subtitle: a.subtitle,
             meta: a.meta,
+            kind: 'activity_${a.kind.name}',
+            onTap: () => _openActivity(a),
           ),
-      ];
+    ];
+    return items;
+  }
 
   Future<void> _refresh() async {
-    final initial = _inbox.isEmpty && _official.isEmpty && _activity.isEmpty;
+    final initial = _inbox.isEmpty && _activity.isEmpty;
     if (initial) setState(() => _loading = true);
     try {
       final results = await Future.wait([
-        widget.repository.getInboxNotificationsPage(page: 1, perPage: _apiPageSize),
+        widget.repository
+            .getInboxNotificationsPage(page: 1, perPage: _apiPageSize),
         widget.repository.getFeed(),
         widget.repository.getMyActivity(),
+        widget.repository.getFollowRequests(),
       ]);
       if (!mounted) return;
       final inboxPage = results[0] as PageSlice<InboxNotification>;
-      final feed = results[1] as List<FeedPost>;
       setState(() {
         _inbox = inboxPage.items;
         _inboxPage = inboxPage.currentPage;
         _inboxHasMore = inboxPage.hasMore;
-        _official = feed.where((p) => p.official).toList();
+        _feed = results[1] as List<FeedPost>;
         _activity = results[2] as List<ActivityItem>;
+        _requests = results[3] as List<FollowRequestPeer>;
         _loading = false;
         _loadingMore = false;
+        _visible = kPageSize;
       });
     } catch (_) {
       if (mounted) setState(() => _loading = false);
@@ -116,10 +137,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   IconData _inboxIcon(String kind) => switch (kind) {
-        'follow' => Icons.person_add_alt_1_outlined,
+        'follow' || 'follow_request' => Icons.person_add_alt_1_outlined,
         'like' => Icons.favorite_outline,
         'comment' => Icons.mode_comment_outlined,
         'message' => Icons.chat_bubble_outline,
+        'application_status' ||
+        'application_received' ||
+        'application_approved' ||
+        'application_rejected' =>
+          Icons.assignment_turned_in_outlined,
         _ => Icons.notifications_outlined,
       };
 
@@ -140,20 +166,134 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         ActivityKind.report => Icons.flag_outlined,
       };
 
+  Future<void> _openInbox(InboxNotification n) async {
+    final dataActor = n.data?['actorName']?.toString();
+    final actor = (dataActor != null && dataActor.isNotEmpty)
+        ? dataActor
+        : n.actorName;
+    final postId = n.data?['postId']?.toString();
+    if (postId != null && postId.isNotEmpty) {
+      FeedPost? post;
+      for (final p in _feed) {
+        if (p.id == postId) {
+          post = p;
+          break;
+        }
+      }
+      if (post != null) {
+        await Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) =>
+                PostDetailScreen(post: post!, repository: widget.repository)));
+        return;
+      }
+    }
+    if ((n.kind == 'follow' || n.kind == 'follow_request') &&
+        actor != null &&
+        actor.isNotEmpty) {
+      await Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => SocialProfileScreen(
+              repository: widget.repository, viewedUserName: actor)));
+      return;
+    }
+    if (n.kind == 'message' && actor != null) {
+      await Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => ChatThreadScreen(
+              repository: widget.repository, peer: actor)));
+      return;
+    }
+    if (n.kind == 'like' || n.kind == 'comment') {
+      final post = _findPostForActor(actor);
+      if (post != null) {
+        await Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) =>
+                PostDetailScreen(post: post, repository: widget.repository)));
+        return;
+      }
+    }
+    if (n.kind.contains('application')) {
+      await Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) =>
+              MyApplicationsScreen(repository: widget.repository)));
+      return;
+    }
+    if (actor != null && actor.isNotEmpty) {
+      await Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => SocialProfileScreen(
+              repository: widget.repository, viewedUserName: actor)));
+    }
+  }
+
+  FeedPost? _findPostForActor(String? actor) {
+    if (actor == null) return null;
+    for (final p in _feed) {
+      if (p.name == actor) return p;
+    }
+    return null;
+  }
+
+  Future<void> _openActivity(ActivityItem a) async {
+    if (a.kind == ActivityKind.like || a.kind == ActivityKind.comment) {
+      // Best effort: open first matching own post text
+      for (final p in _feed) {
+        if (a.title.toLowerCase().contains(p.text.toLowerCase().split(' ').first) ||
+            p.text.toLowerCase().contains(a.subtitle.toLowerCase())) {
+          await Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) =>
+                  PostDetailScreen(post: p, repository: widget.repository)));
+          return;
+        }
+      }
+    }
+    await Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => MyApplicationsScreen(repository: widget.repository)));
+  }
+
+  Future<void> _accept(FollowRequestPeer peer) async {
+    await widget.repository.acceptFollowRequest(peer.name);
+    if (!mounted) return;
+    setState(() => _requests = _requests.where((r) => r.id != peer.id).toList());
+  }
+
+  Future<void> _decline(FollowRequestPeer peer) async {
+    await widget.repository.declineFollowRequest(peer.name);
+    if (!mounted) return;
+    setState(() => _requests = _requests.where((r) => r.id != peer.id).toList());
+  }
+
   @override
   Widget build(BuildContext context) {
     final strings = AppLocale.of(context);
     final items = _items;
+    final shown = _visible.clamp(0, items.length);
+    final page = items.take(shown).toList();
+
     return Scaffold(
-      appBar: AppBar(title: Text(strings.t('notif_title'))),
+      appBar:
+          AppBar(title: Text(strings.t('notif_title')), leading: const CampusBackButton()),
       body: Column(children: [
-        Container(
-          width: double.infinity,
-          color: ArucadColors.mist,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          child: Text(
-            strings.t('notif_scope_banner'),
-            style: const TextStyle(color: ArucadColors.muted, fontSize: 11.5),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          child: TextField(
+            controller: _searchController,
+            onChanged: (v) => setState(() {
+              _query = v;
+              _visible = kPageSize;
+            }),
+            decoration: InputDecoration(
+              hintText: 'Bildirim ara',
+              prefixIcon: const Icon(Icons.search_rounded),
+              filled: true,
+              fillColor: ArucadColors.paper,
+              isDense: true,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide.none,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide.none,
+              ),
+            ),
           ),
         ),
         Expanded(
@@ -161,56 +301,104 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               ? const Center(child: CircularProgressIndicator())
               : RefreshIndicator(
                   onRefresh: _refresh,
-                  child: items.isEmpty
-                      ? ListView(children: [
-                          const SizedBox(height: 120),
-                          Center(
-                              child: Text(strings.t('notif_empty'),
-                                  style: const TextStyle(color: ArucadColors.muted))),
-                        ])
-                      : ListView.separated(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          itemCount: items.length + (_inboxHasMore ? 1 : 0),
-                          separatorBuilder: (_, __) => const Divider(height: 1),
-                          itemBuilder: (context, i) {
-                            if (i == items.length) {
-                              return Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                                child: Center(
-                                  child: _loadingMore
-                                      ? const SizedBox(
-                                          width: 24,
-                                          height: 24,
-                                          child: CircularProgressIndicator(strokeWidth: 2))
-                                      : TextButton(
-                                          onPressed: _loadMoreInbox,
-                                          child: Text(strings.t('social_load_more')),
-                                        ),
-                                ),
-                              );
-                            }
-                            final item = items[i];
-                            final title = item.announcementAuthor != null
-                                ? strings
-                                    .t('notif_new_announcement')
-                                    .replaceAll('{name}', item.announcementAuthor!)
-                                : item.title!;
-                            return ListTile(
-                              leading: CircleAvatar(
-                                  backgroundColor: item.color.withValues(alpha: .14),
-                                  child: Icon(item.icon, color: item.color, size: 20)),
-                              title: Text(title,
-                                  style: TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 13.5,
-                                      color: item.read == false ? null : ArucadColors.ink)),
-                              subtitle: Text(item.subtitle,
-                                  maxLines: 2, overflow: TextOverflow.ellipsis),
-                              trailing: Text(item.meta,
-                                  style: const TextStyle(color: ArucadColors.muted, fontSize: 11)),
-                            );
-                          },
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(0, 0, 0, 24),
+                    children: [
+                      if (_requests.isNotEmpty) ...[
+                        const Padding(
+                          padding: EdgeInsets.fromLTRB(16, 8, 16, 8),
+                          child: Text('Takip istekleri',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.w900, fontSize: 15)),
                         ),
+                        for (final r in _requests)
+                          ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: ArucadColors.mist,
+                              backgroundImage:
+                                  (r.avatarUrl != null && r.avatarUrl!.isNotEmpty)
+                                      ? NetworkImage(r.avatarUrl!)
+                                      : null,
+                              child: (r.avatarUrl == null || r.avatarUrl!.isEmpty)
+                                  ? Text(r.name.isEmpty
+                                      ? '?'
+                                      : r.name.substring(0, 1))
+                                  : null,
+                            ),
+                            title: Text(r.name,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w800)),
+                            subtitle: const Text('Takip isteği gönderdi'),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                TextButton(
+                                    onPressed: () => _decline(r),
+                                    child: const Text('Reddet')),
+                                FilledButton(
+                                    onPressed: () => _accept(r),
+                                    child: const Text('Onayla')),
+                              ],
+                            ),
+                            onTap: () => Navigator.of(context).push(
+                                MaterialPageRoute(
+                                    builder: (_) => SocialProfileScreen(
+                                        repository: widget.repository,
+                                        viewedUserName: r.name))),
+                          ),
+                        const Divider(height: 1),
+                      ],
+                      if (page.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 80),
+                          child: Center(
+                              child: Text(strings.t('notif_empty'),
+                                  style: const TextStyle(
+                                      color: ArucadColors.muted))),
+                        )
+                      else
+                        for (final item in page)
+                          ListTile(
+                            leading: CircleAvatar(
+                                backgroundColor:
+                                    item.color.withValues(alpha: .14),
+                                backgroundImage: (item.actorAvatarUrl != null &&
+                                        item.actorAvatarUrl!.isNotEmpty)
+                                    ? NetworkImage(item.actorAvatarUrl!)
+                                    : null,
+                                child: (item.actorAvatarUrl == null ||
+                                        item.actorAvatarUrl!.isEmpty)
+                                    ? Icon(item.icon,
+                                        color: item.color, size: 20)
+                                    : null),
+                            title: Text(item.title ?? '',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13.5,
+                                    color: item.read == false
+                                        ? null
+                                        : Theme.of(context)
+                                            .colorScheme
+                                            .onSurface)),
+                            subtitle: Text(item.subtitle,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis),
+                            trailing: Text(item.meta,
+                                style: const TextStyle(
+                                    color: ArucadColors.muted, fontSize: 11)),
+                            onTap: item.onTap,
+                          ),
+                      LoadMoreButton(
+                        shown: shown,
+                        total: items.length,
+                        itemLabel: 'bildirim',
+                        onTap: () {
+                          setState(() => _visible += kPageSize);
+                          if (_inboxHasMore) _loadMoreInbox();
+                        },
+                      ),
+                    ],
+                  ),
                 ),
         ),
       ]),
@@ -222,17 +410,24 @@ class _NotificationItem {
   final IconData icon;
   final Color color;
   final String? title;
-  final String? announcementAuthor;
   final String subtitle;
   final String meta;
   final bool? read;
+  final String kind;
+  final String? actorName;
+  final String? actorAvatarUrl;
+  final VoidCallback? onTap;
+
   const _NotificationItem({
     required this.icon,
     required this.color,
     this.title,
-    this.announcementAuthor,
     required this.subtitle,
     required this.meta,
     this.read,
+    required this.kind,
+    this.actorName,
+    this.actorAvatarUrl,
+    this.onTap,
   });
 }

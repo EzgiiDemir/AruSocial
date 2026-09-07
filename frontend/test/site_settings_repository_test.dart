@@ -149,18 +149,22 @@ void main() {
   });
 
   test('REST site-settings UI and RestCampusRepository do not use SiteSettingsStore', () {
-    const paths = [
-      'lib/features/admin/admin_panel_screen.dart',
-      'lib/core/services/rest_campus_repository.dart',
-    ];
-    for (final rel in paths) {
-      final src = File(rel).readAsStringSync();
-      expect(src.contains('SiteSettingsStore.'), isFalse, reason: rel);
-    }
+    final adminJoined = [
+      File('lib/features/admin/admin_panel_screen.dart').readAsStringSync(),
+      File('lib/features/admin/sections/site_settings_tab.dart').readAsStringSync(),
+    ].join('\n');
+    // Import of the store type for library parts is fine; canonical writes
+    // must go through CampusRepository, not SiteSettingsStore.set*.
+    expect(adminJoined.contains('SiteSettingsStore.setEntra'), isFalse);
+    expect(adminJoined.contains('SiteSettingsStore.setWordPress'), isFalse);
+    expect(adminJoined.contains('await widget.repository.updateSiteSettings('), isTrue);
+
+    final rest = File('lib/core/services/rest_campus_repository.dart').readAsStringSync();
+    expect(rest.contains('SiteSettingsStore.'), isFalse);
   });
 
   test('admin site-settings tab shows a toast only after the repository returns', () {
-    final src = File('lib/features/admin/admin_panel_screen.dart').readAsStringSync();
+    final src = File('lib/features/admin/sections/site_settings_tab.dart').readAsStringSync();
     expect(src.contains('await widget.repository.updateSiteSettings('), isTrue);
     expect(src.contains('admin_entra_saved_toast'), isTrue);
     expect(src.contains('admin_wp_saved_toast'), isTrue);

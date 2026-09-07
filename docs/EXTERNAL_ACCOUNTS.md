@@ -36,9 +36,10 @@ Microsoft Entra alanları (`SiteSettingsStore`) — girildiği an
 Giriş Yap" butonu otomatik beliriyor. **Client Secret alanı yok** — native/
 mobil OAuth PKCE kullanır, secret taşımaz.
 
-**Backend tarafında hâlâ eksik olan:** Entra'dan gelen token'ı doğrulayıp
-gerçek bir rol ata (bkz. `docs/EKSIKLER.md` §Auth) — bu, Tenant/Client ID
-verildikten SONRA yapılacak ayrı bir backend işi.
+**Backend:** `GET /api/v1/auth/entra/config` and `POST /api/v1/auth/entra`
+verify the ID token (JWKS/RS256) and issue a Sanctum session. Empty
+tenant/client → 501 `ENTRA_NOT_CONFIGURED`. Real Azure values still come
+from ARUCAD's tenant.
 
 ---
 
@@ -89,15 +90,26 @@ banner bastırılır.
 ([console.groq.com](https://console.groq.com)).
 
 **Nereye giriliyor:**
-- REST modda: `backend/.env`'de `GROQ_API_KEY=...`
+- REST modda: `backend/.env`'de `GROQ_API_KEY=...` (Ask ARUCAD `/ai/query` + poster draft vision aynı key; use-case'ler ayrı endpoint)
 - Mock modda (opsiyonel, sadece demo için): `flutter run --dart-define=GROQ_API_KEY=...`
 
 > ⚠️ **Önemli — eski key iptal edilmeli:** Bu dosyada daha önce gerçek bir
-> Groq key'i doğrudan kaynak koduna gömülü olarak duruyordu. Bu oturumda
-> koddan kaldırıldı, ama git geçmişinde (daha önceki commit'lerde) hâlâ
-> duruyor olabilir — kod tarafından kaldırmak geçmişi silmiyor. Bu repo
-> hiç GitHub'a push edilmediyse bile, güvenli tarafta kalmak için Groq
-> Console'dan o eski key'i **iptal edip yenisini oluşturmanı** öneririm.
+> Groq key'i doğrudan kaynak koduna gömülü olarak duruyordu. Koddan
+> kaldırıldı, ama git geçmişinde duruyor olabilir — Groq Console'dan eski
+> key'i iptal edip yenisini oluştur.
+
+---
+
+## 3b. Walking routing (OSRM-compatible)
+
+**Kod tarafı hazır (P4 Mega-2):** `POST /api/v1/routing/directions` →
+`RoutingService` (`ROUTING_BASE_URL`). Flutter asla routing secret/base
+tutmaz. Boşsa API **501** `ROUTING_NOT_CONFIGURED` — sahte turn-by-turn yok.
+
+**ARUCAD'in yapması gereken:** Self-hosted veya yönetilen OSRM-compatible
+base URL.
+
+**Nereye giriliyor:** `backend/.env` → `ROUTING_BASE_URL=...`
 
 ---
 

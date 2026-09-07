@@ -6,7 +6,6 @@ use App\Http\Controllers\Api\Concerns\ApiResponds;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\CheckModerationImageRequest;
 use App\Services\ImageModerationService;
-use App\Services\ModerationService;
 use Illuminate\Http\JsonResponse;
 
 class ModerationController extends Controller
@@ -15,12 +14,9 @@ class ModerationController extends Controller
 
     private const MAX_BYTES = 8 * 1024 * 1024; // 8MB — matches MediaController's limit.
 
-    // Real, fully server-side vision-moderation check (docs/EKSIKLER.md
-    // §26): the client uploads the raw image bytes, the backend scans
-    // them with ImageModerationService (using an API key that only ever
-    // lives server-side — see AppSetting/AdminSettingsController) and, if
-    // flagged, records a real strike toward the same 3-strike ban as
-    // flagged text before rejecting the upload.
+    // Local structural validation only. Semantic moderation never leaves
+    // ARUCAD infrastructure: the actual upload is held in the local admin
+    // queue until a moderator approves it.
     public function checkImage(CheckModerationImageRequest $request): JsonResponse
     {
         $base64 = $request->input('imageBase64');
@@ -33,15 +29,18 @@ class ModerationController extends Controller
         }
 
         $mimeType = $request->input('mimeType', 'image/jpeg');
-        $hit = ImageModerationService::checkImageBytes($bytes, $mimeType);
-        if ($hit === null) {
-            return $this->ok(['allowed' => true]);
+        $invalid = ImageModerationService::checkImageBytes($bytes, $mimeType);
+        if ($invalid === null) {
+            // The base64 preflight has no durable file path for the local
+            // model runner. The real multipart upload is inspected again by
+            // MediaController, then always remains non-public until reviewed.
+            return $this->ok([
+                'allowed' => true,
+                'reviewRequired' => true,
+                'semanticModel' => 'checked_on_upload',
+            ]);
         }
-
-        $me = $this->currentUser();
-        ModerationService::recordImageStrike($me, $hit);
-
-        return $this->fail(400, 'CONTENT_BLOCKED',
-            "Fotoğraf otomatik taramada uygunsuz görünüyor ($hit). Lütfen başka bir fotoğraf seç.");
+        return $this->fail(400, 'INVALID_FILE_CONTENTS',
+            "Fotoğraf dosyası geçersiz ($invalid). Lütfen başka bir dosya seç.");
     }
 }

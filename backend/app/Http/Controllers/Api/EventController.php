@@ -12,8 +12,11 @@ use App\Models\AcademicYear;
 use App\Models\Event;
 use App\Models\EventJoin;
 use App\Models\EventParticipationType;
+use App\Services\AchievementEvaluator;
 use App\Services\ActivityLogger;
 use App\Services\EmailService;
+use App\Services\GranularPermissions;
+use App\Services\PlaceConflictChecker;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -49,6 +52,7 @@ class EventController extends Controller
             'placeId' => $e->place_id,
             'academicYearId' => $e->academic_year_id,
             'createdByUserId' => $e->created_by_user_id,
+            'responsibleStaffId' => $e->responsible_staff_id,
             'participationTypes' => $e->participationTypes->map(fn ($t) => [
                 'id' => $t->id,
                 'label' => $t->label,
@@ -59,12 +63,19 @@ class EventController extends Controller
     public function index(Request $request): JsonResponse
     {
         $query = Event::with('participationTypes');
-        if ($request->query('includeUnpublished') !== 'true') {
-            $query->where('draft', false)->where('workflow_status', 'published');
+        $me = $this->currentUser();
+        $maySeeUnpublished = GranularPermissions::allows($me, 'events.manage')
+            || GranularPermissions::allows($me, 'pendingActivities.manage');
+        if ($request->query('includeUnpublished') !== 'true' || ! $maySeeUnpublished) {
+            $query->publiclyListed();
         }
         if ($academicYearId = $request->query('academicYearId')) {
             $query->where('academic_year_id', $academicYearId);
         }
+        if ($category = $request->query('category')) {
+            $query->where('category', $category);
+        }
+        $query->orderBy('event_date');
 
         return $this->ok($query->get()->map(fn ($e) => $this->eventToJson($e)));
     }
@@ -75,8 +86,25 @@ class EventController extends Controller
         if (! $event) {
             return $this->fail(404, 'EVENT_NOT_FOUND', 'Event not found.');
         }
+        if (! $this->mayViewEvent($event)) {
+            return $this->fail(404, 'EVENT_NOT_FOUND', 'Event not found.');
+        }
 
         return $this->ok($this->eventToJson($event));
+    }
+
+    private function mayViewEvent(Event $event): bool
+    {
+        if ($event->isPubliclyListed()) {
+            return true;
+        }
+        $me = $this->currentUser();
+        if ((int) $event->created_by_user_id === (int) $me->id) {
+            return true;
+        }
+
+        return GranularPermissions::allows($me, 'events.manage')
+            || GranularPermissions::allows($me, 'pendingActivities.manage');
     }
 
     // Real katılım popup workflow (docs/EKSIKLER.md §5/§6), sequential and
@@ -91,7 +119,7 @@ class EventController extends Controller
     public function join(Request $request, string $id): JsonResponse
     {
         $event = Event::with('participationTypes')->find($id);
-        if (! $event) {
+        if (! $event || ! $event->isPubliclyListed()) {
             return $this->fail(404, 'EVENT_NOT_FOUND', 'Event not found.');
         }
         $me = $this->currentUser();
@@ -115,14 +143,13 @@ class EventController extends Controller
                         'participation_type_id' => $participationTypeId,
                         'joined_at' => now(),
                     ]);
-                    $event->increment('attendees');
-                    $me->increment('xp', $event->xp);
-                    $me->increment('events');
-                    ActivityLogger::log($me->id, 'eventJoin', "Katıldın: {$event->title}", "+{$event->xp} XP");
+                    ActivityLogger::log($me->id, 'eventJoin', "Katıldın: {$event->title}", 'Onay bekleniyor');
                 });
             } catch (UniqueConstraintViolationException) {
                 // Idempotent per user — see unique(event_id, user_id).
             }
+
+            AchievementEvaluator::evaluate($me);
 
             $label = $participationTypeId
                 ? $event->participationTypes->firstWhere('id', $participationTypeId)?->label
@@ -206,23 +233,6 @@ class EventController extends Controller
         ]);
     }
 
-    // Real "boş/dolu" mekân müsaitlik kontrolü (docs/EKSIKLER.md §4):
-    // an active (non-rejected) event already at this place, on this same
-    // date and time slot, blocks a new one — shared by both the student
-    // own-activity flow and Admin\EventController::upsert() so neither
-    // path can double-book a place, only one edit apart from a real race.
-    private function placeConflict(string $placeId, ?string $eventDate, string $time, ?string $excludeEventId = null): ?Event
-    {
-        if (! $eventDate || $time === '') return null;
-
-        return Event::where('place_id', $placeId)
-            ->whereDate('event_date', $eventDate)
-            ->where('time', $time)
-            ->whereNotIn('workflow_status', ['rejected'])
-            ->when($excludeEventId, fn ($q) => $q->where('id', '!=', $excludeEventId))
-            ->first();
-    }
-
     // Real "kendi aktiviteni oluştur" flow (docs/EKSIKLER.md §5): a
     // student submits a draft that starts in pending_review, not
     // published — nothing goes live without an admin approving it.
@@ -235,9 +245,14 @@ class EventController extends Controller
             return $this->fail(400, 'INVALID_PLACE', 'placeId must reference a real, admin-defined place.');
         }
 
+        $staff = \App\Models\StaffProfile::find($request->input('responsibleStaffId'));
+        if (! $staff || ! $staff->is_department_head) {
+            return $this->fail(400, 'INVALID_STAFF', 'responsibleStaffId must reference an active department head.');
+        }
+
         $eventDate = $request->input('eventDate');
         $time = $request->input('time', '');
-        if ($conflict = $this->placeConflict($placeId, $eventDate, $time)) {
+        if ($conflict = PlaceConflictChecker::find($placeId, $eventDate, $time)) {
             return $this->fail(409, 'PLACE_UNAVAILABLE', "Bu mekân o tarihte ve saatte dolu: \"{$conflict->title}\".");
         }
 
@@ -260,6 +275,7 @@ class EventController extends Controller
             'organizer' => $me->name,
             'description' => $request->input('description', ''),
             'created_by_user_id' => $me->id,
+            'responsible_staff_id' => $staff->id,
             'academic_year_id' => $activeYear?->id,
         ]);
         ActivityLogger::log($me->id, 'eventJoin', "Aktivite önerdin: {$title}", 'İnceleme bekliyor');

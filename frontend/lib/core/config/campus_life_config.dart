@@ -19,12 +19,16 @@ class CampusClub {
   /// these two are deliberately separate rather than one field doing both.
   final List<ContentBlock> body;
 
+  /// Known member count when the API/store provides one; otherwise 0.
+  final int memberCount;
+
   const CampusClub({
     required this.id,
     required this.name,
     required this.category,
     required this.description,
     this.body = const [],
+    this.memberCount = 0,
   });
 
   factory CampusClub.fromJson(Map<String, dynamic> json) => CampusClub(
@@ -33,6 +37,7 @@ class CampusClub {
         category: json['category'] as String,
         description: json['description'] as String,
         body: blocksFromJson(json['body']),
+        memberCount: (json['memberCount'] as num?)?.toInt() ?? 0,
       );
 
   Map<String, dynamic> toJson() => {
@@ -41,6 +46,7 @@ class CampusClub {
         'category': category,
         'description': description,
         if (body.isNotEmpty) 'body': blocksToJson(body),
+        if (memberCount > 0) 'memberCount': memberCount,
       };
 }
 
@@ -177,6 +183,72 @@ class CampusService {
       };
 }
 
+/// REST seed ids sometimes use a `service-` prefix (`service-student-affairs`)
+/// while Discover's Yardım Al tiles use the catalog ids (`student-affairs`).
+String campusServiceIdKey(String id) =>
+    id.startsWith('service-') ? id.substring('service-'.length) : id;
+
+bool campusServiceIdsMatch(String a, String b) =>
+    a == b || campusServiceIdKey(a) == campusServiceIdKey(b);
+
+CampusService? matchCampusService(List<CampusService> services, String serviceId) {
+  for (final service in services) {
+    if (campusServiceIdsMatch(service.id, serviceId)) return service;
+  }
+  return null;
+}
+
+/// Static catalog row used when the API list is still loading or missing a
+/// Yardım Al category — the student still sees Who/Where/How instead of an
+/// empty "not defined" dead-end. Apply still posts the catalog id, which
+/// CampusCatalogSeeder must persist.
+CampusService? catalogCampusService(String serviceId) {
+  for (final service in campusServices) {
+    if (campusServiceIdsMatch(service.id, serviceId)) return service;
+  }
+  return null;
+}
+
+/// Prefer the unprefixed catalog id so apply posts an id the seeder actually
+/// stored (`pdr`, not a leftover `service-pdr`). Fill hours/building/contact
+/// from the catalog when the API row is still empty.
+CampusService? mergeCampusService(CampusService? rest, CampusService? catalog) {
+  if (rest == null) return catalog;
+  if (catalog == null) return rest;
+  return CampusService(
+    id: catalog.id,
+    title: rest.title.isNotEmpty ? rest.title : catalog.title,
+    category: rest.category.isNotEmpty ? rest.category : catalog.category,
+    description: rest.description.isNotEmpty ? rest.description : catalog.description,
+    contact: rest.contact.isNotEmpty ? rest.contact : catalog.contact,
+    building: rest.building ?? catalog.building,
+    floor: rest.floor ?? catalog.floor,
+    room: rest.room ?? catalog.room,
+    contactPerson: rest.contactPerson ?? catalog.contactPerson,
+    topics: rest.topics.isNotEmpty ? rest.topics : catalog.topics,
+    hours: rest.hours ?? catalog.hours,
+    body: rest.body.isNotEmpty ? rest.body : catalog.body,
+  );
+}
+
+CampusService? resolveCampusService(List<CampusService> fromApi, String serviceId) =>
+    mergeCampusService(matchCampusService(fromApi, serviceId), catalogCampusService(serviceId));
+
+List<CampusService> enrichCampusServices(List<CampusService> fromApi) {
+  if (fromApi.isEmpty) return campusServices;
+  final seen = <String>{};
+  final out = <CampusService>[];
+  for (final rest in fromApi) {
+    final merged = mergeCampusService(rest, catalogCampusService(rest.id)) ?? rest;
+    out.add(merged);
+    seen.add(campusServiceIdKey(merged.id));
+  }
+  for (final catalog in campusServices) {
+    if (seen.add(campusServiceIdKey(catalog.id))) out.add(catalog);
+  }
+  return out;
+}
+
 const campusServices = <CampusService>[
   CampusService(
     id: 'student-affairs',
@@ -184,7 +256,10 @@ const campusServices = <CampusService>[
     category: 'İdari',
     description:
         'Kayıt, akademik süreçler, öğrenci kimlik kartı, ders kaydı ve mezuniyete kadar tüm resmi süreçlerde danışmanlık sağlar.',
-    contact: 'destek@arucad.edu.tr',
+    contact: 'ogrenciisleri@arucad.edu.tr',
+    building: 'Titan',
+    hours: 'Hafta içi 09:00–17:00',
+    contactPerson: 'Öğrenci İşleri',
     topics: ['Kayıt', 'Öğrenci Kimlik Kartı', 'Ders Kaydı', 'Resmi Belgeler', 'Mezuniyet'],
   ),
   CampusService(
@@ -192,7 +267,10 @@ const campusServices = <CampusService>[
     title: 'Akademik Danışmanlık',
     category: 'Akademik',
     description: 'Her öğrencinin bölümünden bir akademik danışmanı vardır; ders seçimi ve akademik plan için başvurulur.',
-    contact: 'destek@arucad.edu.tr',
+    contact: 'ogrenciisleri@arucad.edu.tr',
+    building: 'Titan',
+    hours: 'Hafta içi 09:00–17:00',
+    contactPerson: 'Öğrenci İşleri',
     topics: ['Ders Seçimi', 'Akademik Plan', 'Danışman Atama'],
   ),
   CampusService(
@@ -202,6 +280,9 @@ const campusServices = <CampusService>[
     description:
         'Bireysel ve grup danışmanlığı; akademik, sosyal, duygusal ve kariyer konularında gizlilik esaslı, gönüllü destek.',
     contact: 'destek@arucad.edu.tr',
+    building: 'Minotaur',
+    hours: 'Randevu ile',
+    contactPerson: 'PDR Birimi',
     topics: ['Bireysel Danışmanlık', 'Grup Danışmanlığı', 'Gizlilik', 'Kariyer Danışmanlığı'],
   ),
   CampusService(
@@ -210,6 +291,9 @@ const campusServices = <CampusService>[
     category: 'Kariyer',
     description: 'İş/staj fırsatları, kariyer etkinlikleri, portfolyo değerlendirmesi ve mezun ağı bağlantıları.',
     contact: 'destek@arucad.edu.tr',
+    building: 'Titan',
+    hours: 'Hafta içi 09:00–17:00',
+    contactPerson: 'Kariyer Danışmanı',
     topics: ['İş/Staj Fırsatları', 'Kariyer Etkinlikleri', 'Portfolyo Değerlendirmesi', 'Mezun Ağı'],
   ),
   CampusService(
@@ -218,6 +302,9 @@ const campusServices = <CampusService>[
     category: 'Akademik',
     description: 'Sanat, tasarım ve iletişim odaklı kaynaklar, sessiz çalışma alanları ve dijital çalışma istasyonları.',
     contact: 'kutuphane@arucad.edu.tr',
+    building: 'Meditation',
+    hours: 'Hafta içi 09:00–17:00',
+    contactPerson: 'Kütüphane Müdürlüğü',
     topics: ['Kaynak Ödünç Alma', 'Sessiz Çalışma Alanları', 'Dijital İstasyonlar'],
   ),
   CampusService(
@@ -226,6 +313,9 @@ const campusServices = <CampusService>[
     category: 'International',
     description: 'Vize/ikamet süreçleri, kayıt, ulaşım ve yeni gelen uluslararası öğrencilerin kampüse uyumu.',
     contact: 'international@arucad.edu.tr',
+    building: 'Eternal Idol',
+    hours: 'Hafta içi 09:00–17:00',
+    contactPerson: 'Uluslararası Ofis',
     topics: ['Vize/İkamet', 'Kayıt', 'Ulaşım', 'Kampüse Uyum'],
   ),
   CampusService(
@@ -234,6 +324,8 @@ const campusServices = <CampusService>[
     category: 'Konaklama',
     description: 'Oda/bina bilgisi, ortak yaşam düzeni, bakım talepleri ve yurt duyuruları.',
     contact: 'destek@arucad.edu.tr',
+    building: 'ARUCAD Dormitory',
+    contactPerson: 'Yurt Koordinatörü',
     topics: ['Oda/Bina Bilgisi', 'Bakım Talepleri', 'Yurt Duyuruları'],
   ),
   CampusService(
@@ -242,6 +334,9 @@ const campusServices = <CampusService>[
     category: 'Teknik',
     description: 'Kampüs ağı, e-posta/sistem erişimi ve teknik destek talepleri.',
     contact: 'it@arucad.edu.tr',
+    building: 'Titan',
+    hours: 'Hafta içi 09:00–17:00',
+    contactPerson: 'BT Destek',
     topics: ['Kampüs Ağı', 'E-posta/Sistem Erişimi', 'Teknik Destek'],
   ),
   CampusService(
@@ -250,6 +345,8 @@ const campusServices = <CampusService>[
     category: 'Erişilebilirlik',
     description: 'Erişilebilir rota, sınıf/etkinlik düzenlemeleri ve bireysel destek ihtiyaçları için başvuru noktası.',
     contact: 'destek@arucad.edu.tr',
+    building: 'Titan',
+    contactPerson: 'Engelsiz Kampüs',
     topics: ['Erişilebilir Rota', 'Sınıf/Etkinlik Düzenlemeleri', 'Bireysel Destek'],
   ),
   CampusService(
@@ -257,7 +354,10 @@ const campusServices = <CampusService>[
     title: 'Kayıp & Bulunan',
     category: 'Yardım',
     description: 'Kampüste kaybolan veya bulunan eşyalar için başvuru.',
-    contact: 'destek@arucad.edu.tr',
+    contact: 'ogrenciisleri@arucad.edu.tr',
+    building: 'Titan',
+    hours: 'Hafta içi 09:00–17:00',
+    contactPerson: 'Öğrenci İşleri',
     topics: ['Kayıp Eşya Bildirimi', 'Bulunan Eşya Teslimi'],
   ),
 ];

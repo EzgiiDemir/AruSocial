@@ -7,7 +7,7 @@ use Tests\TestCase;
 // P3-7 §8/§10: verifies the exact preflight contract a browser client
 // relies on — the methods/headers ApiClient (frontend/lib/core/network/
 // api_client.dart) actually sends must be answered, and nothing wider than
-// the real 108-route inventory's method set is advertised.
+// the real 133-route inventory's method set is advertised.
 class CorsPreflightTest extends TestCase
 {
     public function test_authorization_header_is_accepted_in_preflight(): void
@@ -47,7 +47,7 @@ class CorsPreflightTest extends TestCase
         }
     }
 
-    // No route in the 108-route inventory (docs/API_CONTRACT.md) uses PUT or
+    // No route in the 133-route inventory (docs/API_CONTRACT.md) uses PUT or
     // PATCH — the allowlist must not advertise a method the API never
     // implements.
     public function test_allowed_methods_do_not_include_put_or_patch(): void

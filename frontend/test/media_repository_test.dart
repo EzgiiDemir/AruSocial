@@ -31,11 +31,11 @@ void main() {
     });
 
     expect(item.id, 'media-1');
-    expect(item.url, '/storage/media/garden.jpg');
+    expect(item.url, '/api/v1/media/file/garden.jpg');
     expect(item.fileName, 'garden.jpg');
     expect(item.uploadedBy, 'Editor');
     expect(item.usedIn, ['place-cover:atelier']);
-    expect(item.displaySrc, '/storage/media/garden.jpg');
+    expect(item.displaySrc, '/api/v1/media/file/garden.jpg');
     expect(item.dataUri, isEmpty);
   });
 
@@ -132,14 +132,14 @@ void main() {
 
     final listed = await repo.getMedia();
     expect(listed.single.id, 'media-1');
-    expect(listed.single.displaySrc, 'http://example.com/storage/media/garden.jpg');
+    expect(listed.single.displaySrc, 'http://example.com/api/v1/media/file/garden.jpg');
     expect(listed.single.dataUri, isEmpty);
 
     final uploaded = await repo.uploadMedia(Uint8List.fromList([9, 9, 9]), fileName: 'new.jpg');
     expect(calls.last.method, 'POST');
     expect(calls.last.url.path, '/api/v1/media');
     expect(calls.last.headers['content-type'], contains('multipart/form-data'));
-    expect(uploaded.url, 'http://example.com/storage/media/new.jpg');
+    expect(uploaded.url, 'http://example.com/api/v1/media/file/new.jpg');
     expect(uploaded.dataUri, isEmpty);
     expect(await MediaLibraryStore.items(), isEmpty);
 

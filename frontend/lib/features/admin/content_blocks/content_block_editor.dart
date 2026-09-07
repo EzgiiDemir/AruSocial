@@ -364,6 +364,7 @@ class ContentBlockEditorState extends State<ContentBlockEditor> {
           physics: const NeverScrollableScrollPhysics(),
           buildDefaultDragHandles: false,
           itemCount: blocks.length,
+          // ignore: deprecated_member_use
           onReorder: _reorder,
           itemBuilder: (context, i) => _BlockCard(
             key: ValueKey(blocks[i].id),

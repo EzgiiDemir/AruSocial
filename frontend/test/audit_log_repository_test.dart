@@ -112,20 +112,34 @@ void main() {
   });
 
   test('REST admin UI and RestCampusRepository do not use AuditLogStore as source of truth', () {
-    const paths = [
+    final adminSources = [
       'lib/features/admin/admin_panel_screen.dart',
+      ...Directory('lib/features/admin/sections')
+          .listSync()
+          .whereType<File>()
+          .map((f) => f.path.replaceAll('\\', '/')),
+      ...Directory('lib/features/admin/widgets')
+          .listSync()
+          .whereType<File>()
+          .map((f) => f.path.replaceAll('\\', '/')),
+    ];
+    const otherPaths = [
       'lib/core/services/rest_campus_repository.dart',
       'lib/app/app.dart',
     ];
-    for (final rel in paths) {
+    for (final rel in [...adminSources, ...otherPaths]) {
       final src = File(rel).readAsStringSync();
       expect(src.contains('AuditLogStore.entries()'), isFalse, reason: rel);
       expect(src.contains('AuditLogStore.log('), isFalse, reason: rel);
     }
 
-    final admin = File('lib/features/admin/admin_panel_screen.dart').readAsStringSync();
-    expect(admin.contains('repository.getAuditLog()'), isTrue);
-    expect(admin.contains('AuditLogStore.logIfMock(widget.repository,'), isTrue);
+    final adminJoined = adminSources.map((p) => File(p).readAsStringSync()).join('\n');
+    expect(
+      adminJoined.contains('repository.getAuditLog()') ||
+          adminJoined.contains('repository.getAuditLogPage('),
+      isTrue,
+    );
+    expect(adminJoined.contains('AuditLogStore.logIfMock(widget.repository,'), isTrue);
 
     final rest = File('lib/core/services/rest_campus_repository.dart').readAsStringSync();
     expect(rest.contains('AuditLogStore'), isFalse);

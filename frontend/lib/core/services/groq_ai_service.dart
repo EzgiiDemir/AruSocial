@@ -7,6 +7,30 @@ import '../config/campus_sites.dart';
 import '../config/shuttle_config.dart';
 import '../models/campus_models.dart';
 
+/// Backstop against stray markdown in an AI answer — the system prompt
+/// below already forbids it, but a model doesn't always obey. Shared by
+/// every place that renders a raw Ask ARUCAD answer (this service's
+/// direct-Groq calls, and the real backend's own `AiController::query`,
+/// which applies the equivalent strip server-side in PHP).
+String stripAskArucadMarkdown(String text) {
+  String unwrap(String input, RegExp pattern) =>
+      input.replaceAllMapped(pattern, (m) => m.group(1) ?? '');
+
+  var result = text;
+  result = unwrap(result, RegExp(r'\*\*(.*?)\*\*', dotAll: true));
+  result = unwrap(result, RegExp(r'\*(.*?)\*', dotAll: true));
+  result = result.replaceAll(RegExp(r'^#{1,6}\s*', multiLine: true), '');
+  result = result.replaceAll(RegExp(r'^[-*]\s+', multiLine: true), '');
+  result = unwrap(result, RegExp(r'`{1,3}([^`]*)`{1,3}', dotAll: true));
+  return result.trim();
+}
+
+String _groqMessageText(Map<String, dynamic> message) {
+  final content = (message['content'] as String?)?.trim() ?? '';
+  if (content.isNotEmpty) return content;
+  return (message['reasoning'] as String?)?.trim() ?? '';
+}
+
 /// Calls Groq's OpenAI-compatible chat completions endpoint so Galatea can
 /// give real, generated answers instead of the canned mock ones.
 ///
@@ -28,10 +52,10 @@ import '../models/campus_models.dart';
 class GroqAiService {
   static const _apiKey = String.fromEnvironment('GROQ_API_KEY');
   static const _endpoint = 'https://api.groq.com/openai/v1/chat/completions';
-  // llama-3.3-70b-versatile was deprecated by Groq on 2026-06-17 (started
-  // returning 404s) — openai/gpt-oss-120b is Groq's current recommended
-  // general-purpose replacement.
-  static const _model = 'openai/gpt-oss-120b';
+  // llama-3.3-70b-versatile was deprecated by Groq on 2026-06-17.
+  // llama-3.1-8b-instant is not on every Groq key. gpt-oss-20b is, but it
+  // is a reasoning model — read `content`, then fall back to `reasoning`.
+  static const _model = 'openai/gpt-oss-20b';
 
   /// [clubs]/[sports]/[services] should come from `AdminContentStore` (the
   /// live, admin-editable data), not the static seed consts, so the
@@ -71,10 +95,10 @@ class GroqAiService {
               {'role': 'user', 'content': prompt},
             ],
             'temperature': 0.4,
-            'max_tokens': 350,
+            'max_tokens': 800,
           }),
         )
-        .timeout(const Duration(seconds: 12));
+        .timeout(const Duration(seconds: 25));
 
     if (res.statusCode != 200) {
       throw Exception('Groq ${res.statusCode}: ${res.body}');
@@ -83,7 +107,7 @@ class GroqAiService {
         jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
     final choices = data['choices'] as List<dynamic>;
     final message = choices.first['message'] as Map<String, dynamic>;
-    return (message['content'] as String).trim();
+    return stripAskArucadMarkdown(_groqMessageText(message));
   }
 
   /// Same real Groq call as [ask], but threads the whole conversation so
@@ -123,10 +147,10 @@ class GroqAiService {
                 {'role': turn.fromUser ? 'user' : 'assistant', 'content': turn.text},
             ],
             'temperature': 0.4,
-            'max_tokens': 450,
+            'max_tokens': 800,
           }),
         )
-        .timeout(const Duration(seconds: 15));
+        .timeout(const Duration(seconds: 25));
 
     if (res.statusCode != 200) {
       throw Exception('Groq ${res.statusCode}: ${res.body}');
@@ -135,7 +159,7 @@ class GroqAiService {
         jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
     final choices = data['choices'] as List<dynamic>;
     final message = choices.first['message'] as Map<String, dynamic>;
-    return (message['content'] as String).trim();
+    return stripAskArucadMarkdown(_groqMessageText(message));
   }
 
   String _systemPrompt(
@@ -183,7 +207,9 @@ Sen Ask ARUCAD'sın, ARUCAD (Girne/Kyrenia) kampüsünün yapay zekâ asistanıs
 samimi ve doğru yanıt ver. Bilmediğin bir şeyi uydurma; emin değilsen bunu
 söyle. Cevabın somut olabildiğince: bir yer, kişi, e-posta, saat ya da bağlantı
 varsa mutlaka belirt — sadece genel konuşma, yönlendirici bilgi ver. Cevapların
-Türkçe ve en fazla 3-4 cümle olsun.
+Türkçe ve en fazla 3-4 cümle olsun. Markdown biçimlendirmesi KULLANMA: yıldız
+(*), kare işareti (#), tire madde işareti (-), ters tırnak (`) gibi hiçbir
+işaret kullanma — düz, temiz cümleler yaz.
 
 Güncel kampüs verisi:
 

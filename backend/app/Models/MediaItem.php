@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Storage;
 
 class MediaItem extends Model
 {
@@ -12,8 +11,8 @@ class MediaItem extends Model
     public $timestamps = false;
 
     protected $fillable = [
-        'id', 'file_path', 'file_name', 'mime_type', 'size_bytes',
-        'uploaded_at', 'uploaded_by', 'used_in',
+        'id', 'user_id', 'file_path', 'file_name', 'mime_type', 'size_bytes',
+        'uploaded_at', 'uploaded_by', 'used_in', 'moderation_status',
     ];
 
     protected function casts(): array
@@ -23,7 +22,9 @@ class MediaItem extends Model
 
     public function url(): string
     {
-        return Storage::disk(self::disk())->url($this->file_path);
+        // Served through the API so Flutter web gets CORS headers and
+        // phones can rewrite the host to the LAN API they actually use.
+        return url('/api/v1/media/'.$this->id.'/file');
     }
 
     public static function disk(): string

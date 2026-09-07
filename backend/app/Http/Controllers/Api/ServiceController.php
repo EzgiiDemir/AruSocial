@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Api\Concerns\ApiResponds;
 use App\Http\Controllers\Controller;
+use App\Events\CampusDataChanged;
 use App\Http\Requests\UpsertServiceRequest;
 use App\Models\ServiceItem;
 use App\Services\AuditLogger;
@@ -65,6 +66,7 @@ class ServiceController extends Controller
             'body' => $request->input('body', []),
         ]);
         AuditLogger::logAsCurrentUser($isNew ? 'create' : 'update', 'service', $title);
+        $this->announceServiceChange($isNew ? 'created' : 'updated', $service->id);
 
         return $this->ok($this->toJson($service));
     }
@@ -75,8 +77,18 @@ class ServiceController extends Controller
         if ($service) {
             AuditLogger::logAsCurrentUser('delete', 'service', $service->title);
             $service->delete();
+            $this->announceServiceChange('deleted', $id);
         }
 
         return $this->ok(['deleted' => true]);
+    }
+
+    private function announceServiceChange(string $action, string $id): void
+    {
+        try {
+            broadcast(new CampusDataChanged(['services'], $action, $id));
+        } catch (\Throwable) {
+            // The persisted catalogue update is still successful without Reverb.
+        }
     }
 }

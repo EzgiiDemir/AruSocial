@@ -398,7 +398,7 @@ Future<void> main(List<String> args) async {
     final messages = await repo.getChatMessages(peer);
     if (messages.isEmpty || messages.last.text != 'merhaba') throw 'message not persisted';
     final threads = await repo.getChatThreadPeers(const []);
-    if (!threads.contains(peer)) throw 'peer missing from thread list';
+    if (!threads.any((t) => t.name == peer)) throw 'peer missing from thread list';
   });
 
   await check('follower does not receive their own follow notification; markAllNotificationsRead() works', () async {
@@ -424,7 +424,13 @@ Future<void> main(List<String> args) async {
 
   String? myActivityId;
   await check('student can propose an activity (pending_review, not live)', () async {
-    final created = await repo.createOwnActivity(title: 'Verify Activity', placeId: places.first.id);
+    final heads = await repo.getStaff(departmentHeadOnly: true);
+    if (heads.isEmpty) throw 'no department heads seeded — run migrate:fresh --seed';
+    final created = await repo.createOwnActivity(
+      title: 'Verify Activity',
+      placeId: places.first.id,
+      responsibleStaffId: heads.first.id,
+    );
     if (created.workflowStatus != 'pending_review') throw 'expected pending_review status';
     myActivityId = created.id;
     final published = await repo.getEvents();
@@ -441,10 +447,12 @@ Future<void> main(List<String> args) async {
   // same date+time slot, in either creation path.
   await check('repo.getPlaceAvailability()/PlaceConflictException on a double-booked slot',
       () async {
+    final heads = await repo.getStaff(departmentHeadOnly: true);
     final conflictDate = DateTime(2027, 5, 20);
     final first = await repo.createOwnActivity(
       title: 'Slot Holder',
       placeId: places.first.id,
+      responsibleStaffId: heads.first.id,
       time: '19:00',
       eventDate: conflictDate,
     );
@@ -457,6 +465,7 @@ Future<void> main(List<String> args) async {
       await repo.createOwnActivity(
         title: 'Should Conflict',
         placeId: places.first.id,
+        responsibleStaffId: heads.first.id,
         time: '19:00',
         eventDate: conflictDate,
       );

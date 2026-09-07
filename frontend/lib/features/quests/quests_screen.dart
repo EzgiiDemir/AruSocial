@@ -5,6 +5,8 @@ import 'package:arucad_campus_prototype/core/models/campus_models.dart';
 import 'package:arucad_campus_prototype/core/services/contracts.dart';
 import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
 import 'package:arucad_campus_prototype/features/place/place_detail_screen.dart';
+import 'package:arucad_campus_prototype/features/social/social_profile_screen.dart';
+import 'package:arucad_campus_prototype/features/widgets/campus_avatar.dart';
 import 'package:arucad_campus_prototype/features/widgets/campus_widgets.dart';
 
 /// Yearly XP goal shown as the progress bar's denominator — an editorial
@@ -183,7 +185,7 @@ class _QuestsScreenState extends State<QuestsScreen> {
                         ),
                         child: Text('LEVEL ${widget.user.level}',
                             style: ArucadTextStyles.display(
-                                color: Colors.white,
+                                color: onAccent(levelColor(widget.user.level)),
                                 fontWeight: FontWeight.w900,
                                 fontSize: 11,
                                 letterSpacing: .4)),
@@ -217,7 +219,7 @@ class _QuestsScreenState extends State<QuestsScreen> {
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           Row(children: [
                             Expanded(child: Text(quest.title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18))),
-                            Text('+${quest.reward} XP', style: const TextStyle(fontWeight: FontWeight.w900, color: ArucadColors.primary)),
+                            Text('+${quest.reward} XP', style: const TextStyle(fontWeight: FontWeight.w900, color: ArucadColors.yellow)),
                           ]),
                           const SizedBox(height: 6),
                           Text(quest.subtitle),
@@ -270,6 +272,21 @@ class _QuestsScreenState extends State<QuestsScreen> {
                 decoration: InputDecoration(
                   hintText: 'İsim ara...',
                   prefixIcon: const Icon(Icons.search),
+                  filled: true,
+                  fillColor: ArucadColors.paper,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide.none,
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide.none,
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(
+                        color: ArucadColors.ink, width: 1.2),
+                  ),
                   suffixIcon: _search.isEmpty
                       ? null
                       : IconButton(
@@ -312,7 +329,17 @@ class _QuestsScreenState extends State<QuestsScreen> {
                             for (var i = 0; i < shown; i++) ...[
                               if (i > 0) const Divider(height: 1),
                               _LeaderboardRow(
-                                  rank: ranks[filtered[i]]!, entry: filtered[i]),
+                                rank: ranks[filtered[i]]!,
+                                entry: filtered[i],
+                                onTap: filtered[i].isMe
+                                    ? null
+                                    : () => Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                            builder: (_) => SocialProfileScreen(
+                                                repository: widget.repository,
+                                                viewedUserName:
+                                                    filtered[i].name))),
+                              ),
                             ],
                           ]),
                   ),
@@ -337,6 +364,16 @@ class _QuestsScreenState extends State<QuestsScreen> {
 /// see `_journeyCounts`' doc comment for why this stays 4 neutral
 /// categories instead of one composite "how good a student are you"
 /// number.
+// One distinct accent per category — a single-color bar chart reads as
+// "all the same thing measured differently," not four real, separate
+// kinds of campus activity.
+const _journeyCategoryColors = {
+  'Explore': ArucadColors.red,
+  'Connect': ArucadColors.blue,
+  'Participate': ArucadColors.yellow,
+  'Contribute': ArucadColors.campusGreen,
+};
+
 class _CampusJourneyCard extends StatelessWidget {
   final int year;
   final Map<String, int> counts;
@@ -379,7 +416,7 @@ class _CampusJourneyCard extends StatelessWidget {
                       value: maxCount == 0 ? 0 : entry.value / maxCount,
                       minHeight: 7,
                       backgroundColor: ArucadColors.mist,
-                      color: ArucadColors.primary,
+                      color: _journeyCategoryColors[entry.key] ?? ArucadColors.primary,
                     ),
                   ),
                 ]),
@@ -393,25 +430,23 @@ class _CampusJourneyCard extends StatelessWidget {
 class _LeaderboardRow extends StatelessWidget {
   final int rank;
   final LeaderboardEntry entry;
-  const _LeaderboardRow({required this.rank, required this.entry});
+  final VoidCallback? onTap;
+  const _LeaderboardRow(
+      {required this.rank, required this.entry, this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final isTop = rank <= 3;
+    assert(rank >= 1);
     return ListTile(
-      tileColor: entry.isMe ? ArucadColors.primary.withValues(alpha: .06) : null,
-      leading: CircleAvatar(
-        backgroundColor: isTop ? ArucadColors.primary : ArucadColors.mist,
-        child: Text('$rank',
-            style: TextStyle(
-                fontWeight: FontWeight.w900,
-                color: isTop ? Colors.white : ArucadColors.ink)),
-      ),
+      onTap: onTap,
+      tileColor: entry.isMe ? ArucadColors.blue.withValues(alpha: .08) : null,
+      leading: CampusAvatar(name: entry.name, avatarUrl: entry.avatarUrl),
       title: Text(entry.name,
           style: TextStyle(
               fontWeight: entry.isMe ? FontWeight.w900 : FontWeight.w700)),
       trailing: Text('${entry.xp} XP',
-          style: const TextStyle(fontWeight: FontWeight.w900, color: ArucadColors.primary)),
+          style: const TextStyle(
+              fontWeight: FontWeight.w900, color: ArucadColors.blue)),
     );
   }
 }

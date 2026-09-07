@@ -7,6 +7,7 @@ class PushPayload {
     this.peer,
     this.title,
     this.body,
+    this.route,
   });
 
   final String type;
@@ -16,6 +17,7 @@ class PushPayload {
   final String? peer;
   final String? title;
   final String? body;
+  final String? route;
 
   factory PushPayload.fromData(Map<String, dynamic> data, {String? title, String? body}) {
     String? read(String key) {
@@ -33,6 +35,7 @@ class PushPayload {
       peer: read('peer'),
       title: title,
       body: body,
+      route: read('route'),
     );
   }
 

@@ -18,13 +18,13 @@ class CurrentUserIsolationTest extends TestCase
     /** @return array{0: User, 1: string, 2: User, 3: string} */
     private function twoSignedInUsers(): array
     {
-        $a = User::create(['name' => 'Ayşe Yıldız', 'email' => 'ayse.yildiz@arucad.edu.tr', 'password' => bcrypt('sifre-a')]);
-        $b = User::create(['name' => 'Burak Kaya', 'email' => 'burak.kaya@arucad.edu.tr', 'password' => bcrypt('sifre-b')]);
+        $a = User::create(['name' => 'Ayşe Yıldız', 'email' => 'ayse.yildiz@arucad.edu.tr', 'password' => bcrypt('sifre-aa')]);
+        $b = User::create(['name' => 'Burak Kaya', 'email' => 'burak.kaya@arucad.edu.tr', 'password' => bcrypt('sifre-bb')]);
 
         $tokenA = $this->postJson('/api/v1/auth/session',
-            ['email' => $a->email, 'password' => 'sifre-a'])->json('data.token');
+            ['email' => $a->email, 'password' => 'sifre-aa'])->json('data.token');
         $tokenB = $this->postJson('/api/v1/auth/session',
-            ['email' => $b->email, 'password' => 'sifre-b'])->json('data.token');
+            ['email' => $b->email, 'password' => 'sifre-bb'])->json('data.token');
 
         return [$a, $tokenA, $b, $tokenB];
     }
@@ -46,9 +46,9 @@ class CurrentUserIsolationTest extends TestCase
     public function test_a_write_by_one_user_is_not_credited_to_the_other(): void
     {
         [$a, $tokenA, $b, $tokenB] = $this->twoSignedInUsers();
-        Place::create(['id' => 'p1', 'name' => 'Garden', 'category' => 'Outdoor', 'lat' => 1, 'lng' => 1]);
+        Place::create(['id' => 'p1', 'name' => 'The Garden', 'category' => 'Social', 'lat' => 35.337125, 'lng' => 33.320972]);
 
-        $this->withToken($tokenB)->postJson('/api/v1/checkins', ['placeId' => 'p1'])->assertOk();
+        $this->withToken($tokenB)->postJson('/api/v1/checkins', $this->checkinNear('p1'))->assertOk();
 
         $this->assertEquals(10, $b->fresh()->xp, "the check-in's XP belongs to B");
         $this->assertEquals(0, $a->fresh()->xp, "A did nothing and must have earned nothing");

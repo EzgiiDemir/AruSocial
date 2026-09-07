@@ -4,30 +4,49 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:arucad_campus_prototype/core/models/geo_point.dart';
 
-import 'package:arucad_campus_prototype/core/auth/app_settings_store.dart';
+import 'package:arucad_campus_prototype/core/config/campus_geofence.dart';
+import 'package:arucad_campus_prototype/core/config/place_tour.dart';
 import 'package:arucad_campus_prototype/core/l10n/app_strings.dart';
 import 'package:arucad_campus_prototype/core/models/campus_models.dart';
 import 'package:arucad_campus_prototype/core/models/media_item.dart';
 import 'package:arucad_campus_prototype/core/network/api_client.dart';
 import 'package:arucad_campus_prototype/core/services/content_moderation.dart';
 import 'package:arucad_campus_prototype/core/services/contracts.dart';
+import 'package:arucad_campus_prototype/core/services/location_service.dart';
 import 'package:arucad_campus_prototype/core/services/notification_service.dart';
 import 'package:arucad_campus_prototype/core/services/photo_picker_service.dart';
-import 'package:arucad_campus_prototype/core/services/place_photo_store.dart';
 import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
+import 'package:arucad_campus_prototype/features/map/campus_map_launcher.dart';
 import 'package:arucad_campus_prototype/features/map/in_app_navigation_screen.dart';
 import 'package:arucad_campus_prototype/core/services/tour_launcher.dart';
+import 'package:arucad_campus_prototype/features/widgets/campus_back_button.dart';
 import 'package:arucad_campus_prototype/features/widgets/campus_widgets.dart';
 
 /// How close (in meters) the device's real GPS position must be to a place
 /// before a check-in there is accepted.
 const _checkInRadiusMeters = 150.0;
 
+/// Drop internal catalog notes students should never see.
+String _studentFacingDescription(String raw) => raw
+    .replaceAll(RegExp(r'\s*\(legacy id:[^)]*\)', caseSensitive: false), '')
+    .trim();
+
+String _studentFacingMeta(CampusPlace place) {
+  final parts = <String>[
+    if (place.distance.trim().isNotEmpty && place.distance.trim() != '.')
+      place.distance.trim(),
+    if (place.street.trim().isNotEmpty && place.street.trim() != '.')
+      place.street.trim(),
+  ];
+  return parts.join(' · ');
+}
+
 class PlaceDetailScreen extends StatefulWidget {
   final CampusPlace place;
   final CampusRepository repository;
   final MapProvider mapProvider;
   final AnalyticsTracker analyticsTracker;
+  final bool canSetCover;
 
   const PlaceDetailScreen({
     super.key,
@@ -35,6 +54,7 @@ class PlaceDetailScreen extends StatefulWidget {
     required this.repository,
     required this.mapProvider,
     required this.analyticsTracker,
+    this.canSetCover = false,
   });
 
   @override
@@ -56,9 +76,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
     super.initState();
     _reviewsFuture = repository.getReviews(place.id);
     _feedFuture = repository.getFeed();
-    PlacePhotoStore.photoFor(place.id).then((url) {
-      if (mounted && url != null) setState(() => _coverPhoto = url);
-    });
+    _coverPhoto = place.coverUrl;
   }
 
   Future<void> _setCoverPhoto(BuildContext context) async {
@@ -67,7 +85,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
     try {
       final media = await repository.uploadMedia(bytes, fileName: '${place.name}-cover.jpg');
       await repository.markMediaUsed(media.id, 'place-cover:${place.id}');
-      await PlacePhotoStore.setPhoto(place.id, media.displaySrc);
+      await repository.setPlaceCover(place.id, media.displaySrc);
       if (!mounted) return;
       setState(() => _coverPhoto = media.displaySrc);
     } catch (e) {
@@ -89,6 +107,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(place.name),
+        leading: const CampusBackButton(),
         actions: [
           IconButton(
             tooltip: strings.t('place_report'),
@@ -112,15 +131,28 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
                   onTap: () => _tour(context),
                   child: _coverPhoto == null
                       ? Container(
-                          color: ArucadColors.mist,
-                          child: const Center(
+                          color: Theme.of(context)
+                              .colorScheme
+                              .surfaceContainerHighest,
+                          child: Center(
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.threesixty, size: 72, color: ArucadColors.primary),
-                                SizedBox(height: 6),
-                                Text('360° turu görüntülemek için dokun',
-                                    style: TextStyle(fontWeight: FontWeight.w700)),
+                                PlaceLineArtIcon(
+                                  placeName: place.name,
+                                  color: ArucadColors.primary
+                                      .withValues(alpha: .78),
+                                  size: 92,
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                    AppLocale.of(context)
+                                        .t('place_tour_tap'),
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onSurface)),
                               ],
                             ),
                           ),
@@ -130,12 +162,18 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
                 Positioned(
                   right: 10,
                   top: 10,
-                  child: IconButton.filled(
-                    style: IconButton.styleFrom(backgroundColor: Colors.black54),
-                    tooltip: _coverPhoto == null ? 'Kapak fotoğrafı ekle' : 'Kapak fotoğrafını değiştir',
-                    onPressed: () => _setCoverPhoto(context),
-                    icon: const Icon(Icons.add_a_photo_outlined, color: Colors.white, size: 20),
-                  ),
+                  child: widget.canSetCover
+                      ? IconButton.filled(
+                          style: IconButton.styleFrom(
+                              backgroundColor: Colors.black54),
+                          tooltip: _coverPhoto == null
+                              ? AppLocale.of(context).t('place_cover_add')
+                              : AppLocale.of(context).t('place_cover_change'),
+                          onPressed: () => _setCoverPhoto(context),
+                          icon: const Icon(Icons.add_a_photo_outlined,
+                              color: Colors.white, size: 20),
+                        )
+                      : const SizedBox.shrink(),
                 ),
               ]),
             ),
@@ -145,10 +183,12 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
               decoration: BoxDecoration(
-                  color: ArucadColors.mist,
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(999)),
               child: Text(place.category,
-                  style: const TextStyle(fontWeight: FontWeight.w800)),
+                  style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      color: Theme.of(context).colorScheme.onSurface)),
             ),
             const Spacer(),
             Text('⭐ ${place.rating}',
@@ -160,13 +200,29 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
                   .textTheme
                   .headlineMedium
                   ?.copyWith(fontWeight: FontWeight.w900)),
-          const SizedBox(height: 4),
-          Text('${place.distance} · ${place.street}'),
-          const SizedBox(height: 14),
-          Text(place.description, style: Theme.of(context).textTheme.bodyLarge),
-          const SizedBox(height: 18),
+          Builder(builder: (context) {
+            final meta = _studentFacingMeta(place);
+            final desc = _studentFacingDescription(place.description);
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (meta.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(meta),
+                ],
+                if (desc.isNotEmpty) ...[
+                  const SizedBox(height: 14),
+                  Text(desc, style: Theme.of(context).textTheme.bodyLarge),
+                ],
+                const SizedBox(height: 18),
+              ],
+            );
+          }),
           Wrap(spacing: 8, runSpacing: 8, children: [
-            PillChip(icon: Icons.people_outline, label: place.density),
+            PillChip(
+                icon: Icons.people_outline,
+                label: campusDensityInfo(place).$2,
+                color: campusDensityInfo(place).$1),
             PillChip(
                 icon: Icons.photo_library_outlined,
                 label: '${place.photos} memories'),
@@ -188,6 +244,11 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
                     icon: const Icon(Icons.directions_walk),
                     label: Text(strings.t('place_navigate')))),
           ]),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+              onPressed: () => _openOnMap(context),
+              icon: const Icon(Icons.map_outlined),
+              label: const Text('Haritada göster')),
           const SizedBox(height: 10),
           OutlinedButton.icon(
               onPressed: () => _tour(context),
@@ -363,13 +424,73 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
   }
 
   Future<void> _checkIn(BuildContext context) async {
-    final proximity = await _checkProximity();
+    final position = await _requirePosition(context);
+    if (position == null || !context.mounted) return;
+    if (!CampusGeofence.contains(position.latitude, position.longitude)) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Check-in yalnızca ARUCAD kampüs sınırları içinde yapılabilir.'),
+      ));
+      return;
+    }
 
-    final visibleToOthers = await AppSettingsStore.checkInVisible();
-    if (!context.mounted) return;
+    final choice = await showModalBottomSheet<bool>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const ListTile(
+              title: Text('Check-in başarılı olacak'),
+              subtitle: Text('XP bir kez verilir. Sosyal paylaşım isteğe bağlı.'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.lock_outline),
+              title: const Text('Gizlice XP kazan'),
+              subtitle: const Text('Akışa düşmez · +10 XP'),
+              onTap: () => Navigator.pop(ctx, false),
+            ),
+            ListTile(
+              leading: const Icon(Icons.share_outlined),
+              title: const Text('Sosyalde paylaş'),
+              subtitle: const Text('Feed + +10 XP'),
+              onTap: () => Navigator.pop(ctx, true),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (choice == null || !context.mounted) return;
+
     try {
-      await repository.checkIn(place.id, visibleToOthers: visibleToOthers);
-    } catch (e) {
+      await repository.checkIn(
+        place.id,
+        visibleToOthers: choice,
+        latitude: position.latitude,
+        longitude: position.longitude,
+        accuracy: position.accuracy,
+      );
+    } on ApiClientException catch (e) {
+      if (!context.mounted) return;
+      final msg = switch (e.code) {
+        'CHECKIN_OFF_CAMPUS' =>
+          'Check-in yalnızca ARUCAD kampüs sınırları içinde yapılabilir.',
+        'CHECKIN_TOO_FAR' => () {
+            final meters = (e.details?['distanceMeters'] as num?)?.toDouble();
+            if (meters == null) {
+              return 'Bu mekâna çok uzaksın — check-in yapılamadı.';
+            }
+            if (meters >= 1000) {
+              return 'Bu mekâna ~${(meters / 1000).toStringAsFixed(1)} km uzaksın — yakında olmalısın.';
+            }
+            return 'Bu mekâna ~${meters.round()} m uzaksın (izin verilen yarıçap aşıldı).';
+          }(),
+        'ALREADY_CHECKED_IN' => 'Bu mekânda yakın zamanda check-in yaptın.',
+        'PLACE_LOCATION_UNKNOWN' => 'Bu mekânın koordinatı yok — check-in kapalı.',
+        _ => e.message,
+      };
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      return;
+    } catch (_) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Check-in kaydedilemedi. Lütfen tekrar dene.')));
@@ -379,53 +500,68 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
     widget.analyticsTracker.track('place_check_in', {
       'placeId': place.id,
       'placeName': place.name,
-      'visibleToOthers': visibleToOthers,
-      'verifiedNearby': proximity.verified,
+      'visibleToOthers': choice,
+      'verifiedNearby': true,
     });
 
     await NotificationService()
-        .showSimple('Check-in başarılı', '${place.name} · +30 XP');
+        .showSimple('Check-in başarılı', '${place.name} · +10 XP');
     if (!context.mounted) return;
-    setState(() => _feedFuture = repository.getFeed());
-    // Always saves — a check-in isn't blocked on GPS being available or
-    // matching, but it honestly says so when the position couldn't be
-    // confirmed, rather than silently claiming "buradasın" either way.
-    final locationNote = proximity.verified ? '' : ' · ${proximity.note}';
+    setState(() {
+      _feedFuture = repository.getFeed();
+    });
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(visibleToOthers
-            ? '${place.name} için check-in yapıldı · sosyal akışa eklendi · +30 XP$locationNote'
-            : '${place.name} için check-in yapıldı · gizli (+30 XP)$locationNote')));
+        content: Text(choice
+            ? '${place.name} için check-in yapıldı · sosyal akışa eklendi · +10 XP'
+            : '${place.name} için check-in yapıldı · gizli (+10 XP)')));
   }
 
-  /// Best-effort real GPS proximity check — never blocks the check-in
-  /// itself (denied permission, an unavailable location service, or
-  /// actually being far away all still let the check-in through), but the
-  /// result is surfaced honestly in the confirmation message instead of
-  /// silently claiming "you're here" when that couldn't be confirmed.
-  Future<({bool verified, String note})> _checkProximity() async {
+  /// GPS is required for check-in. Missing/denied location never invents a
+  /// fake coordinate — the action is refused with a clear message.
+  Future<Position?> _requirePosition(BuildContext context) async {
     try {
-      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        return (verified: false, note: 'konum kapalı, uzaktan check-in');
+      const location = LocationService();
+      final status = await location.checkAndRequestPermission();
+      if (status == LocationAccessStatus.serviceDisabled) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('Konum servisi kapalı — check-in için açmalısın.')));
+        }
+        return null;
       }
-      var permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
+      if (!status.isGranted) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('Konum izni yok — check-in yapılamaz.')));
+        }
+        return null;
       }
-      if (permission == LocationPermission.denied ||
-          permission == LocationPermission.deniedForever) {
-        return (verified: false, note: 'konum izni yok, uzaktan check-in');
-      }
-      final position = await Geolocator.getCurrentPosition(
-          locationSettings: const LocationSettings(accuracy: LocationAccuracy.high));
+      // Real fix for "check-in is slow": `.high` accuracy makes the OS wait
+      // for the best possible GPS fix, which can take many seconds
+      // (especially indoors/cold GPS). The check-in radius is ~150m and the
+      // backend re-validates distance itself regardless of what the client
+      // sends — `.medium` resolves in a fraction of the time and is still
+      // comfortably precise enough for that radius.
+      final position = await location.getCurrentPosition(
+          settings: const LocationSettings(accuracy: LocationAccuracy.medium));
+      if (position == null) return null;
       final meters = Geolocator.distanceBetween(
           position.latitude, position.longitude, place.lat, place.lng);
       if (meters > _checkInRadiusMeters) {
-        return (verified: false, note: 'uzaktan check-in (~${meters.round()} m)');
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text(
+                  'Bu mekâna çok uzaksın (~${meters.round()} m). Check-in için ${ _checkInRadiusMeters.round()} m içinde olmalısın.')));
+        }
+        return null;
       }
-      return (verified: true, note: '');
+      return position;
     } catch (_) {
-      return (verified: false, note: 'konum alınamadı, uzaktan check-in');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Konum alınamadı — check-in yapılamaz.')));
+      }
+      return null;
     }
   }
 
@@ -434,19 +570,46 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
     Navigator.of(context).push(MaterialPageRoute(
         builder: (_) => InAppNavigationScreen(
             destinationName: place.name,
-            destination: GeoPoint(place.lat, place.lng))));
+            destination: GeoPoint(place.lat, place.lng),
+            repository: widget.repository,
+            mapProvider: widget.mapProvider,
+            analyticsTracker: widget.analyticsTracker)));
+  }
+
+  Future<void> _openOnMap(BuildContext context) async {
+    List<CampusPlace> places = [place];
+    List<CampusEvent> events = const [];
+    try {
+      final results = await Future.wait([
+        widget.repository.getPlaces(),
+        widget.repository.getEvents(),
+      ]);
+      places = results[0] as List<CampusPlace>;
+      events = results[1] as List<CampusEvent>;
+    } catch (_) {}
+    if (!context.mounted) return;
+    await openCampusMapHub(
+      context,
+      places: places,
+      events: events,
+      repository: widget.repository,
+      mapProvider: widget.mapProvider,
+      analyticsTracker: widget.analyticsTracker,
+      onOpenGalatea: () {},
+      focusPlaceId: place.id,
+    );
   }
 
   Future<void> _tour(BuildContext context) async {
-    if (place.tourUrl == null || place.tourUrl!.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('360° linki bu yer için mevcut değil.')));
-      return;
-    }
-
+    final tour = resolvePlaceTour(place);
     widget.analyticsTracker.track(
-        'tour_opened', {'place': place.name, 'tourUrl': place.tourUrl});
-    await open360Tour(context, place.tourUrl!);
+        'tour_opened', {'place': place.name, 'tourUrl': tour.url});
+    await open360Tour(
+      context,
+      tour.url,
+      tourTarget: tour.target,
+      title: place.name,
+    );
   }
 
   Future<void> _addReview(BuildContext context) async {
@@ -503,7 +666,9 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
     if (!context.mounted) return;
     widget.analyticsTracker
         .track('review_added', {'placeId': place.id, 'rating': rating});
-    setState(() => _reviewsFuture = repository.getReviews(place.id));
+    setState(() {
+      _reviewsFuture = repository.getReviews(place.id);
+    });
     ScaffoldMessenger.of(context)
         .showSnackBar(const SnackBar(content: Text('Yorumun eklendi, teşekkürler!')));
   }

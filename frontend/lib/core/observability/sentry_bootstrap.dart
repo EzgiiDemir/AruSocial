@@ -24,8 +24,8 @@ class SentryBootstrapOptions {
     this.tracesSampleRate,
   });
 
-  /// Empty DSN is the expected local/dev shape — `SentryFlutter.init` still
-  /// runs the app normally but never reports anything (P3-6 §3).
+  /// Empty DSN is the expected local/dev shape — [main] skips
+  /// `SentryFlutter.init` so the SDK never logs "No DSN provided".
   bool get isEnabled => dsn.isNotEmpty;
 
   factory SentryBootstrapOptions.fromEnvironment({

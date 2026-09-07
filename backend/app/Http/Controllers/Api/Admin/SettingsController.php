@@ -7,31 +7,34 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\UpdateSiteSettingsRequest;
 use App\Models\AppSetting;
 use App\Services\AuditLogger;
+use App\Services\ImageModerationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
-// Server-side-only settings an admin manages from the panel but that the
-// client never reads back — starting with the image-moderation API key
-// (docs/EKSIKLER.md §26). Deliberately never returns the raw key: only
-// whether one is configured, same "write-only from the client's
-// perspective" shape a real secrets manager would have.
+// Server-side-only site settings. Media moderation uses ARUCAD's local
+// review queue; no vendor moderation key is stored or sent from this API.
 class SettingsController extends Controller
 {
     use ApiResponds;
 
     public function moderation(): JsonResponse
     {
-        return $this->ok(['configured' => (bool) AppSetting::getValue('moderation.apiKey')]);
+        return $this->ok([
+            'configured' => true,
+            'mode' => 'local_review',
+            'semanticClassifierConfigured' => ImageModerationService::semanticClassifierConfigured(),
+        ]);
     }
 
     public function setModeration(Request $request): JsonResponse
     {
-        $apiKey = $request->input('apiKey', '');
-        AppSetting::setValue('moderation.apiKey', $apiKey === '' ? null : $apiKey);
-        AuditLogger::logAsCurrentUser('update', 'setting',
-            'Görsel moderasyon API anahtarı '.($apiKey === '' ? 'temizlendi' : 'güncellendi'));
+        AuditLogger::logAsCurrentUser('update', 'setting', 'Yerel medya inceleme politikası doğrulandı');
 
-        return $this->ok(['configured' => $apiKey !== '']);
+        return $this->ok([
+            'configured' => true,
+            'mode' => 'local_review',
+            'semanticClassifierConfigured' => ImageModerationService::semanticClassifierConfigured(),
+        ]);
     }
 
     // Public Entra client config + WordPress site URL. The WP token is the

@@ -1,5 +1,23 @@
 # AruSocial — Gerçek Ürün Dönüşümü: Repository Audit
 
+## Hardening Final Update (2026-08-26)
+
+- Durum: `REAL_PRODUCT_HARDENING_FINAL_PARTIAL`
+- Dashboard + Stats tek experience (`/admin/stats` tek kaynak)
+- Appointment cancel + slot status + PAST_SLOT / APPOINTMENT_ALREADY_EXISTS
+- Map null-safe marker/heatmap filtering
+- Backend tests: **393 passed**, routes: **151**
+- Full manual browser DevTools sweep hâlâ açık (web-server boot OK)
+
+## Hardening 3 Update (2026-08-26)
+
+- Durum: `REAL_PRODUCT_HARDENING_3_PARTIAL`
+- Route sayısı yeniden doğrulandı: **151**
+- Sport / Service / Career apply UI akışları gerçek `participation` endpointine bağlandı.
+- Career ekranında staff slot listesi + appointment booking endpoint entegrasyonu eklendi.
+- Admin panele `Achievements` sekmesi eklendi (listele/oluştur/düzenle).
+- Web smoke: `flutter run -d web-server --web-port 7357` başarıyla açıldı (HTTP 200), ancak tam manuel browser console sweep bu turda tamamlanmadı.
+
 **Commit:** `6fa85b5` (21 Ağu 2026, "Revert: project deploy")
 **Kapsam:** Salt okuma analizi. Bu turda **hiçbir kod değiştirilmedi.**
 **Not:** 21 Ağustos'taki auth / RBAC / realtime / post_likes çalışması revert edildi. Bu rapor **revert sonrası gerçek ağaca** dayanır (`git ls-files` ile doğrulandı). Bazı arama indeksleri hâlâ silinmiş dosyaları gösteriyor; onlar yok sayıldı.
@@ -612,8 +630,97 @@ insan/hesap işlemi gerektiği var — ayrıntılı prosedürler
 
 **P3-6 not:** `sentry/sentry-laravel` mevcut exception pipeline'ına bağlandı (`SentryIntegration::handles($exceptions)`, `bootstrap/app.php`); Laravel'in kendi `report()`/render() davranışı, API zarfı (`data/meta/error`) ve `request_id` değişmedi. Local `SENTRY_DSN` boş → SDK no-op transport (gerçek network çağrısı yok). `AttachSentryContext` middleware `request_id`/route/`user.id`'yi Sentry scope'una API response'daki aynı `request_id` ile (`ApiResponds::requestId()`) tag'ler. `App\Support\SentryScrubber` (`config/sentry.php` `before_send`) request body alanlarını (password/token/apiKey/...) ve bilinen secret değerlerini (SMTP, Firebase private key, Reverb secret, WP token, moderation key) event'ten redakte eder — `SentrySecretScrubTest`. FCM job (`DeliverFcmNotification`) ve `EmailService` send/retry hataları ek olarak `\Sentry\captureException` ile raporlanır, mevcut swallow/retry semantiği değişmedi (`SentryQueueTest`). Performance tracing kapalı (`traces_sample_rate`/`profiles_sample_rate` null). Flutter tarafında `sentry_flutter` `main()`'in en başında `SentryFlutter.init(..., appRunner: ...)` ile sarmalanır (`SentryBootstrapOptions`, `SENTRY_DSN` --dart-define, `AppConfig` henüz kurulmadan) — kendi `FlutterError.onError`/`PlatformDispatcher.onError`/`runZonedGuarded` eklenmedi (SDK'nın appRunner'ı bunları zaten kurar; duplicate event yok). `sendDefaultPii=false` her iki tarafta da. Backend 270/270, Flutter 69/69 test yeşil; 108 route aynı; yeni public route yok; audit semantics değişmedi. Gerçek Sentry projesi/dashboard smoke yapılmadı (organization/DSN yok) — fake transport (backend) ve saf `SentryBootstrapOptions` testleri (Flutter) ile doğrulandı.
 
+### P3.5 — Domain Cleanup / P4 Öncesi Temizlik
+
+External hesap beklemeden yapılabilecek, P0-P3'ten kalan local-state/data-model borçlarını kapatan ayrı bir milestone. P3-8→P3-14'ten (external account setup) tamamen bağımsız.
+
+| ID | Görev | Durum |
+|---|---|---|
+| DC-1 | `club_members` gerçek kulüp üyeliği (SharedPreferences → REST) | **TAMAMLANDI** |
+| DC-2 | Profil bio → REST | **TAMAMLANDI** |
+| DC-3 | First 30 Days → server-side | **TAMAMLANDI** |
+| DC-4 | Görünürlük seviyesi → server-side | **TAMAMLANDI** |
+| DC-5 | Place photo pointer → backend | **TAMAMLANDI** |
+| DC-6 | `places.density` → check-in-derived | **TAMAMLANDI** |
+| DC-7 | `places.rating` → review-derived | **TAMAMLANDI** |
+| DC-8 | `quests.progress` → event-derived | **TAMAMLANDI** |
+| DC-9 | Yıllık XP / ledger product rule | **TAMAMLANDI** |
+| DC-10 | "Sana Özel" semantics | **TAMAMLANDI** |
+| DC-11 | "Kampüs Nabzı / online" semantics | **TAMAMLANDI** |
+| DC-12 | Hardcoded kampüs POI/shuttle/tours CMS kararı | **TAMAMLANDI** |
+
+**DC-2 not:** `department`/`year`/`university`/`clubs`/`achievements`/`projects` (Sosyal sekmesi "Profili Düzenle" formu) daha önce yalnızca client `ProfileBioStore` SharedPreferences'ında (`profile.bio_edits.v1`) tutuluyordu — hem REST hem Mock modda, `SocialProfileScreen` bu store'u repository'yi bypass ederek doğrudan okuyup yazıyordu; REST modda backend bu altı alanı hiç bilmiyordu (ikinci cihaz/reinstall'da veri kaybı). Yeni migration `users` tablosuna altı nullable kolon ekliyor (`clubs`/`achievements`/`projects` JSON — **`club_members`'la ilgisi yok**, öğrencinin serbest metin yazdığı bir gösterim listesi). `User::toApiArray()` (hem `/me` hem login response'u besliyor) artık bu alanları döndürüyor. Yeni `POST /me/profile` (`ProfileController::updateBio`, `UpdateProfileBioRequest`) — `currentUser()`'a scope'lu, kısmi güncelleme (gönderilmeyen alan dokunulmadan kalır); rota sayısı 111 → **112**. `CampusRepository.updateProfileBio(...)` yeni sözleşme metodu: Rest `POST /me/profile`'a yalnız verilen alanları gönderir; Mock hâlâ `ProfileBioStore`'a yazar ama artık overlay mantığı `SocialProfileScreen`'den `MockCampusRepository.getMe()`'ye taşındı — ekran artık mod farkı gözetmeden `repository.getMe()`/`updateProfileBio()` çağırıyor, `ProfileBioStore`'u doğrudan hiç görmüyor. `CampusUserDto` (`campus_dtos.dart`) altı alanı da parse ediyor. Bir alanı gerçekten boşaltma (temizleme) UI'da hâlâ mümkün değil — boş text field `null` üretiyor ve hem Mock (`copyWith`'in `??` davranışı) hem Rest (`if (value != null)` filtresi) bunu "dokunma" olarak yorumluyor; bu **öncesinde de aynıydı** (regresyon değil), kapsam dışı bırakıldı. Testler: backend `ProfileBioTest` (6 test — default/update/partial-update/isolation/validation/401), Flutter `profile_bio_test.dart` (6 test — Mock + Rest). Backend 321/321, Flutter 81/81 yeşil.
+
+**DC-1 not:** Kulüp üyeliği daha önce yalnızca cihaz-local `AppSettingsStore.joinedClubs()`'taydı (`settings.clubs.joined`, SharedPreferences) — paylaşılan bir roster hiç yoktu, iki öğrencinin cihazı birbirinden habersiz "katıldım" diyebiliyordu. Yeni `club_members` tablosu (`user_id` + `club_id`, unique çift, ikisi de `cascadeOnDelete`) `saved_posts`'un aynı pivot şeklini taklit eder. Yeni `ClubMemberController` (`index`/`join`/`leave`) — join/leave **toggle değil**, ayrı idempotent aksiyonlar (`PostLike`/`SavedPost`'un "tekrar tıkla → geri al" davranışından farklı: kulüpte tekrar "Katıl"a basmak asla üyelikten çıkarmaz — testler bunu doğrular). Yeni route'lar: `POST /clubs/{id}/join`, `POST /clubs/{id}/leave`, `GET /club-memberships` — `currentUser()`'a bağlı, client'ın gönderdiği user id'ye değil. Rota sayısı 108 → **111** (`docs/API_CONTRACT.md`, `ApiContractInventoryTest` güncellendi). `ClubDetailScreen` artık `CampusRepository.getJoinedClubIds/joinClub/leaveClub` kullanıyor (üç çağrı noktası: `explore_screen.dart`, `ask_arucad_screen.dart`, `guide_sheet.dart` hepsi `repository`'i geçiyor). Mock modda eski davranış aynen korundu (`MockCampusRepository` hâlâ `AppSettingsStore`'a delege eder) — REST modda SharedPreferences artık source of truth değil. Legacy cihaz-local üyelik REST'e otomatik taşınmadı (güvenli otomatik eşleme yok — hangi cihazın hangi backend kullanıcısına ait olduğu bilinmiyor). Üye sayısı gösterimi (`campusClubMemberEstimate`) bu turda gerçek `COUNT(club_members)`'a çevrilmedi — kapsam yalnız "kimin üye olduğu" idi, "kaç kişi" ayrı bir küçük iyileştirme olarak bırakıldı. Testler: backend `ClubMembershipTest` (10 test — join/duplicate/leave/rejoin/404/401/isolation/cascade), Flutter `club_membership_test.dart` (6 test — Mock + Rest). Backend 315/315, Flutter 75/75 yeşil.
+
+**DC-3 not:** "İlk 30 Gün" tikleri `AppSettingsStore.onboardingDone` / `onboardingStartedAt` (cihaz-local) idi. Yeni `onboarding_progress` (`user_id` + `step_id`, unique, cascade). Checklist içeriği (`onboarding_config.dart`) statik ürün kopyası olarak Flutter'da kaldı; yalnız tamamlanma + `startedAt` (`users.created_at`, cihazlar arası gerçek "1. gün") sunucuya taşındı. `GET /me/onboarding`, `POST /me/onboarding/{stepId}` — idempotent, `currentUser()` scope. `NewStudentScreen` / `HomeScreen` repository üzerinden gidiyor.
+
+**DC-4 not:** `CampusVisibility` / nearby / check-in görünürlüğü / personalization `AppSettingsStore`'daydı. `users` üzerine dört kolon (`location_visibility` default `ghost`, `nearby_discoverable` default false, `check_in_visible` default true, `personalization` default true). `GET`/`POST /me/settings` kısmi güncelleme. `CampusShell` ve `PlaceDetailScreen` check-in görünürlüğünü repository'den okuyor. Dil ve biyometrik cihaz tercihi olarak `AppSettingsStore`'da kaldı.
+
+**DC-5/6/7 not:** Kapak `PlacePhotoStore` (SharedPreferences pointer) idi; `places.cover_url` + `POST /places/{id}/cover` + Place JSON `coverUrl`. `density` artık son 2 saatteki check-in sayısından (`quiet` <2, `moderate` 2–4, `busy` ≥5); `rating` review ortalaması (yoksa 0). Statik kolonlar duruyor ama API onları döndürmüyor. `recentCheckins` yeni alan (mevcut Place şekline ek; kırıcı değil). `PlacePresence` GET /places N+1 yapmasın diye batch.
+
+**DC-8 not:** `quests.progress` seed'de 3'tü ve hiç artmıyordu. `quests.kind` (`distinct_checkins` / `event_joins` / `static`). GET /me/quests progress'i gerçek check-in (distinct place) / event_join sayısından hesaplıyor, `target`'ta cap. JSON şekli aynı.
+
+**DC-9 not (product rule):** `xp_transactions` ledger'ı geri getirilmedi. `users.xp` ömür boyu toplam ve **yıllık sıfırlanmaz**. Yıllık XP, Activity sekmesinde `GET /me/activity` içindeki `createdAt` + `xp` toplamı (check-in her zaman +10, event join subtitle'daki `+$N XP`). Leaderboard hâlâ lifetime `users.xp`.
+
+**DC-10 not:** "Sana Özel" hâlâ client-side (unvisited + `.take(3)`); GPS varsa gerçek mesafeye göre sıralanır, yoksa liste sırası. Alt yazı "yakın yerler" iddiasını yalnız konum varken kullanıyor — konum yokken "Henüz check-in yapmadığın yerler." Recommendation endpoint yok (bilinçli: mevcut iki GET yeterli).
+
+**DC-11 not:** `campusOnlineCount(name.hashCode)` emekli. Sayı `place.recentCheckins` (son 2 saat, backend). Home "Kampüs Nabzı" bu sayıya + density'ye göre sıralıyor. Harita "X çevrimiçi" → "X kişi son 2 saatte check-in yaptı"; uydurma "E. · 3 dk önce" satırları kalktı.
+
+**DC-12 not (CMS kararı):** REST'te yer listesi/koordinat kanonu `GET /places` (live map zaten `widget.places` kullanıyor). `poi_config.dart` yalnız mock seed + bina dizini geo fallback. `shuttle_config.dart` **local kalır** (shuttle API yok; sabit sefer saatleri). `campus_sites.dart` geofence / tur URL / harita extent — `place.tourUrl` ile kısmi örtüşme, şimdilik duruyor. `tours_config.dart` kullanılmayan kopya; silinmedi, yorumla işaretlendi. `campus_life_config.dart` katalog API'lerinin seed/fallback'i (REST zaten `/clubs|/sports|/services` kullanıyor). `onboarding_config.dart` / `normalizeCategory()` ürün sabiti, local kalır. Bu turda yeni CMS tablosu açılmadı.
+
+Rota sayısı domain cleanup sonunda **117** (108 → 111 kulüp + 1 bio + 2 onboarding + 2 settings + 1 cover).
+
 ### P4
-Achievements, galeri, Bandabuliya programı, kariyer hub derinliği, 360 drill-down — **altyapı bitmeden başlanmaz.**
+**P4-MEGA1-COMPLETE** — Achievements + Personal Gallery + Bandabuliya + Career Hub + Communities filter.
+
+| Alt paket | Durum | Not |
+|---|---|---|
+| Achievements | Server-backed | `achievement_definitions` + `user_achievements`; unlock yalnız domain event sonrası (`AchievementEvaluator`); `GET /me/achievements`; bio `users.achievements` ayrı kaldı |
+| Personal Gallery | Backend-backed | `media_items.user_id`; `GET/POST /media/mine`, `POST /media/mine/{id}/delete`; admin `/media*` ayrı (`media.manage`) |
+| Bandabuliya | Events reuse | `GET /events?category=Bandabuliya` (+ `placeId`); seed place + events; Explore Bandabuliya bölümü |
+| Career Hub | Backend-backed | `career_opportunities` + `career_profiles`; `career.manage` admin write + audit; own profile isolation |
+| Communities filter | Clubs reuse | `GET /clubs?category=Community`; Explore catalog chips All/Clubs/Sports/Communities/Services |
+
+**Rota:** 117 → **126** (+9: achievements, media/mine×3, career opportunities, me career-profile×2, admin career×2).
+
+**Migration:** `2026_08_25_000000` achievements, `010000` media user_id, `020000` career tables.
+
+**Kapsam dışı (Mega-2/3):** 360 map, routing, video moderation, AI poster, human mod queue, admin web rewrite, Ask ARUCAD redesign.
+
+### P4 Mega-2
+**P4-MEGA2-COMPLETE** — 360 campus drill-down + walking routing abstraction + video upload/moderation + poster→AI draft + human visual queue.
+
+| Alt paket | Durum | Not |
+|---|---|---|
+| 360 Campus | Backend-backed | Soft hierarchy on `directory_entries`; `GET /directory/buildings|…/floors|…/rooms` (+ `?building=&floor=` filter). No separate buildings DB. |
+| Routing | Abstraction + optional provider | `POST /routing/directions`; `ROUTING_BASE_URL` OSRM-compatible. Empty → 501 `ROUTING_NOT_CONFIGURED` (no fake turn-by-turn). |
+| Video | Backend-backed | MP4/WEBM/MOV ≤64MB on existing media disk; `moderation_status=pending` → human queue (no auto-approve). |
+| AI Event Draft | Abstraction + optional Groq vision | `POST /admin/events/draft-from-poster` (`events.manage`); always draft; 501 without `GROQ_API_KEY`. Never auto-publishes. |
+| Human Moderation | Backend-backed | `GET/POST /admin/moderation/queue*`; `moderation.moderate`; flagged ≠ instant reject. |
+
+**Rota:** 126 → **133** (+7: buildings, floors, rooms, routing, draft-from-poster, queue, queue resolve).
+
+**Migration:** `2026_08_25_100000` media `moderation_status`; `110000` events `ai_draft` + `ai_source_media_id`.
+
+**External blockers:** `ROUTING_PROVIDER_REQUIRED` / `BLOCKED_EXTERNAL_DEPENDENCY` when `ROUTING_BASE_URL` unset; poster AI `BLOCKED_EXTERNAL_DEPENDENCY` when `GROQ_API_KEY` unset; no automated video moderation provider.
+
+**Kapsam dışı (eski Mega-3 notu):** admin web shell + Ask ARUCAD — **Mega-3'te ele alındı** (aşağıya bak).
+
+### P4 Mega-3 / FINAL
+**P4-FINAL-COMPLETE** — Admin shell split + Ask ARUCAD 5-tab contract + product/security re-audit.
+
+| Alan | Durum | Not |
+|---|---|---|
+| Admin web shell | Split | Shell ~570 satır + `admin/sections/*` + `admin/widgets/*` (`part of`); UI/nav aynı; data → `CampusRepository` |
+| Ask ARUCAD | 5 sekme | Bottom nav: Home·Explore·Social·Quests·Profile. Ask = sheet + full-screen push. `AskArucadStore` = cihaz sohbet cache. REST `/ai/query`; unavailable → clear message |
+| Product contract | Verified | DC-10/11 korunuyor; unused `tours_config.dart` silindi |
+| Security | Verified | AI/routing keys backend-only; audit REST server-side |
+| API contract | 133 | Mega-3 route eklemedi |
+
+**Rota:** **133**.
+
+**External blockers:** PostgreSQL prod, SMTP, Firebase, Sentry, `ROUTING_BASE_URL`, `GROQ_API_KEY`, hosting, Apple/Google Play.
 
 ---
 
@@ -626,7 +733,16 @@ Achievements, galeri, Bandabuliya programı, kariyer hub derinliği, 360 drill-d
 | P1-7 | `conversations`, `conversation_participants`, `messages` | Evet | Mevcut `chat_messages` **taşınmalı** (tek yönlü kayıtlar ikili konuşmaya map edilir) |
 | P1-8 | `social_follows.followed_user_id`, `social_blocks.blocked_user_id` | Evet | İsim→id eşleşmeyen satırlar boşta kalır |
 | P1-11 (ops.) | `post_comments.user_id` | Evet | Eski yorumlarda null |
-| P2 (ops.) | `club_members`, `xp_transactions` | Evet | Yok (yeni) |
+| P2 (ops.) | `club_members`, `xp_transactions` | Evet | Yok (yeni) — `club_members` DC-1'de geldi; `xp_transactions` **bilinçli olarak getirilmedi** (DC-9 product rule) |
+| DC-3 | `onboarding_progress` | Evet | Yok (yeni) |
+| DC-4 | `users.location_visibility` / `nearby_discoverable` / `check_in_visible` / `personalization` | Evet | Yok (default'lar eski client default) |
+| DC-5 | `places.cover_url` | Evet | Yok (nullable) |
+| DC-8 | `quests.kind` | Evet | Yok (default `static`) |
+| P4-M1 | `achievement_definitions`, `user_achievements` | Evet | Yok (yeni) |
+| P4-M1 | `media_items.user_id` (nullable FK) | Evet | Yok (admin satırlar null) |
+| P4-M1 | `career_opportunities`, `career_profiles` | Evet | Yok (yeni) |
+| P4-M2 | `media_items.moderation_status` | Evet | Yok (default `approved`) |
+| P4-M2 | `events.ai_draft`, `events.ai_source_media_id` | Evet | Yok (nullable) |
 
 **Kural:** Mevcut migration dosyaları **silinmez/düzenlenmez**; her değişiklik yeni `add_*/create_*` migration'ı ile yapılır.
 
@@ -657,6 +773,20 @@ Achievements, galeri, Bandabuliya programı, kariyer hub derinliği, 360 drill-d
 - Neden: iş mantığına hiç dokunmaz, geri alınması kolay, ve **P1'i test edebilmenin ön koşulu** — bugün web istemcisiyle backend'e hiç ulaşılamıyor.
 - Doğrulama: `php artisan test` + `dart run tool/verify_rest_backend.dart` + Chrome'dan gerçek giriş denemesi.
 - Migration: yok. Frontend kırma riski: yok.
+
+---
+
+## 16. REAL PRODUCT HARDENING (2026-08-26) — PARTIAL
+
+Detaylı checklist: [`docs/REAL_PRODUCT_AUDIT.md`](REAL_PRODUCT_AUDIT.md).
+
+**Hardening 1:** server check-in geofence, XP +10, session restore, onboarding `eligible`, club `memberCount`, occupancy kaldırıldı, aktivite notify/email.
+
+**Hardening 2:** `staff_profiles` CRM + filtreler; `participation_applications` submit/approve/reject + notify/email; appointments + double-book guard; achievements admin API; stats applications; admin Başvurular/Personel; club join → başvuru formu; chat navy UX. Routes **151**.
+
+Hâlâ açık: sport/service/career UI apply yüzeyleri, appointment Flutter UI, achievements admin sekmesi, dashboard↔stats birleşimi, Explore/Activity derin polish, MapLibre style sprite 404 (üçüncü taraf), browser smoke, external credentials.
+
+Test: backend **389**, Flutter **102**, routes **151**.
 
 ---
 

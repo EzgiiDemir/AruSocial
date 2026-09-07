@@ -49,5 +49,13 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('api', function ($request) {
             return Limit::perMinute(300)->by($request->user()?->id ?: $request->ip());
         });
+
+        // Ask ARUCAD / Groq proxy — tighter than the general API budget so
+        // a single client cannot burn the upstream key at 300 req/min.
+        RateLimiter::for('ai', function ($request) {
+            $perMinute = (int) config('services.groq.rate_limit_per_minute', 20);
+
+            return Limit::perMinute(max(1, $perMinute))->by($request->user()?->id ?: $request->ip());
+        });
     }
 }

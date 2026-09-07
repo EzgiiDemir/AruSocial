@@ -6,16 +6,30 @@
 // own code, so this stays focused on the real decision logic instead —
 // see widget_test.dart for the "does the app boot" smoke test.
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:arucad_campus_prototype/core/models/campus_models.dart';
 import 'package:arucad_campus_prototype/core/services/mock_auth_provider.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+  });
   group('MockAuthProvider.signInWithCredentials', () {
     test('accepts any @arucad.edu.tr email with a non-empty password', () async {
       final auth = MockAuthProvider();
 
       final ok = await auth.signInWithCredentials('ogrenci@arucad.edu.tr', 'test1234');
+
+      expect(ok, isTrue);
+    });
+
+    test('accepts @gmail.com test inboxes with a non-empty password', () async {
+      final auth = MockAuthProvider();
+
+      final ok = await auth.signInWithCredentials('ezgdemr02@gmail.com', 'password');
 
       expect(ok, isTrue);
     });
@@ -28,10 +42,10 @@ void main() {
       expect(ok, isTrue);
     });
 
-    test('rejects a non-ARUCAD email domain', () async {
+    test('rejects an email outside the allowed domains', () async {
       final auth = MockAuthProvider();
 
-      final ok = await auth.signInWithCredentials('someone@gmail.com', 'test1234');
+      final ok = await auth.signInWithCredentials('someone@example.com', 'test1234');
 
       expect(ok, isFalse);
     });

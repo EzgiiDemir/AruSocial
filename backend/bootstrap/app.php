@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\AttachSentryContext;
+use App\Http\Middleware\EnsureDepartmentHead;
 use App\Http\Middleware\EnsureNotBanned;
 use App\Http\Middleware\EnsurePermission;
 use App\Support\TrustedProxyList;
@@ -57,6 +58,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'not-banned' => EnsureNotBanned::class,
             'permission' => EnsurePermission::class,
+            'department-head' => EnsureDepartmentHead::class,
             'sentry-context' => AttachSentryContext::class,
         ]);
 

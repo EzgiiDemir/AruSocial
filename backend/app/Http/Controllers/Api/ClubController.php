@@ -27,17 +27,24 @@ class ClubController extends Controller
             'category' => $c->category,
             'description' => $c->description,
             'body' => $c->body ?? [],
+            'memberCount' => (int) ($c->members_count ?? $c->members()->count()),
+            'responsibleStaffId' => $c->responsible_staff_id,
         ];
     }
 
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        return $this->ok(Club::all()->map(fn ($c) => $this->toJson($c)));
+        $query = Club::query()->withCount('members');
+        if ($category = $request->query('category')) {
+            $query->where('category', $category);
+        }
+
+        return $this->ok($query->get()->map(fn ($c) => $this->toJson($c)));
     }
 
     public function show(string $id): JsonResponse
     {
-        $club = Club::find($id);
+        $club = Club::withCount('members')->find($id);
         if (! $club) return $this->fail(404, 'CLUB_NOT_FOUND', 'Club not found.');
 
         return $this->ok($this->toJson($club));
@@ -54,6 +61,7 @@ class ClubController extends Controller
             'category' => $request->input('category', ''),
             'description' => $request->input('description', ''),
             'body' => $request->input('body', []),
+            'responsible_staff_id' => $request->input('responsibleStaffId'),
         ]);
         AuditLogger::logAsCurrentUser($isNew ? 'create' : 'update', 'club', $name);
 

@@ -10,7 +10,7 @@ class Quest extends Model
     protected $keyType = 'string';
     public $timestamps = false;
 
-    protected $fillable = ['id', 'user_id', 'title', 'subtitle', 'progress', 'target', 'reward'];
+    protected $fillable = ['id', 'user_id', 'title', 'subtitle', 'progress', 'target', 'reward', 'kind'];
 
     public function user()
     {

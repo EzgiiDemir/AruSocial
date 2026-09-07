@@ -1,58 +1,85 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
-/// ARUCAD Social Life palette: mature, calm, premium — charcoal, graphite,
-/// navy and a deep saturated blue carry the brand instead of the earlier
-/// red/yellow scheme. `blue` is a brighter secondary accent (info, routes,
-/// events) kept visually distinct from the deeper `primary`; `warning`
-/// covers the old decorative "yellow" uses (ratings, weather, moderate
-/// density) since those were always status signals, not brand color.
+/// Figma Super Set palette — exact tokens from the mobile UI sheet.
 class ArucadColors {
-  static const primary = Color(0xFF2B4C7E);
-  static const navy = Color(0xFF141B2E);
+  /// The ARUCAD blue from the supplied brand palette is the app's main action
+  /// colour. Red remains available for destructive actions and alerts.
+  static const primary = Color(0xFF000F9F);
+  static const red = Color(0xFFEA0029);
+  // Darkened from the original 0xFFFFD700: pure gold was too light to read
+  // against white/light surfaces (icons/text in this color nearly
+  // disappeared). This amber tone keeps the "yellow" identity but has real
+  // contrast; anything filled solid with it must use black content — see
+  // [onAccent].
+  static const yellow = Color(0xFFC79100);
+  static const blue = primary;
+  static const campusGreen = Color(0xFF28A745);
+  static const lavender = Color(0xFFC9BFE3);
+  static const orange = Color(0xFFF7941D);
+
+  static const navy = primary;
   static const slate = Color(0xFF5B6472);
-  static const blue = Color(0xFF3B7DD8);
-  static const ink = Color(0xFF1C1E22);
-  static const paper = Color(0xFFF6F7F9);
-  static const mist = Color(0xFFE9EBEF);
+  static const ink = Color(0xFF111111);
+  static const paper = Color(0xFFFFFFFF);
+  static const canvas = Color(0xFFF2F2F2);
+  static const mist = Color(0xFFF2F2F2);
+  static const border = Color(0xFFE0E0E0);
   static const muted = Color(0xFF6B7280);
-  static const success = Color(0xFF2F9C55);
-  static const warning = Color(0xFFD99721);
-  static const danger = Color(0xFFBC4050);
 
-  /// Score-level ramp, lowest rung — a neutral graphite, distinct from
-  /// both `ink` (body text) and `slate` (level 2), so "Level 1" reads as a
-  /// real starting point rather than invisible/black text.
-  static const graphite = Color(0xFF3A3F47);
-
-  /// Score-level ramp, highest rung — the deepest, most saturated blue in
-  /// the app. Reaching it should read as "arrived," the way `navy` reads
-  /// as more premium than `blue`.
-  static const premiumBlue = Color(0xFF15458F);
-
-  /// A second, warmer palette for card/section backgrounds and category
-  /// accents — chosen to break up the app's white + brand-blue starting
-  /// point without touching `primary`/`navy`/`blue` (the actual brand
-  /// colors) or the status colors above (`success`/`warning`/`danger`,
-  /// which still carry the heatmap/density meaning they always have).
-  /// Named after the shade itself, not one screen, since each one is
-  /// reused as a deterministic category accent across cards app-wide —
-  /// see `categoryAccent()` in campus_widgets.dart.
-  static const slateBlue = Color(0xFF4D6787); // Mavi-Gri
-  static const mistLilac = Color(0xFF898AA6); // Puslu Mavi-Lila
-  static const sage = Color(0xFF94A378); // Adaçayı Yeşili
-  static const honey = Color(0xFFF2D388); // Sıcak Sarı
-  static const terracotta = Color(0xFFDA8359); // Kiremit
-  static const dustyRose = Color(0xFF886F6F); // Puslu Gül
+  static const green = campusGreen;
+  static const success = campusGreen;
+  static const warning = yellow;
+  static const danger = red;
 }
 
-/// Score level → color, levels 1 through 5+. Deliberately a "graphite to
-/// deepening/more saturated blue" ramp, not a red→yellow→green gamification
-/// gradient — a higher level should read as more premium, not more urgent.
+/// Device-level appearance choice. System is the default so ARUCAD follows
+/// the phone unless a student deliberately selects light or dark.
+enum ArucadThemePreference {
+  system,
+  light,
+  dark;
+
+  ThemeMode get themeMode => switch (this) {
+        ArucadThemePreference.system => ThemeMode.system,
+        ArucadThemePreference.light => ThemeMode.light,
+        ArucadThemePreference.dark => ThemeMode.dark,
+      };
+
+  String get label => switch (this) {
+        ArucadThemePreference.system => 'Sistem ayarını kullan',
+        ArucadThemePreference.light => 'Açık tema',
+        ArucadThemePreference.dark => 'Koyu tema',
+      };
+
+  String labelKey() => switch (this) {
+        ArucadThemePreference.system => 'theme_system',
+        ArucadThemePreference.light => 'theme_light',
+        ArucadThemePreference.dark => 'theme_dark',
+      };
+
+  static ArucadThemePreference fromStorage(String? value) {
+    for (final preference in values) {
+      if (preference.name == value) return preference;
+    }
+    return ArucadThemePreference.system;
+  }
+}
+
+/// Text/icon color that stays readable on a brand fill. Yellow/warning is
+/// always paired with black content regardless of its exact luminance —
+/// white-on-yellow is illegible and must never happen.
+Color onAccent(Color color) {
+  if (color == ArucadColors.yellow || color == ArucadColors.warning) {
+    return ArucadColors.ink;
+  }
+  return color.computeLuminance() > 0.55 ? ArucadColors.ink : Colors.white;
+}
+
+/// Score level → color, levels 1 through 5+.
 Color levelColor(int level) {
   switch (level) {
     case <= 1:
-      return ArucadColors.graphite;
+      return ArucadColors.ink;
     case 2:
       return ArucadColors.slate;
     case 3:
@@ -60,138 +87,225 @@ Color levelColor(int level) {
     case 4:
       return ArucadColors.navy;
     default:
-      return ArucadColors.premiumBlue;
+      return ArucadColors.blue;
   }
 }
 
 /// Brand spacing tokens for consistent mobile-first layout.
 class ArucadSpacing {
+  static const double xxs = 4.0;
   static const double xs = 6.0;
+  static const double xsm = 8.0;
   static const double sm = 10.0;
+  static const double smd = 12.0;
   static const double md = 16.0;
   static const double lg = 22.0;
   static const double xl = 32.0;
 }
 
+/// Figma Super Set uses a 12 px corner language for cards/inputs; banners
+/// and pills stay larger. Named radii keep screens from inventing their own.
+class ArucadRadius {
+  static const double compact = 12.0;
+  static const double card = 12.0;
+  static const double feature = 16.0;
+  static const double pill = 999.0;
+}
+
+class ArucadShadows {
+  static const card = [
+    BoxShadow(color: Color(0x12000000), blurRadius: 18, offset: Offset(0, 6)),
+  ];
+}
+
+/// A native Android text face is deliberately used for interface copy. The
+/// bundled Montserrat subset did not cover every Turkish glyph consistently,
+/// which made accented characters fall back to a visibly different face.
+class ArucadFonts {
+  static const montserrat = 'Roboto';
+  static const oswald = 'Oswald';
+}
+
 /// Centralized text styles to follow ARUCAD's real official visual identity
-/// (brand guide: Montserrat primary, Oswald secondary/display) — not a
-/// generic system-font stand-in.
+/// (brand guide: Montserrat primary). Oswald's narrow accented glyphs made
+/// Turkish text inconsistent on Android, so all user-facing copy shares the
+/// same Turkish-capable family.
 class ArucadTextStyles {
   static TextTheme textTheme([Color? color]) {
-    final base = TextTheme(
+    return TextTheme(
       displaySmall: TextStyle(
+          fontFamily: ArucadFonts.montserrat,
           fontWeight: FontWeight.w900,
           fontSize: 28,
           color: color ?? ArucadColors.ink,
           height: 1.05),
       headlineSmall: TextStyle(
+          fontFamily: ArucadFonts.montserrat,
           fontWeight: FontWeight.w800,
           fontSize: 20,
           color: color ?? ArucadColors.ink),
+      titleLarge: TextStyle(
+          fontFamily: ArucadFonts.montserrat,
+          fontWeight: FontWeight.w800,
+          fontSize: 18,
+          color: color ?? ArucadColors.ink),
+      titleMedium: TextStyle(
+          fontFamily: ArucadFonts.montserrat,
+          fontWeight: FontWeight.w700,
+          fontSize: 16,
+          color: color ?? ArucadColors.ink),
       bodyLarge: TextStyle(
+          fontFamily: ArucadFonts.montserrat,
           fontWeight: FontWeight.w400,
           fontSize: 15,
           color: color ?? ArucadColors.ink),
+      bodyMedium: TextStyle(
+          fontFamily: ArucadFonts.montserrat,
+          fontWeight: FontWeight.w400,
+          fontSize: 14,
+          color: color ?? ArucadColors.ink),
       bodySmall: TextStyle(
+          fontFamily: ArucadFonts.montserrat,
           fontWeight: FontWeight.w600,
           fontSize: 12,
           color: color ?? ArucadColors.muted),
+      labelLarge: TextStyle(
+          fontFamily: ArucadFonts.montserrat,
+          fontWeight: FontWeight.w800,
+          fontSize: 14,
+          color: color ?? ArucadColors.ink),
     );
-    // Stamps Montserrat's font family across every text role (including
-    // ones not explicitly set above, e.g. bodyMedium — what Scaffold/
-    // Material actually uses for its DefaultTextStyle) while keeping the
-    // sizes/weights/colors already chosen above.
-    return GoogleFonts.montserratTextTheme(base);
   }
 
-  /// ARUCAD's official secondary/display face — for occasional short
-  /// labels (level badges, status chips), never for body copy or long
-  /// headings; Montserrat (via [textTheme]) carries everything else.
+  /// Display labels deliberately use Montserrat too: Turkish characters stay
+  /// visually consistent with the rest of the interface.
   static TextStyle display({
     double fontSize = 14,
     FontWeight fontWeight = FontWeight.w700,
     Color? color,
     double? letterSpacing,
-  }) =>
-      GoogleFonts.oswald(
-        fontSize: fontSize,
-        fontWeight: fontWeight,
-        color: color ?? ArucadColors.ink,
-        letterSpacing: letterSpacing,
-      );
+  }) {
+    return TextStyle(
+      fontFamily: ArucadFonts.montserrat,
+      fontFamilyFallback: const ['Roboto', 'Arial', 'sans-serif'],
+      fontSize: fontSize,
+      fontWeight: fontWeight,
+      color: color ?? ArucadColors.ink,
+      letterSpacing: letterSpacing,
+    );
+  }
 }
 
 class ArucadTheme {
-  static ThemeData data() {
+  static ThemeData data() => _data(Brightness.light);
+
+  static ThemeData dark() => _data(Brightness.dark);
+
+  static ThemeData _data(Brightness brightness) {
+    final isDark = brightness == Brightness.dark;
+    // Soft charcoal dark keeps the ARUCAD blue comfortable at night.
+    final surface = isDark ? const Color(0xFF23232B) : Colors.white;
+    final canvas = isDark ? const Color(0xFF1B1B22) : ArucadColors.canvas;
+    final ink = isDark ? const Color(0xFFF2F2F5) : ArucadColors.ink;
+    final muted = isDark ? const Color(0xFFB4B5C0) : ArucadColors.muted;
+    final mist = isDark ? const Color(0xFF2E2E38) : ArucadColors.mist;
+    final border = isDark ? const Color(0xFF42424E) : ArucadColors.border;
     final scheme = ColorScheme.fromSeed(
       seedColor: ArucadColors.primary,
-      brightness: Brightness.light,
+      brightness: brightness,
     ).copyWith(
       primary: ArucadColors.primary,
       onPrimary: Colors.white,
-      surface: Colors.white,
-      onSurface: ArucadColors.ink,
+      secondary: ArucadColors.yellow,
+      onSecondary: ArucadColors.ink,
+      surface: surface,
+      onSurface: ink,
+      onSurfaceVariant: muted,
+      surfaceContainerHighest: mist,
+      outline: border,
       error: ArucadColors.danger,
     );
-
-    final buttonShape =
-        RoundedRectangleBorder(borderRadius: BorderRadius.circular(14));
+    final buttonShape = RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(ArucadRadius.compact));
     const buttonPadding = EdgeInsets.symmetric(
         vertical: ArucadSpacing.sm, horizontal: ArucadSpacing.lg);
-    const buttonTextStyle = TextStyle(fontWeight: FontWeight.w800);
+    const buttonTextStyle = TextStyle(
+        fontFamily: ArucadFonts.montserrat, fontWeight: FontWeight.w800);
 
     return ThemeData(
       useMaterial3: true,
+      fontFamily: ArucadFonts.montserrat,
+      brightness: brightness,
       colorScheme: scheme,
-      scaffoldBackgroundColor: ArucadColors.paper,
-      textTheme: ArucadTextStyles.textTheme(),
-      appBarTheme: const AppBarTheme(
-        backgroundColor: ArucadColors.paper,
-        foregroundColor: ArucadColors.ink,
+      scaffoldBackgroundColor: canvas,
+      iconTheme: IconThemeData(color: ink),
+      primaryIconTheme: const IconThemeData(color: Colors.white),
+      textTheme: ArucadTextStyles.textTheme(ink).copyWith(
+        bodySmall: ArucadTextStyles.textTheme(muted).bodySmall,
+      ),
+      appBarTheme: AppBarTheme(
+        backgroundColor: surface,
+        foregroundColor: ink,
+        iconTheme: IconThemeData(color: ink),
+        actionsIconTheme: IconThemeData(color: ink),
         elevation: 0,
         centerTitle: false,
         titleTextStyle: TextStyle(
-            color: ArucadColors.ink, fontSize: 20, fontWeight: FontWeight.w900),
+            fontFamily: ArucadFonts.montserrat,
+            color: ink,
+            fontSize: 20,
+            fontWeight: FontWeight.w900),
       ),
       cardTheme: CardThemeData(
-        color: Colors.white,
+        color: surface,
         elevation: 0,
         margin: EdgeInsets.zero,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(ArucadRadius.card)),
       ),
-      dividerTheme: const DividerThemeData(
-          color: ArucadColors.mist, thickness: 1, space: 1),
+      dividerTheme: DividerThemeData(color: mist, thickness: 1, space: 1),
+      listTileTheme: ListTileThemeData(
+        iconColor: ink,
+        textColor: ink,
+      ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: Colors.white,
+        fillColor: mist,
         contentPadding: const EdgeInsets.symmetric(
             horizontal: ArucadSpacing.md, vertical: ArucadSpacing.sm),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(ArucadRadius.compact),
           borderSide: BorderSide.none,
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(ArucadRadius.compact),
           borderSide: const BorderSide(color: ArucadColors.primary, width: 1.4),
         ),
+        prefixIconColor: muted,
+        suffixIconColor: muted,
+        labelStyle: TextStyle(color: muted),
+        hintStyle: TextStyle(color: muted),
       ),
       navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: Colors.white,
+        backgroundColor: surface,
         elevation: 0,
-        indicatorColor: ArucadColors.primary.withValues(alpha: .12),
+        indicatorColor: (isDark ? const Color(0xFF9AA7FF) : ArucadColors.primary)
+            .withValues(alpha: .18),
         iconTheme: WidgetStateProperty.resolveWith(
           (states) => IconThemeData(
               color: states.contains(WidgetState.selected)
-                  ? ArucadColors.primary
-                  : ArucadColors.muted),
+                  ? (isDark ? const Color(0xFF9AA7FF) : ArucadColors.primary)
+                  : ink),
         ),
         labelTextStyle: WidgetStateProperty.resolveWith(
           (states) => TextStyle(
-              fontWeight: FontWeight.w700,
+              fontWeight: states.contains(WidgetState.selected)
+                  ? FontWeight.w800
+                  : FontWeight.w600,
               fontSize: 12,
               color: states.contains(WidgetState.selected)
-                  ? ArucadColors.primary
-                  : ArucadColors.muted),
+                  ? (isDark ? const Color(0xFF9AA7FF) : ArucadColors.primary)
+                  : ink),
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
@@ -214,8 +328,10 @@ class ArucadTheme {
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: ArucadColors.primary,
-          side: const BorderSide(color: ArucadColors.primary, width: 1.2),
+          foregroundColor: isDark ? const Color(0xFF9AA7FF) : ArucadColors.primary,
+          side: BorderSide(
+              color: isDark ? const Color(0xFF788BFF) : ArucadColors.primary,
+              width: 1.2),
           shape: buttonShape,
           padding: buttonPadding,
           textStyle: buttonTextStyle,
@@ -223,16 +339,19 @@ class ArucadTheme {
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: ArucadColors.primary,
+          foregroundColor: isDark ? const Color(0xFF9AA7FF) : ArucadColors.primary,
           textStyle: buttonTextStyle,
         ),
       ),
       chipTheme: ChipThemeData(
-        backgroundColor: ArucadColors.mist,
-        selectedColor: ArucadColors.primary.withValues(alpha: .12),
-        disabledColor: ArucadColors.mist,
-        labelStyle: const TextStyle(
-            fontWeight: FontWeight.w700, color: ArucadColors.ink, fontSize: 13),
+        backgroundColor: mist,
+        selectedColor: ArucadColors.primary.withValues(alpha: .18),
+        disabledColor: mist,
+        labelStyle: TextStyle(
+            fontFamily: ArucadFonts.montserrat,
+            fontWeight: FontWeight.w700,
+            color: ink,
+            fontSize: 13),
         secondarySelectedColor: ArucadColors.primary,
         checkmarkColor: ArucadColors.primary,
         side: BorderSide.none,
@@ -241,6 +360,26 @@ class ArucadTheme {
       ),
       progressIndicatorTheme:
           const ProgressIndicatorThemeData(color: ArucadColors.primary),
+      floatingActionButtonTheme: const FloatingActionButtonThemeData(
+        backgroundColor: ArucadColors.primary,
+        foregroundColor: Colors.white,
+      ),
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith((states) =>
+            states.contains(WidgetState.selected)
+                ? ArucadColors.primary
+                : surface),
+        trackColor: WidgetStateProperty.resolveWith((states) =>
+            states.contains(WidgetState.selected)
+                ? ArucadColors.primary.withValues(alpha: .45)
+                : mist),
+      ),
+      radioTheme: RadioThemeData(
+        fillColor: WidgetStateProperty.resolveWith((states) =>
+            states.contains(WidgetState.selected)
+                ? ArucadColors.primary
+                : muted),
+      ),
     );
   }
 }

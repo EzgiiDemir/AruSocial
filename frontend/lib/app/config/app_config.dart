@@ -23,6 +23,7 @@ class AppConfig {
   final String reverbScheme;
   final String sentryDsn;
   final String firebaseProjectId;
+  final List<String> tlsPins;
 
   const AppConfig({
     required this.appName,
@@ -34,27 +35,107 @@ class AppConfig {
     required this.supportedLanguages,
     this.reverbAppKey = 'arucad-local-key',
     this.reverbHost = '',
-    this.reverbPort = 8080,
+    this.reverbPort = 8091,
     this.reverbScheme = '',
     this.sentryDsn = '',
     this.firebaseProjectId = '',
+    this.tlsPins = const [],
   });
 
   factory AppConfig.demo() => const AppConfig(
-        appName: 'AruSocial',
+        appName: 'ARUVERSE',
         environment: AppEnvironment.local,
-        apiBaseUrl: 'http://localhost:4000/api/v1',
+        apiBaseUrl: 'http://127.0.0.1:4000/api/v1',
         useRestApi: false,
         demoMode: true,
         defaultLanguage: 'tr',
         supportedLanguages: ['tr', 'en', 'ru'],
       );
 
+  AppConfig copyWith({
+    String? apiBaseUrl,
+    bool? useRestApi,
+  }) {
+    final rest = useRestApi ?? this.useRestApi;
+    return AppConfig(
+      appName: appName,
+      environment: environment,
+      apiBaseUrl: apiBaseUrl ?? this.apiBaseUrl,
+      useRestApi: rest,
+      demoMode: !rest,
+      defaultLanguage: defaultLanguage,
+      supportedLanguages: supportedLanguages,
+      reverbAppKey: reverbAppKey,
+      reverbHost: reverbHost,
+      reverbPort: reverbPort,
+      reverbScheme: reverbScheme,
+      sentryDsn: sentryDsn,
+      firebaseProjectId: firebaseProjectId,
+      tlsPins: tlsPins,
+    );
+  }
+
+  /// Turn a host typed in login Settings into the Laravel API root.
+  /// `192.168.1.8` + port 4000 → `http://192.168.1.8:4000/api/v1`.
+  static String buildLocalApiBaseUrl(String host, {int port = 4000}) {
+    var raw = host.trim();
+    if (raw.isEmpty) return '';
+    if (!raw.contains('://')) raw = 'http://$raw';
+    final uri = Uri.tryParse(raw);
+    if (uri == null || uri.host.isEmpty) return '';
+    final resolvedHost = uri.host == 'localhost' ? '127.0.0.1' : uri.host;
+    return Uri(
+      scheme: uri.scheme.isEmpty ? 'http' : uri.scheme,
+      host: resolvedHost,
+      port: uri.hasPort ? uri.port : port,
+      path: '/api/v1',
+    ).toString();
+  }
+
+  /// Hosts that are only valid for debug / emulator loopback. Release
+  /// builds must not silently talk to these.
+  static const loopbackHosts = {
+    'localhost',
+    '127.0.0.1',
+    '::1',
+    '10.0.2.2',
+    '0.0.0.0',
+  };
+
+  static bool isLoopbackHost(String hostOrUrl) {
+    final raw = hostOrUrl.trim().toLowerCase();
+    if (raw.isEmpty) return false;
+    if (loopbackHosts.contains(raw)) return true;
+    final uri = Uri.tryParse(raw.contains('://') ? raw : 'http://$raw');
+    final host = uri?.host.toLowerCase() ?? '';
+    if (host.isNotEmpty) return loopbackHosts.contains(host);
+    return loopbackHosts.contains(raw.split(':').first);
+  }
+
+  static bool isLoopbackApiUrl(String url) => isLoopbackHost(url);
+
+  /// Debug-only override. A release APK is configured at build time and
+  /// never asks a student for an IP address or port on the login screen.
+  AppConfig applyRuntimeOverride({
+    required bool isRelease,
+    bool? useRestApi,
+    String host = '',
+    int port = 4000,
+  }) {
+    if (useRestApi == null) return this;
+    if (isRelease) return this;
+    if (!useRestApi) return copyWith(useRestApi: false);
+    final url = host.trim().isEmpty
+        ? apiBaseUrl
+        : AppConfig.buildLocalApiBaseUrl(host, port: port);
+    if (url.isEmpty) return copyWith(useRestApi: true);
+    return copyWith(useRestApi: true, apiBaseUrl: url);
+  }
+
   /// Compile-time `--dart-define` values, with testable overrides.
   ///
-  /// Debug `flutter run` with no defines stays mock (`USE_REST_API` unset).
-  /// Release builds must set `USE_REST_API` explicitly so a store APK cannot
-  /// silently ship as mock.
+  /// Debug: unset `USE_REST_API` → REST + loopback. Explicit `false` → mock.
+  /// Release: always REST. Unset/missing URL or loopback → fail-fast, never mock.
   factory AppConfig.fromEnvironment({
     bool isRelease = kReleaseMode,
     bool isWeb = kIsWeb,
@@ -68,20 +149,18 @@ class AppConfig {
     String? reverbScheme,
     String? sentryDsn,
     String? firebaseProjectId,
+    String? tlsPinSha256,
   }) {
-    final envRaw = appEnv ?? const String.fromEnvironment('APP_ENV', defaultValue: 'local');
+    final envRaw = appEnv ??
+        const String.fromEnvironment('APP_ENV', defaultValue: 'local');
     final environment = parseEnvironment(envRaw, strict: isRelease);
-    final useRestRaw = useRestApi ?? const String.fromEnvironment('USE_REST_API');
-    if (isRelease && useRestRaw.isEmpty) {
+    final useRestRaw =
+        useRestApi ?? const String.fromEnvironment('USE_REST_API');
+    final rest = useRestRaw.isEmpty || useRestRaw.toLowerCase() == 'true';
+    if (isRelease && !rest) {
       throw StateError(
-        'Release builds require --dart-define=USE_REST_API=true '
-        '(or false for an explicit local mock demo) and --dart-define=APP_ENV=local|staging|production.',
-      );
-    }
-    final rest = useRestRaw.toLowerCase() == 'true';
-    if (isRelease && environment != AppEnvironment.local && !rest) {
-      throw StateError(
-        'staging/production requires --dart-define=USE_REST_API=true; mock mode is local-only.',
+        'Release derlemede mock (USE_REST_API=false) kullanılamaz. '
+        '--dart-define=USE_REST_API=true ve API_BASE_URL zorunludur.',
       );
     }
 
@@ -90,31 +169,61 @@ class AppConfig {
       override: override,
       isWeb: isWeb,
       platform: platform ?? defaultTargetPlatform,
-      allowLoopbackFallback: environment == AppEnvironment.local,
+      allowLoopbackFallback: !isRelease && environment == AppEnvironment.local,
     );
     if (rest && resolvedUrl.isEmpty) {
+      if (isRelease) {
+        throw StateError(
+          'Release APK için API_BASE_URL zorunludur. Uygulamayı '
+          'deploy/scripts/build-android.ps1 ile derleyin.',
+        );
+      } else {
+        throw StateError(
+          'USE_REST_API=true requires --dart-define=API_BASE_URL=... '
+          '(localhost fallback is local debug only).',
+        );
+      }
+    }
+    if (isRelease && resolvedUrl.isNotEmpty && isLoopbackApiUrl(resolvedUrl)) {
       throw StateError(
-        'USE_REST_API=true requires --dart-define=API_BASE_URL=... '
-        '(localhost fallback is local only).',
+        'Release derlemede API_BASE_URL localhost/127.0.0.1/10.0.2.2 olamaz. '
+        'LAN (ör. 192.168.x.x) veya genel bir HTTPS adresi kullanın.',
       );
     }
 
     return AppConfig(
-      appName: 'AruSocial',
+      appName: 'ARUVERSE',
       environment: environment,
-      apiBaseUrl: resolvedUrl.isEmpty ? 'http://localhost:4000/api/v1' : resolvedUrl,
+      apiBaseUrl: resolvedUrl.isEmpty && !isRelease
+          ? 'http://127.0.0.1:4000/api/v1'
+          : resolvedUrl,
       useRestApi: rest,
       demoMode: !rest,
       defaultLanguage: 'tr',
       supportedLanguages: const ['tr', 'en', 'ru'],
       reverbAppKey: reverbAppKey ??
-          const String.fromEnvironment('REVERB_APP_KEY', defaultValue: 'arucad-local-key'),
+          const String.fromEnvironment('REVERB_APP_KEY',
+              defaultValue: 'arucad-local-key'),
       reverbHost: reverbHost ?? const String.fromEnvironment('REVERB_HOST'),
-      reverbPort: reverbPort ?? const int.fromEnvironment('REVERB_PORT', defaultValue: 8080),
-      reverbScheme: reverbScheme ?? const String.fromEnvironment('REVERB_SCHEME'),
+      reverbPort: reverbPort ??
+          const int.fromEnvironment('REVERB_PORT', defaultValue: 8091),
+      reverbScheme:
+          reverbScheme ?? const String.fromEnvironment('REVERB_SCHEME'),
       sentryDsn: sentryDsn ?? const String.fromEnvironment('SENTRY_DSN'),
-      firebaseProjectId: firebaseProjectId ?? const String.fromEnvironment('FIREBASE_PROJECT_ID'),
+      firebaseProjectId: firebaseProjectId ??
+          const String.fromEnvironment('FIREBASE_PROJECT_ID'),
+      tlsPins: _parsePins(
+          tlsPinSha256 ?? const String.fromEnvironment('TLS_PIN_SHA256')),
     );
+  }
+
+  static List<String> _parsePins(String raw) {
+    if (raw.trim().isEmpty) return const [];
+    return raw
+        .split(',')
+        .map((p) => p.trim())
+        .where((p) => p.isNotEmpty)
+        .toList();
   }
 
   static AppEnvironment parseEnvironment(String raw, {required bool strict}) {
@@ -132,7 +241,8 @@ class AppConfig {
         return AppEnvironment.production;
       default:
         if (strict) {
-          throw StateError('Unknown APP_ENV=$raw. Use local, staging, or production.');
+          throw StateError(
+              'Unknown APP_ENV=$raw. Use local, staging, or production.');
         }
         return AppEnvironment.local;
     }
@@ -146,8 +256,10 @@ class AppConfig {
   }) {
     if (override.isNotEmpty) return override;
     if (!allowLoopbackFallback) return '';
-    const localhost = 'http://localhost:4000/api/v1';
-    if (isWeb) return localhost;
-    return platform == TargetPlatform.android ? 'http://10.0.2.2:4000/api/v1' : localhost;
+    const loopback = 'http://127.0.0.1:4000/api/v1';
+    if (isWeb) return loopback;
+    return platform == TargetPlatform.android
+        ? 'http://10.0.2.2:4000/api/v1'
+        : loopback;
   }
 }

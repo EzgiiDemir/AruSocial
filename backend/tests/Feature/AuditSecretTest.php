@@ -27,8 +27,13 @@ class AuditSecretTest extends TestCase
 
         $this->postJson('/api/v1/admin/settings/moderation', [
             'apiKey' => $moderationKey,
-        ])->assertOk();
-        $this->assertSame($moderationKey, AppSetting::getValue('moderation.apiKey'));
+        ])->assertOk()
+            ->assertJsonPath('data.mode', 'local_review');
+
+        // The moderation workflow is intentionally self-hosted.  Legacy
+        // provider credentials must not be persisted even if a stale client
+        // sends one with an old settings request.
+        $this->assertNull(AppSetting::getValue('moderation.apiKey'));
 
         $this->assertGreaterThanOrEqual(2, AdminAuditLog::count());
 

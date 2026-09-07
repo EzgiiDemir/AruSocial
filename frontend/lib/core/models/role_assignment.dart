@@ -19,7 +19,10 @@ class RoleAssignment {
 
   factory RoleAssignment.fromJson(Map<String, dynamic> json) => RoleAssignment(
         email: json['email'] as String,
-        role: UserRole.values.byName(json['role'] as String),
+        // Unrecognized role names fail safe to the lowest-privilege role
+        // rather than crashing the whole admin roles list.
+        role: UserRole.values.firstWhere((v) => v.name == json['role'],
+            orElse: () => UserRole.student),
         assignedAt: DateTime.parse(json['assignedAt'] as String),
         assignedBy: json['assignedBy'] as String,
       );

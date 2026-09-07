@@ -44,4 +44,24 @@ class RoleAssignmentApiTest extends TestCase
         $response->assertOk();
         $this->assertNull($response->json('data.role'));
     }
+
+    public function test_last_super_admin_cannot_be_removed(): void
+    {
+        $this->postJson('/api/v1/admin/roles/superadmin@arucad.edu.tr/delete')
+            ->assertStatus(409)
+            ->assertJsonPath('error.code', 'LAST_SUPER_ADMIN');
+
+        $this->postJson('/api/v1/admin/roles', [
+            'email' => 'superadmin@arucad.edu.tr', 'role' => 'student',
+        ])->assertStatus(409)->assertJsonPath('error.code', 'LAST_SUPER_ADMIN');
+
+        $this->postJson('/api/v1/admin/roles', [
+            'email' => 'second.admin@arucad.edu.tr', 'role' => 'superAdmin',
+        ])->assertOk();
+
+        $this->postJson('/api/v1/admin/roles/second.admin@arucad.edu.tr/delete')->assertOk();
+        $this->postJson('/api/v1/admin/roles/superadmin@arucad.edu.tr/delete')
+            ->assertStatus(409)
+            ->assertJsonPath('error.code', 'LAST_SUPER_ADMIN');
+    }
 }

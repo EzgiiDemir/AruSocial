@@ -29,15 +29,23 @@ class AuthController extends Controller
         $email = (string) $request->input('email');
         $password = (string) $request->input('password');
 
-        $domain = (string) config('auth.allowed_email_domain');
-        if (! str_ends_with($email, $domain)) {
+        if (! $this->emailDomainAllowed($email)) {
+            $domains = $this->allowedEmailDomains();
+            $list = $domains === [] ? (string) config('auth.allowed_email_domain') : implode(', ', $domains);
+
             return $this->fail(403, 'DOMAIN_NOT_ALLOWED',
-                "Yalnızca $domain uzantılı hesaplar giriş yapabilir.");
+                "Yalnızca $list uzantılı hesaplar giriş yapabilir.");
         }
 
         $user = User::where('email', $email)->first();
 
         if ($user === null) {
+            // A typed campus email is not proof of identity. Public deployments
+            // provision accounts through verified SSO or an administrator.
+            if (! app()->environment(['local', 'testing'])) {
+                return $this->fail(401, 'INVALID_CREDENTIALS',
+                    'E-posta veya şifre hatalı. Kurumsal giriş kullanın veya yöneticinizle iletişime geçin.');
+            }
             // First sign-in registers the account with the password given,
             // and that is precisely what makes every *later* sign-in a real
             // check. There's no student directory to pre-provision accounts
@@ -83,5 +91,35 @@ class AuthController extends Controller
         $local = Str::before($email, '@');
 
         return Str::of($local)->replace(['.', '_', '-'], ' ')->title()->toString();
+    }
+
+    private function emailDomainAllowed(string $email): bool
+    {
+        $needle = strtolower($email);
+        foreach ($this->allowedEmailDomains() as $domain) {
+            if (str_ends_with($needle, strtolower($domain))) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function allowedEmailDomains(): array
+    {
+        $domains = config('auth.allowed_email_domains');
+        if (is_array($domains) && $domains !== []) {
+            return array_values(array_filter(array_map(
+                static fn ($d): string => trim((string) $d),
+                $domains,
+            ), static fn (string $d): bool => $d !== ''));
+        }
+
+        $single = trim((string) config('auth.allowed_email_domain', '@arucad.edu.tr'));
+
+        return $single !== '' ? [$single] : [];
     }
 }

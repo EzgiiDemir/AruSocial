@@ -1,0 +1,2124 @@
+[
+    {
+        "id": "tr-001",
+        "language": "tr",
+        "text": "Bu uygulama yine çöktü, lanet olsun.",
+        "labels": [
+            "PROF"
+        ],
+        "severity": "S1",
+        "decision": "allow",
+        "targeted": false,
+        "obfuscation": "none",
+        "context": "general_exclamation",
+        "rationale": "Kişiye yöneltilmemiş hafif argo; saldırı veya tehdit yok."
+    },
+    {
+        "id": "tr-002",
+        "language": "tr",
+        "text": "@kullanici sen tam bir aptalsın.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "direct_attack",
+        "rationale": "Belirli kullanıcıya doğrudan zekâ aşağılaması."
+    },
+    {
+        "id": "tr-003",
+        "language": "tr",
+        "text": "Siktir git, bir daha bana yazma.",
+        "labels": [
+            "PROF",
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "direct_attack",
+        "rationale": "Kişiye yöneltilmiş ağır küfür ve kovma ifadesi."
+    },
+    {
+        "id": "tr-004",
+        "language": "tr",
+        "text": "Ne gerizekalı bir yorum bu.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "warn",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "content_attack",
+        "rationale": "Yorum üzerinden kullanıcıya yönelen aşağılayıcı ifade."
+    },
+    {
+        "id": "tr-005",
+        "language": "tr",
+        "text": "Şerefsizin tekisin, herkesi kandırıyorsun.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "direct_attack",
+        "rationale": "Karaktere yönelik ağır hakaret; doğrulanmamış suçlama da içeriyor."
+    },
+    {
+        "id": "tr-006",
+        "language": "tr",
+        "text": "Bu ne boktan bir gün ya.",
+        "labels": [
+            "PROF"
+        ],
+        "severity": "S1",
+        "decision": "allow",
+        "targeted": false,
+        "obfuscation": "none",
+        "context": "general_exclamation",
+        "rationale": "Kişiye yöneltilmeyen kaba yakınma."
+    },
+    {
+        "id": "tr-007",
+        "language": "tr",
+        "text": "Kes sesini salak, kimse seni dinlemiyor.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "direct_attack",
+        "rationale": "Susturma ve kişisel aşağılama birlikte kullanılmış."
+    },
+    {
+        "id": "tr-008",
+        "language": "tr",
+        "text": "Tam bir piç gibi davranıyorsun.",
+        "labels": [
+            "PROF",
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "direct_attack",
+        "rationale": "Kişiye yöneltilmiş soy ve karakter hakareti."
+    },
+    {
+        "id": "tr-009",
+        "language": "tr",
+        "text": "Yaptığın işin içine sıçmışsın.",
+        "labels": [
+            "PROF",
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "warn",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "content_attack",
+        "rationale": "Üretime yönelik görünse de kullanıcıyı küçük düşüren kaba ifade."
+    },
+    {
+        "id": "tr-010",
+        "language": "tr",
+        "text": "Amına koyayım böyle sistemin.",
+        "labels": [
+            "PROF"
+        ],
+        "severity": "S1",
+        "decision": "warn",
+        "targeted": false,
+        "obfuscation": "none",
+        "context": "general_exclamation",
+        "rationale": "Ağır cinsel küfür cansız bir sisteme yöneltilmiş."
+    },
+    {
+        "id": "tr-011",
+        "language": "tr",
+        "text": "S*ktir git buradan.",
+        "labels": [
+            "PROF",
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "masking",
+        "context": "direct_attack",
+        "rationale": "Yıldızla sansürleme küfrün anlamını değiştirmiyor."
+    },
+    {
+        "id": "tr-012",
+        "language": "tr",
+        "text": "Sen tam bir g e r i z e k a l ı s ı n.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "spacing",
+        "context": "direct_attack",
+        "rationale": "Harf araları açılarak filtre aşılmaya çalışılmış."
+    },
+    {
+        "id": "tr-013",
+        "language": "tr",
+        "text": "Ş3r3fs1z herif, yine yalan söylüyor.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "leetspeak",
+        "context": "direct_attack",
+        "rationale": "Rakamlarla gizlenmiş kişisel hakaret."
+    },
+    {
+        "id": "tr-014",
+        "language": "tr",
+        "text": "s.i.k.t.i.r. g.i.t.",
+        "labels": [
+            "PROF",
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "punctuation_split",
+        "context": "direct_attack",
+        "rationale": "Noktalama işaretleriyle bölünmüş ağır küfür."
+    },
+    {
+        "id": "tr-015",
+        "language": "tr",
+        "text": "Senin yaptığın iş 💩 gibi.",
+        "labels": [
+            "HAR",
+            "PROF"
+        ],
+        "severity": "S2",
+        "decision": "warn",
+        "targeted": true,
+        "obfuscation": "emoji_substitution",
+        "context": "content_attack",
+        "rationale": "Emoji, kaba aşağılamanın yerine kullanılmış."
+    },
+    {
+        "id": "tr-016",
+        "language": "tr",
+        "text": "Defol git, m@l herif.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "symbol_substitution",
+        "context": "direct_attack",
+        "rationale": "Sembol değişimiyle gizlenen hakaret."
+    },
+    {
+        "id": "tr-017",
+        "language": "tr",
+        "text": "Seni sevmiyorum demiyorum; sadece dünyadaki oksijene yazık diyorum.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "euphemism",
+        "context": "indirect_attack",
+        "rationale": "Küfür kullanmadan kişinin varlığını değersizleştiren imalı hakaret."
+    },
+    {
+        "id": "tr-018",
+        "language": "tr",
+        "text": "Beyni tatile çıkmış yine, konuşuyor da konuşuyor.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "warn",
+        "targeted": true,
+        "obfuscation": "euphemism",
+        "context": "indirect_attack",
+        "rationale": "Dolaylı zekâ aşağılaması."
+    },
+    {
+        "id": "tr-019",
+        "language": "tr",
+        "text": "Ne kadar ‘zeki’ olduğun her cümlenden belli oluyor.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S1",
+        "decision": "review",
+        "targeted": true,
+        "obfuscation": "sarcasm",
+        "context": "indirect_attack",
+        "rationale": "Tırnak ve ironiyle gizlenmiş aşağılama; bağlam incelemesi gerekir."
+    },
+    {
+        "id": "tr-020",
+        "language": "tr",
+        "text": "Arkadaşım sen tam bir malsın ya 😂",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S1",
+        "decision": "review",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "banter_ambiguous",
+        "rationale": "Hakaret var; karşılıklı arkadaş şakası olabileceği için ilişki bağlamı önemlidir."
+    },
+    {
+        "id": "tr-021",
+        "language": "tr",
+        "text": "Kimse seni burada istemiyor, hesabını kapat da kurtulalım.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "exclusion_bullying",
+        "rationale": "Kullanıcıyı topluluktan dışlamaya yönelik zorbalık."
+    },
+    {
+        "id": "tr-022",
+        "language": "tr",
+        "text": "Şu tipe bak, filtre olmadan insan içine çıkılmaz.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "appearance_attack",
+        "rationale": "Görünüş ve beden üzerinden aşağılama."
+    },
+    {
+        "id": "tr-023",
+        "language": "tr",
+        "text": "Senin gibi beceriksizin bu işi yapması zaten komedi.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "ability_attack",
+        "rationale": "Yetenek üzerinden doğrudan kişisel aşağılama."
+    },
+    {
+        "id": "tr-024",
+        "language": "tr",
+        "text": "Bu ezik yine ilgi dilenmeye gelmiş.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "direct_attack",
+        "rationale": "Hedefi değersizleştiren ve niyet atfeden zorbalık."
+    },
+    {
+        "id": "tr-025",
+        "language": "tr",
+        "text": "Ağlamaya devam et, zavallı yaratık.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "dehumanization",
+        "context": "direct_attack",
+        "rationale": "Kişiyi yaratık olarak niteleyen insanlıktan çıkarıcı hakaret."
+    },
+    {
+        "id": "tr-026",
+        "language": "tr",
+        "text": "Annen seni doğuracağına keşke uyusaymış.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S3",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "family_attack",
+        "rationale": "Aile üzerinden hedefin varlığını aşağılayan ağır hakaret."
+    },
+    {
+        "id": "tr-027",
+        "language": "tr",
+        "text": "Fotoğrafına bakınca midem bulanıyor.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "appearance_attack",
+        "rationale": "Kişinin görünüşüne yönelik aşağılayıcı tepki."
+    },
+    {
+        "id": "tr-028",
+        "language": "tr",
+        "text": "Bir insan ancak bu kadar boş ve gereksiz olabilir.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "indirect_attack",
+        "rationale": "Ad vermese de konuşulan kişiyi değersizleştiren ifade."
+    },
+    {
+        "id": "tr-029",
+        "language": "tr",
+        "text": "@kullanici cevap versene korkak tavuk.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "warn",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "taunting",
+        "rationale": "Etiketlenmiş kullanıcıya alaycı ve aşağılayıcı meydan okuma."
+    },
+    {
+        "id": "tr-030",
+        "language": "tr",
+        "text": "Bunu yazanın kafası çalışmıyor herhalde.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S1",
+        "decision": "warn",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "content_attack",
+        "rationale": "İçerikten kişiye uzanan dolaylı zekâ hakareti."
+    },
+    {
+        "id": "tr-031",
+        "language": "tr",
+        "text": "Numaranı ver güzelim, geceleri seni yalnız bırakmam.",
+        "labels": [
+            "HAR",
+            "SEX"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "sexual_harassment",
+        "rationale": "İstenmeyen cinsel ima ve özel iletişim baskısı."
+    },
+    {
+        "id": "tr-032",
+        "language": "tr",
+        "text": "Bu fotoğrafı atıyorsan gelecek yorumlara da katlanacaksın.",
+        "labels": [
+            "HAR",
+            "SEX"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "victim_blaming",
+        "context": "sexual_harassment",
+        "rationale": "Cinsel tacizi normalleştiren ve hedefi suçlayan ifade."
+    },
+    {
+        "id": "tr-033",
+        "language": "tr",
+        "text": "Bedenin hakkında söyleyeceklerimi özelden yazayım mı? 😏",
+        "labels": [
+            "HAR",
+            "SEX"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "innuendo",
+        "context": "sexual_harassment",
+        "rationale": "İstenmeyen cinsel yorum ve özel mesaja yönlendirme."
+    },
+    {
+        "id": "tr-034",
+        "language": "tr",
+        "text": "Sana küfür etmiyorum, ne olduğunu zaten herkes biliyor.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "review",
+        "targeted": true,
+        "obfuscation": "implied_insult",
+        "context": "indirect_attack",
+        "rationale": "Hakareti açıkça yazmadan toplu itibarsızlaştırma iması."
+    },
+    {
+        "id": "tr-035",
+        "language": "tr",
+        "text": "Adını vermeyeyim ama bazıları tam bir yüz karası.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S1",
+        "decision": "review",
+        "targeted": false,
+        "obfuscation": "vague_reference",
+        "context": "indirect_attack",
+        "rationale": "Hedef bağlamdan anlaşılabiliyorsa taciz sayılabilir; tek başına belirsiz."
+    },
+    {
+        "id": "tr-036",
+        "language": "tr",
+        "text": "Senin hakkında bildiklerimi herkese anlatırım, akıllı ol.",
+        "labels": [
+            "HAR",
+            "PRIV"
+        ],
+        "severity": "S3",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "blackmail_intimidation",
+        "rationale": "Özel bilgi ifşasıyla gözdağı ve örtülü şantaj."
+    },
+    {
+        "id": "tr-037",
+        "language": "tr",
+        "text": "Bir daha karşıma çıkarsan yüzünü dağıtırım.",
+        "labels": [
+            "THR",
+            "VIO"
+        ],
+        "severity": "S4",
+        "decision": "remove_escalate",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "credible_threat",
+        "rationale": "Belirli kişiye yönelik doğrudan fiziksel saldırı tehdidi."
+    },
+    {
+        "id": "tr-038",
+        "language": "tr",
+        "text": "Adresini biliyorum, yakında görüşürüz.",
+        "labels": [
+            "THR",
+            "PRIV"
+        ],
+        "severity": "S4",
+        "decision": "remove_escalate",
+        "targeted": true,
+        "obfuscation": "implicit_threat",
+        "context": "credible_threat",
+        "rationale": "Adres bilgisiyle desteklenen örtülü ve potansiyel olarak gerçek tehdit."
+    },
+    {
+        "id": "tr-039",
+        "language": "tr",
+        "text": "Umarım geberirsin de herkes rahat eder.",
+        "labels": [
+            "HAR",
+            "THR"
+        ],
+        "severity": "S3",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "wish_harm",
+        "rationale": "Ölüm dileği; saldırı planı değil ancak ağır hedefli taciz."
+    },
+    {
+        "id": "tr-040",
+        "language": "tr",
+        "text": "Seni bulup hesabını soracağız.",
+        "labels": [
+            "THR",
+            "HAR"
+        ],
+        "severity": "S4",
+        "decision": "remove_escalate",
+        "targeted": true,
+        "obfuscation": "collective_pronoun",
+        "context": "credible_threat",
+        "rationale": "Toplu fiziksel karşılaşma iması taşıyan hedefli tehdit."
+    },
+    {
+        "id": "tr-041",
+        "language": "tr",
+        "text": "Bu oyunda seni öldüreceğim, kaçışın yok 😄",
+        "labels": [],
+        "severity": "S0",
+        "decision": "allow",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "gameplay",
+        "rationale": "Açıkça oyun bağlamında kalan kurmaca rekabet ifadesi; dış dünyaya taşmıyor."
+    },
+    {
+        "id": "tr-042",
+        "language": "tr",
+        "text": "Bu göçmenler insan değil, hepsini ülkeden sürmek lazım.",
+        "labels": [
+            "HATE"
+        ],
+        "severity": "S4",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "dehumanization",
+        "context": "protected_group_attack",
+        "rationale": "Milliyet\/göçmenlik temelli grubu insanlıktan çıkarma ve topluca dışlama çağrısı."
+    },
+    {
+        "id": "tr-043",
+        "language": "tr",
+        "text": "Kadınların aklı bu işlere yetmez.",
+        "labels": [
+            "HATE"
+        ],
+        "severity": "S3",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "stereotype",
+        "context": "protected_group_attack",
+        "rationale": "Cinsiyete dayalı aşağılayıcı genelleme."
+    },
+    {
+        "id": "tr-044",
+        "language": "tr",
+        "text": "Engelliler topluma sadece yük oluyor.",
+        "labels": [
+            "HATE"
+        ],
+        "severity": "S3",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "protected_group_attack",
+        "rationale": "Engellilik temelinde bir grubu değersizleştirme."
+    },
+    {
+        "id": "tr-045",
+        "language": "tr",
+        "text": "İbne kelimesini arkadaşlarına hakaret olarak kullanmayı bırak.",
+        "labels": [],
+        "severity": "S0",
+        "decision": "allow",
+        "targeted": false,
+        "obfuscation": "quoted_slur",
+        "context": "counterspeech",
+        "rationale": "Homofobik hakareti kullanmak yerine kullanımını eleştiriyor."
+    },
+    {
+        "id": "tr-046",
+        "language": "tr",
+        "text": "O çingene ruhlu, güvenilmez biri.",
+        "labels": [
+            "HATE",
+            "HAR"
+        ],
+        "severity": "S3",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "ethnic_slur",
+        "context": "protected_group_attack",
+        "rationale": "Etnik kimliği dolandırıcılıkla ilişkilendiren aşağılayıcı kullanım."
+    },
+    {
+        "id": "tr-047",
+        "language": "tr",
+        "text": "Bana yorumlarda ‘salak’ ve ‘şerefsiz’ dediler; şikâyet etmek istiyorum.",
+        "labels": [],
+        "severity": "S0",
+        "decision": "allow",
+        "targeted": false,
+        "obfuscation": "quoted_abuse",
+        "context": "reporting_abuse",
+        "rationale": "Hakareti desteklemiyor; maruz kaldığı tacizi bildiriyor."
+    },
+    {
+        "id": "tr-048",
+        "language": "tr",
+        "text": "Filmdeki karakter ‘defol git’ deyip kapıyı çarpıyor.",
+        "labels": [
+            "PROF"
+        ],
+        "severity": "S0",
+        "decision": "allow",
+        "targeted": false,
+        "obfuscation": "quoted_abuse",
+        "context": "fictional_description",
+        "rationale": "Kurmaca eseri betimleyen düşük riskli alıntı."
+    },
+    {
+        "id": "tr-049",
+        "language": "tr",
+        "text": "‘Aptal’ sözcüğü kişiye yöneltildiğinde hakaret olarak algılanabilir.",
+        "labels": [],
+        "severity": "S0",
+        "decision": "allow",
+        "targeted": false,
+        "obfuscation": "quoted_abuse",
+        "context": "educational",
+        "rationale": "Dil ve moderasyon hakkında açıklayıcı kullanım."
+    },
+    {
+        "id": "tr-050",
+        "language": "tr",
+        "text": "Kendime çok kızdım, ne aptalım ya.",
+        "labels": [
+            "PROF"
+        ],
+        "severity": "S1",
+        "decision": "allow",
+        "targeted": false,
+        "obfuscation": "none",
+        "context": "self_directed",
+        "rationale": "Kendine yönelik hafif aşağılama; başka kullanıcıya taciz yok."
+    },
+    {
+        "id": "en-001",
+        "language": "en",
+        "text": "Damn, this app crashed again.",
+        "labels": [
+            "PROF"
+        ],
+        "severity": "S1",
+        "decision": "allow",
+        "targeted": false,
+        "obfuscation": "none",
+        "context": "general_exclamation",
+        "rationale": "Mild profanity with no person targeted."
+    },
+    {
+        "id": "en-002",
+        "language": "en",
+        "text": "@user, you're a complete idiot.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "direct_attack",
+        "rationale": "Direct intelligence-based insult toward an identified user."
+    },
+    {
+        "id": "en-003",
+        "language": "en",
+        "text": "Fuck off and never message me again.",
+        "labels": [
+            "PROF",
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "direct_attack",
+        "rationale": "Severe targeted profanity and hostile dismissal."
+    },
+    {
+        "id": "en-004",
+        "language": "en",
+        "text": "What a stupid comment.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S1",
+        "decision": "warn",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "content_attack",
+        "rationale": "Attacks the comment and indirectly belittles its author."
+    },
+    {
+        "id": "en-005",
+        "language": "en",
+        "text": "You're a lying piece of shit.",
+        "labels": [
+            "PROF",
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "direct_attack",
+        "rationale": "Severe character attack combined with profanity."
+    },
+    {
+        "id": "en-006",
+        "language": "en",
+        "text": "This is a shitty day.",
+        "labels": [
+            "PROF"
+        ],
+        "severity": "S1",
+        "decision": "allow",
+        "targeted": false,
+        "obfuscation": "none",
+        "context": "general_exclamation",
+        "rationale": "Non-targeted coarse complaint."
+    },
+    {
+        "id": "en-007",
+        "language": "en",
+        "text": "Shut up, moron. Nobody cares what you think.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "direct_attack",
+        "rationale": "Silencing plus direct personal degradation."
+    },
+    {
+        "id": "en-008",
+        "language": "en",
+        "text": "You're acting like an absolute asshole.",
+        "labels": [
+            "PROF",
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "direct_attack",
+        "rationale": "Targeted obscene insult, even though framed as behavior."
+    },
+    {
+        "id": "en-009",
+        "language": "en",
+        "text": "You completely fucked up this project.",
+        "labels": [
+            "PROF",
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "warn",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "content_attack",
+        "rationale": "Profane criticism aimed at a person's work; harsh but not threatening."
+    },
+    {
+        "id": "en-010",
+        "language": "en",
+        "text": "What the fuck is wrong with this system?",
+        "labels": [
+            "PROF"
+        ],
+        "severity": "S1",
+        "decision": "allow",
+        "targeted": false,
+        "obfuscation": "none",
+        "context": "general_exclamation",
+        "rationale": "Strong profanity directed at a system rather than a person."
+    },
+    {
+        "id": "en-011",
+        "language": "en",
+        "text": "F*ck off, loser.",
+        "labels": [
+            "PROF",
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "masking",
+        "context": "direct_attack",
+        "rationale": "Asterisk masking does not alter the targeted abusive meaning."
+    },
+    {
+        "id": "en-012",
+        "language": "en",
+        "text": "You are such an i d i o t.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "spacing",
+        "context": "direct_attack",
+        "rationale": "Spacing is used to evade simple keyword matching."
+    },
+    {
+        "id": "en-013",
+        "language": "en",
+        "text": "You're a bi7ch and everyone knows it.",
+        "labels": [
+            "PROF",
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "leetspeak",
+        "context": "direct_attack",
+        "rationale": "Digit substitution obscures a gendered obscene insult."
+    },
+    {
+        "id": "en-014",
+        "language": "en",
+        "text": "f.u.c.k. y.o.u.",
+        "labels": [
+            "PROF",
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "punctuation_split",
+        "context": "direct_attack",
+        "rationale": "Punctuation-split targeted profanity."
+    },
+    {
+        "id": "en-015",
+        "language": "en",
+        "text": "Your work is pure 💩.",
+        "labels": [
+            "PROF",
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "warn",
+        "targeted": true,
+        "obfuscation": "emoji_substitution",
+        "context": "content_attack",
+        "rationale": "Emoji substitutes for a vulgar negative judgment."
+    },
+    {
+        "id": "en-016",
+        "language": "en",
+        "text": "Get lost, d@mbass.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "symbol_substitution",
+        "context": "direct_attack",
+        "rationale": "Symbol replacement attempts to conceal a targeted insult."
+    },
+    {
+        "id": "en-017",
+        "language": "en",
+        "text": "I'm not saying you're useless; I'm saying the room improves when you leave.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "euphemism",
+        "context": "indirect_attack",
+        "rationale": "Indirect wording still communicates personal worthlessness."
+    },
+    {
+        "id": "en-018",
+        "language": "en",
+        "text": "Looks like your brain took the day off again.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "warn",
+        "targeted": true,
+        "obfuscation": "euphemism",
+        "context": "indirect_attack",
+        "rationale": "Coded intelligence-based insult."
+    },
+    {
+        "id": "en-019",
+        "language": "en",
+        "text": "Your ‘genius’ really shows in every sentence.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S1",
+        "decision": "review",
+        "targeted": true,
+        "obfuscation": "sarcasm",
+        "context": "indirect_attack",
+        "rationale": "Sarcastic quotation reverses the literal positive meaning."
+    },
+    {
+        "id": "en-020",
+        "language": "en",
+        "text": "Bro, you're such a dumbass 😂",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S1",
+        "decision": "review",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "banter_ambiguous",
+        "rationale": "Contains an insult but may be consensual banter; relationship context matters."
+    },
+    {
+        "id": "en-021",
+        "language": "en",
+        "text": "Nobody wants you here. Delete your account.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "exclusion_bullying",
+        "rationale": "Targeted social exclusion and bullying."
+    },
+    {
+        "id": "en-022",
+        "language": "en",
+        "text": "Look at that face; filters are doing charity work.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "appearance_attack",
+        "rationale": "Mocks the target's physical appearance."
+    },
+    {
+        "id": "en-023",
+        "language": "en",
+        "text": "Watching someone this incompetent try is comedy gold.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "ability_attack",
+        "rationale": "Belittles a person's ability rather than offering criticism."
+    },
+    {
+        "id": "en-024",
+        "language": "en",
+        "text": "This pathetic loser is begging for attention again.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "direct_attack",
+        "rationale": "Personal degradation plus hostile motive attribution."
+    },
+    {
+        "id": "en-025",
+        "language": "en",
+        "text": "Keep crying, you miserable creature.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "dehumanization",
+        "context": "direct_attack",
+        "rationale": "Dehumanizing personal insult."
+    },
+    {
+        "id": "en-026",
+        "language": "en",
+        "text": "Your mother should have saved herself the trouble of having you.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S3",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "family_attack",
+        "rationale": "Severe family-based attack denying the target's worth."
+    },
+    {
+        "id": "en-027",
+        "language": "en",
+        "text": "Your photo makes me physically sick.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "appearance_attack",
+        "rationale": "Targeted disgust reaction about appearance."
+    },
+    {
+        "id": "en-028",
+        "language": "en",
+        "text": "A person could not be more empty and irrelevant.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "review",
+        "targeted": false,
+        "obfuscation": "vague_reference",
+        "context": "indirect_attack",
+        "rationale": "Degrading statement whose target may only be identifiable from context."
+    },
+    {
+        "id": "en-029",
+        "language": "en",
+        "text": "@user, answer me, you coward.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "warn",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "taunting",
+        "rationale": "Tagged user is pressured through a targeted insult."
+    },
+    {
+        "id": "en-030",
+        "language": "en",
+        "text": "Whoever wrote this clearly has no functioning brain.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "warn",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "content_attack",
+        "rationale": "Indirectly identifies and attacks the content author."
+    },
+    {
+        "id": "en-031",
+        "language": "en",
+        "text": "Give me your number, gorgeous. I won't let you sleep tonight.",
+        "labels": [
+            "HAR",
+            "SEX"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "innuendo",
+        "context": "sexual_harassment",
+        "rationale": "Unwanted sexual implication and pressure for private contact."
+    },
+    {
+        "id": "en-032",
+        "language": "en",
+        "text": "If you post a photo like that, you deserve every dirty comment.",
+        "labels": [
+            "HAR",
+            "SEX"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "victim_blaming",
+        "context": "sexual_harassment",
+        "rationale": "Normalizes sexual harassment and blames the target."
+    },
+    {
+        "id": "en-033",
+        "language": "en",
+        "text": "Want me to tell you privately what I'd do with that body? 😏",
+        "labels": [
+            "HAR",
+            "SEX"
+        ],
+        "severity": "S3",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "innuendo",
+        "context": "sexual_harassment",
+        "rationale": "Unsolicited sexual proposition directed at a person."
+    },
+    {
+        "id": "en-034",
+        "language": "en",
+        "text": "I'm not insulting you; everyone already knows what you are.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "review",
+        "targeted": true,
+        "obfuscation": "implied_insult",
+        "context": "indirect_attack",
+        "rationale": "Leaves the abusive term unstated while inviting collective degradation."
+    },
+    {
+        "id": "en-035",
+        "language": "en",
+        "text": "Not naming names, but someone here is a total disgrace.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S1",
+        "decision": "review",
+        "targeted": false,
+        "obfuscation": "vague_reference",
+        "context": "indirect_attack",
+        "rationale": "May target an identifiable person through surrounding context."
+    },
+    {
+        "id": "en-036",
+        "language": "en",
+        "text": "I know things about you. Behave, or everyone will hear them.",
+        "labels": [
+            "HAR",
+            "PRIV"
+        ],
+        "severity": "S3",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "blackmail_intimidation",
+        "rationale": "Threatens disclosure of private information to control the target."
+    },
+    {
+        "id": "en-037",
+        "language": "en",
+        "text": "Show up here again and I'll smash your face.",
+        "labels": [
+            "THR",
+            "VIO"
+        ],
+        "severity": "S4",
+        "decision": "remove_escalate",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "credible_threat",
+        "rationale": "Direct conditional threat of physical violence."
+    },
+    {
+        "id": "en-038",
+        "language": "en",
+        "text": "I know your address. See you soon.",
+        "labels": [
+            "THR",
+            "PRIV"
+        ],
+        "severity": "S4",
+        "decision": "remove_escalate",
+        "targeted": true,
+        "obfuscation": "implicit_threat",
+        "context": "credible_threat",
+        "rationale": "Location knowledge makes the implicit threat potentially credible."
+    },
+    {
+        "id": "en-039",
+        "language": "en",
+        "text": "I hope you drop dead so everyone can relax.",
+        "labels": [
+            "HAR",
+            "THR"
+        ],
+        "severity": "S3",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "wish_harm",
+        "rationale": "Targeted death wish; severe harassment without an expressed plan."
+    },
+    {
+        "id": "en-040",
+        "language": "en",
+        "text": "We'll find you and make you pay.",
+        "labels": [
+            "THR",
+            "HAR"
+        ],
+        "severity": "S4",
+        "decision": "remove_escalate",
+        "targeted": true,
+        "obfuscation": "collective_pronoun",
+        "context": "credible_threat",
+        "rationale": "Collective targeted threat implying real-world retaliation."
+    },
+    {
+        "id": "en-041",
+        "language": "en",
+        "text": "I'm going to destroy you in the next round 😄",
+        "labels": [],
+        "severity": "S0",
+        "decision": "allow",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "gameplay",
+        "rationale": "Clear competitive gaming context with no real-world threat."
+    },
+    {
+        "id": "en-042",
+        "language": "en",
+        "text": "Those immigrants are vermin and should all be thrown out.",
+        "labels": [
+            "HATE"
+        ],
+        "severity": "S4",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "dehumanization",
+        "context": "protected_group_attack",
+        "rationale": "Dehumanizes a nationality or immigration-based group and demands collective exclusion."
+    },
+    {
+        "id": "en-043",
+        "language": "en",
+        "text": "Women aren't intelligent enough for this kind of work.",
+        "labels": [
+            "HATE"
+        ],
+        "severity": "S3",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "stereotype",
+        "context": "protected_group_attack",
+        "rationale": "Derogatory gender-based generalization."
+    },
+    {
+        "id": "en-044",
+        "language": "en",
+        "text": "Disabled people are nothing but a burden on society.",
+        "labels": [
+            "HATE"
+        ],
+        "severity": "S3",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "protected_group_attack",
+        "rationale": "Devalues a protected disability group."
+    },
+    {
+        "id": "en-045",
+        "language": "en",
+        "text": "Stop using ‘faggot’ as an insult; it is homophobic.",
+        "labels": [],
+        "severity": "S0",
+        "decision": "allow",
+        "targeted": false,
+        "obfuscation": "quoted_slur",
+        "context": "counterspeech",
+        "rationale": "Quotes a slur in order to condemn its use rather than attack a group."
+    },
+    {
+        "id": "en-046",
+        "language": "en",
+        "text": "You people are a disease ruining this country.",
+        "labels": [
+            "HATE"
+        ],
+        "severity": "S4",
+        "decision": "review",
+        "targeted": true,
+        "obfuscation": "coded_reference",
+        "context": "protected_group_attack",
+        "rationale": "Disease comparison is severe dehumanization; surrounding context must identify whether ‘you people’ denotes a protected group."
+    },
+    {
+        "id": "en-047",
+        "language": "en",
+        "text": "They called me ‘stupid’ and a ‘piece of shit’ in the comments; I want to report it.",
+        "labels": [],
+        "severity": "S0",
+        "decision": "allow",
+        "targeted": false,
+        "obfuscation": "quoted_abuse",
+        "context": "reporting_abuse",
+        "rationale": "Reports abuse received and does not endorse or redirect it."
+    },
+    {
+        "id": "en-048",
+        "language": "en",
+        "text": "The movie character shouts ‘fuck off’ and slams the door.",
+        "labels": [
+            "PROF"
+        ],
+        "severity": "S0",
+        "decision": "allow",
+        "targeted": false,
+        "obfuscation": "quoted_abuse",
+        "context": "fictional_description",
+        "rationale": "Low-risk quotation while describing a fictional scene."
+    },
+    {
+        "id": "en-049",
+        "language": "en",
+        "text": "The word ‘idiot’ can be abusive when directed at another person.",
+        "labels": [],
+        "severity": "S0",
+        "decision": "allow",
+        "targeted": false,
+        "obfuscation": "quoted_abuse",
+        "context": "educational",
+        "rationale": "Educational discussion of an insulting term."
+    },
+    {
+        "id": "en-050",
+        "language": "en",
+        "text": "I'm so mad at myself; I'm such an idiot.",
+        "labels": [
+            "PROF"
+        ],
+        "severity": "S1",
+        "decision": "allow",
+        "targeted": false,
+        "obfuscation": "none",
+        "context": "self_directed",
+        "rationale": "Mild self-directed insult with no harassment of another user."
+    },
+    {
+        "id": "ru-001",
+        "language": "ru",
+        "text": "Чёрт, приложение опять зависло.",
+        "labels": [
+            "PROF"
+        ],
+        "severity": "S1",
+        "decision": "allow",
+        "targeted": false,
+        "obfuscation": "none",
+        "context": "general_exclamation",
+        "rationale": "Мягкое ругательство без конкретной цели."
+    },
+    {
+        "id": "ru-002",
+        "language": "ru",
+        "text": "@пользователь, ты полный идиот.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "direct_attack",
+        "rationale": "Прямое оскорбление умственных способностей конкретного пользователя."
+    },
+    {
+        "id": "ru-003",
+        "language": "ru",
+        "text": "Иди на хуй и больше мне не пиши.",
+        "labels": [
+            "PROF",
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "direct_attack",
+        "rationale": "Грубая адресная брань и враждебное требование прекратить общение."
+    },
+    {
+        "id": "ru-004",
+        "language": "ru",
+        "text": "Какой же тупой комментарий.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S1",
+        "decision": "warn",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "content_attack",
+        "rationale": "Оскорбляется комментарий, но унижение косвенно направлено на автора."
+    },
+    {
+        "id": "ru-005",
+        "language": "ru",
+        "text": "Ты лживая мразь.",
+        "labels": [
+            "PROF",
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "direct_attack",
+        "rationale": "Тяжёлое персональное оскорбление и обвинение во лжи."
+    },
+    {
+        "id": "ru-006",
+        "language": "ru",
+        "text": "Какой дерьмовый день.",
+        "labels": [
+            "PROF"
+        ],
+        "severity": "S1",
+        "decision": "allow",
+        "targeted": false,
+        "obfuscation": "none",
+        "context": "general_exclamation",
+        "rationale": "Грубая, но не адресная жалоба."
+    },
+    {
+        "id": "ru-007",
+        "language": "ru",
+        "text": "Заткнись, дебил, твоё мнение никому не нужно.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "direct_attack",
+        "rationale": "Требование замолчать сопровождается прямым унижением личности."
+    },
+    {
+        "id": "ru-008",
+        "language": "ru",
+        "text": "Ты ведёшь себя как последний мудак.",
+        "labels": [
+            "PROF",
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "direct_attack",
+        "rationale": "Адресное обсценное оскорбление, хотя формально описывает поведение."
+    },
+    {
+        "id": "ru-009",
+        "language": "ru",
+        "text": "Ты полностью просрал этот проект.",
+        "labels": [
+            "PROF",
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "warn",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "content_attack",
+        "rationale": "Грубая критика результата работы конкретного человека."
+    },
+    {
+        "id": "ru-010",
+        "language": "ru",
+        "text": "Какого хуя эта система не работает?",
+        "labels": [
+            "PROF"
+        ],
+        "severity": "S1",
+        "decision": "allow",
+        "targeted": false,
+        "obfuscation": "none",
+        "context": "general_exclamation",
+        "rationale": "Сильная брань направлена на систему, а не на человека."
+    },
+    {
+        "id": "ru-011",
+        "language": "ru",
+        "text": "Иди на х*й, придурок.",
+        "labels": [
+            "PROF",
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "masking",
+        "context": "direct_attack",
+        "rationale": "Звёздочка не меняет смысл адресной брани."
+    },
+    {
+        "id": "ru-012",
+        "language": "ru",
+        "text": "Ты настоящий и д и о т.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "spacing",
+        "context": "direct_attack",
+        "rationale": "Разделение букв используется для обхода словарного фильтра."
+    },
+    {
+        "id": "ru-013",
+        "language": "ru",
+        "text": "Ты тyп0й и все это знают.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "mixed_script_leetspeak",
+        "context": "direct_attack",
+        "rationale": "Смешение латиницы, кириллицы и цифр скрывает оскорбление."
+    },
+    {
+        "id": "ru-014",
+        "language": "ru",
+        "text": "п.о.ш.ё.л. т.ы. н.а.х.у.й.",
+        "labels": [
+            "PROF",
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "punctuation_split",
+        "context": "direct_attack",
+        "rationale": "Грубое выражение разбито знаками препинания."
+    },
+    {
+        "id": "ru-015",
+        "language": "ru",
+        "text": "Твоя работа — полное 💩.",
+        "labels": [
+            "PROF",
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "warn",
+        "targeted": true,
+        "obfuscation": "emoji_substitution",
+        "context": "content_attack",
+        "rationale": "Эмодзи заменяет вульгарное негативное определение."
+    },
+    {
+        "id": "ru-016",
+        "language": "ru",
+        "text": "Проваливай, кретuн.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "mixed_script",
+        "context": "direct_attack",
+        "rationale": "Латинская буква используется для маскировки адресного оскорбления."
+    },
+    {
+        "id": "ru-017",
+        "language": "ru",
+        "text": "Я не говорю, что ты бесполезный; просто без тебя всем лучше.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "euphemism",
+        "context": "indirect_attack",
+        "rationale": "Косвенная формулировка всё равно отрицает ценность человека."
+    },
+    {
+        "id": "ru-018",
+        "language": "ru",
+        "text": "Похоже, твой мозг снова ушёл в отпуск.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "warn",
+        "targeted": true,
+        "obfuscation": "euphemism",
+        "context": "indirect_attack",
+        "rationale": "Завуалированное оскорбление интеллекта."
+    },
+    {
+        "id": "ru-019",
+        "language": "ru",
+        "text": "Твоя «гениальность» заметна в каждом сообщении.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S1",
+        "decision": "review",
+        "targeted": true,
+        "obfuscation": "sarcasm",
+        "context": "indirect_attack",
+        "rationale": "Кавычки и сарказм меняют буквально положительное значение на оскорбительное."
+    },
+    {
+        "id": "ru-020",
+        "language": "ru",
+        "text": "Брат, ну ты и тупица 😂",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S1",
+        "decision": "review",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "banter_ambiguous",
+        "rationale": "Есть оскорбительное слово, но возможна взаимная дружеская шутка; нужен контекст отношений."
+    },
+    {
+        "id": "ru-021",
+        "language": "ru",
+        "text": "Тебя здесь никто не хочет видеть, удали аккаунт.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "exclusion_bullying",
+        "rationale": "Адресная травля и попытка вытеснить пользователя из сообщества."
+    },
+    {
+        "id": "ru-022",
+        "language": "ru",
+        "text": "Посмотрите на это лицо — даже фильтры не спасают.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "appearance_attack",
+        "rationale": "Насмешка над внешностью конкретного человека."
+    },
+    {
+        "id": "ru-023",
+        "language": "ru",
+        "text": "Смотреть, как такой бездарь пытается работать, просто смешно.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "ability_attack",
+        "rationale": "Унижение способностей человека вместо критики результата."
+    },
+    {
+        "id": "ru-024",
+        "language": "ru",
+        "text": "Этот жалкий неудачник опять выпрашивает внимание.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "direct_attack",
+        "rationale": "Личное унижение и враждебное приписывание мотива."
+    },
+    {
+        "id": "ru-025",
+        "language": "ru",
+        "text": "Продолжай ныть, жалкое существо.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "dehumanization",
+        "context": "direct_attack",
+        "rationale": "Адресное унижение с дегуманизирующим сравнением."
+    },
+    {
+        "id": "ru-026",
+        "language": "ru",
+        "text": "Твоей матери стоило сто раз подумать, прежде чем рожать тебя.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S3",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "family_attack",
+        "rationale": "Тяжёлое оскорбление через семью и отрицание ценности существования цели."
+    },
+    {
+        "id": "ru-027",
+        "language": "ru",
+        "text": "От твоей фотографии меня тошнит.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "appearance_attack",
+        "rationale": "Оскорбительная реакция отвращения на внешность человека."
+    },
+    {
+        "id": "ru-028",
+        "language": "ru",
+        "text": "Невозможно быть настолько пустым и никчёмным человеком.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "review",
+        "targeted": false,
+        "obfuscation": "vague_reference",
+        "context": "indirect_attack",
+        "rationale": "Цель может быть понятна только из контекста беседы."
+    },
+    {
+        "id": "ru-029",
+        "language": "ru",
+        "text": "@пользователь, ответь уже, трус.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "warn",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "taunting",
+        "rationale": "Отмеченного пользователя провоцируют адресным оскорблением."
+    },
+    {
+        "id": "ru-030",
+        "language": "ru",
+        "text": "У того, кто это написал, мозг явно не работает.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "warn",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "content_attack",
+        "rationale": "Косвенное, но идентифицируемое оскорбление автора публикации."
+    },
+    {
+        "id": "ru-031",
+        "language": "ru",
+        "text": "Дай номер, красавица, ночью я тебе спать не дам.",
+        "labels": [
+            "HAR",
+            "SEX"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "innuendo",
+        "context": "sexual_harassment",
+        "rationale": "Нежелательный сексуальный намёк и давление с целью получить личный контакт."
+    },
+    {
+        "id": "ru-032",
+        "language": "ru",
+        "text": "Раз выкладываешь такие фото, терпи грязные комментарии.",
+        "labels": [
+            "HAR",
+            "SEX"
+        ],
+        "severity": "S2",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "victim_blaming",
+        "context": "sexual_harassment",
+        "rationale": "Оправдывает сексуальные домогательства и обвиняет их цель."
+    },
+    {
+        "id": "ru-033",
+        "language": "ru",
+        "text": "Хочешь, напишу в личку, что бы я сделал с таким телом? 😏",
+        "labels": [
+            "HAR",
+            "SEX"
+        ],
+        "severity": "S3",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "innuendo",
+        "context": "sexual_harassment",
+        "rationale": "Незапрошенное сексуальное предложение, направленное конкретному человеку."
+    },
+    {
+        "id": "ru-034",
+        "language": "ru",
+        "text": "Я тебя не оскорбляю — все и так знают, кто ты такой.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S2",
+        "decision": "review",
+        "targeted": true,
+        "obfuscation": "implied_insult",
+        "context": "indirect_attack",
+        "rationale": "Оскорбительное слово пропущено, но фраза приглашает к коллективному унижению."
+    },
+    {
+        "id": "ru-035",
+        "language": "ru",
+        "text": "Не буду называть имён, но кое-кто здесь — настоящий позор.",
+        "labels": [
+            "HAR"
+        ],
+        "severity": "S1",
+        "decision": "review",
+        "targeted": false,
+        "obfuscation": "vague_reference",
+        "context": "indirect_attack",
+        "rationale": "По окружающему контексту объект травли может быть однозначно понятен."
+    },
+    {
+        "id": "ru-036",
+        "language": "ru",
+        "text": "Я многое о тебе знаю. Веди себя правильно, иначе узнают все.",
+        "labels": [
+            "HAR",
+            "PRIV"
+        ],
+        "severity": "S3",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "blackmail_intimidation",
+        "rationale": "Угроза раскрыть личные сведения с целью контролировать человека."
+    },
+    {
+        "id": "ru-037",
+        "language": "ru",
+        "text": "Ещё раз появишься здесь — я тебе лицо разобью.",
+        "labels": [
+            "THR",
+            "VIO"
+        ],
+        "severity": "S4",
+        "decision": "remove_escalate",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "credible_threat",
+        "rationale": "Прямая условная угроза физического насилия."
+    },
+    {
+        "id": "ru-038",
+        "language": "ru",
+        "text": "Я знаю твой адрес. Скоро увидимся.",
+        "labels": [
+            "THR",
+            "PRIV"
+        ],
+        "severity": "S4",
+        "decision": "remove_escalate",
+        "targeted": true,
+        "obfuscation": "implicit_threat",
+        "context": "credible_threat",
+        "rationale": "Упоминание адреса делает скрытую угрозу потенциально реальной."
+    },
+    {
+        "id": "ru-039",
+        "language": "ru",
+        "text": "Надеюсь, ты сдохнешь и всем станет легче.",
+        "labels": [
+            "HAR",
+            "THR"
+        ],
+        "severity": "S3",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "wish_harm",
+        "rationale": "Адресное пожелание смерти; тяжёлая травля без заявленного плана нападения."
+    },
+    {
+        "id": "ru-040",
+        "language": "ru",
+        "text": "Мы тебя найдём и заставим заплатить.",
+        "labels": [
+            "THR",
+            "HAR"
+        ],
+        "severity": "S4",
+        "decision": "remove_escalate",
+        "targeted": true,
+        "obfuscation": "collective_pronoun",
+        "context": "credible_threat",
+        "rationale": "Коллективная адресная угроза реального возмездия."
+    },
+    {
+        "id": "ru-041",
+        "language": "ru",
+        "text": "В следующем раунде я тебя уничтожу 😄",
+        "labels": [],
+        "severity": "S0",
+        "decision": "allow",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "gameplay",
+        "rationale": "Явный контекст игры; угрозы реальному человеку вне игры нет."
+    },
+    {
+        "id": "ru-042",
+        "language": "ru",
+        "text": "Эти мигранты — паразиты, их всех нужно выгнать.",
+        "labels": [
+            "HATE"
+        ],
+        "severity": "S4",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "dehumanization",
+        "context": "protected_group_attack",
+        "rationale": "Дегуманизация группы по происхождению или миграционному статусу и призыв к коллективному изгнанию."
+    },
+    {
+        "id": "ru-043",
+        "language": "ru",
+        "text": "Женщинам не хватает ума для такой работы.",
+        "labels": [
+            "HATE"
+        ],
+        "severity": "S3",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "stereotype",
+        "context": "protected_group_attack",
+        "rationale": "Уничижительное обобщение по признаку пола."
+    },
+    {
+        "id": "ru-044",
+        "language": "ru",
+        "text": "Инвалиды — только обуза для общества.",
+        "labels": [
+            "HATE"
+        ],
+        "severity": "S3",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "none",
+        "context": "protected_group_attack",
+        "rationale": "Обесценивает защищённую группу по признаку инвалидности."
+    },
+    {
+        "id": "ru-045",
+        "language": "ru",
+        "text": "Перестаньте использовать слово «пидор» как ругательство — оно гомофобное.",
+        "labels": [],
+        "severity": "S0",
+        "decision": "allow",
+        "targeted": false,
+        "obfuscation": "quoted_slur",
+        "context": "counterspeech",
+        "rationale": "Оскорбление цитируется, чтобы осудить его употребление, а не атаковать группу."
+    },
+    {
+        "id": "ru-046",
+        "language": "ru",
+        "text": "Эти чурки никогда не станут нормальными людьми.",
+        "labels": [
+            "HATE"
+        ],
+        "severity": "S4",
+        "decision": "remove",
+        "targeted": true,
+        "obfuscation": "ethnic_slur",
+        "context": "protected_group_attack",
+        "rationale": "Этническое оскорбление сочетается с дегуманизирующим обобщением."
+    },
+    {
+        "id": "ru-047",
+        "language": "ru",
+        "text": "В комментариях меня назвали «идиотом» и «мразью»; хочу пожаловаться.",
+        "labels": [],
+        "severity": "S0",
+        "decision": "allow",
+        "targeted": false,
+        "obfuscation": "quoted_abuse",
+        "context": "reporting_abuse",
+        "rationale": "Пользователь сообщает о полученных оскорблениях и не поддерживает их."
+    },
+    {
+        "id": "ru-048",
+        "language": "ru",
+        "text": "В фильме герой кричит «иди на хуй» и хлопает дверью.",
+        "labels": [
+            "PROF"
+        ],
+        "severity": "S0",
+        "decision": "allow",
+        "targeted": false,
+        "obfuscation": "quoted_abuse",
+        "context": "fictional_description",
+        "rationale": "Низкорисковая цитата при описании вымышленной сцены."
+    },
+    {
+        "id": "ru-049",
+        "language": "ru",
+        "text": "Слово «идиот» может быть оскорблением, если направлено на человека.",
+        "labels": [],
+        "severity": "S0",
+        "decision": "allow",
+        "targeted": false,
+        "obfuscation": "quoted_abuse",
+        "context": "educational",
+        "rationale": "Учебное обсуждение оскорбительного слова."
+    },
+    {
+        "id": "ru-050",
+        "language": "ru",
+        "text": "Я так зол на себя, какой же я идиот.",
+        "labels": [
+            "PROF"
+        ],
+        "severity": "S1",
+        "decision": "allow",
+        "targeted": false,
+        "obfuscation": "none",
+        "context": "self_directed",
+        "rationale": "Мягкое самооскорбление без травли другого пользователя."
+    }
+]

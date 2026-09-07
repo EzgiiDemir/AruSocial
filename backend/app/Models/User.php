@@ -29,6 +29,18 @@ class User extends Authenticatable
         'avatar_url',
         'strikes',
         'banned_at',
+        'department',
+        'year',
+        'university',
+        'clubs',
+        'achievements',
+        'projects',
+        'location_visibility',
+        'nearby_discoverable',
+        'check_in_visible',
+        'personalization',
+        'is_private_profile',
+        'preferred_language',
     ];
 
     protected $hidden = [
@@ -43,6 +55,16 @@ class User extends Authenticatable
             'password' => 'hashed',
             'interests' => 'array',
             'banned_at' => 'datetime',
+            // Free-text profile display lists (Social tab bio editor) — not
+            // the same as club_members ("clubs" here is a name a student
+            // typed in, no FK to the clubs table).
+            'clubs' => 'array',
+            'achievements' => 'array',
+            'projects' => 'array',
+            'nearby_discoverable' => 'boolean',
+            'check_in_visible' => 'boolean',
+            'personalization' => 'boolean',
+            'is_private_profile' => 'boolean',
         ];
     }
 
@@ -79,12 +101,14 @@ class User extends Authenticatable
     public function following(): BelongsToMany
     {
         return $this->belongsToMany(self::class, 'social_follows', 'follower_user_id', 'followed_user_id')
+            ->wherePivot('status', 'accepted')
             ->withTimestamps();
     }
 
     public function followers(): BelongsToMany
     {
         return $this->belongsToMany(self::class, 'social_follows', 'followed_user_id', 'follower_user_id')
+            ->wherePivot('status', 'accepted')
             ->withTimestamps();
     }
 
@@ -127,6 +151,13 @@ class User extends Authenticatable
             'memories' => $this->memories,
             'interests' => $this->interests ?? [],
             'avatarUrl' => $this->avatar_url,
+            'isPrivateProfile' => (bool) $this->is_private_profile,
+            'department' => $this->department,
+            'year' => $this->year,
+            'university' => $this->university,
+            'clubs' => $this->clubs ?? [],
+            'achievements' => $this->achievements ?? [],
+            'projects' => $this->projects ?? [],
         ];
     }
 }

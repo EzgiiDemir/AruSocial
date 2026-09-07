@@ -24,7 +24,11 @@ class ContentBlock {
 
   factory ContentBlock.fromJson(Map<String, dynamic> json) => ContentBlock(
         id: json['id'] as String,
-        type: BlockType.values.byName(json['type'] as String),
+        // Unknown block types (e.g. content authored by a newer app version)
+        // fail safe to `paragraph` instead of crashing the whole page's
+        // block list — the raw props are kept so nothing is silently lost.
+        type: BlockType.values.firstWhere((v) => v.name == json['type'],
+            orElse: () => BlockType.paragraph),
         props: Map<String, dynamic>.from(json['props'] as Map? ?? const {}),
       );
 

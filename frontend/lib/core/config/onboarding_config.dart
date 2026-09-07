@@ -27,6 +27,14 @@ class OnboardingStep {
   /// `'clubs'`/`'sports'` for [list], unused for [info].
   final String? refId;
 
+  /// Only meaningful for REST-backed steps (admin-controlled ordering);
+  /// the hardcoded mock-mode const already lists itself in display order.
+  final int sortOrder;
+
+  /// Admin-only visibility flag; always true for public/mock-mode steps
+  /// (the public endpoint never returns an inactive one).
+  final bool active;
+
   const OnboardingStep({
     required this.id,
     required this.group,
@@ -34,8 +42,42 @@ class OnboardingStep {
     required this.detail,
     this.actionKind = OnboardingActionKind.info,
     this.refId,
+    this.sortOrder = 0,
+    this.active = true,
   });
+
+  factory OnboardingStep.fromJson(Map<String, dynamic> json) => OnboardingStep(
+        id: json['id'] as String,
+        group: json['group'] as String,
+        title: json['title'] as String,
+        detail: json['detail'] as String,
+        actionKind: _actionKindFromApi(json['actionKind'] as String?),
+        refId: json['refId'] as String?,
+        sortOrder: (json['sortOrder'] as num?)?.toInt() ?? 0,
+        active: json['active'] as bool? ?? true,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'groupLabel': group,
+        'title': title,
+        'detail': detail,
+        'actionKind': switch (actionKind) {
+          OnboardingActionKind.service => 'service',
+          OnboardingActionKind.list => 'list',
+          OnboardingActionKind.info => 'info',
+        },
+        'refId': refId,
+        'sortOrder': sortOrder,
+        'active': active,
+      };
 }
+
+OnboardingActionKind _actionKindFromApi(String? value) => switch (value) {
+      'service' => OnboardingActionKind.service,
+      'list' => OnboardingActionKind.list,
+      _ => OnboardingActionKind.info,
+    };
 
 const onboardingSteps = <OnboardingStep>[
   OnboardingStep(

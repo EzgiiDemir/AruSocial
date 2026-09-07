@@ -16,8 +16,9 @@ class FeedPost extends Model
 
     protected $fillable = [
         'id', 'author_id', 'name', 'text', 'meta',
-        'image_url', 'visibility', 'post_type', 'course_tag', 'location_tag',
-        'official', 'created_at',
+        'image_url', 'media_mime_type', 'visibility', 'post_type', 'course_tag', 'location_tag',
+        'official', 'workflow_status', 'review_note',
+        'is_pinned', 'pinned_at', 'pinned_by', 'created_at',
     ];
 
     protected function casts(): array
@@ -25,6 +26,8 @@ class FeedPost extends Model
         return [
             'author_id' => 'integer',
             'official' => 'boolean',
+            'is_pinned' => 'boolean',
+            'pinned_at' => 'datetime',
             'created_at' => 'datetime',
         ];
     }

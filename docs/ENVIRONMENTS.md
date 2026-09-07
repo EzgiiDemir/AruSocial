@@ -78,7 +78,7 @@ origins. Outside `local`/`testing`, no loopback pattern is registered at
 all — staging answers only its own web origin(s), production only its own.
 `EnvironmentGuard` refuses to boot staging/production if this is empty or
 contains a literal `*`; there is no silent "allow everything" fallback.
-`allowed_methods` is the real 108-route method set (`GET`, `HEAD`, `POST`,
+`allowed_methods` covers the current 214-route `/api/v1/*` method set (`GET`, `HEAD`, `POST`,
 `DELETE`, `OPTIONS` — no route uses `PUT`/`PATCH`); `allowed_headers` is
 just what `ApiClient` sends (`Authorization`, `Content-Type`, `Accept`) plus
 `X-Requested-With`. `request_id` is already in the JSON body
@@ -120,6 +120,7 @@ flutter run
 # Local REST (this machine’s Laravel on :4000)
 flutter run --dart-define=USE_REST_API=true \
   --dart-define=APP_ENV=local \
+  --dart-define=REVERB_ENABLED=true \
   --dart-define=REVERB_APP_KEY=arucad-local-key \
   --dart-define=REVERB_HOST=localhost \
   --dart-define=REVERB_PORT=8080 \
@@ -129,6 +130,7 @@ flutter run --dart-define=USE_REST_API=true \
 flutter build apk --dart-define=USE_REST_API=true \
   --dart-define=APP_ENV=staging \
   --dart-define=API_BASE_URL=https://staging-api.example.com/api/v1 \
+  --dart-define=REVERB_ENABLED=true \
   --dart-define=REVERB_APP_KEY=staging-public-key \
   --dart-define=REVERB_HOST=staging-ws.example.com \
   --dart-define=REVERB_PORT=443 \
@@ -138,6 +140,7 @@ flutter build apk --dart-define=USE_REST_API=true \
 flutter build apk --dart-define=USE_REST_API=true \
   --dart-define=APP_ENV=production \
   --dart-define=API_BASE_URL=https://api.example.com/api/v1 \
+  --dart-define=REVERB_ENABLED=true \
   --dart-define=REVERB_APP_KEY=prod-public-key \
   --dart-define=REVERB_HOST=ws.example.com \
   --dart-define=REVERB_PORT=443 \

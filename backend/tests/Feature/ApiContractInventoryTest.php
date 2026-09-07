@@ -38,6 +38,6 @@ class ApiContractInventoryTest extends TestCase
             $fromDoc,
             'docs/API_CONTRACT.md inventory drifted from php artisan route:list --path=api',
         );
-        $this->assertCount(108, $fromLaravel);
+        $this->assertCount(244, $fromLaravel);
     }
 }

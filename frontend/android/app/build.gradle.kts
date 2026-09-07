@@ -21,6 +21,11 @@ if (hasReleaseKeystore) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
+val googleServicesFile = file("google-services.json")
+if (googleServicesFile.exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}
+
 android {
     // P3-13: real ARUCAD identity, mirroring the iOS bundle id already set
     // in ios/Runner.xcodeproj/project.pbxproj (`com.arucad.arucadCampusPrototype`)
@@ -52,6 +57,10 @@ android {
         // Changing this requires re-registering the redirect URI in Azure
         // (docs/EXTERNAL_ACCOUNTS.md §1) — out of scope for this milestone.
         manifestPlaceholders["appAuthRedirectScheme"] = "com.example.arucad_campus_prototype"
+        // Local debug can talk to php artisan serve over HTTP. A release is
+        // compiled with a public HTTPS API and must not silently permit
+        // cleartext traffic on a student's device.
+        manifestPlaceholders["usesCleartextTraffic"] = "true"
     }
 
     signingConfigs {
@@ -65,7 +74,16 @@ android {
         }
     }
 
+    // Campus LAN demo APKs talk to `http://192.168.x.x:4000` — pass
+    // `-PallowCleartext=true` (via `flutter build apk --android-project-arg=allowCleartext=true`).
+    // Production HTTPS builds leave this unset so cleartext stays blocked.
+    val allowCleartext =
+        (project.findProperty("allowCleartext") as String?)?.equals("true", ignoreCase = true) == true
+
     buildTypes {
+        debug {
+            manifestPlaceholders["usesCleartextTraffic"] = "true"
+        }
         release {
             // Real keystore present (key.properties + the file it points at)
             // -> sign for real. Otherwise fall back to the debug keys, same
@@ -76,6 +94,8 @@ android {
             } else {
                 signingConfigs.getByName("debug")
             }
+            manifestPlaceholders["usesCleartextTraffic"] =
+                if (allowCleartext) "true" else "false"
         }
     }
 }

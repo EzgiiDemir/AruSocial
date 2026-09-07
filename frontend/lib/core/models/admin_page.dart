@@ -29,7 +29,8 @@ class AdminPage {
         title: json['title'] as String,
         slug: json['slug'] as String,
         blocks: blocksFromJson(json['blocks']),
-        status: AdminPageStatus.values.byName(json['status'] as String? ?? 'draft'),
+        status: AdminPageStatus.values.firstWhere((v) => v.name == json['status'],
+            orElse: () => AdminPageStatus.draft),
         updatedAt: DateTime.parse(json['updatedAt'] as String),
         updatedBy: json['updatedBy'] as String,
       );

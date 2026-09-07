@@ -8,6 +8,36 @@ Nerede, nasıl test edeceğini gösteren tek doküman. Üç katman var:
 
 ## 1. Frontend — statik kontrol (her zaman ilk adım)
 
+## Baseline
+
+Current application API surface: **151** unique `METHOD + /api/v1/...`
+routes (HEAD omitted). See `docs/API_CONTRACT.md` inventory and
+`ApiContractInventoryTest`.
+
+### Latest P4–P9 product packages (2026-08-26)
+
+- Campus POI + staff: `php artisan db:seed --class=CampusCatalogSeeder` or `php backend/scripts/upsert_p1p2_seed.php`
+- Local routing: set `ROUTING_BASE_URL=https://router.project-osrm.org` (public demo) or leave empty for 501 / straight-line honesty
+- Shell: **6** bottom tabs including Ask ARUCAD (`campus_shell_tabs_test.dart`)
+- Admin queues soft-poll every 30–45s; Reverb still opt-in (`REVERB_ENABLED=true`)
+
+### Latest Final Hardening baseline (2026-08-26)
+
+- `php artisan test --compact` → **393 passed**
+- `flutter test` → appointment + suite (see latest run)
+- `flutter analyze` → pre-existing info/warnings only (no new blocking errors after unused-helper cleanup)
+- `php artisan route:list --path=api` → **151 routes**
+- Dashboard/Stats merged; appointment cancel + slot status codes covered by `FinalHardeningAppointmentTest`
+- `flutter run -d web-server --web-port 7357` boots (HTTP 200); full DevTools console sweep still requires interactive browser
+
+### Latest Hardening 3 baseline (2026-08-26)
+
+- `php artisan test --compact` → **389 passed**
+- `flutter test` → **102 passed**
+- `flutter analyze` → **12 issues** (pre-existing info/warnings set; no new blocking error)
+- `php artisan route:list --path=api` → **151 routes**
+- `flutter run -d web-server --web-port 7357` boots successfully (HTTP 200 verified)
+
 ```bash
 cd frontend
 flutter analyze
@@ -164,6 +194,7 @@ cd frontend
 # Web ve Android emülatör — ikisi de aynı makinedeki 4000 portunu
 # varsayılan olarak doğru çözer, ek tanım gerekmez
 flutter run -d chrome --dart-define=USE_REST_API=true \
+  --dart-define=REVERB_ENABLED=true \
   --dart-define=REVERB_APP_KEY=arucad-local-key \
   --dart-define=REVERB_HOST=localhost \
   --dart-define=REVERB_PORT=8080 \

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'contracts.dart';
@@ -27,10 +28,15 @@ class UrlLauncherMapProvider implements MapProvider {
   }
 
   Future<void> _launch(Uri uri) async {
-    if (!await canLaunchUrl(uri)) {
+    if (!kIsWeb && !await canLaunchUrl(uri)) {
       throw MapProviderException('Harita başlatılamadı: $uri');
     }
-    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+    final ok = await launchUrl(
+      uri,
+      mode: kIsWeb ? LaunchMode.platformDefault : LaunchMode.externalApplication,
+      webOnlyWindowName: '_blank',
+    );
+    if (!ok) {
       throw MapProviderException('Harita bağlantısı açılamadı.');
     }
   }

@@ -26,15 +26,12 @@ class CreateSessionRequest extends FormRequest
 
     public function rules(): array
     {
-        return array (
-  'email' => 
-  array (
-    0 => 'required',
-  ),
-  'password' => 
-  array (
-    0 => 'required',
-  ),
-);
+        return [
+            'email' => ['required', 'email'],
+            // Password policy belongs to account provisioning / SSO, not the
+            // sign-in form. Requiring eight characters here made valid
+            // existing accounts impossible to sign in to.
+            'password' => ['required', 'string'],
+        ];
     }
 }

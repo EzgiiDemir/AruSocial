@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import 'package:arucad_campus_prototype/core/auth/app_settings_store.dart';
 import 'package:arucad_campus_prototype/core/config/onboarding_config.dart';
 import 'package:arucad_campus_prototype/core/services/contracts.dart';
 import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
@@ -22,17 +21,25 @@ class NewStudentScreen extends StatefulWidget {
 
 class _NewStudentScreenState extends State<NewStudentScreen> {
   Set<String> _done = {};
+  List<OnboardingStep> _steps = const [];
   bool _loading = true;
   bool _celebrated = false;
 
   @override
   void initState() {
     super.initState();
-    AppSettingsStore.onboardingDone().then((done) {
+    Future.wait([
+      widget.repository.getOnboardingProgress(),
+      widget.repository.getOnboardingSteps(),
+    ]).then((results) {
       if (!mounted) return;
+      final progress = results[0]
+          as ({Set<String> done, DateTime startedAt, bool eligible});
+      final steps = results[1] as List<OnboardingStep>;
       setState(() {
-        _done = done;
-        _celebrated = done.length == onboardingSteps.length;
+        _done = progress.done;
+        _steps = steps;
+        _celebrated = steps.isNotEmpty && progress.done.length == steps.length;
         _loading = false;
       });
     });
@@ -46,15 +53,20 @@ class _NewStudentScreenState extends State<NewStudentScreen> {
         _done.remove(id);
       }
     });
-    await AppSettingsStore.setOnboardingStepDone(id, value);
-    if (value && _done.length == onboardingSteps.length && !_celebrated) {
+    await widget.repository.setOnboardingStepDone(id, value);
+    if (value && _done.length == _steps.length && !_celebrated) {
       _celebrated = true;
       WidgetsBinding.instance.addPostFrameCallback((_) => _showCelebration());
     }
   }
 
-  void _showCelebration() {
-    showDialog<void>(
+  // Real fix: this used to leave the checklist open showing "12/12
+  // tamamlandı" indefinitely once finished — a page with nothing left to
+  // do shouldn't linger on screen. It's still reachable from Profile any
+  // time (see the class doc comment), it just doesn't sit open once
+  // there's nothing left to check off.
+  Future<void> _showCelebration() async {
+    await showDialog<void>(
       context: context,
       builder: (ctx) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
@@ -83,6 +95,7 @@ class _NewStudentScreenState extends State<NewStudentScreen> {
         ),
       ),
     );
+    if (mounted) Navigator.of(context).pop();
   }
 
   Future<void> _openDetail(OnboardingStep step) async {
@@ -95,8 +108,9 @@ class _NewStudentScreenState extends State<NewStudentScreen> {
           _showInfoSheet(step);
           return;
         }
-        await Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => ServiceDetailScreen(service: service)));
+        await Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => ServiceDetailScreen(
+                service: service, repository: widget.repository)));
         return;
       case OnboardingActionKind.list:
         if (step.refId == 'clubs') {
@@ -158,12 +172,10 @@ class _NewStudentScreenState extends State<NewStudentScreen> {
   @override
   Widget build(BuildContext context) {
     final groups = <String, List<OnboardingStep>>{};
-    for (final step in onboardingSteps) {
+    for (final step in _steps) {
       groups.putIfAbsent(step.group, () => []).add(step);
     }
-    final progress = onboardingSteps.isEmpty
-        ? 0.0
-        : _done.length / onboardingSteps.length;
+    final progress = _steps.isEmpty ? 0.0 : _done.length / _steps.length;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Kampüse Hoş Geldin')),
@@ -183,7 +195,7 @@ class _NewStudentScreenState extends State<NewStudentScreen> {
                             style: TextStyle(
                                 color: Colors.white70, fontWeight: FontWeight.w800)),
                         const SizedBox(height: 8),
-                        Text('${_done.length} / ${onboardingSteps.length} tamamlandı',
+                        Text('${_done.length} / ${_steps.length} tamamlandı',
                             style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 24,

@@ -3,7 +3,9 @@
 namespace App\Http\Requests;
 
 use App\Http\Requests\Concerns\FailsWithApiValidation;
+use App\Support\ContentCategories;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class UpsertClubRequest extends FormRequest
 {
@@ -13,15 +15,10 @@ class UpsertClubRequest extends FormRequest
 
     public function rules(): array
     {
-        return array (
-  'id' => 
-  array (
-    0 => 'required',
-  ),
-  'name' => 
-  array (
-    0 => 'required',
-  ),
-);
+        return [
+            'id' => ['required'],
+            'name' => ['required'],
+            'category' => ['nullable', 'string', Rule::in(ContentCategories::ACTIVITY)],
+        ];
     }
 }

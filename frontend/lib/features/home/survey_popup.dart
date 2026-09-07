@@ -9,16 +9,26 @@ import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
 /// A no-op (returns immediately) when there's nothing to show, so this is
 /// safe to call unconditionally on Home's first load.
 Future<void> maybeShowSurveyPopup(BuildContext context, CampusRepository repository) async {
-  final surveys = await repository.getActiveSurveys();
-  if (!context.mounted) return;
-  final unvoted = surveys.where((s) => !s.hasVoted).toList();
-  if (unvoted.isEmpty) return;
-  await showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    isDismissible: true,
-    builder: (ctx) => _SurveySheet(repository: repository, survey: unvoted.first),
-  );
+  try {
+    final surveys = await repository.getActiveSurveys();
+    if (!context.mounted) return;
+    final unvoted = surveys.where((s) => !s.hasVoted).toList();
+    if (unvoted.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Şu an yanıtını bekleyen bir anket yok.')));
+      return;
+    }
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      isDismissible: true,
+      builder: (ctx) => _SurveySheet(repository: repository, survey: unvoted.first),
+    );
+  } catch (_) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Anketler yüklenemedi. Tekrar deneyin.')));
+  }
 }
 
 class _SurveySheet extends StatefulWidget {
@@ -36,14 +46,19 @@ class _SurveySheetState extends State<_SurveySheet> {
   Survey? _result;
 
   Future<void> _vote() async {
-    if (_selected.isEmpty) return;
+    if (_selected.isEmpty || _submitting) return;
     setState(() => _submitting = true);
-    final result = await widget.repository.voteSurvey(widget.survey.id, _selected.toList());
-    if (!mounted) return;
-    setState(() {
-      _submitting = false;
-      _result = result;
-    });
+    try {
+      final result = await widget.repository.voteSurvey(widget.survey.id, _selected.toList());
+      if (!mounted) return;
+      setState(() => _result = result);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Oy gönderilemedi. Seçimini koruduk, tekrar deneyebilirsin.')));
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
   }
 
   @override

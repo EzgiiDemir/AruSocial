@@ -4,6 +4,7 @@ import 'package:arucad_campus_prototype/core/models/admin_page.dart';
 import 'package:arucad_campus_prototype/core/services/contracts.dart';
 import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
 import 'package:arucad_campus_prototype/features/widgets/block_renderer.dart';
+import 'package:arucad_campus_prototype/features/widgets/campus_back_button.dart';
 
 /// Student-facing list of published Pages (Admin → Sayfalar) — the
 /// "Hakkımızda / SSS / Gizlilik Politikası" style informational pages an
@@ -31,7 +32,7 @@ class _PagesListScreenState extends State<PagesListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Sayfalar')),
+      appBar: AppBar(title: const Text('Sayfalar'), leading: const CampusBackButton()),
       body: FutureBuilder<List<AdminPage>>(
         future: _future,
         builder: (context, snap) {
@@ -75,7 +76,7 @@ class _PageDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: Text(page.title)),
+        appBar: AppBar(title: Text(page.title), leading: const CampusBackButton()),
         body: ListView(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
           children: [

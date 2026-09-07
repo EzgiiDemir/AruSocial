@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:video_player/video_player.dart';
 
 import 'package:arucad_campus_prototype/core/models/media_item.dart';
 import 'package:arucad_campus_prototype/core/network/api_client.dart';
@@ -10,9 +11,11 @@ String _mediaErrorMessage(Object error) {
   if (error is ApiClientException) {
     if (error.statusCode == 401) return 'Oturum gerekli.';
     if (error.statusCode == 403) return 'Bu islem icin yetkin yok.';
-    if (error.code == 'FILE_TOO_LARGE') return 'Dosya 8MB sinirini asiyor.';
+    if (error.code == 'FILE_TOO_LARGE') {
+      return 'Dosya boyutu limiti asildi (gorsel 8MB / video 64MB).';
+    }
     if (error.code == 'UNSUPPORTED_FILE_TYPE') {
-      return 'Sadece JPEG, PNG, WEBP veya GIF yuklenebilir.';
+      return 'JPEG/PNG/WEBP/GIF veya MP4/WEBM/MOV yuklenebilir.';
     }
     return error.message;
   }
@@ -35,7 +38,8 @@ Future<MediaItem?> pickMediaItem(BuildContext context,
 /// Same as [pickMediaItem] but allows selecting several images at once —
 /// used by the Gallery block.
 Future<List<MediaItem>> pickMultipleMediaItems(BuildContext context,
-    {required CampusRepository repository, required String uploaderName}) async {
+    {required CampusRepository repository,
+    required String uploaderName}) async {
   final result = await showModalBottomSheet<List<MediaItem>>(
     context: context,
     isScrollControlled: true,
@@ -50,7 +54,9 @@ class _MediaPickerSheet extends StatefulWidget {
   final String uploaderName;
   final bool multiple;
   const _MediaPickerSheet(
-      {required this.repository, required this.uploaderName, required this.multiple});
+      {required this.repository,
+      required this.uploaderName,
+      required this.multiple});
 
   @override
   State<_MediaPickerSheet> createState() => _MediaPickerSheetState();
@@ -67,7 +73,9 @@ class _MediaPickerSheetState extends State<_MediaPickerSheet> {
     _future = widget.repository.getMedia();
   }
 
-  void _reload() => setState(() => _future = widget.repository.getMedia());
+  void _reload() => setState(() {
+        _future = widget.repository.getMedia();
+      });
 
   Future<void> _upload() async {
     setState(() => _uploading = true);
@@ -75,9 +83,10 @@ class _MediaPickerSheetState extends State<_MediaPickerSheet> {
       final picker = ImagePicker();
       final picked = widget.multiple
           ? await picker.pickMultiImage(imageQuality: 80)
-          : [await picker.pickImage(source: ImageSource.gallery, imageQuality: 80)]
-              .whereType<XFile>()
-              .toList();
+          : [
+              await picker.pickImage(
+                  source: ImageSource.gallery, imageQuality: 80)
+            ].whereType<XFile>().toList();
       for (final file in picked) {
         final bytes = await file.readAsBytes();
         await widget.repository.uploadMedia(bytes, fileName: file.name);
@@ -108,12 +117,15 @@ class _MediaPickerSheetState extends State<_MediaPickerSheet> {
           child: Row(children: [
             Expanded(
                 child: Text(widget.multiple ? 'Görsel(ler) Seç' : 'Görsel Seç',
-                    style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17))),
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w900, fontSize: 17))),
             TextButton.icon(
               onPressed: _uploading ? null : _upload,
               icon: _uploading
                   ? const SizedBox(
-                      width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2))
                   : const Icon(Icons.upload_outlined, size: 18),
               label: const Text('Yükle'),
             ),
@@ -123,11 +135,20 @@ class _MediaPickerSheetState extends State<_MediaPickerSheet> {
           child: FutureBuilder<List<MediaItem>>(
             future: _future,
             builder: (context, snap) {
-              if (!snap.hasData) return const Center(child: CircularProgressIndicator());
-              final items = snap.data!;
+              if (!snap.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              // A pending file is deliberately not selectable for a public
+              // content block. It becomes available here immediately after a
+              // moderator approves it; this prevents pages from referring to
+              // a file that the public media endpoint correctly refuses.
+              final items = snap.data!
+                  .where((item) => item.moderationStatus == 'approved')
+                  .toList(growable: false);
               if (items.isEmpty) {
                 return const Center(
-                  child: Text('Medya kütüphanesi boş — "Yükle" ile ilk görseli ekle.',
+                  child: Text(
+                      'Yayınlanabilir medya yok. Yüklemeler yönetici onayından sonra burada görünür.',
                       style: TextStyle(color: ArucadColors.muted)),
                 );
               }
@@ -162,7 +183,8 @@ class _MediaPickerSheetState extends State<_MediaPickerSheet> {
                       if (isSelected)
                         Container(
                           decoration: BoxDecoration(
-                            border: Border.all(color: ArucadColors.primary, width: 3),
+                            border: Border.all(
+                                color: ArucadColors.primary, width: 3),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           alignment: Alignment.topRight,
@@ -171,7 +193,8 @@ class _MediaPickerSheetState extends State<_MediaPickerSheet> {
                             child: CircleAvatar(
                                 radius: 10,
                                 backgroundColor: ArucadColors.primary,
-                                child: Icon(Icons.check, size: 13, color: Colors.white)),
+                                child: Icon(Icons.check,
+                                    size: 13, color: Colors.white)),
                           ),
                         ),
                     ]),
@@ -192,8 +215,9 @@ class _MediaPickerSheetState extends State<_MediaPickerSheet> {
                     : () async {
                         final all = await _future;
                         if (!context.mounted) return;
-                        Navigator.of(context)
-                            .pop(all.where((m) => _selected.contains(m.id)).toList());
+                        Navigator.of(context).pop(all
+                            .where((m) => _selected.contains(m.id))
+                            .toList());
                       },
                 child: Text('Seçileni Ekle (${_selected.length})'),
               ),
@@ -210,12 +234,43 @@ class _MediaThumb extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (item.isVideo) {
+      return GestureDetector(
+        onTap: item.isRemote
+            ? () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => _VideoPlaybackScreen(url: item.displaySrc)))
+            : null,
+        child: Container(
+          color: ArucadColors.mist,
+          child: Stack(alignment: Alignment.center, children: [
+            const Icon(Icons.videocam_outlined,
+                size: 36, color: ArucadColors.muted),
+            Positioned(
+              bottom: 6,
+              left: 6,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.black54,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  item.moderationStatus,
+                  style: const TextStyle(color: Colors.white, fontSize: 10),
+                ),
+              ),
+            ),
+          ]),
+        ),
+      );
+    }
     try {
       return mediaPreview(item.displaySrc);
     } catch (_) {
       return Container(
           color: ArucadColors.mist,
-          child: const Icon(Icons.broken_image_outlined, color: ArucadColors.muted));
+          child: const Icon(Icons.broken_image_outlined,
+              color: ArucadColors.muted));
     }
   }
 }
@@ -239,15 +294,42 @@ class _MediaLibraryTabState extends State<MediaLibraryTab> {
     _future = widget.repository.getMedia();
   }
 
-  void _reload() => setState(() => _future = widget.repository.getMedia());
+  void _reload() => setState(() {
+        _future = widget.repository.getMedia();
+      });
 
   Future<void> _upload() async {
     final picker = ImagePicker();
-    final picked = await picker.pickMultiImage(imageQuality: 80);
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(
+            leading: const Icon(Icons.image_outlined),
+            title: const Text('Görsel'),
+            onTap: () => Navigator.pop(ctx, 'image'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.videocam_outlined),
+            title: const Text('Video'),
+            onTap: () => Navigator.pop(ctx, 'video'),
+          ),
+        ]),
+      ),
+    );
+    if (choice == null) return;
     try {
-      for (final file in picked) {
+      if (choice == 'video') {
+        final file = await picker.pickVideo(source: ImageSource.gallery);
+        if (file == null) return;
         final bytes = await file.readAsBytes();
         await widget.repository.uploadMedia(bytes, fileName: file.name);
+      } else {
+        final picked = await picker.pickMultiImage(imageQuality: 80);
+        for (final file in picked) {
+          final bytes = await file.readAsBytes();
+          await widget.repository.uploadMedia(bytes, fileName: file.name);
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -266,8 +348,12 @@ class _MediaLibraryTabState extends State<MediaLibraryTab> {
         title: const Text('Dosya adını değiştir'),
         content: TextField(controller: controller),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Vazgeç')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Kaydet')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Vazgeç')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Kaydet')),
         ],
       ),
     );
@@ -286,8 +372,12 @@ class _MediaLibraryTabState extends State<MediaLibraryTab> {
             : '"${item.fileName}" şu içeriklerde kullanılıyor: ${item.usedIn.join(', ')}. '
                 'Yine de silinsin mi? O içeriklerdeki görsel görünmez olur.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Vazgeç')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Sil')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Vazgeç')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Sil')),
         ],
       ),
     );
@@ -307,7 +397,9 @@ class _MediaLibraryTabState extends State<MediaLibraryTab> {
       body: FutureBuilder<List<MediaItem>>(
         future: _future,
         builder: (context, snap) {
-          if (!snap.hasData) return const Center(child: CircularProgressIndicator());
+          if (!snap.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
           final items = snap.data!;
           if (items.isEmpty) {
             return const Center(
@@ -325,7 +417,10 @@ class _MediaLibraryTabState extends State<MediaLibraryTab> {
           return GridView.builder(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 90),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 4, crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: .85),
+                crossAxisCount: 4,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+                childAspectRatio: .85),
             itemCount: items.length,
             itemBuilder: (context, i) {
               final item = items[i];
@@ -334,22 +429,26 @@ class _MediaLibraryTabState extends State<MediaLibraryTab> {
                 child: Column(children: [
                   Expanded(child: _MediaThumb(item: item)),
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(item.fileName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700)),
-                      Text(
-                          item.usedIn.isEmpty
-                              ? 'Kullanılmıyor'
-                              : '${item.usedIn.length} yerde kullanılıyor',
-                          style: TextStyle(
-                              fontSize: 9.5,
-                              color: item.usedIn.isEmpty
-                                  ? ArucadColors.muted
-                                  : ArucadColors.success)),
-                    ]),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(item.fileName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  fontSize: 10.5, fontWeight: FontWeight.w700)),
+                          Text(
+                              item.usedIn.isEmpty
+                                  ? 'Kullanılmıyor'
+                                  : '${item.usedIn.length} yerde kullanılıyor',
+                              style: TextStyle(
+                                  fontSize: 9.5,
+                                  color: item.usedIn.isEmpty
+                                      ? ArucadColors.muted
+                                      : ArucadColors.success)),
+                        ]),
                   ),
                   OverflowBar(alignment: MainAxisAlignment.end, children: [
                     IconButton(
@@ -368,6 +467,74 @@ class _MediaLibraryTabState extends State<MediaLibraryTab> {
             },
           );
         },
+      ),
+    );
+  }
+}
+
+class _VideoPlaybackScreen extends StatefulWidget {
+  final String url;
+  const _VideoPlaybackScreen({required this.url});
+
+  @override
+  State<_VideoPlaybackScreen> createState() => _VideoPlaybackScreenState();
+}
+
+class _VideoPlaybackScreenState extends State<_VideoPlaybackScreen> {
+  late final VideoPlayerController _controller;
+  bool _ready = false;
+  Object? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = VideoPlayerController.networkUrl(Uri.parse(widget.url))
+      ..initialize().then((_) {
+        if (!mounted) return;
+        setState(() => _ready = true);
+        _controller.play();
+      }).catchError((e) {
+        if (mounted) setState(() => _error = e);
+      });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Video')),
+      body: Center(
+        child: _error != null
+            ? Text('Oynatılamadı: $_error')
+            : !_ready
+                ? const CircularProgressIndicator()
+                : AspectRatio(
+                    aspectRatio: _controller.value.aspectRatio,
+                    child: Stack(alignment: Alignment.bottomCenter, children: [
+                      VideoPlayer(_controller),
+                      VideoProgressIndicator(_controller, allowScrubbing: true),
+                      IconButton(
+                        onPressed: () {
+                          setState(() {
+                            _controller.value.isPlaying
+                                ? _controller.pause()
+                                : _controller.play();
+                          });
+                        },
+                        icon: Icon(
+                          _controller.value.isPlaying
+                              ? Icons.pause
+                              : Icons.play_arrow,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ]),
+                  ),
       ),
     );
   }

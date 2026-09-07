@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Source sprite for the ARUCAD rounded line icon family. Each symbol is
+       intentionally self-contained and uses the supplied place-icon language. -->
+  <defs>
+    <g id="event"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M7 3v4M17 3v4M3 10h18M8 14h3M8 17h6"/></g>
+    <g id="map-pin"><path d="M12 21s7-5.4 7-12a7 7 0 1 0-14 0c0 6.6 7 12 7 12Z"/><circle cx="12" cy="9" r="2.4"/></g>
+    <g id="check-in"><path d="M12 21s7-5.4 7-12a7 7 0 1 0-14 0c0 6.6 7 12 7 12Z"/><path d="m9.2 9.3 1.8 1.8 3.8-3.8"/></g>
+    <g id="career"><rect x="3" y="7" width="18" height="13" rx="3"/><path d="M8 7V5h8v2M3 12h18M10 12v2h4v-2"/></g>
+    <g id="appointment"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></g>
+    <g id="social"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.2"/><path d="M3 20c.5-4 2.6-6 6-6s5.5 2 6 6M15 15c3 0 5 1.6 5.5 4.5"/></g>
+    <g id="message"><path d="M4 5h16v11H9l-5 4V5Z"/><path d="M8 10h8M8 13h5"/></g>
+    <g id="bell"><path d="M18 10a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 22h4"/></g>
+    <g id="profile"><circle cx="12" cy="8" r="4"/><path d="M4 21c.8-4 3.5-6 8-6s7.2 2 8 6"/></g>
+    <g id="club"><path d="M5 9h14l-1 11H6L5 9ZM8 9V6a4 4 0 0 1 8 0v3M8 13h8"/></g>
+    <g id="moderation"><path d="M12 3 20 6v5c0 5-3.2 8.4-8 10-4.8-1.6-8-5-8-10V6l8-3Z"/><path d="M12 8v5M12 17h.01"/></g>
+    <g id="trophy"><path d="M8 4h8v5a4 4 0 0 1-8 0V4ZM8 6H4v1a4 4 0 0 0 4 4M16 6h4v1a4 4 0 0 1-4 4M12 13v4M8 21h8M9 17h6"/></g>
+    <g id="pulse"><path d="M3 13h4l2-6 4 11 2-5h6"/></g>
+    <g id="ai"><path d="m12 3 .8 4.2L17 8l-4.2.8L12 13l-.8-4.2L7 8l4.2-.8L12 3ZM19 14l.5 2.5L22 17l-2.5.5L19 20l-.5-2.5L16 17l2.5-.5L19 14Z"/></g>
+    <g id="explore"><circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5-5 2 2-5 5-2Z"/></g>
+    <g id="settings"><circle cx="12" cy="12" r="3"/><path d="M19 13.5v-3l-2-.6a5.8 5.8 0 0 0-.7-1.6l1-1.8-2.1-2.1-1.8 1.1a5.8 5.8 0 0 0-1.7-.7L11 3h-3l-.6 2a5.8 5.8 0 0 0-1.6.7L4 4.6 1.9 6.7l1.1 1.8a5.8 5.8 0 0 0-.7 1.7l-2 .6v3l2 .6a5.8 5.8 0 0 0 .7 1.6l-1.1 1.8L4 20.4l1.8-1.1a5.8 5.8 0 0 0 1.6.7l.6 2h3l.6-2a5.8 5.8 0 0 0 1.7-.7l1.8 1.1 2.1-2.1-1-1.8a5.8 5.8 0 0 0 .7-1.6l2.1-.4Z"/></g>
+  </defs>
+</svg>

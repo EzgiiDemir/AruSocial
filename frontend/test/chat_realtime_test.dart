@@ -26,6 +26,7 @@ class _FakeConnector implements ChatRealtimeConnector {
   Future<void> connect({
     required String userId,
     required Future<String?> Function() tokenProvider,
+    bool subscribeOpsAppointments = false,
   }) async {
     connectCalls += 1;
     if (failConnect) throw StateError('socket down');
@@ -89,7 +90,8 @@ void main() {
     final service = ChatRealtimeService(connector: fake);
     var resyncs = 0;
     final sub = service.resynced.listen((_) => resyncs++);
-    await service.start(userId: '1', userName: 'Ezgi', tokenProvider: () async => 'tok');
+    await service.start(
+        userId: '1', userName: 'Ezgi', tokenProvider: () async => 'tok');
     expect(fake.connected, isTrue);
     fake.reconnectController.add(null);
     await Future<void>.delayed(Duration.zero);
@@ -99,10 +101,53 @@ void main() {
     expect(fake.connected, isFalse);
   });
 
+  test('appointment.changed does not become a chat message', () async {
+    final fake = _FakeConnector();
+    final service = ChatRealtimeService(connector: fake);
+    final messages = <ChatMessage>[];
+    var apptTicks = 0;
+    final msgSub = service.messages.listen(messages.add);
+    final apptSub = service.appointmentChanged.listen((_) => apptTicks++);
+    await service.start(
+        userId: '1', userName: 'Ezgi', tokenProvider: () async => 'tok');
+    fake.eventsController.add({
+      '_campusEvent': 'appointment.changed',
+      'id': 'appt-1',
+      'status': 'approved',
+    });
+    await Future<void>.delayed(Duration.zero);
+    expect(messages, isEmpty);
+    expect(apptTicks, 1);
+    await msgSub.cancel();
+    await apptSub.cancel();
+    await service.dispose();
+  });
+
+  test('campus.changed exposes only collection invalidation to the UI',
+      () async {
+    final fake = _FakeConnector();
+    final service = ChatRealtimeService(connector: fake);
+    final resources = <List<String>>[];
+    final sub = service.campusChanged.listen(resources.add);
+    await service.start(
+        userId: '1', userName: 'Ezgi', tokenProvider: () async => 'tok');
+    fake.eventsController.add({
+      '_campusEvent': 'campus.changed',
+      'resources': ['events']
+    });
+    await Future<void>.delayed(Duration.zero);
+    expect(resources, [
+      ['events']
+    ]);
+    await sub.cancel();
+    await service.dispose();
+  });
+
   test('REST fallback: a dead connector does not throw out of start', () async {
     final fake = _FakeConnector()..failConnect = true;
     final service = ChatRealtimeService(connector: fake);
-    await service.start(userId: '1', userName: 'Ezgi', tokenProvider: () async => 'tok');
+    await service.start(
+        userId: '1', userName: 'Ezgi', tokenProvider: () async => 'tok');
     expect(fake.connected, isFalse);
     await service.dispose();
   });
@@ -110,7 +155,8 @@ void main() {
   test('pause disconnects and resume reconnects', () async {
     final fake = _FakeConnector();
     final service = ChatRealtimeService(connector: fake);
-    await service.start(userId: '1', userName: 'Ezgi', tokenProvider: () async => 'tok');
+    await service.start(
+        userId: '1', userName: 'Ezgi', tokenProvider: () async => 'tok');
     await service.pause();
     expect(fake.connected, isFalse);
     await service.resume(userId: '1', userName: 'Ezgi');
@@ -136,7 +182,11 @@ void main() {
   test('subscribeConversation is forwarded to the connector', () async {
     final fake = _FakeConnector();
     final service = ChatRealtimeService(connector: fake);
-    await service.start(userId: '1', userName: 'Ezgi', conversationId: '12', tokenProvider: () async => 'tok');
+    await service.start(
+        userId: '1',
+        userName: 'Ezgi',
+        conversationId: '12',
+        tokenProvider: () async => 'tok');
     expect(fake.conversationId, '12');
     await service.dispose();
   });
@@ -145,8 +195,13 @@ void main() {
     final config = ChatRealtimeConfig.fromEnvironment(
       apiBaseUrl: 'http://localhost:4000/api/v1',
     );
-    expect(config.authUri.toString(), 'http://localhost:4000/broadcasting/auth');
+    expect(
+        config.authUri.toString(), 'http://127.0.0.1:4000/broadcasting/auth');
     expect(config.websocketUri.queryParameters.containsKey('token'), isFalse);
     expect(config.websocketUri.path, '/app/arucad-local-key');
+    expect(config.websocketUri.host, '127.0.0.1');
+    expect(config.websocketUri.port, 8091);
+    expect(config.isEnabled, isFalse,
+        reason: 'A REST server does not prove Reverb is running.');
   });
 }

@@ -17,7 +17,7 @@ return [
 
     'paths' => ['api/*', 'sanctum/csrf-cookie', 'broadcasting/auth'],
 
-    // The real route inventory (108 `/api/v1/*` routes, `docs/API_CONTRACT.md`)
+    // The real route inventory (133 `/api/v1/*` routes, `docs/API_CONTRACT.md`)
     // only ever uses GET/HEAD, POST and DELETE — no route registers PUT or
     // PATCH. Listed explicitly (P3-7 §10) instead of '*' so a browser can
     // never successfully preflight a method this API doesn't expose.

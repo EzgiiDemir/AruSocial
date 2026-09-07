@@ -9,7 +9,10 @@ import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
 class ShuttleRoute {
   final String id;
   final String name;
-  final Color color;
+
+  /// One of `App\Models\ShuttleRoute::COLOR_KEYS` — a named ARUCAD chrome
+  /// color, not a free hex value, so admins can't drift off the palette.
+  final String colorKey;
   final List<String> stops;
 
   /// Departure times from campus, as 'HH:mm'.
@@ -22,18 +25,66 @@ class ShuttleRoute {
   const ShuttleRoute({
     required this.id,
     required this.name,
-    required this.color,
+    required this.colorKey,
     required this.stops,
     required this.departures,
     this.returns,
   });
+
+  Color get color => colorForShuttleKey(colorKey);
+
+  factory ShuttleRoute.fromJson(Map<String, dynamic> json) => ShuttleRoute(
+        id: json['id'] as String,
+        name: json['name'] as String,
+        colorKey: json['colorKey'] as String? ?? 'blue',
+        stops: (json['stops'] as List<dynamic>? ?? const []).cast<String>(),
+        departures:
+            (json['departures'] as List<dynamic>? ?? const []).cast<String>(),
+        returns: (json['returns'] as List<dynamic>?)?.cast<String>(),
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'colorKey': colorKey,
+        'stops': stops,
+        'departures': departures,
+        'returns': returns,
+      };
+
+  /// Mirrors `App\Models\ShuttleRoute::COLOR_KEYS` — the fixed set an admin
+  /// can pick from, so the palette stays closed.
+  static const knownColorKeys = [
+    'blue',
+    'yellow',
+    'success',
+    'warning',
+    'campusGreen',
+    'primary',
+    'danger',
+  ];
+
+  static bool colorKeyIsKnown(String? key) => knownColorKeys.contains(key);
 }
+
+/// Maps the backend's `colorKey` (`App\Models\ShuttleRoute::COLOR_KEYS`) to
+/// the actual ARUCAD chrome color — admins pick a named key, never a raw hex
+/// value, so the palette stays closed.
+Color colorForShuttleKey(String? key) => switch (key) {
+      'yellow' => ArucadColors.yellow,
+      'success' => ArucadColors.success,
+      'warning' => ArucadColors.warning,
+      'campusGreen' => ArucadColors.campusGreen,
+      'primary' => ArucadColors.primary,
+      'danger' => ArucadColors.danger,
+      _ => ArucadColors.blue,
+    };
 
 const shuttleRoutes = <ShuttleRoute>[
   ShuttleRoute(
     id: 'nicosia',
     name: 'Lefkoşa Servisi',
-    color: ArucadColors.blue,
+    colorKey: 'blue',
     stops: [
       'ARUCAD Kyrenia Kampüsü',
       'Boğaz',
@@ -55,7 +106,7 @@ const shuttleRoutes = <ShuttleRoute>[
   ShuttleRoute(
     id: 'alsancak',
     name: 'Alsancak Servisi',
-    color: ArucadColors.primary,
+    colorKey: 'yellow',
     stops: [
       'ARUCAD Kyrenia Kampüsü',
       'British Cemetery',
@@ -81,7 +132,7 @@ const shuttleRoutes = <ShuttleRoute>[
   ShuttleRoute(
     id: 'catalkoy',
     name: 'Çatalköy Servisi',
-    color: ArucadColors.success,
+    colorKey: 'success',
     stops: [
       'ARUCAD Kyrenia Kampüsü',
       'Mahkemeler',
@@ -103,7 +154,7 @@ const shuttleRoutes = <ShuttleRoute>[
   ShuttleRoute(
     id: 'bandabuliya',
     name: 'Bandabuliya Servisi',
-    color: ArucadColors.warning,
+    colorKey: 'warning',
     stops: ['ARUCAD Kyrenia Kampüsü', 'Bandabuliya'],
     departures: ['07:30', '10:00', '15:00'],
     returns: ['09:00', '13:00', '18:00'],
@@ -111,7 +162,7 @@ const shuttleRoutes = <ShuttleRoute>[
   ShuttleRoute(
     id: 'iris',
     name: 'Atölye Binası (Iris) Servisi',
-    color: ArucadColors.mistLilac,
+    colorKey: 'campusGreen',
     stops: [
       'ARUCAD Kyrenia Kampüsü',
       'Mahkemeler',

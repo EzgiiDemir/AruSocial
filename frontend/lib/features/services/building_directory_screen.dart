@@ -1,198 +1,365 @@
+import 'dart:async';
+
+import 'package:arucad_campus_prototype/core/config/place_tour.dart';
+
 import 'package:flutter/material.dart';
 
-import 'package:arucad_campus_prototype/core/config/campus_sites.dart';
-import 'package:arucad_campus_prototype/core/config/poi_config.dart';
+import 'package:arucad_campus_prototype/core/models/campus_directory.dart';
 import 'package:arucad_campus_prototype/core/models/campus_models.dart';
 import 'package:arucad_campus_prototype/core/models/geo_point.dart';
 import 'package:arucad_campus_prototype/core/services/contracts.dart';
+import 'package:arucad_campus_prototype/core/services/tour_launcher.dart';
 import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
+import 'package:arucad_campus_prototype/features/map/campus_map_launcher.dart';
 import 'package:arucad_campus_prototype/features/map/in_app_navigation_screen.dart';
-import 'package:arucad_campus_prototype/features/map/maplibre_campus_map.dart';
+import 'package:arucad_campus_prototype/features/home/campus_live_map.dart';
 
-/// Building → Floor → Room → Person browser for students, backed by a real
-/// map of ARUCAD's verified locations (the same coordinates the live campus
-/// map uses) — so even before an admin has entered any room/person data, a
-/// student can still see and navigate to every real building. Rendered on
-/// our real OpenStreetMap vector map (MapLibre + OpenFreeMap); the old
-/// Google-Maps-only 3D tilt isn't reproduced here since it isn't real
-/// building-footprint data, just the SDK's own generic city-model rendering
-/// — a flat, honest top-down view of real coordinates is preferred over a
-/// fake 3D look.
+/// Building → Floor → Room drill-down. Campus map canvas lives in the hub —
+/// this screen deep-links instead of embedding a second MapLibre view.
 class BuildingDirectoryScreen extends StatefulWidget {
   final CampusRepository repository;
-  const BuildingDirectoryScreen({super.key, required this.repository});
+  final MapProvider? mapProvider;
+  final AnalyticsTracker? analyticsTracker;
+  final VoidCallback? onOpenGalatea;
+  final CampusVisibility initialVisibility;
+
+  const BuildingDirectoryScreen({
+    super.key,
+    required this.repository,
+    this.mapProvider,
+    this.analyticsTracker,
+    this.onOpenGalatea,
+    this.initialVisibility = CampusVisibility.friends,
+  });
 
   @override
-  State<BuildingDirectoryScreen> createState() => _BuildingDirectoryScreenState();
+  State<BuildingDirectoryScreen> createState() =>
+      _BuildingDirectoryScreenState();
 }
 
 class _BuildingDirectoryScreenState extends State<BuildingDirectoryScreen> {
-  Poi? _selectedPoi;
-  CampusSite? _selectedSite;
+  String _query = '';
+  String? _building;
+  String? _floor;
+  late Future<List<CampusBuilding>> _buildingsFuture;
+  Future<List<CampusFloor>>? _floorsFuture;
+  Future<List<CampusRoom>>? _roomsFuture;
+  List<CampusPlace> _places = const [];
+  List<CampusEvent> _events = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _buildingsFuture = widget.repository.getDirectoryBuildings();
+    unawaited(_loadMapContext());
+  }
+
+  Future<void> _loadMapContext() async {
+    try {
+      final results = await Future.wait([
+        widget.repository.getPlaces(),
+        widget.repository.getEvents(),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        _places = results[0] as List<CampusPlace>;
+        _events = results[1] as List<CampusEvent>;
+      });
+    } catch (_) {}
+  }
 
   void _openNavigation(String name, double lat, double lng) {
     Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) =>
-            InAppNavigationScreen(destinationName: name, destination: GeoPoint(lat, lng))));
+        builder: (_) => InAppNavigationScreen(
+              destinationName: name,
+              destination: GeoPoint(lat, lng),
+              repository: widget.repository,
+            )));
+  }
+
+  void _openCampusMap({String? focusPlaceId}) {
+    final mapProvider = widget.mapProvider;
+    final analytics = widget.analyticsTracker;
+    if (mapProvider == null || analytics == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text(
+              'Harita için Ana Sayfa veya Keşfet → Kampüs Haritası’nı kullan.')));
+      return;
+    }
+    openCampusMapHub(
+      context,
+      places: _places,
+      events: _events,
+      repository: widget.repository,
+      mapProvider: mapProvider,
+      analyticsTracker: analytics,
+      onOpenGalatea: widget.onOpenGalatea ?? () {},
+      initialVisibility: widget.initialVisibility,
+      focusPlaceId: focusPlaceId,
+    );
+  }
+
+  CampusPlace? _placeNearBuilding(String buildingName) {
+    final target = buildingName.toLowerCase();
+    for (final p in _places) {
+      final n = p.name.toLowerCase();
+      if (n == target || n.contains(target) || target.contains(n)) return p;
+    }
+    return null;
+  }
+
+  void _selectBuilding(String building) {
+    setState(() {
+      _building = building;
+      _floor = null;
+      _floorsFuture = widget.repository.getDirectoryFloors(building);
+      _roomsFuture = null;
+    });
+  }
+
+  void _selectFloor(String floor) {
+    final building = _building;
+    if (building == null) return;
+    setState(() {
+      _floor = floor;
+      _roomsFuture = widget.repository.getDirectoryRooms(building, floor);
+    });
+  }
+
+  void _backToBuildings() {
+    setState(() {
+      _building = null;
+      _floor = null;
+      _floorsFuture = null;
+      _roomsFuture = null;
+    });
+  }
+
+  void _backToFloors() {
+    setState(() {
+      _floor = null;
+      _roomsFuture = null;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final extentPoints = [
-      for (final site in campusSites) GeoPoint(site.lat, site.lng),
-      for (final poi in pois) GeoPoint(poi.lat, poi.lng),
-    ];
-    final markers = <CampusMapMarker>[
-      for (final site in campusSites)
-        CampusMapMarker(
-          id: 'site-${site.id}',
-          position: GeoPoint(site.lat, site.lng),
-          label: site.name,
-          color: ArucadColors.blue,
-          emphasized: true,
-          onTap: () => setState(() {
-            _selectedSite = site;
-            _selectedPoi = null;
-          }),
-        ),
-      for (final poi in pois)
-        CampusMapMarker(
-          id: 'poi-${poi.name}',
-          position: GeoPoint(poi.lat, poi.lng),
-          label: poi.name,
-          color: ArucadColors.slate,
-          onTap: () => setState(() {
-            _selectedPoi = poi;
-            _selectedSite = null;
-          }),
-        ),
-    ];
-
     return Scaffold(
-      appBar: AppBar(title: const Text('Bina Dizini')),
-      body: FutureBuilder<List<DirectoryEntry>>(
-        future: widget.repository.getDirectoryEntries(),
-        builder: (context, snap) {
-          final entries = snap.data ?? const <DirectoryEntry>[];
-          final byBuilding = <String, List<DirectoryEntry>>{};
-          for (final e in entries) {
-            byBuilding.putIfAbsent(e.building, () => []).add(e);
-          }
-          final buildings = byBuilding.keys.toList()..sort();
-
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(22),
-                child: SizedBox(
-                  height: 260,
-                  child: Stack(children: [
-                    Positioned.fill(
-                      child: CampusMapView(extentPoints: extentPoints, markers: markers),
+      appBar: AppBar(
+        title: Text(_floor != null
+            ? '$_building · $_floor'
+            : _building != null
+                ? _building!
+                : 'Binalar ve 360° Tur'),
+        leading: _building != null
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: _floor != null ? _backToFloors : _backToBuildings,
+              )
+            : null,
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+        children: [
+          Card(
+            child: InkWell(
+              borderRadius: BorderRadius.circular(20),
+              onTap: () {
+                final focus = _building == null
+                    ? null
+                    : _placeNearBuilding(_building!)?.id;
+                _openCampusMap(focusPlaceId: focus);
+              },
+              child: const Padding(
+                padding: EdgeInsets.all(16),
+                child: Row(children: [
+                  Icon(Icons.map_outlined, color: ArucadColors.primary),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Kampüs Haritası',
+                            style: TextStyle(fontWeight: FontWeight.w900)),
+                        SizedBox(height: 4),
+                        Text('Binanın kampüsteki konumunu gör',
+                            style: TextStyle(
+                                color: ArucadColors.muted, fontSize: 12)),
+                      ],
                     ),
-                    if (_selectedPoi != null || _selectedSite != null)
-                      Positioned(
-                        left: 12,
-                        right: 12,
-                        bottom: 12,
-                        child: _MapSelectionCard(
-                          title: _selectedPoi?.name ?? _selectedSite!.name,
-                          subtitle: _selectedPoi?.category,
-                          onNavigate: () {
-                            if (_selectedPoi != null) {
-                              _openNavigation(
-                                  _selectedPoi!.name, _selectedPoi!.lat, _selectedPoi!.lng);
-                            } else {
-                              _openNavigation(
-                                  _selectedSite!.name, _selectedSite!.lat, _selectedSite!.lng);
-                            }
-                          },
+                  ),
+                  Icon(Icons.chevron_right),
+                ]),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            _building == null
+                ? 'Bir bina bul. Turu aç veya kat ve odaları incele.'
+                : _floor == null
+                    ? 'Odaları görmek için bir kat seç.'
+                    : 'Odaya yol tarifi al veya varsa 360° turunu aç.',
+            style: const TextStyle(color: ArucadColors.muted, fontSize: 13),
+          ),
+          if (_building == null) ...[
+            const SizedBox(height: 12),
+            TextField(
+              decoration: const InputDecoration(
+                hintText: 'Bina ara',
+                prefixIcon: Icon(Icons.search),
+                border: OutlineInputBorder(),
+              ),
+              onChanged: (value) =>
+                  setState(() => _query = value.trim().toLowerCase()),
+            ),
+          ],
+          const SizedBox(height: 16),
+          if (_roomsFuture != null)
+            FutureBuilder<List<CampusRoom>>(
+              future: _roomsFuture,
+              builder: (context, snap) {
+                if (snap.hasError) {
+                  return Text('Kat bulunamadı: ${snap.error}',
+                      style: const TextStyle(color: ArucadColors.danger));
+                }
+                if (!snap.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                final rooms = snap.data!;
+                if (rooms.isEmpty) {
+                  return const Text('Bu katta oda kaydı yok.',
+                      style: TextStyle(color: ArucadColors.muted));
+                }
+                return Column(
+                  children: [
+                    for (final room in rooms)
+                      ListTile(
+                        title: Text(room.title),
+                        subtitle: Text([
+                          if (room.occupantRole != null) room.occupantRole!,
+                          if (room.occupantName.isNotEmpty) room.occupantName,
+                        ].where((s) => s.isNotEmpty).join(' · ')),
+                        trailing:
+                            Row(mainAxisSize: MainAxisSize.min, children: [
+                          if (room.tourUrl != null)
+                            IconButton(
+                              tooltip: '360° Tur',
+                              icon: const Icon(Icons.threesixty),
+                              onPressed: () => open360Tour(
+                                context,
+                                room.tourUrl!,
+                                tourTarget: room.tourTarget,
+                                title: room.occupantName.isNotEmpty
+                                    ? room.occupantName
+                                    : '360° Tur',
+                              ),
+                            ),
+                          const Icon(Icons.directions_walk),
+                        ]),
+                        onTap: () {
+                          final match = _building == null
+                              ? null
+                              : _placeNearBuilding(_building!);
+                          if (match != null) {
+                            _openNavigation(match.name, match.lat, match.lng);
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                    content: Text(
+                                        'Bu oda için koordinat yok — kampüs haritasını aç.')));
+                          }
+                        },
+                      ),
+                  ],
+                );
+              },
+            )
+          else if (_floorsFuture != null)
+            FutureBuilder<List<CampusFloor>>(
+              future: _floorsFuture,
+              builder: (context, snap) {
+                if (snap.hasError) {
+                  return Text('Bina bulunamadı: ${snap.error}',
+                      style: const TextStyle(color: ArucadColors.danger));
+                }
+                if (!snap.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                final floors = snap.data!;
+                return Column(
+                  children: [
+                    for (final floor in floors)
+                      ListTile(
+                        title: Text(floor.name),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () => _selectFloor(floor.name),
+                      ),
+                  ],
+                );
+              },
+            )
+          else
+            FutureBuilder<List<CampusBuilding>>(
+              future: _buildingsFuture,
+              builder: (context, snap) {
+                if (snap.hasError) {
+                  return Text('Dizin yüklenemedi: ${snap.error}',
+                      style: const TextStyle(color: ArucadColors.danger));
+                }
+                if (!snap.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                final buildings = snap.data!
+                    .where((b) => b.name.toLowerCase().contains(_query))
+                    .toList();
+                if (buildings.isEmpty) {
+                  return const Text('Bina bulunamadı.',
+                      style: TextStyle(color: ArucadColors.muted));
+                }
+                return Column(
+                  children: [
+                    for (final b in buildings)
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(b.name,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 17)),
+                              const SizedBox(height: 12),
+                              Wrap(spacing: 8, runSpacing: 8, children: [
+                                if (_placeNearBuilding(b.name)
+                                    case final place?)
+                                  FilledButton.icon(
+                                    icon: const Icon(Icons.threesixty),
+                                    label: const Text('360° Turu aç'),
+                                    onPressed: () {
+                                      final tour = resolvePlaceTour(place);
+                                      open360Tour(context, tour.url,
+                                          tourTarget: tour.target,
+                                          title: b.name);
+                                    },
+                                  ),
+                                OutlinedButton.icon(
+                                  icon: const Icon(Icons.meeting_room_outlined),
+                                  label: const Text('Katlar ve odalar'),
+                                  onPressed: () => _selectBuilding(b.name),
+                                ),
+                              ]),
+                            ],
+                          ),
                         ),
                       ),
-                  ]),
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Kampüsün gerçek konumları — bir noktaya dokun, ardından yol tarifi al.',
-                style: TextStyle(color: ArucadColors.muted, fontSize: 12),
-              ),
-              const SizedBox(height: 20),
-              if (buildings.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 16),
-                  child: Text(
-                    'Henüz oda/kişi bilgisi girilmedi.\nGerçek oda ve kişi bilgisi eklendikçe aşağıda görünecek — '
-                    'yukarıdaki harita her zaman gerçek bina konumlarını gösterir.',
-                    style: TextStyle(color: ArucadColors.muted),
-                  ),
-                )
-              else
-                for (final building in buildings) ...[
-                  Text(building, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-                  const SizedBox(height: 8),
-                  ...byBuilding[building]!.map((e) {
-                    final where = [e.floor, e.room].whereType<String>().join(', ');
-                    return Card(
-                      child: ListTile(
-                        leading:
-                            const Icon(Icons.meeting_room_outlined, color: ArucadColors.primary),
-                        title: Text(e.occupantName,
-                            style: const TextStyle(fontWeight: FontWeight.w700)),
-                        subtitle: Text([
-                          if (where.isNotEmpty) where,
-                          if (e.occupantRole != null) e.occupantRole!,
-                        ].join(' · ')),
-                      ),
-                    );
-                  }),
-                  const SizedBox(height: 20),
-                ],
-            ],
-          );
-        },
+                  ],
+                );
+              },
+            ),
+        ],
       ),
     );
   }
-}
-
-class _MapSelectionCard extends StatelessWidget {
-  final String title;
-  final String? subtitle;
-  final VoidCallback onNavigate;
-  const _MapSelectionCard({required this.title, this.subtitle, required this.onNavigate});
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
-        decoration: BoxDecoration(
-          color: Theme.of(context).scaffoldBackgroundColor,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(color: Colors.black.withValues(alpha: .15), blurRadius: 12, offset: const Offset(0, 4)),
-          ],
-        ),
-        child: Row(children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w800)),
-                if (subtitle != null)
-                  Text(subtitle!, style: const TextStyle(color: ArucadColors.muted, fontSize: 11.5)),
-              ],
-            ),
-          ),
-          FilledButton.icon(
-            onPressed: onNavigate,
-            icon: const Icon(Icons.directions_walk, size: 16),
-            label: const Text('Yol Tarifi', style: TextStyle(fontSize: 12.5)),
-          ),
-        ]),
-      );
 }

@@ -13,8 +13,13 @@ use Illuminate\Support\Str;
 // status is known before the HTTP response (no separate mail queue).
 class EmailService
 {
-    public static function send(string $toEmail, string $subject, string $template, Mailable $mailable): EmailLog
-    {
+    public static function send(
+        string $toEmail,
+        string $subject,
+        string $template,
+        Mailable $mailable,
+        ?string $applicationId = null,
+    ): EmailLog {
         $status = 'sent';
         $error = null;
         try {
@@ -40,6 +45,7 @@ class EmailService
             'error' => $error,
             'attempts' => 1,
             'sent_at' => now(),
+            'application_id' => $applicationId,
         ]);
     }
 

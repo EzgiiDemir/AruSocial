@@ -56,14 +56,21 @@ class AuthSessionTest extends TestCase
 
     public function test_an_email_outside_the_allowed_domain_is_rejected(): void
     {
+        // Pin allowlist so local AUTH_ALLOWED_EMAIL_DOMAINS=@gmail.com smoke
+        // config cannot make this assertion flake.
+        config([
+            'auth.allowed_email_domain' => '@arucad.edu.tr',
+            'auth.allowed_email_domains' => ['@arucad.edu.tr'],
+        ]);
+
         $response = $this->postJson('/api/v1/auth/session', [
-            'email' => 'someone@gmail.com',
+            'email' => 'someone@example.com',
             'password' => 'whatever',
         ]);
 
         $response->assertStatus(403);
         $this->assertEquals('DOMAIN_NOT_ALLOWED', $response->json('error.code'));
-        $this->assertDatabaseMissing('users', ['email' => 'someone@gmail.com']);
+        $this->assertDatabaseMissing('users', ['email' => 'someone@example.com']);
     }
 
     public function test_missing_credentials_are_rejected(): void
@@ -91,6 +98,17 @@ class AuthSessionTest extends TestCase
             'email' => 'yeni.ogrenci@arucad.edu.tr',
             'password' => 'baska-sifre',
         ])->assertStatus(401);
+    }
+
+    public function test_a_first_time_account_can_use_a_short_existing_password(): void
+    {
+        $this->postJson('/api/v1/auth/session', [
+            'email' => 'kisa.sifre@arucad.edu.tr',
+            'password' => 'short',
+        ])->assertOk();
+
+        $created = User::where('email', 'kisa.sifre@arucad.edu.tr')->firstOrFail();
+        $this->assertTrue(Hash::check('short', $created->password));
     }
 
     public function test_a_banned_account_cannot_open_a_session_at_all(): void

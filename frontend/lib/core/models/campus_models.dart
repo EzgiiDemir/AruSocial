@@ -1,6 +1,25 @@
 import 'dart:typed_data';
 
+import '../network/media_url.dart';
 import 'content_block.dart';
+
+/// A single real check-in shown in a place's "recently here" list —
+/// `initial` is the first letter of the checked-in student's real name,
+/// never a fabricated one.
+class CampusCheckinEntry {
+  final String initial;
+  final DateTime? checkedInAt;
+
+  const CampusCheckinEntry({required this.initial, this.checkedInAt});
+
+  factory CampusCheckinEntry.fromJson(Map<String, dynamic> json) {
+    final raw = json['checkedInAt'] as String?;
+    return CampusCheckinEntry(
+      initial: json['initial'] as String? ?? '?',
+      checkedInAt: raw == null ? null : DateTime.tryParse(raw),
+    );
+  }
+}
 
 class CampusPlace {
   final String id;
@@ -13,9 +32,13 @@ class CampusPlace {
   final String density;
   final String street;
   final String? tourUrl;
+  final String? tourTarget;
   final bool accessible;
   final int photos;
   final double rating;
+  final String? coverUrl;
+  final int recentCheckins;
+  final List<CampusCheckinEntry> recentCheckinEntries;
 
   const CampusPlace({
     required this.id,
@@ -28,9 +51,13 @@ class CampusPlace {
     required this.density,
     required this.street,
     required this.tourUrl,
+    this.tourTarget,
     required this.accessible,
     required this.photos,
     required this.rating,
+    this.coverUrl,
+    this.recentCheckins = 0,
+    this.recentCheckinEntries = const [],
   });
 
   factory CampusPlace.fromJson(Map<String, dynamic> json) {
@@ -45,9 +72,81 @@ class CampusPlace {
       density: json['density'] as String,
       street: json['street'] as String,
       tourUrl: json['tourUrl'] as String?,
+      tourTarget: json['tourTarget'] as String?,
       accessible: json['accessible'] as bool,
       photos: json['photos'] as int,
       rating: (json['rating'] as num).toDouble(),
+      coverUrl: json['coverUrl'] as String?,
+      recentCheckins: (json['recentCheckins'] as num?)?.toInt() ?? 0,
+      recentCheckinEntries: (json['recentCheckinEntries'] as List<dynamic>?)
+              ?.map((e) => CampusCheckinEntry.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const [],
+    );
+  }
+
+  CampusPlace copyWith({
+    String? density,
+    double? rating,
+    String? coverUrl,
+    String? tourUrl,
+    String? tourTarget,
+    int? recentCheckins,
+  }) =>
+      CampusPlace(
+        id: id,
+        name: name,
+        category: category,
+        lat: lat,
+        lng: lng,
+        description: description,
+        distance: distance,
+        density: density ?? this.density,
+        street: street,
+        tourUrl: tourUrl ?? this.tourUrl,
+        tourTarget: tourTarget ?? this.tourTarget,
+        accessible: accessible,
+        photos: photos,
+        rating: rating ?? this.rating,
+        coverUrl: coverUrl ?? this.coverUrl,
+        recentCheckins: recentCheckins ?? this.recentCheckins,
+        recentCheckinEntries: recentCheckinEntries,
+      );
+}
+
+/// Privacy / personalization prefs that used to live only in
+/// `AppSettingsStore` SharedPreferences. Rest mode stores them on `users`.
+class UserSettings {
+  final String locationVisibility;
+  final bool nearbyDiscoverable;
+  final bool checkInVisible;
+  final bool personalization;
+  final bool isPrivateProfile;
+  /// Account-scoped UI language code: `TR` | `EN` | `RU`.
+  final String preferredLanguage;
+
+  const UserSettings({
+    this.locationVisibility = 'ghost',
+    this.nearbyDiscoverable = false,
+    this.checkInVisible = true,
+    this.personalization = true,
+    this.isPrivateProfile = false,
+    this.preferredLanguage = 'TR',
+  });
+
+  factory UserSettings.fromJson(Map<String, dynamic> json) {
+    final raw = (json['preferredLanguage'] as String? ?? 'TR').toUpperCase();
+    final lang = switch (raw) {
+      'EN' || 'RU' || 'TR' => raw,
+      _ => 'TR',
+    };
+    return UserSettings(
+      locationVisibility: json['locationVisibility'] as String? ?? 'ghost',
+      nearbyDiscoverable: json['nearbyDiscoverable'] as bool? ?? false,
+      checkInVisible: json['checkInVisible'] as bool? ?? true,
+      personalization: json['personalization'] as bool? ?? true,
+      isPrivateProfile: json['isPrivateProfile'] as bool? ?? false,
+      preferredLanguage: lang,
     );
   }
 }
@@ -134,6 +233,10 @@ class CampusEvent {
   /// Oluştur") — null for admin-created events.
   final String? createdByUserId;
 
+  /// Department head chosen by the student for review routing.
+  final String? responsibleStaffId;
+  final String? responsibleStaffName;
+
   /// FK into `academic_years` — null means not tied to a specific year.
   final String? academicYearId;
 
@@ -148,6 +251,9 @@ class CampusEvent {
   /// / Gönüllü / Organizasyon) — empty means the event hasn't defined any,
   /// in which case the join popup just skips straight to a plain confirm.
   final List<EventParticipationOption> participationTypes;
+
+  /// True when created via poster → AI draft (still workflow draft).
+  final bool aiDraft;
 
   const CampusEvent({
     required this.id,
@@ -169,9 +275,12 @@ class CampusEvent {
     this.workflowStatus = 'published',
     this.reviewNote,
     this.createdByUserId,
+    this.responsibleStaffId,
+    this.responsibleStaffName,
     this.academicYearId,
     this.body = const [],
     this.participationTypes = const [],
+    this.aiDraft = false,
   });
 
   /// Whether this event should appear in a normal (non-admin) listing right
@@ -195,12 +304,16 @@ class CampusEvent {
       category: json['category'] as String,
       attendees: json['attendees'] as int,
       xp: json['xp'] as int,
-      eventDate: json['eventDate'] == null ? null : DateTime.tryParse(json['eventDate'] as String),
+      eventDate: json['eventDate'] == null
+          ? null
+          : DateTime.tryParse(json['eventDate'] as String),
       draft: json['draft'] as bool? ?? false,
-      publishAt:
-          json['publishAt'] == null ? null : DateTime.tryParse(json['publishAt'] as String),
-      expiresAt:
-          json['expiresAt'] == null ? null : DateTime.tryParse(json['expiresAt'] as String),
+      publishAt: json['publishAt'] == null
+          ? null
+          : DateTime.tryParse(json['publishAt'] as String),
+      expiresAt: json['expiresAt'] == null
+          ? null
+          : DateTime.tryParse(json['expiresAt'] as String),
       audience: json['audience'] as String? ?? 'Tümü',
       organizer: json['organizer'] as String? ?? '',
       organizerEmail: json['organizerEmail'] as String?,
@@ -213,12 +326,16 @@ class CampusEvent {
       // JSON number — normalized to a string here to keep CampusEvent's
       // own id fields consistently typed regardless of source.
       createdByUserId: json['createdByUserId']?.toString(),
+      responsibleStaffId: json['responsibleStaffId'] as String?,
+      responsibleStaffName: json['responsibleStaffName'] as String?,
       academicYearId: json['academicYearId'] as String?,
       body: blocksFromJson(json['body']),
       participationTypes: (json['participationTypes'] as List<dynamic>?)
-              ?.map((e) => EventParticipationOption.fromJson(e as Map<String, dynamic>))
+              ?.map((e) =>
+                  EventParticipationOption.fromJson(e as Map<String, dynamic>))
               .toList() ??
           const [],
+      aiDraft: json['aiDraft'] as bool? ?? false,
     );
   }
 
@@ -230,7 +347,8 @@ class CampusEvent {
         'category': category,
         'attendees': attendees,
         'xp': xp,
-        if (eventDate != null) 'eventDate': eventDate!.toIso8601String().split('T').first,
+        if (eventDate != null)
+          'eventDate': eventDate!.toIso8601String().split('T').first,
         'draft': draft,
         if (publishAt != null) 'publishAt': publishAt!.toIso8601String(),
         if (expiresAt != null) 'expiresAt': expiresAt!.toIso8601String(),
@@ -288,8 +406,11 @@ class CampusEvent {
         workflowStatus: workflowStatus,
         reviewNote: reviewNote,
         createdByUserId: createdByUserId,
+        responsibleStaffId: responsibleStaffId,
+        responsibleStaffName: responsibleStaffName,
         body: body ?? this.body,
         participationTypes: participationTypes,
+        aiDraft: aiDraft,
       );
 }
 
@@ -349,7 +470,21 @@ class PostComment {
 /// this prototype (single signed-in session), so "onlyMe" can't be verified
 /// by logging in as a second student — but the flag is real and every read
 /// path respects it, ready for a real multi-user backend.
-enum PostVisibility { everyone, onlyMe }
+enum PostVisibility { everyone, friends, onlyMe }
+
+extension PostVisibilityApi on PostVisibility {
+  String get apiValue => switch (this) {
+        PostVisibility.onlyMe => 'onlyMe',
+        PostVisibility.friends => 'friends',
+        PostVisibility.everyone => 'everyone',
+      };
+
+  static PostVisibility fromApi(String? raw) => switch (raw) {
+        'onlyMe' => PostVisibility.onlyMe,
+        'friends' => PostVisibility.friends,
+        _ => PostVisibility.everyone,
+      };
+}
 
 /// What kind of real event produced a feed post — drives the Social feed's
 /// Kampüs filter (official announcements). Deliberately minimal: these are
@@ -376,12 +511,18 @@ extension PostCategoryInfo on PostCategory {
 class FeedPost {
   final String id;
   final String authorId;
+  final String? authorAvatarUrl;
   final String name;
   final String text;
   final String meta;
   final int likes;
   final bool likedByMe;
   final String? imageUrl;
+
+  /// Server-confirmed MIME type for an approved social attachment.  Do not
+  /// infer this from the protected `/media/{id}/file` URL, which has no file
+  /// extension.
+  final String? mediaMimeType;
   // Photos picked from the device camera/gallery have no real upload
   // backend to host them at a URL, so they're kept as in-memory bytes and
   // rendered with Image.memory — real, but session-only (lost on reload).
@@ -400,16 +541,21 @@ class FeedPost {
   /// false for anything a student posted — drives the visual distinction
   /// between official and student content in the feed.
   final bool official;
+  final bool isPinned;
+  final String workflowStatus;
+  final DateTime? createdAt;
 
   const FeedPost({
     required this.id,
     this.authorId = '',
+    this.authorAvatarUrl,
     required this.name,
     required this.text,
     required this.meta,
     required this.likes,
     this.likedByMe = false,
     this.imageUrl,
+    this.mediaMimeType,
     this.imageBytes,
     this.comments = const [],
     this.visibility = PostVisibility.everyone,
@@ -418,6 +564,9 @@ class FeedPost {
     this.courseTag,
     this.locationTag,
     this.official = false,
+    this.isPinned = false,
+    this.workflowStatus = 'published',
+    this.createdAt,
   });
 
   /// Real hashtags parsed straight out of the post text (e.g. "#flutter") —
@@ -428,28 +577,47 @@ class FeedPost {
       .map((m) => m.group(1)!.toLowerCase())
       .toList();
 
+  /// Preserve the original post for storage/editing but omit emoji artwork
+  /// from rendered feed text. Android emoji sets vary substantially by OS.
+  String get displayText => String.fromCharCodes(
+        text.runes.where((rune) =>
+            !((rune >= 0x1F000 && rune <= 0x1FAFF) ||
+                (rune >= 0x2600 && rune <= 0x27BF) ||
+                rune == 0xFE0F ||
+                rune == 0x200D ||
+                rune == 0x20E3)),
+      ).replaceAll(RegExp(r'\s+'), ' ').trim();
+
   FeedPost copyWith({
     int? likes,
     bool? likedByMe,
     List<PostComment>? comments,
+    String? text,
+    PostVisibility? visibility,
+    bool? isPinned,
   }) {
     return FeedPost(
       id: id,
       authorId: authorId,
+      authorAvatarUrl: authorAvatarUrl,
       name: name,
-      text: text,
+      text: text ?? this.text,
       meta: meta,
       likes: likes ?? this.likes,
       likedByMe: likedByMe ?? this.likedByMe,
       imageUrl: imageUrl,
+      mediaMimeType: mediaMimeType,
       imageBytes: imageBytes,
       comments: comments ?? this.comments,
-      visibility: visibility,
+      visibility: visibility ?? this.visibility,
       kind: kind,
       postType: postType,
       courseTag: courseTag,
       locationTag: locationTag,
       official: official,
+      isPinned: isPinned ?? this.isPinned,
+      workflowStatus: workflowStatus,
+      createdAt: createdAt,
     );
   }
 
@@ -457,21 +625,30 @@ class FeedPost {
     return FeedPost(
       id: json['id'] as String,
       authorId: '${json['authorId'] ?? ''}',
+      authorAvatarUrl: MediaUrl.resolve(json['authorAvatarUrl'] as String?),
       name: json['name'] as String,
       text: json['text'] as String,
       meta: json['meta'] as String,
-      likes: json['likes'] as int,
+      likes: json['likes'] as int? ?? 0,
       likedByMe: json['likedByMe'] as bool? ?? false,
-      imageUrl: json['imageUrl'] as String?,
+      imageUrl: MediaUrl.resolve(json['imageUrl'] as String?),
+      mediaMimeType: json['mediaMimeType'] as String?,
       comments: (json['comments'] as List<dynamic>? ?? const [])
           .map((c) => PostComment.fromJson(c as Map<String, dynamic>))
           .toList(),
-      visibility: json['visibility'] == 'onlyMe'
-          ? PostVisibility.onlyMe
-          : PostVisibility.everyone,
-      postType: PostCategory.values.byName(json['postType'] as String? ?? 'normal'),
+      visibility: PostVisibilityApi.fromApi(json['visibility'] as String?),
+      // Falls back to `normal` for any value that isn't one of the app's
+      // known categories (stale/hand-edited rows, future backend values)
+      // instead of throwing and taking down the whole feed's decode.
+      postType: PostCategory.values.firstWhere(
+          (v) => v.name == json['postType'],
+          orElse: () => PostCategory.normal),
       courseTag: json['courseTag'] as String?,
       locationTag: json['locationTag'] as String?,
+      official: json['official'] as bool? ?? false,
+      isPinned: json['isPinned'] as bool? ?? false,
+      workflowStatus: json['workflowStatus'] as String? ?? 'published',
+      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? ''),
     );
   }
 }
@@ -485,9 +662,15 @@ class CampusStory {
   final String authorName;
   final String? text;
   final Uint8List? imageBytes;
+  final String? imageUrl;
   final int? backgroundColorValue;
+  final Map<String, dynamic>? style;
   final PostVisibility visibility;
   final DateTime createdAt;
+  // Real per-account seen state from `story_views` on the server — not a
+  // device-local SharedPreferences guess, which never syncs across
+  // installs/devices.
+  final bool viewedByMe;
 
   CampusStory({
     required this.id,
@@ -495,13 +678,101 @@ class CampusStory {
     required this.authorName,
     this.text,
     this.imageBytes,
+    this.imageUrl,
     this.backgroundColorValue,
+    this.style,
     this.visibility = PostVisibility.everyone,
     DateTime? createdAt,
+    this.viewedByMe = false,
   }) : createdAt = createdAt ?? DateTime.now();
 
   bool get isExpired =>
       DateTime.now().difference(createdAt) > const Duration(hours: 24);
+
+  CampusStory copyWith({bool? viewedByMe}) => CampusStory(
+        id: id,
+        authorId: authorId,
+        authorName: authorName,
+        text: text,
+        imageBytes: imageBytes,
+        imageUrl: imageUrl,
+        backgroundColorValue: backgroundColorValue,
+        style: style,
+        visibility: visibility,
+        createdAt: createdAt,
+        viewedByMe: viewedByMe ?? this.viewedByMe,
+      );
+}
+
+/// A real, admin/trainer-managed workshop equipment row — replaces the
+/// previously hardcoded, identical-on-every-place `_workshopEquipment` const.
+class WorkshopEquipmentItem {
+  final String id;
+  final String name;
+  final bool available;
+
+  const WorkshopEquipmentItem({
+    required this.id,
+    required this.name,
+    required this.available,
+  });
+
+  factory WorkshopEquipmentItem.fromJson(Map<String, dynamic> json) {
+    return WorkshopEquipmentItem(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      available: json['available'] as bool? ?? true,
+    );
+  }
+}
+
+/// A real, student-created collaboration-board post (auto-expires
+/// server-side) — replaces the previously hardcoded `_collaborationBoard`.
+class CampusCollaborationPost {
+  final String id;
+  final String authorId;
+  final String? authorName;
+  final String text;
+  final DateTime? createdAt;
+
+  const CampusCollaborationPost({
+    required this.id,
+    required this.authorId,
+    this.authorName,
+    required this.text,
+    this.createdAt,
+  });
+
+  factory CampusCollaborationPost.fromJson(Map<String, dynamic> json) {
+    final raw = json['createdAt'] as String?;
+    return CampusCollaborationPost(
+      id: json['id'] as String,
+      authorId: '${json['authorId'] ?? ''}',
+      authorName: json['authorName'] as String?,
+      text: json['text'] as String,
+      createdAt: raw == null ? null : DateTime.tryParse(raw),
+    );
+  }
+}
+
+/// The real per-place answer to "what's here" for a workshop: equipment
+/// availability plus the live collaboration-board posts.
+class WorkshopInfo {
+  final List<WorkshopEquipmentItem> equipment;
+  final List<CampusCollaborationPost> posts;
+
+  const WorkshopInfo({this.equipment = const [], this.posts = const []});
+
+  factory WorkshopInfo.fromJson(Map<String, dynamic> json) {
+    return WorkshopInfo(
+      equipment: (json['equipment'] as List<dynamic>? ?? const [])
+          .map((e) => WorkshopEquipmentItem.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      posts: (json['posts'] as List<dynamic>? ?? const [])
+          .map((e) => CampusCollaborationPost.fromJson(e as Map<String, dynamic>))
+          .toList(),
+    );
+  }
 }
 
 class Review {
@@ -554,6 +825,10 @@ class CampusUser {
   final List<String> clubs;
   final List<String> achievements;
   final List<String> projects;
+  final bool isPrivateProfile;
+  final bool isLocked;
+  final int? followerCount;
+  final int? followingCount;
 
   const CampusUser({
     required this.id,
@@ -572,6 +847,10 @@ class CampusUser {
     this.clubs = const [],
     this.achievements = const [],
     this.projects = const [],
+    this.isPrivateProfile = false,
+    this.isLocked = false,
+    this.followerCount,
+    this.followingCount,
   });
 
   factory CampusUser.fromJson(Map<String, dynamic> json) {
@@ -585,13 +864,19 @@ class CampusUser {
       events: json['events'] as int,
       memories: json['memories'] as int,
       interests: (json['interests'] as List<dynamic>).cast<String>(),
-      avatarUrl: json['avatarUrl'] as String?,
+      avatarUrl: MediaUrl.resolve(json['avatarUrl'] as String?),
       department: json['department'] as String?,
       year: json['year'] as String?,
       university: json['university'] as String?,
       clubs: (json['clubs'] as List<dynamic>?)?.cast<String>() ?? const [],
-      achievements: (json['achievements'] as List<dynamic>?)?.cast<String>() ?? const [],
-      projects: (json['projects'] as List<dynamic>?)?.cast<String>() ?? const [],
+      achievements:
+          (json['achievements'] as List<dynamic>?)?.cast<String>() ?? const [],
+      projects:
+          (json['projects'] as List<dynamic>?)?.cast<String>() ?? const [],
+      isPrivateProfile: json['isPrivateProfile'] as bool? ?? false,
+      isLocked: json['isLocked'] as bool? ?? false,
+      followerCount: (json['followerCount'] as num?)?.toInt(),
+      followingCount: (json['followingCount'] as num?)?.toInt(),
     );
   }
 
@@ -605,6 +890,10 @@ class CampusUser {
     List<String>? clubs,
     List<String>? achievements,
     List<String>? projects,
+    bool? isPrivateProfile,
+    bool? isLocked,
+    int? followerCount,
+    int? followingCount,
   }) =>
       CampusUser(
         id: id,
@@ -623,7 +912,15 @@ class CampusUser {
         clubs: clubs ?? this.clubs,
         achievements: achievements ?? this.achievements,
         projects: projects ?? this.projects,
+        isPrivateProfile: isPrivateProfile ?? this.isPrivateProfile,
+        isLocked: isLocked ?? this.isLocked,
+        followerCount: followerCount ?? this.followerCount,
+        followingCount: followingCount ?? this.followingCount,
       );
+
+  UserRole get parsedRole => UserRole.parse(role);
+
+  bool get canManagePlaces => parsedRole.canManageContent;
 }
 
 /// One row of the campus leaderboard — [isMe] marks the signed-in student's
@@ -636,9 +933,14 @@ class LeaderboardEntry {
   final int xp;
   final bool isMe;
   final String? department;
+  final String? avatarUrl;
 
   const LeaderboardEntry(
-      {required this.name, required this.xp, this.isMe = false, this.department});
+      {required this.name,
+      required this.xp,
+      this.isMe = false,
+      this.department,
+      this.avatarUrl});
 }
 
 /// One real action the signed-in student has taken in the app — the source
@@ -665,11 +967,38 @@ class ActivityItem {
   }) : timestamp = timestamp ?? DateTime.now();
 }
 
-/// Real client-side permission roles. There's no Entra/backend to assign
-/// these for real yet (see README roadmap) — `student` vs `superAdmin` is
-/// currently decided locally by whether the signed-in account is the demo
-/// admin account, as a stand-in for a real role claim.
-enum UserRole { student, clubManager, contentEditor, moderator, careerStaff, studentAffairs, superAdmin }
+/// Client-side UX gates. Must stay in exact parity with
+/// `GranularPermissions::ROLE_BUCKETS` on the backend. The API remains the
+/// authority — unknown/unparsed values fail closed to [student].
+enum UserRole {
+  student,
+  clubManager,
+  contentEditor,
+  moderator,
+  careerStaff,
+  studentAffairs,
+  superAdmin,
+  // A department head/teacher/staff member publishing events/activities
+  // scoped to their own department only — see Trainer Panel. Kept as its
+  // own role (not folded into e.g. studentAffairs) because it's
+  // department-scoped rather than a full admin capability — see
+  // GranularPermissions::ROLE_BUCKETS on the backend, which this must stay
+  // in exact parity with.
+  trainer;
+
+  /// Lowest privilege when [raw] is missing, empty, or not a known role name.
+  static UserRole parse(String? raw) => tryParse(raw) ?? UserRole.student;
+
+  /// `null` when [raw] is missing or not an exact enum name — never invents
+  /// admin/trainer from garbage input.
+  static UserRole? tryParse(String? raw) {
+    if (raw == null || raw.isEmpty) return null;
+    for (final value in values) {
+      if (value.name == raw) return value;
+    }
+    return null;
+  }
+}
 
 extension UserRoleLabel on UserRole {
   String get label => switch (this) {
@@ -680,21 +1009,49 @@ extension UserRoleLabel on UserRole {
         UserRole.careerStaff => 'Kariyer Ofisi',
         UserRole.studentAffairs => 'Öğrenci İşleri',
         UserRole.superAdmin => 'Yönetici',
+        UserRole.trainer => 'Eğitmen (Bölüm Başkanı)',
       };
 
-  /// Can this role open the Admin Panel and manage content/reports?
+  bool get _isSuper => this == UserRole.superAdmin;
+
+  /// Content CRUD: events, clubs, sports, services, food, directory, pages.
+  /// Mirrors `GranularPermissions` `manageContent` + super-admin bypass.
   bool get canManageContent =>
-      this == UserRole.superAdmin ||
+      _isSuper ||
       this == UserRole.contentEditor ||
       this == UserRole.clubManager ||
       this == UserRole.studentAffairs ||
       this == UserRole.careerStaff;
 
-  bool get canModerate => this == UserRole.superAdmin || this == UserRole.moderator;
+  bool get canModerate => _isSuper || this == UserRole.moderator;
 
-  /// Only the super admin can view/edit Entra + WordPress credentials —
-  /// these are secrets, not editable campus content like clubs/services.
-  bool get canManageSiteSettings => this == UserRole.superAdmin;
+  /// Roles and secrets — super admin only (`manageSiteSettings` bucket is empty).
+  bool get canManageSiteSettings => _isSuper;
+
+  /// Trainer Panel — own department only (`manageOwnDepartment` + super-admin).
+  bool get canManageOwnDepartment => _isSuper || this == UserRole.trainer;
+
+  /// Read-mostly admin surfaces + who may open the Admin Panel at all.
+  bool get canViewAdmin =>
+      _isSuper ||
+      this == UserRole.contentEditor ||
+      this == UserRole.clubManager ||
+      this == UserRole.studentAffairs ||
+      this == UserRole.careerStaff ||
+      this == UserRole.moderator;
+
+  bool get canOpenAdminPanel => canViewAdmin;
+
+  bool get canOpenTrainerPanel => canManageOwnDepartment;
+
+  /// Mirrors backend `appointments.manage` → `campusOps` bucket (+ superAdmin).
+  bool get canManageAppointments =>
+      _isSuper ||
+      this == UserRole.contentEditor ||
+      this == UserRole.clubManager ||
+      this == UserRole.studentAffairs ||
+      this == UserRole.careerStaff ||
+      this == UserRole.trainer;
 }
 
 /// What happened to a piece of reported content — a real, persisted
@@ -725,7 +1082,8 @@ class ModerationReport {
     this.resolvedAt,
   });
 
-  ModerationReport copyWith({ModerationAction? action, DateTime? resolvedAt}) => ModerationReport(
+  ModerationReport copyWith({ModerationAction? action, DateTime? resolvedAt}) =>
+      ModerationReport(
         id: id,
         kind: kind,
         targetId: targetId,
@@ -755,6 +1113,8 @@ class DirectoryEntry {
   /// Service Detail can show "who's actually in charge of this" without
   /// duplicating the same building/floor/room data twice.
   final String? relatedServiceId;
+  final String? tourUrl;
+  final String? tourTarget;
 
   const DirectoryEntry({
     required this.id,
@@ -764,6 +1124,8 @@ class DirectoryEntry {
     required this.occupantName,
     this.occupantRole,
     this.relatedServiceId,
+    this.tourUrl,
+    this.tourTarget,
   });
 
   factory DirectoryEntry.fromJson(Map<String, dynamic> json) => DirectoryEntry(
@@ -774,6 +1136,8 @@ class DirectoryEntry {
         occupantName: json['occupantName'] as String,
         occupantRole: json['occupantRole'] as String?,
         relatedServiceId: json['relatedServiceId'] as String?,
+        tourUrl: json['tourUrl'] as String?,
+        tourTarget: json['tourTarget'] as String?,
       );
 
   Map<String, dynamic> toJson() => {
@@ -784,5 +1148,7 @@ class DirectoryEntry {
         'occupantName': occupantName,
         if (occupantRole != null) 'occupantRole': occupantRole,
         if (relatedServiceId != null) 'relatedServiceId': relatedServiceId,
+        if (tourUrl != null) 'tourUrl': tourUrl,
+        if (tourTarget != null) 'tourTarget': tourTarget,
       };
 }

@@ -15,8 +15,11 @@ use App\Models\FeedPost;
 use App\Models\FoodVenue;
 use App\Models\MediaItem;
 use App\Models\ModerationReport;
+use App\Models\Notification;
+use App\Models\ParticipationApplication;
 use App\Models\Place;
 use App\Models\PostComment;
+use App\Models\PostLike;
 use App\Models\Review;
 use App\Models\ServiceItem;
 use App\Models\Sport;
@@ -56,16 +59,13 @@ class StatsController extends Controller
             ],
             'userSummary' => [
                 'realAccountCount' => User::count(),
+                'activeAccounts' => User::whereNull('banned_at')->count(),
+                'newAccounts' => User::where('created_at', '>=', $since)->count(),
+                'bannedAccounts' => User::whereNotNull('banned_at')->count(),
                 'note' => 'Aşağıdaki sayılar gerçek veritabanı satırlarıdır ve her hesap kendi kimliğiyle '.
                     'giriş yaptığı için gerçekten kullanıcı bazında ayrışır.',
-                // Was User::first()?->xp — the single-account assumption
-                // that stopped being true when real per-user sign-in
-                // landed: it reported one arbitrary account's XP as the
-                // whole campus total. Same aggregate style as totalStrikes
-                // right below, which was always correct.
                 'totalXp' => (int) User::sum('xp'),
                 'totalStrikes' => (int) User::sum('strikes'),
-                'bannedAccounts' => User::whereNotNull('banned_at')->count(),
             ],
 
             // ------------------------------------------------ Check-ins
@@ -110,11 +110,25 @@ class StatsController extends Controller
             'social' => [
                 'feedPosts' => FeedPost::count(),
                 'comments' => PostComment::count(),
+                'likes' => PostLike::count(),
                 'stories' => Story::count(),
                 'reviews' => Review::count(),
                 'averageRating' => round((float) (Review::avg('rating') ?? 0), 2),
                 'moderationReportsFiled' => ModerationReport::count(),
                 'moderationReportsUnresolved' => ModerationReport::whereNull('action')->count(),
+            ],
+
+            'applications' => [
+                'pending' => ParticipationApplication::whereIn('status', ['submitted', 'under_review'])->count(),
+                'approved' => ParticipationApplication::where('status', 'approved')->count(),
+                'rejected' => ParticipationApplication::where('status', 'rejected')->count(),
+                'byType' => ParticipationApplication::selectRaw('target_type, count(*) as total')
+                    ->groupBy('target_type')->orderByDesc('total')->get(),
+            ],
+
+            'notifications' => [
+                'total' => Notification::count(),
+                'unread' => Notification::whereNull('read_at')->count(),
             ],
 
             // ------------------------------------------------- Surveys

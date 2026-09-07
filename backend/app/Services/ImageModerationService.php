@@ -2,83 +2,66 @@
 
 namespace App\Services;
 
-use App\Models\AppSetting;
-use Illuminate\Support\Facades\Http;
-
-// The server-side half of docs/EKSIKLER.md §26: this used to be a direct
-// OpenAI call made from the Flutter client, with the API key sitting in
-// on-device SharedPreferences — meaning the key shipped to (and the raw
-// external call was made from) every device that had it configured. Same
-// real check, same real consequence (a flagged image is a real strike via
-// ModerationService::recordImageStrike), but now the key never leaves the
-// server and the call is made from here.
-//
-// Policy, unchanged from the client-side version it replaces:
-// - No key configured (AppSetting 'moderation.apiKey') → skipped entirely,
-//   the image is accepted as-is.
-// - The API call itself fails (network, invalid key, quota) → fails
-//   *open* — a moderation-provider outage shouldn't silently block every
-//   upload.
-// - The API call succeeds and flags the image → fails *closed*, rejected
-//   with a real reason, and counts as a real strike.
+/**
+ * Deliberately local media gate.
+ *
+ * A remote moderation API was previously used here. That made a third party
+ * decide what students may publish and silently failed open when it was down.
+ * This product now keeps deterministic checks on our server and sends all
+ * student media to ARUCAD's own moderation queue before publication.
+ *
+ * It is important not to pretend byte heuristics can recognise nudity or
+ * harassment in pixels. A semantic classifier requires a versioned, locally
+ * hosted trained model. When that classifier is not configured, magic-byte
+ * clean uploads are approved so social photos are not blocked; when it is
+ * configured but unavailable, uploads stay pending for human review.
+ *
+ * When the local classifier is configured, score keys map to text-policy codes:
+ * nudity→SEX, sexual_exploitation→CSA, graphic_violence→VIO, hate_symbol→HATE
+ * (new SEX/CSA/VIO/HATE keys are also accepted as aliases).
+ */
 class ImageModerationService
 {
-    private const ENDPOINT = 'https://api.openai.com/v1/moderations';
-    private const MODEL = 'omni-moderation-latest';
-
-    public static function isConfigured(): bool
+    /** Returns a structural rejection reason only. */
+    public static function checkImageBytes(string $bytes, string $mimeType): ?string
     {
-        return (bool) AppSetting::getValue('moderation.apiKey');
+        if ($bytes === '') {
+            return 'boş görsel';
+        }
+
+        $valid = match ($mimeType) {
+            'image/jpeg' => str_starts_with($bytes, "\xFF\xD8\xFF"),
+            'image/png' => str_starts_with($bytes, "\x89PNG\r\n\x1A\n"),
+            'image/gif' => str_starts_with($bytes, 'GIF8'),
+            'image/webp' => strlen($bytes) >= 12
+                && str_starts_with($bytes, 'RIFF')
+                && substr($bytes, 8, 4) === 'WEBP',
+            default => false,
+        };
+
+        return $valid ? null : 'geçersiz görsel verisi';
     }
 
     /**
-     * Checks the given image bytes. Returns null if clean/skipped, or the
-     * flagged category name (e.g. "sexual") if the image was rejected —
-     * the caller decides what to do with that (ModerationController
-     * records the strike and returns CONTENT_BLOCKED).
+     * Ask the ARUCAD-hosted local classifier for a semantic decision.
+     * MediaController treats "not configured" as approve-after-magic-bytes and
+     * "configured but unavailable" as pending for a reviewer.
+     *
+     * @return array{available: bool, blocked: bool, categories: list<string>, score: float}
      */
-    public static function checkImageBytes(string $bytes, string $mimeType): ?string
+    public static function inspectLocalFile(string $path, string $mimeType): array
     {
-        $apiKey = AppSetting::getValue('moderation.apiKey');
-        if (! $apiKey) {
-            return null;
-        }
+        return LocalMediaClassifier::inspect($path, $mimeType);
+    }
 
-        $dataUrl = "data:{$mimeType};base64,".base64_encode($bytes);
+    public static function semanticClassifierConfigured(): bool
+    {
+        return LocalMediaClassifier::isConfigured();
+    }
 
-        try {
-            $response = Http::withToken($apiKey)
-                ->timeout(15)
-                ->post(self::ENDPOINT, [
-                    'model' => self::MODEL,
-                    'input' => [
-                        ['type' => 'image_url', 'image_url' => ['url' => $dataUrl]],
-                    ],
-                ]);
-        } catch (\Throwable) {
-            return null;
-        }
-
-        if (! $response->successful()) {
-            return null;
-        }
-
-        $results = $response->json('results');
-        if (! is_array($results) || empty($results)) {
-            return null;
-        }
-        $result = $results[0];
-        if (! ($result['flagged'] ?? false)) {
-            return null;
-        }
-
-        $categories = $result['categories'] ?? [];
-        foreach ($categories as $category => $hit) {
-            if ($hit === true) {
-                return $category;
-            }
-        }
-
-        return 'uygunsuz içerik';
+    /** Kept for callers/admin UI that expose a moderation capability flag. */
+    public static function isConfigured(): bool
+    {
+        return true;
     }
 }

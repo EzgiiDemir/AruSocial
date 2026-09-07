@@ -16,6 +16,7 @@ class NotificationController extends Controller
     {
         $me = $this->currentUser();
         $query = InboxNotification::where('user_id', $me->id)
+            ->with('actor')
             ->orderByDesc('created_at')
             ->orderByDesc('id');
 
@@ -24,9 +25,12 @@ class NotificationController extends Controller
             'kind' => $n->kind,
             'title' => $n->title,
             'body' => $n->body,
+            'data' => $n->data,
             'read' => $n->read_at !== null,
             'createdAt' => $n->created_at?->toIso8601String(),
             'actorUserId' => $n->actor_user_id === null ? null : (string) $n->actor_user_id,
+            'actorName' => $n->actor?->name,
+            'actorAvatarUrl' => $n->actor?->avatar_url,
         ]);
     }
 

@@ -1,34 +1,48 @@
-import 'dart:typed_data';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import 'package:arucad_campus_prototype/core/config/place_tour.dart';
 import 'package:arucad_campus_prototype/core/l10n/app_strings.dart';
 import 'package:arucad_campus_prototype/core/models/campus_models.dart';
+import 'package:arucad_campus_prototype/core/models/chat_message.dart';
 import 'package:arucad_campus_prototype/core/models/page_slice.dart';
 import 'package:arucad_campus_prototype/core/services/content_moderation.dart';
+import 'package:arucad_campus_prototype/core/network/api_client.dart';
 import 'package:arucad_campus_prototype/core/services/contracts.dart';
 import 'package:arucad_campus_prototype/core/services/image_moderation_service.dart';
-import 'package:arucad_campus_prototype/core/services/photo_picker_service.dart';
+import 'package:arucad_campus_prototype/core/services/chat_realtime_service.dart';
 import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
+import 'package:arucad_campus_prototype/core/utils/relative_time.dart';
+import 'package:arucad_campus_prototype/features/place/place_detail_screen.dart';
 import 'package:arucad_campus_prototype/features/social/compose_post_sheet.dart';
+import 'package:arucad_campus_prototype/features/social/compose_story_sheet.dart';
 import 'package:arucad_campus_prototype/features/social/notifications_screen.dart';
 import 'package:arucad_campus_prototype/features/social/post_detail_screen.dart';
 import 'package:arucad_campus_prototype/features/social/social_profile_screen.dart';
+import 'package:arucad_campus_prototype/features/widgets/campus_network_image.dart';
+import 'package:arucad_campus_prototype/features/widgets/campus_avatar.dart';
 import 'package:arucad_campus_prototype/features/widgets/campus_widgets.dart';
-
+import 'package:arucad_campus_prototype/features/widgets/feed_post_media.dart';
 const _apiPageSize = 20;
-enum _FeedFilter { forYou, following, campus, courses, events }
-const _storyColors = [
-  ArucadColors.primary,
-  ArucadColors.blue,
-  ArucadColors.warning,
-  ArucadColors.success,
-  ArucadColors.ink,
-];
+
+enum _FeedFilter { forYou, following, official, campus, courses, events }
 
 class SocialScreen extends StatefulWidget {
   final CampusRepository repository;
-  const SocialScreen({super.key, required this.repository});
+  final MapProvider mapProvider;
+  final AnalyticsTracker analyticsTracker;
+
+  /// When true, page title is shown by [SocialShell] next to the ☰ button.
+  final bool titleInShell;
+
+  const SocialScreen({
+    super.key,
+    required this.repository,
+    required this.mapProvider,
+    required this.analyticsTracker,
+    this.titleInShell = false,
+  });
 
   @override
   State<SocialScreen> createState() => _SocialScreenState();
@@ -45,24 +59,56 @@ class _SocialScreenState extends State<SocialScreen> {
   bool _feedHasMore = true;
   int _feedPage = 0;
   _FeedFilter _filter = _FeedFilter.forYou;
+  final _searchController = TextEditingController();
+  String _query = '';
   Set<String> _saved = {};
+  Set<String> _viewedStories = {};
+  String? _loadError;
+  ChatRealtimeService? _realtime;
+  StreamSubscription<List<String>>? _campusChanges;
+  bool _refreshingFromRealtime = false;
 
   List<FeedPost> get _filteredPosts {
-    final base = _posts.where((p) => p.official || !_blocked.contains(p.name));
+    final base = _posts.where((p) {
+      if (!p.official && _blocked.contains(p.name)) return false;
+      final query = _query.trim().toLowerCase();
+      if (query.isEmpty) return true;
+      return p.name.toLowerCase().contains(query) ||
+          p.text.toLowerCase().contains(query) ||
+          (p.courseTag?.toLowerCase().contains(query) ?? false) ||
+          (p.locationTag?.toLowerCase().contains(query) ?? false);
+    });
+    final List<FeedPost> list;
     switch (_filter) {
       case _FeedFilter.forYou:
-        return base.toList();
+        list = base.toList();
       case _FeedFilter.following:
-        return base.where((p) => _following.contains(p.name)).toList();
+        list = base
+            .where((p) =>
+                p.official ||
+                p.isPinned ||
+                p.name == _myName ||
+                _following.contains(p.name))
+            .toList();
+      case _FeedFilter.official:
+        list = base.where((p) => p.official).toList();
       case _FeedFilter.campus:
-        return base.where((p) => p.kind == FeedKind.announcement).toList();
+        list = base
+            .where((p) => p.official || p.kind == FeedKind.announcement)
+            .toList();
       case _FeedFilter.courses:
-        return base
-            .where((p) => p.postType == PostCategory.ders || p.courseTag != null)
+        list = base
+            .where(
+                (p) => p.postType == PostCategory.ders || p.courseTag != null)
             .toList();
       case _FeedFilter.events:
-        return base.where((p) => p.postType == PostCategory.etkinlik).toList();
+        list = base.where((p) => p.postType == PostCategory.etkinlik).toList();
     }
+    list.sort((a, b) {
+      if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1;
+      return 0;
+    });
+    return list;
   }
 
   @override
@@ -72,36 +118,95 @@ class _SocialScreenState extends State<SocialScreen> {
   }
 
   Future<void> _load() async {
-    final results = await Future.wait([
-      widget.repository.getFeedPage(page: 1, perPage: _apiPageSize),
-      widget.repository.getStories(),
-      widget.repository.getBlocked(),
-      widget.repository.getFollowing(),
-      widget.repository.getMe(),
-      widget.repository.getSavedPostIds(),
-    ]);
-    if (!mounted) return;
-    final page = results[0] as PageSlice<FeedPost>;
-    setState(() {
-      _posts = page.items;
-      _feedPage = page.currentPage;
-      _feedHasMore = page.hasMore;
-      _stories = results[1] as List<CampusStory>;
-      _blocked = results[2] as Set<String>;
-      _following = results[3] as Set<String>;
-      _myName = (results[4] as CampusUser).name;
-      _saved = results[5] as Set<String>;
-      _loading = false;
-      _loadingMore = false;
+    try {
+      final results = await Future.wait([
+        widget.repository.getFeedPage(page: 1, perPage: _apiPageSize),
+        widget.repository.getStories(),
+        widget.repository.getBlocked(),
+        widget.repository.getFollowing(),
+        widget.repository.getMe(),
+        widget.repository.getSavedPostIds(),
+      ]);
+      if (!mounted) return;
+      final page = results[0] as PageSlice<FeedPost>;
+      final me = results[4] as CampusUser;
+      final stories = results[1] as List<CampusStory>;
+      setState(() {
+        _posts = page.items;
+        _feedPage = page.currentPage;
+        _feedHasMore = page.hasMore;
+        _stories = stories;
+        _blocked = results[2] as Set<String>;
+        _following = results[3] as Set<String>;
+        _myName = me.name;
+        _saved = results[5] as Set<String>;
+        // Real per-account seen state from the server (`story.viewedByMe`),
+        // not a device-local cache — this now matches across installs.
+        _viewedStories = {
+          for (final s in stories)
+            if (s.viewedByMe) s.id
+        };
+        _loading = false;
+        _loadingMore = false;
+        _loadError = null;
+      });
+      unawaited(_startRealtime(me));
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadingMore = false;
+        _loadError = e is ApiClientException
+            ? e.displayMessage
+            : 'Sosyal akış yüklenemedi.';
+      });
+    }
+  }
+
+  Future<void> _startRealtime(CampusUser me) async {
+    if (_realtime != null) return;
+    final realtime = ChatRealtimeService.forRepository(widget.repository);
+    _realtime = realtime;
+    _campusChanges = realtime.campusChanged.listen((resources) {
+      if (resources.contains('feed')) unawaited(_refreshFeedFromRealtime());
     });
+    await realtime.start(userId: me.id, userName: me.name);
+  }
+
+  Future<void> _refreshFeedFromRealtime() async {
+    if (_refreshingFromRealtime || _loading) return;
+    _refreshingFromRealtime = true;
+    try {
+      final page =
+          await widget.repository.getFeedPage(page: 1, perPage: _apiPageSize);
+      if (mounted) {
+        setState(() {
+          _posts = page.items;
+          _feedPage = page.currentPage;
+          _feedHasMore = page.hasMore;
+        });
+      }
+    } catch (_) {
+      // Pull-to-refresh remains available when REST is temporarily offline.
+    } finally {
+      _refreshingFromRealtime = false;
+    }
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    unawaited(_campusChanges?.cancel() ?? Future.value());
+    unawaited(_realtime?.dispose() ?? Future.value());
+    super.dispose();
   }
 
   Future<void> _loadMore() async {
     if (_loadingMore || !_feedHasMore || _loading) return;
     setState(() => _loadingMore = true);
     try {
-      final page = await widget.repository.getFeedPage(
-          page: _feedPage + 1, perPage: _apiPageSize);
+      final page = await widget.repository
+          .getFeedPage(page: _feedPage + 1, perPage: _apiPageSize);
       if (!mounted) return;
       final seen = _posts.map((p) => p.id).toSet();
       setState(() {
@@ -123,6 +228,8 @@ class _SocialScreenState extends State<SocialScreen> {
       backgroundColor: Colors.transparent,
       floatingActionButton: FloatingActionButton.extended(
         heroTag: 'social-home-compose-fab',
+        backgroundColor: ArucadColors.primary,
+        foregroundColor: Colors.white,
         onPressed: () => _compose(context),
         icon: const Icon(Icons.add),
         label: Text(strings.t('social_share')),
@@ -134,29 +241,69 @@ class _SocialScreenState extends State<SocialScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+                padding: EdgeInsets.fromLTRB(
+                    20, widget.titleInShell ? 4 : 18, 20, 0),
                 child: Row(children: [
-                  Expanded(
-                    child: Text(strings.t('social_title'),
-                        style: Theme.of(context)
-                            .textTheme
-                            .headlineSmall
-                            ?.copyWith(fontWeight: FontWeight.w900)),
-                  ),
+                  if (!widget.titleInShell)
+                    Expanded(
+                      child: Text(strings.t('social_title'),
+                          style: Theme.of(context)
+                              .textTheme
+                              .headlineSmall
+                              ?.copyWith(fontWeight: FontWeight.w900)),
+                    )
+                  else
+                    const Spacer(),
                   IconButton(
                     tooltip: strings.t('social_notifications'),
                     icon: const Icon(Icons.favorite_border),
-                    onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => NotificationsScreen(repository: widget.repository))),
+                    onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                            builder: (_) => NotificationsScreen(
+                                repository: widget.repository))),
                   ),
                 ]),
               ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-                child: Text(strings.t('social_tagline'),
-                    style: const TextStyle(color: ArucadColors.muted)),
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+                child: TextField(
+                  controller: _searchController,
+                  onChanged: (value) => setState(() => _query = value),
+                  decoration: InputDecoration(
+                    hintText: 'Öğrenci, ders, konu veya #hashtag ara...',
+                    prefixIcon: const Icon(Icons.search,
+                        size: 19, color: ArucadColors.muted),
+                    suffixIcon: _query.isEmpty
+                        ? null
+                        : IconButton(
+                            tooltip: 'Aramayı temizle',
+                            icon: const Icon(Icons.close, size: 18),
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() => _query = '');
+                            },
+                          ),
+                    isDense: true,
+                    filled: true,
+                    fillColor: ArucadColors.paper,
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 12),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(ArucadRadius.pill),
+                      borderSide: BorderSide.none,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(ArucadRadius.pill),
+                      borderSide: BorderSide.none,
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(ArucadRadius.pill),
+                      borderSide: const BorderSide(
+                          color: ArucadColors.ink, width: 1.2),
+                    ),
+                  ),
+                ),
               ),
-              const SizedBox(height: 4),
               Expanded(child: _buildFeed(context)),
             ],
           ),
@@ -184,92 +331,112 @@ class _SocialScreenState extends State<SocialScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 90),
           children: [
-                  if (!_loading) _StoriesBar(
-                    stories: _stories,
-                    onAddStory: () => _addStory(context),
-                    onOpenStory: (index) => _openStory(context, index),
-                  ),
-                  const SizedBox(height: 12),
-                  if (!_loading)
-                    SizedBox(
-                      height: 34,
-                      child: ListView(
-                        scrollDirection: Axis.horizontal,
-                        children: [
-                          for (final entry in {
-                            _FeedFilter.forYou: strings.t('social_filter_for_you'),
-                            _FeedFilter.following: strings.t('social_filter_following'),
-                            _FeedFilter.campus: strings.t('social_filter_campus'),
-                            _FeedFilter.courses: strings.t('social_filter_courses'),
-                            _FeedFilter.events: strings.t('social_filter_events'),
-                          }.entries)
-                            Padding(
-                              padding: const EdgeInsets.only(right: 8),
-                              child: SelectableChip(
-                                label: entry.value,
-                                selected: _filter == entry.key,
-                                onSelected: (_) => setState(() {
-                                  _filter = entry.key;
-                                }),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  const SizedBox(height: 8),
-                  if (_loading)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 30),
-                      child: Center(child: CircularProgressIndicator()),
-                    )
-                  else if (filtered.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 30),
-                      child: Center(
-                          child: Text(
-                              _posts.isEmpty ? strings.t('social_empty') : strings.t('social_empty_category'),
-                              style: const TextStyle(color: ArucadColors.muted))),
-                    )
-                  else ...[
-                    for (int i = 0; i < filtered.length; i++)
+            if (!_loading)
+              _StoriesBar(
+                stories: _stories,
+                viewedIds: _viewedStories,
+                onAddStory: () => _addStory(context),
+                onOpenStory: (index) => _openStory(context, index),
+              ),
+            const SizedBox(height: 12),
+            if (!_loading)
+              SizedBox(
+                height: 34,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  children: [
+                    for (final entry in {
+                      _FeedFilter.forYou: 'Akış',
+                      _FeedFilter.following: 'Takip Ettiklerim',
+                    }.entries)
                       Padding(
-                        padding: EdgeInsets.only(top: i == 0 ? 0 : 12),
-                        child: _PostCard(
-                          post: filtered[i],
-                          saved: _saved.contains(filtered[i].id),
-                          onLike: () => _like(filtered[i].id),
-                          onComment: () => _openComments(context, filtered[i]),
-                          onReport: () => _report(context, filtered[i]),
-                          onSave: () => _toggleSave(filtered[i].id),
-                          onOpen: () => _openDetail(context, filtered[i]),
-                          onOpenProfile: () => _openProfile(context, filtered[i].name),
-                          showPeerActions:
-                              !filtered[i].official && filtered[i].name != _myName,
-                          isFollowing: _following.contains(filtered[i].name),
-                          onToggleFollow: () => _toggleFollow(filtered[i].name),
-                          onToggleBlock: () => _toggleBlock(filtered[i].name),
-                        ),
-                      ),
-                    if (hasMore)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 14),
-                        child: Center(
-                          child: _loadingMore
-                              ? const Padding(
-                                  padding: EdgeInsets.symmetric(vertical: 8),
-                                  child: SizedBox(
-                                      width: 24,
-                                      height: 24,
-                                      child: CircularProgressIndicator(strokeWidth: 2)),
-                                )
-                              : OutlinedButton.icon(
-                                  onPressed: _loadMore,
-                                  icon: const Icon(Icons.expand_more),
-                                  label: Text(strings.t('social_load_more')),
-                                ),
+                        padding: const EdgeInsets.only(right: 8),
+                        child: SelectableChip(
+                          label: entry.value,
+                          selected: _filter == entry.key,
+                          onSelected: (_) => setState(() {
+                            _filter = entry.key;
+                          }),
                         ),
                       ),
                   ],
+                ),
+              ),
+            const SizedBox(height: 8),
+            if (_loading)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 30),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (_loadError != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 30),
+                child: Center(
+                    child: Text(_loadError!,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: ArucadColors.muted))),
+              )
+            else if (filtered.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 30),
+                child: Center(
+                    child: Text(
+                        _posts.isEmpty
+                            ? strings.t('social_empty')
+                            : strings.t('social_empty_category'),
+                        style: const TextStyle(color: ArucadColors.muted))),
+              )
+            else ...[
+              for (int i = 0; i < filtered.length; i++)
+                Padding(
+                  padding: EdgeInsets.only(top: i == 0 ? 0 : 12),
+                  child: _PostCard(
+                    post: filtered[i],
+                    saved: _saved.contains(filtered[i].id),
+                    onLike: () => _like(filtered[i].id),
+                    onComment: () => _openComments(context, filtered[i]),
+                    onReport: () => _report(context, filtered[i]),
+                    onSave: () => _toggleSave(filtered[i].id),
+                    onOpen: () => _openDetail(context, filtered[i]),
+                    onOpenProfile: () =>
+                        _openProfile(context, filtered[i].name),
+                    onLocationTag: filtered[i].locationTag == null
+                        ? null
+                        : () => _openLocationTag(
+                            context, filtered[i].locationTag!),
+                    showPeerActions:
+                        !filtered[i].official && filtered[i].name != _myName,
+                    isOwn: !filtered[i].official && filtered[i].name == _myName,
+                    onEdit: () => _editPost(context, filtered[i]),
+                    onDelete: () => _deletePost(context, filtered[i]),
+                    isFollowing: _following.contains(filtered[i].name),
+                    onToggleFollow: () => _toggleFollow(filtered[i].name),
+                    onToggleBlock: () => _toggleBlock(filtered[i].name),
+                    canPin: filtered[i].official,
+                    onPin: () => _togglePin(filtered[i]),
+                  ),
+                ),
+              if (hasMore)
+                Padding(
+                  padding: const EdgeInsets.only(top: 14),
+                  child: Center(
+                    child: _loadingMore
+                        ? const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 8),
+                            child: SizedBox(
+                                width: 24,
+                                height: 24,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2)),
+                          )
+                        : OutlinedButton.icon(
+                            onPressed: _loadMore,
+                            icon: const Icon(Icons.expand_more),
+                            label: Text(strings.t('social_load_more')),
+                          ),
+                  ),
+                ),
+            ],
           ],
         ),
       ),
@@ -322,9 +489,39 @@ class _SocialScreenState extends State<SocialScreen> {
 
   Future<void> _openDetail(BuildContext context, FeedPost post) async {
     await Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => PostDetailScreen(post: post, repository: widget.repository)));
+        builder: (_) => PostDetailScreen(
+              post: post,
+              repository: widget.repository,
+              mapProvider: widget.mapProvider,
+              analyticsTracker: widget.analyticsTracker,
+            )));
     if (!mounted) return;
     await _load();
+  }
+
+  Future<void> _openLocationTag(BuildContext context, String tag) async {
+    try {
+      final places = await widget.repository.getPlaces();
+      final place = placeMatchingLocationTag(places, tag);
+      if (!context.mounted) return;
+      if (place == null) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('"$tag" için eşleşen mekân bulunamadı.')));
+        return;
+      }
+      await Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => PlaceDetailScreen(
+          place: place,
+          repository: widget.repository,
+          mapProvider: widget.mapProvider,
+          analyticsTracker: widget.analyticsTracker,
+        ),
+      ));
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Mekân açılamadı.')));
+    }
   }
 
   void _openProfile(BuildContext context, String name) {
@@ -406,135 +603,52 @@ class _SocialScreenState extends State<SocialScreen> {
 
   Future<void> _openStory(BuildContext context, int index) async {
     await Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => _StoryViewerScreen(stories: _stories, initialIndex: index),
+        builder: (_) => _StoryViewerScreen(
+            stories: _stories,
+            initialIndex: index,
+            myName: _myName,
+            repository: widget.repository,
+            onDelete: _deleteStory,
+            onViewed: (story) async {
+              // Optimistic instant ring-fade; the server call is the real
+              // source of truth for the *next* load (`story.viewedByMe`).
+              if (mounted) {
+                setState(() => _viewedStories = {..._viewedStories, story.id});
+              }
+              try {
+                await widget.repository.markStoryViewed(story.id);
+              } catch (_) {
+                // Best-effort: worst case the story shows unseen again on
+                // the next load, it is never reported as something else.
+              }
+            }),
         fullscreenDialog: true));
   }
 
   Future<void> _addStory(BuildContext context) async {
-    final strings = AppLocale.of(context);
-    final textController = TextEditingController();
-    Uint8List? pickedBytes;
-    Color backgroundColor = _storyColors.first;
-    PostVisibility visibility = PostVisibility.everyone;
-
-    final posted = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSheetState) => Padding(
-          padding: EdgeInsets.only(
-              left: 20,
-              right: 20,
-              top: 20,
-              bottom: MediaQuery.of(ctx).viewInsets.bottom + 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(strings.t('social_new_story'),
-                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
-              const SizedBox(height: 14),
-              if (pickedBytes != null)
-                Stack(children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(14),
-                    child: AspectRatio(
-                      aspectRatio: 9 / 12,
-                      child: Image.memory(pickedBytes!, fit: BoxFit.cover),
-                    ),
-                  ),
-                  Positioned(
-                    right: 6,
-                    top: 6,
-                    child: IconButton.filled(
-                      style: IconButton.styleFrom(
-                          backgroundColor: Colors.black54, minimumSize: const Size(32, 32)),
-                      onPressed: () => setSheetState(() => pickedBytes = null),
-                      icon: const Icon(Icons.close, size: 16, color: Colors.white),
-                    ),
-                  ),
-                ])
-              else ...[
-                OutlinedButton.icon(
-                  onPressed: () async {
-                    final bytes = await PhotoPickerService.pick(ctx);
-                    if (bytes != null) setSheetState(() => pickedBytes = bytes);
-                  },
-                  icon: const Icon(Icons.add_a_photo_outlined),
-                  label: Text(strings.t('social_add_photo')),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: textController,
-                  maxLines: 2,
-                  decoration: InputDecoration(hintText: strings.t('social_or_write_text')),
-                ),
-                const SizedBox(height: 10),
-                Row(children: [
-                  for (final color in _storyColors)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: GestureDetector(
-                        onTap: () => setSheetState(() => backgroundColor = color),
-                        child: CircleAvatar(
-                          radius: 14,
-                          backgroundColor: color,
-                          child: backgroundColor == color
-                              ? const Icon(Icons.check, size: 14, color: Colors.white)
-                              : null,
-                        ),
-                      ),
-                    ),
-                ]),
-              ],
-              const SizedBox(height: 14),
-              Text(strings.t('social_visibility'),
-                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
-              const SizedBox(height: 6),
-              Row(children: [
-                SelectableChip(
-                  label: strings.t('social_visibility_everyone'),
-                  selected: visibility == PostVisibility.everyone,
-                  onSelected: (_) =>
-                      setSheetState(() => visibility = PostVisibility.everyone),
-                ),
-                const SizedBox(width: 8),
-                SelectableChip(
-                  label: strings.t('social_visibility_only_me'),
-                  selected: visibility == PostVisibility.onlyMe,
-                  onSelected: (_) =>
-                      setSheetState(() => visibility = PostVisibility.onlyMe),
-                ),
-              ]),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: () => Navigator.of(ctx).pop(true),
-                  child: Text(strings.t('social_share')),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-    if (posted != true) return;
-    final text = textController.text.trim();
-    if (text.isEmpty && pickedBytes == null) return;
+    final result = await showComposeStorySheet(context,
+        repository: widget.repository);
+    if (result == null) return;
+    final text = result.text?.trim();
+    if ((text == null || text.isEmpty) && result.imageBytes == null) return;
     try {
-      if (pickedBytes != null) {
-        await ImageModerationService.assertImageAllowed(pickedBytes!, widget.repository);
+      if (result.imageBytes != null) {
+        await ImageModerationService.assertImageAllowed(
+            result.imageBytes!, widget.repository);
       }
       await widget.repository.addStory(
-        text: pickedBytes == null ? text : null,
-        imageBytes: pickedBytes,
-        backgroundColorValue: pickedBytes == null ? backgroundColor.toARGB32() : null,
-        visibility: visibility,
+        text: result.imageBytes == null ? text : null,
+        imageBytes: result.imageBytes,
+        backgroundColorValue: result.imageBytes == null
+            ? result.backgroundColorValue
+            : null,
+        style: result.imageBytes == null ? result.style : null,
+        visibility: result.visibility,
       );
     } on ContentModerationException catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.reason)));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(e.reason)));
       return;
     }
     if (!mounted) return;
@@ -566,7 +680,8 @@ class _SocialScreenState extends State<SocialScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('${strings.t('social_comments_label')} (${comments.length})',
+                Text(
+                    '${strings.t('social_comments_label')} (${comments.length})',
                     style: const TextStyle(
                         fontWeight: FontWeight.w900, fontSize: 16)),
                 const SizedBox(height: 10),
@@ -589,8 +704,8 @@ class _SocialScreenState extends State<SocialScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(c.author,
-                                style:
-                                    const TextStyle(fontWeight: FontWeight.w800)),
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w800)),
                             const SizedBox(height: 2),
                             Text(c.text),
                             const SizedBox(height: 2),
@@ -607,8 +722,8 @@ class _SocialScreenState extends State<SocialScreen> {
                   Expanded(
                     child: TextField(
                       controller: commentController,
-                      decoration:
-                          InputDecoration(hintText: strings.t('social_write_comment')),
+                      decoration: InputDecoration(
+                          hintText: strings.t('social_write_comment')),
                     ),
                   ),
                   IconButton(
@@ -653,7 +768,7 @@ class _SocialScreenState extends State<SocialScreen> {
                         );
                       }
                     },
-                    icon: const Icon(Icons.send, color: ArucadColors.primary),
+                    icon: const Icon(Icons.send, color: ArucadColors.blue),
                   ),
                 ]),
               ],
@@ -689,7 +804,7 @@ class _SocialScreenState extends State<SocialScreen> {
                       reason == selected
                           ? Icons.radio_button_checked
                           : Icons.radio_button_off,
-                      color: reason == selected ? ArucadColors.primary : null),
+                      color: reason == selected ? ArucadColors.blue : null),
                   title: Text(reason),
                   onTap: () => setDialogState(() => selected = reason),
                 ),
@@ -709,18 +824,103 @@ class _SocialScreenState extends State<SocialScreen> {
     if (ok != true) return;
     await widget.repository.reportPost(post.id, selected);
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(strings.t('social_report_sent'))));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(strings.t('social_report_sent'))));
+  }
+
+  Future<void> _editPost(BuildContext context, FeedPost post) async {
+    final textC = TextEditingController(text: post.text);
+    final newText = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Gönderiyi düzenle'),
+        content: TextField(controller: textC, maxLines: 5, autofocus: true),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('Vazgeç')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, textC.text.trim()),
+              child: const Text('Kaydet')),
+        ],
+      ),
+    );
+    if (newText == null || newText.isEmpty || newText == post.text) return;
+    try {
+      final updated =
+          await widget.repository.updatePost(post.id, text: newText);
+      if (!mounted) return;
+      setState(() => _posts =
+          _posts.map((p) => p.id == updated.id ? updated : p).toList());
+    } on ContentModerationException catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(e.reason)));
+    }
+  }
+
+  Future<void> _deletePost(BuildContext context, FeedPost post) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Gönderi silinsin mi?'),
+        content: const Text('Bu işlem geri alınamaz.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Vazgeç')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Sil')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await widget.repository.deletePost(post.id);
+    if (!mounted) return;
+    setState(() => _posts = _posts.where((p) => p.id != post.id).toList());
+  }
+
+  Future<void> _deleteStory(CampusStory story) async {
+    await widget.repository.deleteStory(story.id);
+    if (!mounted) return;
+    setState(() => _stories = _stories.where((s) => s.id != story.id).toList());
+  }
+
+  Future<void> _togglePin(FeedPost post) async {
+    try {
+      final updated = post.isPinned
+          ? await widget.repository.unpinPost(post.id)
+          : await widget.repository.pinPost(post.id);
+      if (!mounted) return;
+      setState(() {
+        _posts = [
+          for (final p in _posts)
+            if (p.id == post.id) updated else p
+        ]..sort((a, b) {
+            if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1;
+            return 0;
+          });
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Pin işlemi başarısız: $e')),
+      );
+    }
   }
 }
 
 class _StoriesBar extends StatelessWidget {
   final List<CampusStory> stories;
+  final Set<String> viewedIds;
   final VoidCallback onAddStory;
   final ValueChanged<int> onOpenStory;
 
   const _StoriesBar(
-      {required this.stories, required this.onAddStory, required this.onOpenStory});
+      {required this.stories,
+      required this.viewedIds,
+      required this.onAddStory,
+      required this.onOpenStory});
 
   @override
   Widget build(BuildContext context) {
@@ -732,28 +932,38 @@ class _StoriesBar extends StatelessWidget {
         children: [
           _StoryBubble(
             label: strings.t('social_new_story'),
+            onTap: onAddStory,
             child: Container(
               decoration: const BoxDecoration(
                   color: ArucadColors.mist, shape: BoxShape.circle),
-              child: const Icon(Icons.add, color: ArucadColors.primary),
+              child: const Icon(Icons.add, color: ArucadColors.ink),
             ),
-            onTap: onAddStory,
           ),
           for (var i = 0; i < stories.length; i++)
             _StoryBubble(
               label: stories[i].authorName,
               ring: true,
+              viewed: viewedIds.contains(stories[i].id),
+              onTap: () => onOpenStory(i),
               child: stories[i].imageBytes != null
                   ? ClipOval(
-                      child: Image.memory(stories[i].imageBytes!, fit: BoxFit.cover))
-                  : Container(
-                      decoration: BoxDecoration(
-                          color: Color(stories[i].backgroundColorValue ??
-                              ArucadColors.primary.toARGB32()),
-                          shape: BoxShape.circle),
-                      child: const Icon(Icons.text_fields, color: Colors.white),
-                    ),
-              onTap: () => onOpenStory(i),
+                      child: Image.memory(stories[i].imageBytes!,
+                          fit: BoxFit.cover))
+                  : stories[i].imageUrl != null
+                      ? ClipOval(
+                          child: CampusNetworkImage(
+                          stories[i].imageUrl!,
+                          width: 60,
+                          height: 60,
+                        ))
+                      : Container(
+                          decoration: BoxDecoration(
+                              color: Color(stories[i].backgroundColorValue ??
+                                  ArucadColors.blue.toARGB32()),
+                              shape: BoxShape.circle),
+                          child: const Icon(Icons.text_fields,
+                              color: Colors.white),
+                        ),
             ),
         ],
       ),
@@ -766,42 +976,53 @@ class _StoryBubble extends StatelessWidget {
   final Widget child;
   final VoidCallback onTap;
   final bool ring;
+  final bool viewed;
 
   const _StoryBubble(
-      {required this.label, required this.child, required this.onTap, this.ring = false});
+      {required this.label,
+      required this.child,
+      required this.onTap,
+      this.ring = false,
+      this.viewed = false});
 
   @override
   Widget build(BuildContext context) => GestureDetector(
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.only(right: 12),
-          child: Column(children: [
-            Container(
-              width: 60,
-              height: 60,
-              padding: const EdgeInsets.all(2.5),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: ring
-                    ? const LinearGradient(colors: [
-                        ArucadColors.primary,
-                        ArucadColors.warning,
-                      ])
-                    : null,
-                border: ring ? null : Border.all(color: ArucadColors.mist, width: 2),
+          child: Opacity(
+            opacity: viewed ? 0.45 : 1,
+            child: Column(children: [
+              Container(
+                width: 60,
+                height: 60,
+                padding: const EdgeInsets.all(2.5),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: ring
+                        ? (viewed
+                            ? ArucadColors.muted
+                            : ArucadColors.ink)
+                        : ArucadColors.mist,
+                    width: ring ? 2.2 : 2,
+                  ),
+                ),
+                child: ClipOval(child: child),
               ),
-              child: ClipOval(child: child),
-            ),
-            const SizedBox(height: 4),
-            SizedBox(
-              width: 64,
-              child: Text(label,
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 11)),
-            ),
-          ]),
+              const SizedBox(height: 4),
+              SizedBox(
+                width: 64,
+                child: Text(label,
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        fontSize: 11,
+                        color: viewed ? ArucadColors.muted : null)),
+              ),
+            ]),
+          ),
         ),
       );
 }
@@ -809,7 +1030,18 @@ class _StoryBubble extends StatelessWidget {
 class _StoryViewerScreen extends StatefulWidget {
   final List<CampusStory> stories;
   final int initialIndex;
-  const _StoryViewerScreen({required this.stories, required this.initialIndex});
+  final String? myName;
+  final CampusRepository? repository;
+  final Future<void> Function(CampusStory)? onDelete;
+  final Future<void> Function(CampusStory)? onViewed;
+  const _StoryViewerScreen({
+    required this.stories,
+    required this.initialIndex,
+    this.myName,
+    this.repository,
+    this.onDelete,
+    this.onViewed,
+  });
 
   @override
   State<_StoryViewerScreen> createState() => _StoryViewerScreenState();
@@ -824,6 +1056,78 @@ class _StoryViewerScreenState extends State<_StoryViewerScreen> {
     super.initState();
     _index = widget.initialIndex;
     _controller = PageController(initialPage: _index);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _markCurrentViewed();
+    });
+  }
+
+  void _markCurrentViewed() {
+    if (_index < 0 || _index >= widget.stories.length) return;
+    unawaited(widget.onViewed?.call(widget.stories[_index]) ?? Future.value());
+  }
+
+  bool get _isOwnCurrent =>
+      widget.myName != null &&
+      widget.stories[_index].authorName == widget.myName;
+
+  Future<void> _showViewers() async {
+    final repo = widget.repository;
+    if (repo == null) return;
+    final story = widget.stories[_index];
+    List<StoryViewer> viewers = const [];
+    try {
+      viewers = await repo.getStoryViewers(story.id);
+    } catch (_) {}
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Görenler (${viewers.length})',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w900, fontSize: 16)),
+              const SizedBox(height: 12),
+              if (viewers.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Text('Henüz kimse görmedi.'),
+                )
+              else
+                Flexible(
+                  child: ListView(
+                    shrinkWrap: true,
+                    children: [
+                      for (final v in viewers)
+                        ListTile(
+                          dense: true,
+                          leading: CircleAvatar(
+                            radius: 16,
+                            backgroundImage: (v.avatarUrl != null &&
+                                    v.avatarUrl!.isNotEmpty)
+                                ? NetworkImage(v.avatarUrl!)
+                                : null,
+                            child: (v.avatarUrl == null ||
+                                    v.avatarUrl!.isEmpty)
+                                ? Text(v.name.isEmpty
+                                    ? '?'
+                                    : v.name.substring(0, 1).toUpperCase())
+                                : null,
+                          ),
+                          title: Text(v.name),
+                        ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -836,13 +1140,15 @@ class _StoryViewerScreenState extends State<_StoryViewerScreen> {
     if (_index >= widget.stories.length - 1) {
       Navigator.of(context).pop();
     } else {
-      _controller.nextPage(duration: const Duration(milliseconds: 250), curve: Curves.ease);
+      _controller.nextPage(
+          duration: const Duration(milliseconds: 250), curve: Curves.ease);
     }
   }
 
   void _prev() {
     if (_index == 0) return;
-    _controller.previousPage(duration: const Duration(milliseconds: 250), curve: Curves.ease);
+    _controller.previousPage(
+        duration: const Duration(milliseconds: 250), curve: Curves.ease);
   }
 
   @override
@@ -853,7 +1159,10 @@ class _StoryViewerScreenState extends State<_StoryViewerScreen> {
         PageView.builder(
           controller: _controller,
           itemCount: widget.stories.length,
-          onPageChanged: (i) => setState(() => _index = i),
+          onPageChanged: (i) {
+            setState(() => _index = i);
+            _markCurrentViewed();
+          },
           itemBuilder: (context, i) {
             final story = widget.stories[i];
             return GestureDetector(
@@ -865,17 +1174,29 @@ class _StoryViewerScreenState extends State<_StoryViewerScreen> {
                   _next();
                 }
               },
-              child: story.imageBytes != null
-                  ? Center(child: Image.memory(story.imageBytes!, fit: BoxFit.contain))
-                  : Container(
-                      color: Color(story.backgroundColorValue ?? ArucadColors.primary.toARGB32()),
-                      alignment: Alignment.center,
-                      padding: const EdgeInsets.all(32),
-                      child: Text(story.text ?? '',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                              color: Colors.white, fontSize: 26, fontWeight: FontWeight.w800)),
-                    ),
+              child: ClipRect(
+                child: story.imageBytes != null
+                    ? SizedBox.expand(
+                        child:
+                            Image.memory(story.imageBytes!, fit: BoxFit.cover))
+                    : story.imageUrl != null
+                        ? SizedBox.expand(
+                            child: CampusNetworkImage(story.imageUrl!,
+                                fit: BoxFit.cover))
+                        : Container(
+                            decoration: storyBackgroundDecoration(
+                              backgroundColorValue: story.backgroundColorValue,
+                              style: story.style,
+                            ),
+                            alignment: Alignment.center,
+                            padding: const EdgeInsets.all(32),
+                            child: Text(
+                              story.text ?? '',
+                              textAlign: TextAlign.center,
+                              style: storyTextStyleFromMap(story.style),
+                            ),
+                          ),
+              ),
             );
           },
         ),
@@ -900,20 +1221,92 @@ class _StoryViewerScreenState extends State<_StoryViewerScreen> {
         Positioned(
           top: 64,
           left: 16,
-          child: Text(widget.stories[_index].authorName,
-              style: const TextStyle(
-                  color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14)),
+          right: 72,
+          child: Builder(builder: (context) {
+            final story = widget.stories[_index];
+            final style = story.style;
+            final location = style?['locationTag'] as String?;
+            final tagged = (style?['taggedPeople'] as List?)
+                    ?.whereType<String>()
+                    .toList() ??
+                const <String>[];
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(story.authorName,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14)),
+                if (location != null && location.trim().isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Row(children: [
+                    const Icon(Icons.place, color: Colors.white70, size: 14),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(location,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              color: Colors.white70, fontSize: 12)),
+                    ),
+                  ]),
+                ],
+                if (tagged.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text('ile · ${tagged.join(', ')}',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          color: Colors.white70, fontSize: 12)),
+                ],
+              ],
+            );
+          }),
         ),
         Positioned(
           top: 56,
           right: 8,
-          child: IconButton(
-            onPressed: () => Navigator.of(context).pop(),
-            icon: const Icon(Icons.close, color: Colors.white),
-          ),
+          child: Row(children: [
+            if (_isOwnCurrent && widget.repository != null)
+              IconButton(
+                tooltip: 'Görenler',
+                onPressed: _showViewers,
+                icon: const Icon(Icons.visibility_outlined, color: Colors.white),
+              ),
+            if (widget.onDelete != null && _isOwnCurrent)
+              IconButton(
+                onPressed: () => _confirmDeleteCurrent(),
+                icon: const Icon(Icons.delete_outline, color: Colors.white),
+              ),
+            IconButton(
+              onPressed: () => Navigator.of(context).pop(),
+              icon: const Icon(Icons.close, color: Colors.white),
+            ),
+          ]),
         ),
       ]),
     );
+  }
+
+  Future<void> _confirmDeleteCurrent() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Hikaye silinsin mi?'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Vazgeç')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Sil')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await widget.onDelete?.call(widget.stories[_index]);
+    if (mounted) Navigator.of(context).pop();
   }
 }
 
@@ -926,10 +1319,16 @@ class _PostCard extends StatelessWidget {
   final VoidCallback onSave;
   final VoidCallback onOpen;
   final VoidCallback onOpenProfile;
+  final VoidCallback? onLocationTag;
   final bool showPeerActions;
+  final bool isOwn;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
   final bool isFollowing;
   final VoidCallback? onToggleFollow;
   final VoidCallback? onToggleBlock;
+  final bool canPin;
+  final VoidCallback? onPin;
 
   const _PostCard({
     required this.post,
@@ -940,15 +1339,24 @@ class _PostCard extends StatelessWidget {
     required this.onSave,
     required this.onOpen,
     required this.onOpenProfile,
+    this.onLocationTag,
     this.showPeerActions = false,
+    this.isOwn = false,
+    this.onEdit,
+    this.onDelete,
     this.isFollowing = false,
     this.onToggleFollow,
     this.onToggleBlock,
+    this.canPin = false,
+    this.onPin,
   });
 
   @override
   Widget build(BuildContext context) => Card(
         clipBehavior: Clip.antiAlias,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.transparent,
+        elevation: 0,
         shape: post.official
             ? RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(18),
@@ -956,181 +1364,222 @@ class _PostCard extends StatelessWidget {
             : null,
         child: InkWell(
           onTap: onOpen,
+          hoverColor: Colors.transparent,
+          splashColor: Colors.transparent,
+          highlightColor: Colors.transparent,
+          overlayColor: WidgetStateProperty.all(Colors.transparent),
           child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              GestureDetector(
-                onTap: post.official ? null : onOpenProfile,
-                child: CircleAvatar(
+            padding: const EdgeInsets.all(16),
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                GestureDetector(
+                  onTap: post.official ? null : onOpenProfile,
+                  child: CampusAvatar(
+                    name: post.name,
+                    avatarUrl: post.authorAvatarUrl,
                     radius: 18,
-                    backgroundColor:
-                        post.official ? ArucadColors.primary : ArucadColors.mist,
-                    child: post.official
-                        ? const Icon(Icons.school_outlined, size: 18, color: Colors.white)
-                        : Text(post.name.isEmpty ? '?' : post.name.substring(0, 1))),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Row(children: [
-                  Flexible(
-                    child: GestureDetector(
-                      onTap: post.official ? null : onOpenProfile,
-                      child: Text(post.name,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.w900)),
-                    ),
+                    official: post.official,
                   ),
-                  if (post.postType != PostCategory.normal) ...[
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                      decoration: BoxDecoration(
-                          color: categoryAccent(post.postType.name).withValues(alpha: .18),
-                          borderRadius: BorderRadius.circular(999)),
-                      child: Text(
-                          '${post.postType.emoji} ${post.postType.label(AppLocale.of(context))}',
-                          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800)),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Row(children: [
+                    Flexible(
+                      child: GestureDetector(
+                        onTap: post.official ? null : onOpenProfile,
+                        child: Text(post.name,
+                            overflow: TextOverflow.ellipsis,
+                            style:
+                                const TextStyle(fontWeight: FontWeight.w900)),
+                      ),
                     ),
-                  ],
-                  if (post.official) ...[
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                      decoration: BoxDecoration(
-                          color: ArucadColors.primary.withValues(alpha: .12),
-                          borderRadius: BorderRadius.circular(999)),
-                      child: Text('RESMİ',
-                          style: ArucadTextStyles.display(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w900,
-                              color: ArucadColors.primary)),
-                    ),
-                  ],
-                  if (post.visibility == PostVisibility.onlyMe) ...[
-                    const SizedBox(width: 6),
-                    const Icon(Icons.lock_outline, size: 14, color: ArucadColors.muted),
-                  ],
-                ]),
-              ),
-              PopupMenuButton<String>(
-                icon: const Icon(Icons.more_horiz),
-                onSelected: (value) {
-                  switch (value) {
-                    case 'report':
-                      onReport();
-                    case 'follow':
-                      onToggleFollow?.call();
-                    case 'block':
-                      onToggleBlock?.call();
-                  }
-                },
-                itemBuilder: (ctx) {
-                  final strings = AppLocale.of(ctx);
-                  return [
-                    if (showPeerActions) ...[
-                      PopupMenuItem(
-                          value: 'follow',
-                          child: Text(isFollowing
-                              ? strings.t('social_following')
-                              : strings.t('social_follow'))),
-                      PopupMenuItem(
-                          value: 'block',
-                          child: Text(strings.t('social_block'),
-                              style: const TextStyle(color: ArucadColors.danger))),
+                    if (post.postType != PostCategory.normal) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 7, vertical: 2),
+                        decoration: BoxDecoration(
+                            color: categoryAccent(post.postType.name)
+                                .withValues(alpha: .18),
+                            borderRadius: BorderRadius.circular(999)),
+                        child: Text(
+                            post.postType.label(AppLocale.of(context)),
+                            style: const TextStyle(
+                                fontSize: 10, fontWeight: FontWeight.w800)),
+                      ),
                     ],
-                    PopupMenuItem(value: 'report', child: Text(strings.t('social_report_post'))),
-                  ];
-                },
-              ),
-            ]),
-            const SizedBox(height: 12),
-            if (post.text.isNotEmpty)
-              Text(post.text, style: const TextStyle(fontSize: 16)),
-            if (post.imageBytes != null) ...[
-              const SizedBox(height: 10),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(14),
-                child: AspectRatio(
-                  aspectRatio: 16 / 10,
-                  child: Image.memory(post.imageBytes!, fit: BoxFit.cover),
+                    if (post.isPinned) ...[
+                      const SizedBox(width: 6),
+                      const Icon(Icons.push_pin,
+                          size: 14, color: ArucadColors.primary),
+                    ],
+                    if (post.official) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 7, vertical: 2),
+                        decoration: BoxDecoration(
+                            color: ArucadColors.primary.withValues(alpha: .12),
+                            borderRadius: BorderRadius.circular(999)),
+                        child: Text('RESMİ',
+                            style: ArucadTextStyles.display(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w900,
+                                color: ArucadColors.primary)),
+                      ),
+                    ],
+                    if (post.visibility == PostVisibility.friends) ...[
+                      const SizedBox(width: 6),
+                      const Icon(Icons.people_outline,
+                          size: 14, color: ArucadColors.muted),
+                    ],
+                    if (post.visibility == PostVisibility.onlyMe) ...[
+                      const SizedBox(width: 6),
+                      const Icon(Icons.lock_outline,
+                          size: 14, color: ArucadColors.muted),
+                    ],
+                  ]),
                 ),
-              ),
-            ] else if (post.imageUrl != null) ...[
-              const SizedBox(height: 10),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(14),
-                child: AspectRatio(
-                  aspectRatio: 16 / 10,
-                  child: Image.network(
-                    post.imageUrl!,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
-                      color: ArucadColors.mist,
-                      child: const Center(
-                          child: Icon(Icons.broken_image_outlined,
-                              color: ArucadColors.muted)),
+                if (canPin)
+                  IconButton(
+                    tooltip: post.isPinned
+                        ? AppLocale.of(context).t('social_unpin')
+                        : AppLocale.of(context).t('social_pin'),
+                    onPressed: onPin,
+                    icon: Icon(
+                      post.isPinned ? Icons.push_pin : Icons.push_pin_outlined,
+                      color: ArucadColors.primary,
                     ),
                   ),
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_horiz),
+                  onSelected: (value) {
+                    switch (value) {
+                      case 'report':
+                        onReport();
+                      case 'follow':
+                        onToggleFollow?.call();
+                      case 'block':
+                        onToggleBlock?.call();
+                      case 'edit':
+                        onEdit?.call();
+                      case 'delete':
+                        onDelete?.call();
+                      case 'pin':
+                        onPin?.call();
+                    }
+                  },
+                  itemBuilder: (ctx) {
+                    final strings = AppLocale.of(ctx);
+                    return [
+                      if (canPin)
+                        PopupMenuItem(
+                            value: 'pin',
+                            child: Text(post.isPinned
+                                ? strings.t('social_unpin')
+                                : strings.t('social_pin'))),
+                      if (showPeerActions) ...[
+                        PopupMenuItem(
+                            value: 'follow',
+                            child: Text(isFollowing
+                                ? strings.t('social_following')
+                                : strings.t('social_follow'))),
+                        PopupMenuItem(
+                            value: 'block',
+                            child: Text(strings.t('social_block'),
+                                style: const TextStyle(
+                                    color: ArucadColors.danger))),
+                      ],
+                      if (isOwn) ...[
+                        const PopupMenuItem(
+                            value: 'edit', child: Text('Düzenle')),
+                        const PopupMenuItem(
+                            value: 'delete',
+                            child: Text('Sil',
+                                style: TextStyle(color: ArucadColors.danger))),
+                      ] else
+                        PopupMenuItem(
+                            value: 'report',
+                            child: Text(strings.t('social_report_post'))),
+                    ];
+                  },
                 ),
-              ),
-            ],
-            if (post.locationTag != null || post.courseTag != null) ...[
+              ]),
+              const SizedBox(height: 12),
+              if (post.text.isNotEmpty)
+                Text(post.displayText, style: const TextStyle(fontSize: 16)),
+              if (post.imageBytes != null || post.imageUrl != null) ...[
+                const SizedBox(height: 10),
+                FeedPostMedia(
+                  imageUrl: post.imageUrl,
+                  imageBytes: post.imageBytes,
+                  mimeType: post.mediaMimeType,
+                ),
+              ],
+              if (post.locationTag != null || post.courseTag != null) ...[
+                const SizedBox(height: 8),
+                Wrap(spacing: 6, runSpacing: 6, children: [
+                  if (post.locationTag != null)
+                    _MiniTagChip(
+                      icon: Icons.place_outlined,
+                      label: post.locationTag!,
+                      onTap: onLocationTag,
+                    ),
+                  if (post.courseTag != null)
+                    _MiniTagChip(
+                        icon: Icons.menu_book_outlined, label: post.courseTag!),
+                ]),
+              ],
+              if (post.hashtags.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Wrap(spacing: 6, children: [
+                  for (final tag in post.hashtags)
+                    Text('#$tag',
+                        style: TextStyle(
+                            color: categoryAccent(tag),
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12)),
+                ]),
+              ],
               const SizedBox(height: 8),
-              Wrap(spacing: 6, runSpacing: 6, children: [
-                if (post.locationTag != null)
-                  _MiniTagChip(icon: Icons.place_outlined, label: post.locationTag!),
-                if (post.courseTag != null)
-                  _MiniTagChip(icon: Icons.menu_book_outlined, label: post.courseTag!),
+              Text(
+                  formatRelativeTime(post.createdAt ?? DateTime.now()),
+                  style:
+                      const TextStyle(color: ArucadColors.muted, fontSize: 12)),
+              const SizedBox(height: 10),
+              Row(children: [
+                InkWell(
+                  onTap: onLike,
+                  borderRadius: BorderRadius.circular(999),
+                  child: Row(children: [
+                    Icon(
+                        post.likedByMe ? Icons.favorite : Icons.favorite_border,
+                        size: 18,
+                        color: post.likedByMe ? ArucadColors.danger : null),
+                    const SizedBox(width: 5),
+                    Text('${post.likes}'),
+                  ]),
+                ),
+                const SizedBox(width: 18),
+                InkWell(
+                  onTap: onComment,
+                  borderRadius: BorderRadius.circular(999),
+                  child: Row(children: [
+                    const Icon(Icons.mode_comment_outlined, size: 18),
+                    const SizedBox(width: 5),
+                    Text('${post.comments.length}'),
+                  ]),
+                ),
+                const Spacer(),
+                InkWell(
+                  onTap: onSave,
+                  borderRadius: BorderRadius.circular(999),
+                  child: Icon(saved ? Icons.bookmark : Icons.bookmark_border,
+                      size: 20, color: saved ? ArucadColors.blue : null),
+                ),
               ]),
-            ],
-            if (post.hashtags.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Wrap(spacing: 6, children: [
-                for (final tag in post.hashtags)
-                  Text('#$tag',
-                      style: const TextStyle(
-                          color: ArucadColors.primary, fontWeight: FontWeight.w700, fontSize: 12)),
-              ]),
-            ],
-            const SizedBox(height: 8),
-            Text(post.meta,
-                style: const TextStyle(color: ArucadColors.muted, fontSize: 12)),
-            const SizedBox(height: 10),
-            Row(children: [
-              InkWell(
-                onTap: onLike,
-                borderRadius: BorderRadius.circular(999),
-                child: Row(children: [
-                  Icon(
-                      post.likedByMe
-                          ? Icons.favorite
-                          : Icons.favorite_border,
-                      size: 18,
-                      color: post.likedByMe ? ArucadColors.primary : null),
-                  const SizedBox(width: 5),
-                  Text('${post.likes}'),
-                ]),
-              ),
-              const SizedBox(width: 18),
-              InkWell(
-                onTap: onComment,
-                borderRadius: BorderRadius.circular(999),
-                child: Row(children: [
-                  const Icon(Icons.mode_comment_outlined, size: 18),
-                  const SizedBox(width: 5),
-                  Text('${post.comments.length}'),
-                ]),
-              ),
-              const Spacer(),
-              InkWell(
-                onTap: onSave,
-                borderRadius: BorderRadius.circular(999),
-                child: Icon(saved ? Icons.bookmark : Icons.bookmark_border,
-                    size: 20, color: saved ? ArucadColors.primary : null),
-              ),
             ]),
-          ]),
           ),
         ),
       );
@@ -1139,17 +1588,35 @@ class _PostCard extends StatelessWidget {
 class _MiniTagChip extends StatelessWidget {
   final IconData icon;
   final String label;
-  const _MiniTagChip({required this.icon, required this.label});
+  final VoidCallback? onTap;
+  const _MiniTagChip({required this.icon, required this.label, this.onTap});
 
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-            color: ArucadColors.mist, borderRadius: BorderRadius.circular(999)),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, size: 12, color: ArucadColors.muted),
-          const SizedBox(width: 4),
-          Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
-        ]),
-      );
+  Widget build(BuildContext context) {
+    final chip = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+          color: onTap != null
+              ? ArucadColors.primary.withValues(alpha: .10)
+              : ArucadColors.mist,
+          borderRadius: BorderRadius.circular(999)),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon,
+            size: 12,
+            color: onTap != null ? ArucadColors.primary : ArucadColors.muted),
+        const SizedBox(width: 4),
+        Text(label,
+            style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: onTap != null ? ArucadColors.primary : null)),
+      ]),
+    );
+    if (onTap == null) return chip;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(999),
+      child: chip,
+    );
+  }
 }

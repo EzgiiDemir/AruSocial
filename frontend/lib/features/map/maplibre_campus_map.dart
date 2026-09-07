@@ -1,17 +1,58 @@
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 
 import 'package:arucad_campus_prototype/core/models/geo_point.dart';
 import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
 
-/// Our map rendering surface — real OpenStreetMap vector tiles served by
-/// OpenFreeMap (free, keyless, no account — see openfreemap.org), rendered
-/// through MapLibre GL. This replaced an earlier hand-drawn Canvas map:
-/// same honesty goal (no Google Maps API/key/billing), but now with a
-/// genuine street/building map instead of an illustration. Attribution is
-/// shown automatically by MapLibre's own attribution control, as required
-/// by OpenFreeMap's terms.
+/// OpenFreeMap Liberty — full-colour OSM streets (Google Maps–like roads,
+/// parks, water). Broken POI sprite layers are hidden after load so the
+/// console stays clean without switching to grey Positron.
 const _openFreeMapStyle = 'https://tiles.openfreemap.org/styles/liberty';
+
+/// OpenFreeMap serves these glyph stacks. MapLibre's default
+/// `Open Sans Regular, Arial Unicode MS Regular` 404s on their font host.
+const _openFreeMapTextFont = ['Noto Sans Regular'];
+
+/// OSM-Liberty's `poi_*` layer family asks for dozens of sprite ids
+/// (`office`, `gate`, `atm`, `bollard`, `swimming_pool`, …) that the
+/// OpenFreeMap `ofm_f384` sheet doesn't ship — every one logs its own
+/// "Image could not be loaded" console warning. Campus pins are our own
+/// annotations, never these layers, so matching the whole `poi` family by
+/// name instead of enumerating each broken layer id (which only ever grows
+/// as more OSM icon categories show up) hides all of them, permanently,
+/// without needing a new entry added by hand every time a fresh icon name
+/// turns up in the console.
+bool _isBrokenOsmSpriteLayer(String layerId) {
+  final id = layerId.toLowerCase();
+  // Hide every base-style symbol layer that pulls icons from the hosted
+  // OFM sprite sheet — dozens of ids (office, ferry_terminal, multi, …)
+  // are missing and spam the console with "Image could not be loaded" plus
+  // "Expected value to be of type number, but found null" parse errors.
+  return id.contains('poi') ||
+      id.contains('transit') ||
+      id.contains('ferry') ||
+      id.contains('aeroway') ||
+      id.contains('airport') ||
+      id.contains('railway') ||
+      id.contains('rail') ||
+      id.contains('station') ||
+      id.contains('bus') ||
+      id.contains('coach') ||
+      id.contains('entrance') ||
+      id.contains('barrier') ||
+      id.contains('oneway') ||
+      id.contains('shield') ||
+      id.contains('highway_name') ||
+      id.contains('road_label') ||
+      id.contains('housenum') ||
+      id.contains('building_number') ||
+      id.contains('road_shield') ||
+      id.contains('waterway') ||
+      id.contains('natural') && id.contains('icon');
+}
 
 LatLng _ll(GeoPoint p) => LatLng(p.lat, p.lng);
 
@@ -115,24 +156,30 @@ class CampusMapController {
 class CampusMapView extends StatefulWidget {
   /// Points the camera fits to on first load.
   final List<GeoPoint> extentPoints;
+  final GeoPoint? focusPoint;
   final List<CampusMapMarker> markers;
   final List<CampusPulseZone> pulseZones;
   final List<CampusMapContextDot> contextDots;
   final List<GeoPoint>? routePoints;
   final bool routeDashed;
   final Color routeColor;
+  /// Device location rendered by our own annotation layer. Circle radii are
+  /// screen pixels, so this stays a normal-size blue puck at every zoom.
+  final GeoPoint? userLocation;
   final bool showUserLocation;
   final CampusMapController? controller;
 
   const CampusMapView({
     super.key,
     required this.extentPoints,
+    this.focusPoint,
     this.markers = const [],
     this.pulseZones = const [],
     this.contextDots = const [],
     this.routePoints,
     this.routeDashed = false,
     this.routeColor = ArucadColors.blue,
+    this.userLocation,
     this.showUserLocation = false,
     this.controller,
   });
@@ -144,6 +191,8 @@ class CampusMapView extends StatefulWidget {
 class _CampusMapViewState extends State<CampusMapView> {
   MapLibreMapController? _map;
   bool _styleReady = false;
+  bool _pinReady = false;
+  double _zoom = 16.4;
   final Map<String, VoidCallback> _markerTaps = {};
 
   @override
@@ -160,7 +209,9 @@ class _CampusMapViewState extends State<CampusMapView> {
         (oldWidget.markers != widget.markers ||
             oldWidget.pulseZones != widget.pulseZones ||
             oldWidget.contextDots != widget.contextDots ||
-            oldWidget.routePoints != widget.routePoints)) {
+            oldWidget.routePoints != widget.routePoints ||
+            oldWidget.userLocation != widget.userLocation ||
+            oldWidget.focusPoint != widget.focusPoint)) {
       _syncAnnotations();
     }
   }
@@ -171,6 +222,7 @@ class _CampusMapViewState extends State<CampusMapView> {
     if (map != null) {
       widget.controller?._detach(map);
       map.onSymbolTapped.remove(_handleSymbolTap);
+      map.onCircleTapped.remove(_handleCircleTap);
     }
     super.dispose();
   }
@@ -180,9 +232,86 @@ class _CampusMapViewState extends State<CampusMapView> {
     if (id != null) _markerTaps[id]?.call();
   }
 
+  void _handleCircleTap(Circle circle) {
+    final id = circle.data?['markerId'] as String?;
+    if (id != null) _markerTaps[id]?.call();
+  }
+
   Future<void> _onStyleLoaded() async {
     _styleReady = true;
+    _pinReady = false;
+    final map = _map;
+    if (map != null) {
+      await _ensureCampusPin(map);
+      await _ensureBlankOsmSprites(map);
+      await _hideBrokenOsmPoiLayers(map);
+      // Deliberately NOT forcing allow-overlap/ignore-placement here —
+      // that used to force every campus label to render regardless of
+      // collision, which is exactly what made labels run into each other
+      // once zoomed out far enough to bring many POIs into the same
+      // screen area. Leaving SymbolManager at its own default (collision
+      // detection on) lets MapLibre hide/thin out crowded labels the way
+      // every other map does, instead of drawing all of them on top of
+      // each other.
+      await _useOpenFreeMapFonts(map);
+    }
     await _syncAnnotations();
+  }
+
+  Future<void> _ensureCampusPin(MapLibreMapController map) async {
+    if (_pinReady) return;
+    try {
+      await map.addImage('campus-pin', await _campusPinPng());
+      _pinReady = true;
+    } catch (_) {
+      // Labels still render as text; the icon is only a stand-in so
+      // MapLibre does not look up a missing sprite id.
+    }
+  }
+
+  /// 1×1 transparent placeholders for OFM sprite ids the hosted sheet
+  /// does not ship — stops web console spam if a symbol layer slips through.
+  Future<void> _ensureBlankOsmSprites(MapLibreMapController map) async {
+    const missing = {
+      'multi',
+      'ferry_terminal',
+      'ferry',
+      'office',
+      'gate',
+      'atm',
+      'bollard',
+      'swimming_pool',
+      'oneway',
+    };
+    final blank = await _blankSpritePng();
+    for (final id in missing) {
+      try {
+        await map.addImage(id, blank);
+      } catch (_) {}
+    }
+  }
+
+  Future<void> _hideBrokenOsmPoiLayers(MapLibreMapController map) async {
+    try {
+      final ids = await map.getLayerIds();
+      for (final id in ids) {
+        if (id is String && _isBrokenOsmSpriteLayer(id)) {
+          await map.setLayerVisibility(id, false);
+        }
+      }
+    } catch (_) {
+      // Style layer list is best-effort; campus annotations still render.
+    }
+  }
+
+  Future<void> _useOpenFreeMapFonts(MapLibreMapController map) async {
+    const fonts = _LayoutOnly({'text-font': _openFreeMapTextFont});
+    final ids = map.symbolManager?.layerIds ?? const <String>[];
+    for (final id in ids) {
+      try {
+        await map.setLayerProperties(id, fonts);
+      } catch (_) {}
+    }
   }
 
   Future<void> _syncAnnotations() async {
@@ -194,53 +323,108 @@ class _CampusMapViewState extends State<CampusMapView> {
     _markerTaps.clear();
 
     for (final dot in widget.contextDots) {
-      await map.addCircle(CircleOptions(
+      await map.addCircle(_filledCircle(
         geometry: _ll(dot.position),
-        circleRadius: 3.5,
-        circleColor: _hex(dot.color),
-        circleStrokeColor: '#ffffff',
-        circleStrokeWidth: 1.4,
+        radius: 3.5,
+        color: _hex(dot.color),
+        strokeColor: '#ffffff',
+        strokeWidth: 1.4,
       ));
     }
 
     for (final zone in widget.pulseZones) {
-      final baseRadius = zone.baseRadiusMeters.clamp(4.0, 22.0);
-      const rings = 3;
-      for (var ring = 0; ring < rings; ring++) {
-        final t = ring / rings;
-        await map.addCircle(CircleOptions(
+      final scaled = _pulseRadiusPx(zone.baseRadiusMeters);
+      // Two rings, same recipe for red / yellow / green. Extra rings used
+      // to stack into one blob as soon as the camera pulled back.
+      await map.addCircle(_filledCircle(
+        geometry: _ll(zone.center),
+        radius: scaled,
+        color: _hex(zone.color),
+        opacity: (0.38 * zone.intensity).clamp(0.12, 0.45),
+        blur: 0.55,
+      ));
+      if (_zoom >= 15.2) {
+        await map.addCircle(_filledCircle(
           geometry: _ll(zone.center),
-          circleRadius: baseRadius * (1 + t * 0.8),
-          circleColor: _hex(zone.color),
-          circleOpacity: 0.16 * (1 - t) * zone.intensity + 0.03,
+          radius: scaled * 1.45,
+          color: _hex(zone.color),
+          opacity: (0.16 * zone.intensity).clamp(0.06, 0.2),
+          blur: 0.85,
         ));
       }
     }
 
+    final userLocation = widget.showUserLocation ? widget.userLocation : null;
+    if (userLocation != null) {
+      // Cross-platform Google Maps–style location puck: a soft blue accuracy
+      // halo and a compact white-rimmed core. Annotation radii are pixels,
+      // keeping the symbol stable while users zoom in or out.
+      await map.addCircle(_filledCircle(
+        geometry: _ll(userLocation),
+        radius: 19,
+        color: _hex(ArucadColors.blue),
+        opacity: 0.22,
+        blur: 0.78,
+      ));
+      await map.addCircle(_filledCircle(
+        geometry: _ll(userLocation),
+        radius: 7,
+        color: _hex(ArucadColors.blue),
+        opacity: 1,
+        strokeColor: '#ffffff',
+        strokeWidth: 2,
+      ));
+    }
+
     for (final marker in widget.markers) {
-      final symbol = await map.addSymbol(
-        SymbolOptions(
+      // A soft heat halo communicates density at a glance without making the
+      // POI itself a sharp target-looking dot. The coloured core stays clear
+      // and tappable over the map labels.
+      await map.addCircle(
+        _filledCircle(
           geometry: _ll(marker.position),
-          textField: marker.label,
-          textColor: '#ffffff',
-          textHaloColor: _hex(marker.color),
-          textHaloWidth: marker.emphasized ? 3.5 : 2.2,
-          textSize: marker.emphasized ? 14 : 12,
+          radius: marker.emphasized ? 22 : 18,
+          color: _hex(marker.color),
+          opacity: 0.22,
+          blur: 0.82,
+        ),
+        {'markerId': marker.id},
+      );
+      await map.addCircle(
+        _filledCircle(
+          geometry: _ll(marker.position),
+          radius: marker.emphasized ? 9.5 : 7,
+          color: _hex(marker.color),
+          opacity: 0.98,
+        ),
+        {'markerId': marker.id},
+      );
+      await map.addSymbol(
+        _filledLabel(
+          geometry: _ll(marker.position),
+          text: marker.label,
+          size: marker.emphasized ? 14 : 12,
+          haloWidth: marker.emphasized ? 2.4 : 1.8,
         ),
         {'markerId': marker.id},
       );
       if (marker.onTap != null) _markerTaps[marker.id] = marker.onTap!;
-      // ignore: unnecessary_statements
-      symbol;
     }
 
     final route = widget.routePoints;
     if (route != null && route.length >= 2) {
+      final llRoute = route.map(_ll).toList();
       if (!widget.routeDashed) {
-        await map.addLine(LineOptions(
-          geometry: route.map(_ll).toList(),
-          lineColor: _hex(widget.routeColor),
-          lineWidth: 5.5,
+        // Google Maps–style route: white casing + coloured stroke on top.
+        await map.addLine(_filledLine(
+          geometry: llRoute,
+          color: '#ffffff',
+          width: 9,
+        ));
+        await map.addLine(_filledLine(
+          geometry: llRoute,
+          color: _hex(widget.routeColor),
+          width: 6,
         ));
       } else {
         for (var i = 0; i < route.length - 1; i++) {
@@ -261,13 +445,14 @@ class _CampusMapViewState extends State<CampusMapView> {
     final lines = <LineOptions>[];
     while (t < 1.0) {
       final segEnd = (t + dashFraction).clamp(0.0, 1.0);
-      lines.add(LineOptions(
-        geometry: [
-          GeoPoint(a.lat + (b.lat - a.lat) * t, a.lng + (b.lng - a.lng) * t),
-          GeoPoint(a.lat + (b.lat - a.lat) * segEnd, a.lng + (b.lng - a.lng) * segEnd),
-        ].map(_ll).toList(),
-        lineColor: _hex(widget.routeColor),
-        lineWidth: 4.5,
+      final segPoints = [
+        GeoPoint(a.lat + (b.lat - a.lat) * t, a.lng + (b.lng - a.lng) * t),
+        GeoPoint(a.lat + (b.lat - a.lat) * segEnd, a.lng + (b.lng - a.lng) * segEnd),
+      ].map(_ll).toList();
+      lines.add(_filledLine(
+        geometry: segPoints,
+        color: _hex(widget.routeColor),
+        width: 4.5,
       ));
       t += dashFraction + gapFraction;
     }
@@ -287,21 +472,171 @@ class _CampusMapViewState extends State<CampusMapView> {
     return MapLibreMap(
       styleString: _openFreeMapStyle,
       initialCameraPosition: CameraPosition(target: _ll(center), zoom: 16.4),
-      myLocationEnabled: widget.showUserLocation,
+      // The platform puck differs between Android/iOS/web. We render one
+      // shared annotation above instead, so the symbol is identical and
+      // never duplicates on native devices.
+      myLocationEnabled: false,
       myLocationTrackingMode: MyLocationTrackingMode.none,
+      trackCameraPosition: true,
       compassEnabled: false,
       rotateGesturesEnabled: true,
       onMapCreated: (controller) {
         _map = controller;
         widget.controller?._attach(controller);
         controller.onSymbolTapped.add(_handleSymbolTap);
+        controller.onCircleTapped.add(_handleCircleTap);
       },
+      onCameraIdle: _onCameraIdle,
       onStyleLoadedCallback: () {
         _onStyleLoaded();
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) widget.controller?.fitPoints(extent, padding: 48);
+        WidgetsBinding.instance.addPostFrameCallback((_) async {
+          if (!mounted) return;
+          await widget.controller?.fitPoints(extent, padding: 48);
+          final focus = widget.focusPoint;
+          if (focus != null) {
+            await widget.controller?.centerOn(focus, zoom: 18.2);
+          }
         });
       },
     );
   }
+
+  void _onCameraIdle() {
+    final z = _map?.cameraPosition?.zoom;
+    if (z == null || !_styleReady) return;
+    if ((z - _zoom).abs() < 0.3) return;
+    _zoom = z;
+    _syncAnnotations();
+  }
+
+  /// Pixel radius shrinks as the camera pulls back so three campus glows
+  /// do not merge into one disc over Girne.
+  double _pulseRadiusPx(double base) {
+    final t = ((_zoom - 13.4) / 3.6).clamp(0.0, 1.0);
+    final eased = t * t;
+    return 2.4 + (base.clamp(6.0, 10.0) - 2.4) * eased;
+  }
+}
+
+/// maplibre_gl's [setLayerProperties] serializes *all* fields as null unless
+/// we supply a JSON map ourselves. A one-key layout patch is the only safe
+/// way to set `text-font` without wiping the annotation layer.
+class _LayoutOnly implements LayerProperties {
+  const _LayoutOnly(this._json);
+  final Map<String, dynamic> _json;
+
+  @override
+  Map<String, dynamic> toJson({bool skipNulls = true}) =>
+      Map<String, dynamic>.from(_json);
+}
+
+CircleOptions _filledCircle({
+  required LatLng geometry,
+  required double radius,
+  required String color,
+  double opacity = 1,
+  double blur = 0,
+  String strokeColor = '#000000',
+  double strokeWidth = 0,
+  double strokeOpacity = 1,
+}) {
+  return CircleOptions(
+    geometry: geometry,
+    circleRadius: radius,
+    circleColor: color,
+    circleOpacity: opacity,
+    circleBlur: blur,
+    circleStrokeColor: strokeColor,
+    circleStrokeWidth: strokeWidth,
+    circleStrokeOpacity: strokeWidth <= 0 ? 0 : strokeOpacity,
+    draggable: false,
+  );
+}
+
+/// Every SymbolManager paint/layout field is `['get', property]`. Unset
+/// GeoJSON keys become null and MapLibre logs type errors on hover/render.
+SymbolOptions _filledLabel({
+  required LatLng geometry,
+  required String text,
+  required double size,
+  required double haloWidth,
+}) {
+  return SymbolOptions(
+    geometry: geometry,
+    iconImage: 'campus-pin',
+    iconSize: 1,
+    iconRotate: 0,
+    iconOffset: Offset.zero,
+    iconAnchor: 'center',
+    iconOpacity: 0,
+    iconColor: '#000000',
+    iconHaloColor: '#000000',
+    iconHaloWidth: 0,
+    iconHaloBlur: 0,
+    fontNames: _openFreeMapTextFont,
+    textField: text,
+    textSize: size,
+    textMaxWidth: 9,
+    textLetterSpacing: 0,
+    textJustify: 'center',
+    textAnchor: 'top',
+    textRotate: 0,
+    textTransform: 'none',
+    textOffset: const Offset(0, 1.15),
+    textOpacity: 1,
+    textColor: '#1a1a1a',
+    textHaloColor: '#ffffff',
+    textHaloWidth: haloWidth,
+    textHaloBlur: 0,
+    zIndex: 0,
+    draggable: false,
+  );
+}
+
+LineOptions _filledLine({
+  required List<LatLng> geometry,
+  required String color,
+  required double width,
+}) {
+  return LineOptions(
+    geometry: geometry,
+    lineJoin: 'round',
+    lineOpacity: 1,
+    lineColor: color,
+    lineWidth: width,
+    lineGapWidth: 0,
+    lineOffset: 0,
+    lineBlur: 0,
+    draggable: false,
+  );
+}
+
+Future<Uint8List> _campusPinPng() async {
+  const size = 16;
+  final recorder = ui.PictureRecorder();
+  final canvas = Canvas(
+    recorder,
+    Rect.fromLTWH(0, 0, size.toDouble(), size.toDouble()),
+  );
+  canvas.drawCircle(
+    const Offset(size / 2, size / 2),
+    4,
+    Paint()..color = ArucadColors.primary,
+  );
+  final image = await recorder.endRecording().toImage(size, size);
+  final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+  return bytes!.buffer.asUint8List();
+}
+
+Future<Uint8List> _blankSpritePng() async {
+  const size = 1;
+  final recorder = ui.PictureRecorder();
+  final canvas = Canvas(recorder, const Rect.fromLTWH(0, 0, 1, 1));
+  canvas.drawRect(
+    const Rect.fromLTWH(0, 0, 1, 1),
+    Paint()..color = const Color(0x00000000),
+  );
+  final image = await recorder.endRecording().toImage(size, size);
+  final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+  return bytes!.buffer.asUint8List();
 }

@@ -18,7 +18,7 @@ class UpsertRoleAssignmentRequest extends FormRequest
             'email' => ['required'],
             'role' => ['required', Rule::in([
                 'student', 'clubManager', 'contentEditor', 'moderator',
-                'careerStaff', 'studentAffairs', 'superAdmin',
+                'careerStaff', 'studentAffairs', 'superAdmin', 'trainer',
             ])],
         ];
     }

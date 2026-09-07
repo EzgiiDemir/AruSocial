@@ -78,3 +78,11 @@ jobs:
         run: cp .env.example .env
       - run: php artisan key:generate
       - run: php artisan test --configuration=phpunit.pgsql.xml
+
+  compose:
+    name: Deploy compose file validates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: docker compose config
+        run: docker compose -f deploy/docker-compose.yml config

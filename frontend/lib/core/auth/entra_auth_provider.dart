@@ -22,8 +22,12 @@ class EntraAuthProvider implements AuthProvider, AuthTokenAdapter {
   /// The signed-in account's real email, parsed from the Entra ID token —
   /// used to look up a locally-assigned role via `RoleAssignmentStore`
   /// (Entra itself doesn't hand this app a roles claim yet).
+  String? _idToken;
+
   @override
   String? get currentEmail => _email;
+
+  String? get lastIdToken => _idToken;
 
   EntraAuthProvider({
     FlutterAppAuth? appAuth,
@@ -50,12 +54,13 @@ class EntraAuthProvider implements AuthProvider, AuthTokenAdapter {
         ),
       );
 
-      if (result == null) return false;
-
       final idToken = result.idToken;
       final accessToken = result.accessToken;
 
-      if (idToken == null || accessToken == null) {
+      if (idToken == null ||
+          idToken.isEmpty ||
+          accessToken == null ||
+          accessToken.isEmpty) {
         return false;
       }
 
@@ -67,6 +72,7 @@ class EntraAuthProvider implements AuthProvider, AuthTokenAdapter {
       }
 
       _accessToken = accessToken;
+      _idToken = idToken;
       _email = (email as String).trim().toLowerCase();
 
       return true;
@@ -99,6 +105,7 @@ class EntraAuthProvider implements AuthProvider, AuthTokenAdapter {
     // all it can honestly claim to do. A real single-sign-out belongs with
     // the production identity milestone.
     _accessToken = null;
+    _idToken = null;
     _email = null;
   }
 

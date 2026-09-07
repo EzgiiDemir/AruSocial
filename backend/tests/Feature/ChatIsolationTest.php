@@ -34,7 +34,37 @@ class ChatIsolationTest extends TestCase
 
         $aThreads = $this->withToken($tokenA)->getJson('/api/v1/chat/threads')->assertOk()->json('data');
         $bThreads = $this->withToken($tokenB)->getJson('/api/v1/chat/threads')->assertOk()->json('data');
-        $this->assertEquals([$b->name], $aThreads);
-        $this->assertEquals([$a->name], $bThreads);
+        $this->assertEquals([[
+            'name' => $b->name,
+            'avatarUrl' => null,
+            'muted' => false,
+            'archived' => false,
+            'restricted' => false,
+        ]], $aThreads);
+        $this->assertEquals([[
+            'name' => $a->name,
+            'avatarUrl' => null,
+            'muted' => false,
+            'archived' => false,
+            'restricted' => false,
+        ]], $bThreads);
+    }
+
+    public function test_threads_include_the_peers_real_avatar_url(): void
+    {
+        [$a, $tokenA] = $this->signInChatUser('Kullanıcı A', 'a@arucad.edu.tr');
+        [$b, $tokenB] = $this->signInChatUser('Kullanıcı B', 'b@arucad.edu.tr');
+        $b->update(['avatar_url' => 'https://example.com/b.png']);
+
+        $this->withToken($tokenB)->postJson("/api/v1/chat/{$a->name}/messages", ['text' => 'selam'])->assertOk();
+
+        $aThreads = $this->withToken($tokenA)->getJson('/api/v1/chat/threads')->assertOk()->json('data');
+        $this->assertEquals([[
+            'name' => $b->name,
+            'avatarUrl' => 'https://example.com/b.png',
+            'muted' => false,
+            'archived' => false,
+            'restricted' => false,
+        ]], $aThreads);
     }
 }

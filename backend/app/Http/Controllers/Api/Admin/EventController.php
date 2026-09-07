@@ -4,13 +4,20 @@ namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Api\Concerns\ApiResponds;
 use App\Http\Controllers\Controller;
+use App\Events\CampusDataChanged;
 use App\Http\Requests\UpsertAdminEventRequest;
 use App\Http\Requests\UpsertParticipationTypeRequest;
+use App\Mail\ActivityStatusMail;
 use App\Models\Event;
 use App\Models\EventJoin;
 use App\Models\EventParticipationType;
+use App\Models\Notification as InboxNotification;
+use App\Models\User;
 use App\Services\ActivityLogger;
 use App\Services\AuditLogger;
+use App\Services\EmailService;
+use App\Services\EventAttendance;
+use App\Services\PlaceConflictChecker;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -40,24 +47,11 @@ class EventController extends Controller
             'workflowStatus' => $e->workflow_status,
             'reviewNote' => $e->review_note,
             'createdByUserId' => $e->created_by_user_id,
+            'responsibleStaffId' => $e->responsible_staff_id,
+            'responsibleStaffName' => $e->responsibleStaff?->name,
             'academicYearId' => $e->academic_year_id,
             'participationTypes' => $e->participationTypes->map(fn ($t) => ['id' => $t->id, 'label' => $t->label]),
         ];
-    }
-
-    // Real "boş/dolu" mekân müsaitlik kontrolü (docs/EKSIKLER.md §4) —
-    // mirrors EventController::placeConflict(); an active (non-rejected)
-    // event already at this place, same date+time, blocks this save.
-    private function placeConflict(?string $placeId, ?string $eventDate, string $time, ?string $excludeEventId = null): ?Event
-    {
-        if (! $placeId || ! $eventDate || $time === '') return null;
-
-        return Event::where('place_id', $placeId)
-            ->whereDate('event_date', $eventDate)
-            ->where('time', $time)
-            ->whereNotIn('workflow_status', ['rejected'])
-            ->when($excludeEventId, fn ($q) => $q->where('id', '!=', $excludeEventId))
-            ->first();
     }
 
     public function upsert(UpsertAdminEventRequest $request): JsonResponse
@@ -68,7 +62,7 @@ class EventController extends Controller
         $placeId = $request->input('placeId');
         $eventDate = $request->input('eventDate');
         $time = $request->input('time', '');
-        if ($conflict = $this->placeConflict($placeId, $eventDate, $time, $id)) {
+        if ($conflict = PlaceConflictChecker::find($placeId, $eventDate, $time, $id)) {
             return $this->fail(409, 'PLACE_UNAVAILABLE', "Bu mekân o tarihte ve saatte dolu: \"{$conflict->title}\".");
         }
 
@@ -96,6 +90,7 @@ class EventController extends Controller
             ]
         );
         AuditLogger::logAsCurrentUser($isNew ? 'create' : 'update', 'event', $title);
+        $this->announceCampusEvent($isNew ? 'created' : 'updated', $event->id);
 
         return $this->ok($this->eventToJson($event->fresh('participationTypes')));
     }
@@ -106,6 +101,7 @@ class EventController extends Controller
         if ($event) {
             AuditLogger::logAsCurrentUser('delete', 'event', $event->title);
             $event->delete();
+            $this->announceCampusEvent('deleted', $id);
         }
 
         return $this->ok(['deleted' => true]);
@@ -114,7 +110,7 @@ class EventController extends Controller
     // Real "Kendi Aktiviteni Oluştur" review queue (docs/EKSIKLER.md §5).
     public function pendingActivities(): JsonResponse
     {
-        $events = Event::with('participationTypes')
+        $events = Event::with(['participationTypes', 'responsibleStaff'])
             ->where('workflow_status', 'pending_review')
             ->orderByDesc('id')->get();
 
@@ -132,8 +128,10 @@ class EventController extends Controller
         $event->update(['workflow_status' => 'published', 'draft' => false, 'review_note' => null]);
         if ($event->created_by_user_id) {
             ActivityLogger::log($event->created_by_user_id, 'eventJoin', "Aktiviten onaylandı: {$event->title}", 'Yayında');
+            $this->notifyActivityOwner($event, 'activity_approved', 'Aktiviten onaylandı', "\"{$event->title}\" yayında.", 'Onaylandı');
         }
         AuditLogger::logAsCurrentUser('approve', 'event', $event->title);
+        $this->announceCampusEvent('published', $event->id);
 
         return $this->ok($this->eventToJson($event->fresh('participationTypes')));
     }
@@ -143,14 +141,66 @@ class EventController extends Controller
         $event = Event::find($id);
         if (! $event) return $this->fail(404, 'EVENT_NOT_FOUND', 'Event not found.');
 
-        $note = $request->input('reviewNote', '');
+        $note = trim((string) $request->input('reviewNote', ''));
+        if ($note === '') {
+            return $this->fail(422, 'REVIEW_NOTE_REQUIRED', 'Reddetme için öğrenciye iletilecek sebep zorunludur.');
+        }
+
         $event->update(['workflow_status' => 'rejected', 'review_note' => $note]);
         if ($event->created_by_user_id) {
-            ActivityLogger::log($event->created_by_user_id, 'eventJoin', "Aktiviten reddedildi: {$event->title}", $note ?: 'Sebep belirtilmedi');
+            ActivityLogger::log($event->created_by_user_id, 'eventJoin', "Aktiviten reddedildi: {$event->title}", $note);
+            $this->notifyActivityOwner(
+                $event,
+                'activity_rejected',
+                'Aktivite başvurunuz reddedildi',
+                "\"{$event->title}\" reddedildi. Sebep: {$note}",
+                'Reddedildi',
+                $note,
+            );
         }
         AuditLogger::logAsCurrentUser('reject', 'event', $event->title);
 
-        return $this->ok($this->eventToJson($event->fresh('participationTypes')));
+        return $this->ok($this->eventToJson($event->fresh(['participationTypes', 'responsibleStaff'])));
+    }
+
+    private function announceCampusEvent(string $action, string $id): void
+    {
+        try {
+            broadcast(new CampusDataChanged(['events'], $action, $id));
+        } catch (\Throwable) {
+            // The database write is durable; REST remains the fallback.
+        }
+    }
+
+    private function notifyActivityOwner(
+        Event $event,
+        string $kind,
+        string $title,
+        string $body,
+        string $statusLabel,
+        string $note = '',
+    ): void {
+        $owner = User::find($event->created_by_user_id);
+        if (! $owner) {
+            return;
+        }
+        $actor = $this->currentUser();
+        InboxNotification::notify($owner, $actor, $kind, $title, $body);
+        if ($owner->email) {
+            EmailService::send(
+                $owner->email,
+                $title,
+                'activity-status',
+                new ActivityStatusMail(
+                    subjectLine: $title,
+                    studentName: $owner->name,
+                    activityTitle: $event->title,
+                    statusLabel: $statusLabel,
+                    note: $note,
+                    adminUrl: rtrim((string) config('app.url'), '/'),
+                ),
+            );
+        }
     }
 
     // Admin participation-type management (docs/EKSIKLER.md §5) —
@@ -216,19 +266,14 @@ class EventController extends Controller
             return $this->fail(400, 'FORM_NOT_SUBMITTED', 'Öğrenci katılım formunu henüz doldurmadı.');
         }
 
-        $actorName = $request->input('actorName', 'admin');
-        $join->update(['approved_at' => now(), 'approved_by' => $actorName]);
-
         $event = Event::find($eventId);
-        if ($join->user_id) {
-            ActivityLogger::log(
-                $join->user_id,
-                'eventJoin',
-                "Katılımın onaylandı: {$event?->title}",
-                'Yoklama alındı',
-            );
+        if (! $event) {
+            return $this->fail(404, 'EVENT_NOT_FOUND', 'Event not found.');
         }
-        AuditLogger::logAsCurrentUser('approve_attendance', 'event_join', "{$join->user?->name} → {$event?->title}");
+
+        $actorName = $this->currentUser()->name;
+        EventAttendance::approve($join, $event, $actorName);
+        AuditLogger::logAsCurrentUser('approve_attendance', 'event_join', "{$join->user?->name} → {$event->title}");
 
         return $this->ok(['approved' => true]);
     }

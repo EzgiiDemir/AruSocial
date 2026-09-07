@@ -10,9 +10,63 @@ Projenin **gerçek, güncel** durumu — tek doküman, tek yerden.
   olmadan gerçek çalışamaz (bkz. `docs/EXTERNAL_ACCOUNTS.md`)
 
 **Kural aynı: sahte özellik yok.** Bir şey ✅ işaretliyse gerçekten
-çalışıyordur ve test edilmiştir. `dart run tool/verify_rest_backend.dart`
-**47** gerçek kontrolle, `php artisan test` **38** backend testiyle bunu
-doğruluyor.
+çalışıyordur ve test edilmiştir. Bu turun sonunda (7 Eylül 2026)
+`php artisan test` **554** backend testiyle, `flutter test` **226**
+Flutter testiyle ve `flutter analyze` sıfır uyarıyla doğrulandı — bu
+dosyadaki daha eski "47"/"38" gibi sayılar artık geçersiz, aşağıdaki
+sayı güncel referans.
+
+---
+
+## 7 Eylül 2026 turu — dürüstlük düzeltmeleri + 3 yeni gerçek CMS yüzeyi
+
+Bu tur, kullanıcının "her şeyi keşfet, kırık/sahte/eksik ne varsa bul ve
+düzelt, admin panelinden kod yazmadan yönetilebilsin" isteğiyle başladı.
+Önce mevcut kod tabanı taranıp gerçek durum doğrulandı (bu dosyanın altındaki
+maddelerin çoğu hâlâ geçerli — aşağıdakiler o taramada bulunup **bu turda**
+kapatılan somut maddeler):
+
+- ✅ **Harita bina panelindeki sahte "az önce check-in yapanlar" listesi** —
+  önceden yer adının hash'inden üretilen 2 sahte isimdi
+  (`_recentCheckinsFor`); artık backend'in gerçek 2 saatlik check-in
+  penceresinden (`PlacePresence::recentCheckinEntriesFor`) gelen gerçek
+  isim baş harfi + gerçek zaman damgası kullanılıyor, hiç check-in yoksa
+  dürüst "Henüz check-in yok" boş durumu gösteriliyor.
+- ✅ **Hikâye "görüldü" halkası artık gerçekten sunucudan** — önceden her
+  zaman cihaz-lokal `SharedPreferences`'tan okunuyordu (yazma zaten gerçekti
+  ama okuma hiç sunucuya bakmıyordu), bu yüzden başka bir cihaz/temiz kurulum
+  her hikâyeyi yeniden "görülmedi" gösteriyordu. `StoryController::index()`
+  artık her hikâye için batched, gerçek `viewedByMe` alanı döndürüyor.
+- ✅ **Sohbet ayarlarında (sessize al/arşivle/kısıtla/grup kur) sessiz sahte
+  başarı kaldırıldı** — REST çağrısı başarısız olduğunda önceden sessizce
+  cihaza yazıp aynı "başarılı" mesajını gösteriyordu; artık gerçek bir hata
+  gösteriyor, sahte-yerel senkron iddiası yok.
+- ✅ **Atölye Durumu + İş Birliği Panosu artık gerçek özellik** — önceden her
+  atölye kategorisi yerde aynı sabit ekipman/ilan listesi gösteriliyordu;
+  artık `workshop_equipment_items` + `collaboration_posts` gerçek
+  tablolarına bağlı (`GET/POST /places/{id}/workshop*`), admin panelden
+  (Mekânlar → 🛠 ikonu) ekipman durumu yönetilebiliyor, öğrenciler gerçek
+  ilan paylaşabiliyor (aynı metin moderasyonundan geçiyor).
+- ✅ **Servis (shuttle) hatları artık admin panelden yönetiliyor** —
+  önceden `shuttle_config.dart`'a tamamen gömülüydü, hiçbir backend
+  tablosu/admin ekranı yoktu. Artık `shuttle_routes` tablosu +
+  `GET /shuttle-routes` + admin CRUD (yeni "Servis Hatları" sekmesi) var;
+  Mock mod hâlâ eski sabiti çevrimdışı tohum olarak kullanıyor.
+- ✅ **"İlk 30 Gün" adımları artık admin panelden yönetiliyor** — önceden
+  sadece tamamlanma durumu (`onboarding_progress`) sunucudaydı, adımların
+  kendisi (başlık/açıklama/sıralama) `onboarding_config.dart`'a gömülüydü.
+  Artık `onboarding_steps` tablosu (mevcut 13 adımın id'leriyle tohumlanmış,
+  geriye dönük kırılma yok) + `GET /onboarding-steps` + admin CRUD (yeni
+  "İlk 30 Gün" sekmesi) var.
+- ✅ İki küçük tutarlılık düzeltmesi: "Katıldın" chip'i artık doğru
+  `onPressed: null` ile devre dışı görünüyor; Ayarlar sekmesinin Türkçe
+  nav etiketi "Kullanıcı"dan "Ayarlar"a düzeltildi (İngilizce/Rusça ile
+  tutarlı).
+
+Kapsam dışı bırakılanlar (kullanıcı onayıyla): kulüp başkanı için ayrı bir
+rol/panel bu turda yapılmadı, kulüpler admin panelden yönetilmeye devam
+ediyor. Dış hesap gerektiren hiçbir madde bu turda değişmedi (bkz.
+`docs/EXTERNAL_ACCOUNTS.md`).
 
 ---
 

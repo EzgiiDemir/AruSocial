@@ -37,19 +37,36 @@ class GranularPermissions
         'events.manage' => 'manageContent',
         'pendingActivities.manage' => 'manageContent',
         'clubs.manage' => 'manageContent',
+        'places.manage' => 'manageContent',
         'sports.manage' => 'manageContent',
         'services.manage' => 'manageContent',
         'food.manage' => 'manageContent',
         'directory.manage' => 'manageContent',
         'pages.manage' => 'manageContent',
         'media.manage' => 'manageContent',
+        'career.manage' => 'campusOps',
         'surveys.manage' => 'manageContent',
         'academicYears.manage' => 'manageContent',
+        'staff.manage' => 'manageContent',
+        'applications.manage' => 'campusOps',
+        'appointments.manage' => 'campusOps',
+        'achievements.manage' => 'manageContent',
+        'shuttle.manage' => 'manageContent',
+        'onboarding.manage' => 'manageContent',
         'moderation.moderate' => 'moderate',
         'email.send' => 'viewAdmin',
         'stats.view' => 'viewAdmin',
         'activityLog.view' => 'viewAdmin',
         'users.manage' => 'manageSiteSettings',
+        // Trainer Panel: a department head publishing events/activities
+        // scoped to their own department only — deliberately its own key
+        // rather than folded into 'events.manage' (which is
+        // department-unscoped, full-admin content management). Row-level
+        // "which department" scoping is enforced by the 'department-head'
+        // middleware (see EnsureDepartmentHead), not by this permission
+        // check — this key only answers "is this account provisioned as a
+        // trainer at all."
+        'events.manageOwnDepartment' => 'manageOwnDepartment',
     ];
 
     // Mirrors UserRoleLabel's getters in campus_models.dart exactly.
@@ -57,6 +74,9 @@ class GranularPermissions
         // Content CRUD: events, clubs, sports, services, food, directory,
         // pages, surveys, academic years, participation types, attendance.
         'manageContent' => ['contentEditor', 'clubManager', 'studentAffairs', 'careerStaff'],
+        // Career office + appointments + applications: career staff AND
+        // trainers (department heads) in addition to the usual content roles.
+        'campusOps' => ['contentEditor', 'clubManager', 'studentAffairs', 'careerStaff', 'trainer'],
         // Reviewing reported content and the moderation service settings.
         'moderate' => ['moderator'],
         // Roles and secrets — the most sensitive bucket, super admin only.
@@ -64,6 +84,9 @@ class GranularPermissions
         // Read-mostly admin surfaces (stats, audit log, email log), open to
         // anyone who can reach the Admin Panel at all.
         'viewAdmin' => ['contentEditor', 'clubManager', 'studentAffairs', 'careerStaff', 'moderator'],
+        // Trainer Panel — department heads/teachers/staff managing only
+        // their own department's events, not the full admin surface.
+        'manageOwnDepartment' => ['trainer'],
     ];
 
     // The one central super-admin rule. Deliberately a single named

@@ -1,18 +1,22 @@
-import 'dart:convert';
-
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 
 import 'package:arucad_campus_prototype/core/auth/app_settings_store.dart';
+import 'package:arucad_campus_prototype/core/l10n/app_strings.dart';
 import 'package:arucad_campus_prototype/core/models/campus_models.dart';
+import 'package:arucad_campus_prototype/core/services/content_moderation.dart';
 import 'package:arucad_campus_prototype/core/services/contracts.dart';
 import 'package:arucad_campus_prototype/core/services/photo_picker_service.dart';
 import 'package:arucad_campus_prototype/core/services/profile_bio_store.dart';
 import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
 import 'package:arucad_campus_prototype/features/social/chat_screen.dart';
 import 'package:arucad_campus_prototype/features/social/post_detail_screen.dart';
+import 'package:arucad_campus_prototype/features/widgets/campus_avatar.dart';
+import 'package:arucad_campus_prototype/features/widgets/campus_back_button.dart';
+import 'package:arucad_campus_prototype/features/widgets/campus_network_image.dart';
 import 'package:arucad_campus_prototype/features/widgets/campus_widgets.dart';
 
-enum _ProfileSection { posts, locations }
+enum _ProfileSection { posts, saved, archives, locations }
 
 /// One screen, two modes: the signed-in student's own profile (editable,
 /// full bio) when [viewedUserName] is null, or a read-only view of a
@@ -25,7 +29,15 @@ class SocialProfileScreen extends StatefulWidget {
   final CampusRepository repository;
   final String? viewedUserName;
 
-  const SocialProfileScreen({super.key, required this.repository, this.viewedUserName});
+  /// When true (own profile inside SocialShell mobile), title sits next to ☰.
+  final bool titleInShell;
+
+  const SocialProfileScreen({
+    super.key,
+    required this.repository,
+    this.viewedUserName,
+    this.titleInShell = false,
+  });
 
   @override
   State<SocialProfileScreen> createState() => _SocialProfileScreenState();
@@ -39,10 +51,15 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
   LeaderboardEntry? _peer;
   String? _avatarOverride;
   List<FeedPost> _posts = const [];
+  List<ActivityItem> _checkIns = const [];
   Set<String> _following = {};
+  Set<String> _savedIds = {};
+  List<FeedPost> _allFeed = const [];
   int _visibleCount = kPageSize;
   _ProfileSection _section = _ProfileSection.posts;
-  String? _selectedLocation;
+  bool _locked = false;
+  CampusUser? _viewedUser;
+  int _followerCount = 0;
 
   String get _displayName => isOwn ? (_me?.name ?? '') : (widget.viewedUserName ?? '');
 
@@ -53,52 +70,194 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
   }
 
   Future<void> _load() async {
+    try {
     final futures = <Future>[
       widget.repository.getFeed(),
       widget.repository.getLeaderboard(),
       widget.repository.getFollowing(),
+      widget.repository.getSavedPostIds(),
     ];
     if (isOwn) {
       futures.addAll([
         widget.repository.getMe(),
         AppSettingsStore.avatarUrl(),
-        ProfileBioStore.load(),
+        widget.repository.getMyActivity(),
+        widget.repository.getFollowers(),
       ]);
     }
     final results = await Future.wait(futures);
-    if (!mounted) return;
+    if (!mounted || !context.mounted) return;
 
     final feed = results[0] as List<FeedPost>;
     final leaderboard = results[1] as List<LeaderboardEntry>;
     final following = results[2] as Set<String>;
+    final savedIds = results[3] as Set<String>;
 
     CampusUser? me;
+    List<ActivityItem> checkIns = const [];
+    CampusUser? viewed;
+    var locked = false;
+    var followerCount = 0;
     if (isOwn) {
-      final baseUser = results[3] as CampusUser;
-      final avatarUrl = results[4] as String?;
-      final edits = results[5] as ProfileBioEdits?;
-      me = edits == null
-          ? baseUser.copyWith(avatarUrl: avatarUrl)
-          : baseUser.copyWith(
-              avatarUrl: avatarUrl,
-              department: edits.department,
-              year: edits.year,
-              university: edits.university,
-              clubs: edits.clubs,
-              achievements: edits.achievements,
-              projects: edits.projects,
-            );
+      final baseUser = results[4] as CampusUser;
+      final avatarUrl = results[5] as String?;
+      checkIns = (results[6] as List<ActivityItem>)
+          .where((a) => a.kind == ActivityKind.checkIn)
+          .toList()
+        ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      me = baseUser.copyWith(avatarUrl: avatarUrl ?? baseUser.avatarUrl);
+      followerCount = (results[7] as Set<String>).length;
+    } else {
+      viewed = await widget.repository.getSocialUser(widget.viewedUserName!);
+      locked = viewed?.isLocked == true;
+      followerCount = viewed?.followerCount ?? 0;
     }
 
     final name = isOwn ? me!.name : widget.viewedUserName!;
     setState(() {
       _me = me;
-      _avatarOverride = me?.avatarUrl;
+      _viewedUser = viewed;
+      _locked = locked;
+      _followerCount = followerCount;
+      _avatarOverride = me?.avatarUrl ?? viewed?.avatarUrl;
       _peer = leaderboard.where((e) => e.name == name).firstOrNull;
-      _posts = feed.where((p) => !p.official && p.name == name).toList();
+      _allFeed = feed;
+      _savedIds = savedIds;
+      _posts = locked
+          ? const []
+          : feed.where((p) => !p.official && p.name == name).toList();
+      _checkIns = checkIns;
       _following = following;
       _loading = false;
     });
+    } catch (_) {
+      if (!mounted || !context.mounted) return;
+      setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _editOwnPost(FeedPost post) async {
+    final textC = TextEditingController(text: post.text);
+    final newText = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Gönderiyi düzenle'),
+        content: TextField(controller: textC, maxLines: 5, autofocus: true),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('Vazgeç')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, textC.text.trim()),
+              child: const Text('Kaydet')),
+        ],
+      ),
+    );
+    if (newText == null || newText.isEmpty || newText == post.text) return;
+    try {
+      await widget.repository.updatePost(post.id, text: newText);
+      if (!mounted || !context.mounted) return;
+      await _load();
+    } on ContentModerationException catch (e) {
+      if (!mounted || !context.mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(e.reason)));
+    }
+  }
+
+  Future<void> _deleteOwnPost(FeedPost post) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Gönderi silinsin mi?'),
+        content: const Text('Bu işlem geri alınamaz.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Vazgeç')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Sil')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await widget.repository.deletePost(post.id);
+    if (!mounted || !context.mounted) return;
+    await _load();
+  }
+
+  Future<void> _archiveOwnPost(FeedPost post) async {
+    try {
+      await widget.repository
+          .updatePost(post.id, visibility: PostVisibility.onlyMe);
+      if (!mounted || !context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Gönderi arşive alındı.')));
+      await _load();
+    } catch (_) {
+      if (!mounted || !context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Arşivlenemedi.')));
+    }
+  }
+
+  Future<void> _unarchiveOwnPost(FeedPost post) async {
+    try {
+      await widget.repository
+          .updatePost(post.id, visibility: PostVisibility.everyone);
+      if (!mounted || !context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Gönderi arşivden kaldırıldı.')));
+      await _load();
+    } catch (_) {
+      if (!mounted || !context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Arşivden kaldırılamadı.')));
+    }
+  }
+
+  Future<void> _ownPostMenu(FeedPost post, {required bool fromArchive}) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          if (fromArchive)
+            ListTile(
+              leading: const Icon(Icons.unarchive_outlined),
+              title: const Text('Arşivden kaldır'),
+              onTap: () => Navigator.pop(ctx, 'unarchive'),
+            )
+          else
+            ListTile(
+              leading: const Icon(Icons.archive_outlined),
+              title: const Text('Arşive al'),
+              onTap: () => Navigator.pop(ctx, 'archive'),
+            ),
+          ListTile(
+            leading: const Icon(Icons.edit_outlined),
+            title: const Text('Düzenle'),
+            onTap: () => Navigator.pop(ctx, 'edit'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.delete_outline, color: ArucadColors.danger),
+            title: const Text('Sil',
+                style: TextStyle(color: ArucadColors.danger)),
+            onTap: () => Navigator.pop(ctx, 'delete'),
+          ),
+        ]),
+      ),
+    );
+    if (action == null || !mounted) return;
+    switch (action) {
+      case 'edit':
+        await _editOwnPost(post);
+      case 'delete':
+        await _deleteOwnPost(post);
+      case 'archive':
+        await _archiveOwnPost(post);
+      case 'unarchive':
+        await _unarchiveOwnPost(post);
+    }
   }
 
   Future<void> _toggleFollow() async {
@@ -113,7 +272,7 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
     });
     try {
       final nowFollowing = await widget.repository.toggleFollow(name);
-      if (!mounted) return;
+      if (!mounted || !context.mounted) return;
       setState(() {
         if (nowFollowing) {
           _following.add(name);
@@ -121,8 +280,9 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
           _following.remove(name);
         }
       });
+      if (!isOwn) await _load();
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted || !context.mounted) return;
       setState(() {
         if (wasFollowing) {
           _following.add(name);
@@ -158,9 +318,26 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
     if (choice != '__pick__' || !mounted) return;
     final bytes = await PhotoPickerService.pick(context, imageQuality: 70, maxWidth: 480);
     if (bytes == null) return;
-    final dataUri = 'data:image/jpeg;base64,${base64Encode(bytes)}';
-    await AppSettingsStore.setAvatarUrl(dataUri);
-    if (mounted) setState(() => _avatarOverride = dataUri);
+    try {
+      final item =
+          await widget.repository.uploadMyMedia(bytes, fileName: 'avatar.jpg');
+      final remote = item.url;
+      final persisted = (remote != null &&
+              remote.isNotEmpty &&
+              !remote.startsWith('data:'))
+          ? remote
+          : item.displaySrc;
+      if (!persisted.startsWith('data:')) {
+        await widget.repository.updateProfileBio(avatarUrl: persisted);
+      }
+      await AppSettingsStore.setAvatarUrl(persisted);
+      if (mounted) setState(() => _avatarOverride = persisted);
+    } catch (e) {
+      if (!mounted || !context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Profil fotoğrafı kaydedilemedi: $e')),
+      );
+    }
   }
 
   Future<void> _editProfile() async {
@@ -242,17 +419,17 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
       achievements: lines(achievementsC),
       projects: lines(projectsC),
     );
-    await ProfileBioStore.save(edits);
-    if (!mounted) return;
+    final updated = await widget.repository.updateProfileBio(
+      department: edits.department,
+      year: edits.year,
+      university: edits.university,
+      clubs: edits.clubs,
+      achievements: edits.achievements,
+      projects: edits.projects,
+    );
+    if (!mounted || !context.mounted) return;
     setState(() {
-      _me = me.copyWith(
-        department: edits.department,
-        year: edits.year,
-        university: edits.university,
-        clubs: edits.clubs,
-        achievements: edits.achievements,
-        projects: edits.projects,
-      );
+      _me = updated.copyWith(avatarUrl: _avatarOverride ?? updated.avatarUrl);
     });
   }
 
@@ -272,9 +449,7 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
                 children: [
                   for (final name in _following)
                     ListTile(
-                      leading: CircleAvatar(
-                          backgroundColor: ArucadColors.mist,
-                          child: Text(name.isEmpty ? '?' : name.substring(0, 1))),
+                      leading: CampusAvatar(name: name, radius: 18),
                       title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
                       onTap: () {
                         Navigator.of(ctx).pop();
@@ -294,19 +469,71 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
     if (_loading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
-    final locations = <String, int>{};
-    for (final p in _posts) {
-      if (p.locationTag != null) {
-        locations[p.locationTag!] = (locations[p.locationTag!] ?? 0) + 1;
-      }
-    }
-    final visiblePosts = _section == _ProfileSection.locations && _selectedLocation != null
-        ? _posts.where((p) => p.locationTag == _selectedLocation).toList()
-        : _posts;
-    final shown = _visibleCount.clamp(0, visiblePosts.length);
+    final publicPostCount =
+        _posts.where((p) => p.visibility != PostVisibility.onlyMe).length;
 
     return Scaffold(
-      appBar: AppBar(title: Text(_displayName)),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        title: (widget.titleInShell && isOwn)
+            ? null
+            : Text(_displayName),
+        leading: !isOwn ? const CampusBackButton() : null,
+        actions: [
+          if (!isOwn)
+            PopupMenuButton<String>(
+              onSelected: (v) async {
+                if (v == 'block') {
+                  await widget.repository.toggleBlock(_displayName);
+                  if (!mounted || !context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('$_displayName engellendi / engel kaldırıldı')),
+                  );
+                } else if (v == 'report') {
+                  final ok = await showDialog<bool>(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      title: const Text('Şikayet et'),
+                      content: Text(
+                          '$_displayName kullanıcısını şikayet etmek istiyor musun?'),
+                      actions: [
+                        TextButton(
+                            onPressed: () => Navigator.pop(ctx, false),
+                            child: const Text('Vazgeç')),
+                        FilledButton(
+                            onPressed: () => Navigator.pop(ctx, true),
+                            child: const Text('Şikayet et')),
+                      ],
+                    ),
+                  );
+                  if (ok == true && mounted) {
+                    try {
+                      await widget.repository
+                          .reportUser(_displayName, 'Kullanıcı şikayeti');
+                    } catch (_) {
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                          content: Text('Şikayet gönderilemedi. Tekrar deneyin.')));
+                      return;
+                    }
+                    if (!mounted || !context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                        content: Text(
+                            'Şikayet alındı. Moderasyon ekibi inceleyecek.')));
+                  }
+                }
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem(value: 'block', child: Text('Engelle / Engeli kaldır')),
+                PopupMenuItem(value: 'report', child: Text('Şikayet et')),
+              ],
+            ),
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
@@ -333,9 +560,9 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
               const SizedBox(width: 20),
               Expanded(
                 child: Row(children: [
-                  _StatColumn(label: 'Gönderi', value: '${_posts.length}'),
+                  _StatColumn(label: 'Gönderi', value: '$publicPostCount'),
                   const SizedBox(width: 18),
-                  const _StatColumn(label: 'Takipçi', value: '0'),
+                  _StatColumn(label: 'Takipçi', value: '$_followerCount'),
                   if (isOwn) ...[
                     const SizedBox(width: 18),
                     GestureDetector(
@@ -346,11 +573,30 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
                 ]),
               ),
             ]),
+            if (_locked) ...[
+              const SizedBox(height: 14),
+              const Card(
+                color: ArucadColors.navy,
+                child: Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Row(children: [
+                    Icon(Icons.lock_outline, color: Colors.white),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Bu profil gizli. İçeriği yalnızca takipçileri görebilir.',
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ]),
+                ),
+              ),
+            ],
             const SizedBox(height: 14),
-            if (!isOwn && _peer?.department != null)
+            if (!_locked && !isOwn && (_peer?.department != null || _viewedUser?.department != null))
               Padding(
                 padding: const EdgeInsets.only(bottom: 10),
-                child: Text(_peer!.department!,
+                child: Text(_peer?.department ?? _viewedUser!.department!,
                     style: const TextStyle(color: ArucadColors.muted, fontWeight: FontWeight.w600)),
               ),
             Row(children: [
@@ -391,100 +637,287 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
               ],
             ]),
             if (isOwn && _me != null) ...[
+              const SizedBox(height: 8),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(AppLocale.of(context).t('profile_private')),
+                subtitle: Text(AppLocale.of(context).t('profile_private_sub')),
+                value: _me!.isPrivateProfile,
+                onChanged: (v) async {
+                  try {
+                    await widget.repository.updateUserSettings(isPrivateProfile: v);
+                    if (!mounted || !context.mounted) return;
+                    setState(() => _me = _me!.copyWith(isPrivateProfile: v));
+                  } catch (e) {
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Ayar kaydedilemedi: $e')),
+                    );
+                  }
+                },
+              ),
+            ],
+            if (isOwn && _me != null) ...[
               const SizedBox(height: 16),
               _StudentBioCard(user: _me!),
             ],
             const SizedBox(height: 18),
-            Row(children: [
-              Expanded(
-                child: SelectableChip(
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                SelectableChip(
                   label: 'Gönderiler',
                   selected: _section == _ProfileSection.posts,
-                  onSelected: (_) => setState(() => _section = _ProfileSection.posts),
+                  onSelected: (_) => setState(() {
+                    _section = _ProfileSection.posts;
+                    _visibleCount = kPageSize;
+                  }),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: SelectableChip(
+                if (isOwn) ...[
+                  SelectableChip(
+                    label: 'Kaydedilenler',
+                    selected: _section == _ProfileSection.saved,
+                    onSelected: (_) => setState(() {
+                      _section = _ProfileSection.saved;
+                      _visibleCount = kPageSize;
+                    }),
+                  ),
+                  SelectableChip(
+                    label: 'Arşivlerim',
+                    selected: _section == _ProfileSection.archives,
+                    onSelected: (_) => setState(() {
+                      _section = _ProfileSection.archives;
+                      _visibleCount = kPageSize;
+                    }),
+                  ),
+                ],
+                SelectableChip(
                   label: 'Konumlar',
                   selected: _section == _ProfileSection.locations,
-                  onSelected: (_) => setState(() => _section = _ProfileSection.locations),
+                  onSelected: (_) => setState(() {
+                    _section = _ProfileSection.locations;
+                    _visibleCount = kPageSize;
+                  }),
                 ),
-              ),
-            ]),
+              ],
+            ),
             const SizedBox(height: 14),
-            if (_section == _ProfileSection.locations && locations.isNotEmpty) ...[
-              Wrap(spacing: 8, runSpacing: 8, children: [
-                SelectableChip(
-                  label: 'Tümü',
-                  selected: _selectedLocation == null,
-                  onSelected: (_) => setState(() => _selectedLocation = null),
+            if (_locked && !isOwn)
+              const SizedBox.shrink()
+            else if (_section == _ProfileSection.locations) ...[
+              if (!isOwn || _checkIns.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
+                  child: Center(
+                      child: Text('Henüz check-in yapılmadı.',
+                          style: TextStyle(color: ArucadColors.muted))),
+                )
+              else
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final checkIn in _checkIns)
+                      Chip(
+                        avatar: const Icon(Icons.location_on_outlined, size: 16),
+                        label: Text(checkIn.title.replaceFirst('Check-in: ', '')),
+                        labelStyle: const TextStyle(fontSize: 12.5),
+                      ),
+                  ],
                 ),
-                for (final entry in locations.entries)
-                  SelectableChip(
-                    label: '${entry.key} (${entry.value})',
-                    selected: _selectedLocation == entry.key,
-                    onSelected: (_) => setState(() => _selectedLocation = entry.key),
-                  ),
-              ]),
-              const SizedBox(height: 14),
-            ],
-            if (_section == _ProfileSection.locations && locations.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 24),
-                child: Center(
-                    child: Text('Konum etiketli gönderi yok.',
-                        style: TextStyle(color: ArucadColors.muted))),
-              )
-            else if (visiblePosts.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 24),
-                child: Center(
-                    child: Text('Henüz gönderi yok.',
-                        style: TextStyle(color: ArucadColors.muted))),
-              )
-            else ...[
-              GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: shown,
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 3, crossAxisSpacing: 6, mainAxisSpacing: 6),
-                itemBuilder: (context, i) {
-                  final post = visiblePosts[i];
-                  final image = post.imageBytes;
-                  return GestureDetector(
-                    onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) =>
-                            PostDetailScreen(post: post, repository: widget.repository))),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: image != null
-                          ? Image.memory(image, fit: BoxFit.cover)
-                          : Container(
-                              color: ArucadColors.mist,
-                              padding: const EdgeInsets.all(8),
-                              alignment: Alignment.center,
-                              child: Text(post.text,
-                                  maxLines: 4,
-                                  overflow: TextOverflow.ellipsis,
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(fontSize: 10.5)),
-                            ),
-                    ),
+            ] else if (isOwn && _section == _ProfileSection.saved) ...[
+              Builder(builder: (context) {
+                final saved = _allFeed
+                    .where((p) => _savedIds.contains(p.id))
+                    .toList();
+                if (saved.isEmpty) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Center(
+                        child: Text('Henüz kaydedilen gönderi yok.',
+                            style: TextStyle(color: ArucadColors.muted))),
                   );
-                },
-              ),
-              if (shown < visiblePosts.length)
-                Padding(
-                  padding: const EdgeInsets.only(top: 14),
-                  child: LoadMoreButton(
-                    shown: shown,
-                    total: visiblePosts.length,
-                    itemLabel: 'gönderi',
-                    onTap: () => setState(() => _visibleCount += kPageSize),
-                  ),
-                ),
+                }
+                return GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: saved.length,
+                  gridDelegate:
+                      const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 3,
+                          crossAxisSpacing: 6,
+                          mainAxisSpacing: 6),
+                  itemBuilder: (context, i) {
+                    final post = saved[i];
+                    final image = post.imageBytes;
+                    return GestureDetector(
+                      onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                              builder: (_) => PostDetailScreen(
+                                  post: post,
+                                  repository: widget.repository))),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: image != null
+                            ? Image.memory(image, fit: BoxFit.cover)
+                            : post.imageUrl != null
+                                ? CampusNetworkImage(post.imageUrl!,
+                                    fit: BoxFit.cover)
+                                : Container(
+                                    color: ArucadColors.mist,
+                                    padding: const EdgeInsets.all(8),
+                                    alignment: Alignment.center,
+                                    child: Text(post.displayText,
+                                        maxLines: 4,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(fontSize: 11)),
+                                  ),
+                      ),
+                    );
+                  },
+                );
+              }),
+            ] else ...[
+              Builder(builder: (context) {
+                final fromArchive = isOwn && _section == _ProfileSection.archives;
+                final gridPosts = fromArchive
+                    ? _posts
+                        .where((p) => p.visibility == PostVisibility.onlyMe)
+                        .toList()
+                    : _posts
+                        .where((p) => p.visibility != PostVisibility.onlyMe)
+                        .toList();
+                final shown = _visibleCount.clamp(0, gridPosts.length);
+                if (gridPosts.isEmpty) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 24),
+                    child: Center(
+                        child: Text(
+                            fromArchive
+                                ? 'Henüz arşivlenmiş gönderi yok.'
+                                : 'Henüz gönderi yok.',
+                            style: const TextStyle(color: ArucadColors.muted))),
+                  );
+                }
+                return Column(
+                  children: [
+                    GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: shown,
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 3,
+                              crossAxisSpacing: 6,
+                              mainAxisSpacing: 6),
+                      itemBuilder: (context, i) {
+                        final post = gridPosts[i];
+                        final image = post.imageBytes;
+                        final tile = ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: image != null
+                              ? Image.memory(image, fit: BoxFit.cover)
+                              : post.imageUrl != null
+                                  ? CampusNetworkImage(post.imageUrl!,
+                                      fit: BoxFit.cover)
+                                  : Container(
+                                      color: ArucadColors.mist,
+                                      padding: const EdgeInsets.all(8),
+                                      alignment: Alignment.center,
+                                      child: Text(post.displayText,
+                                          maxLines: 4,
+                                          overflow: TextOverflow.ellipsis,
+                                          textAlign: TextAlign.center,
+                                          style: const TextStyle(fontSize: 10.5)),
+                                    ),
+                        );
+                        if (!isOwn) {
+                          return GestureDetector(
+                            onTap: () => Navigator.of(context).push(
+                                MaterialPageRoute(
+                                    builder: (_) => PostDetailScreen(
+                                        post: post,
+                                        repository: widget.repository))),
+                            child: tile,
+                          );
+                        }
+                        return GestureDetector(
+                          onTap: () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                  builder: (_) => PostDetailScreen(
+                                      post: post,
+                                      repository: widget.repository))),
+                          onLongPress: () =>
+                              _ownPostMenu(post, fromArchive: fromArchive),
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              tile,
+                              Positioned(
+                                top: 2,
+                                right: 2,
+                                child: Material(
+                                  color: Colors.black45,
+                                  shape: const CircleBorder(),
+                                  child: PopupMenuButton<String>(
+                                    padding: EdgeInsets.zero,
+                                    iconSize: 18,
+                                    icon: const Icon(Icons.more_vert,
+                                        color: Colors.white, size: 16),
+                                    onSelected: (v) {
+                                      switch (v) {
+                                        case 'edit':
+                                          _editOwnPost(post);
+                                        case 'delete':
+                                          _deleteOwnPost(post);
+                                        case 'archive':
+                                          _archiveOwnPost(post);
+                                        case 'unarchive':
+                                          _unarchiveOwnPost(post);
+                                      }
+                                    },
+                                    itemBuilder: (_) => [
+                                      if (fromArchive)
+                                        const PopupMenuItem(
+                                            value: 'unarchive',
+                                            child: Text('Arşivden kaldır'))
+                                      else
+                                        const PopupMenuItem(
+                                            value: 'archive',
+                                            child: Text('Arşive al')),
+                                      const PopupMenuItem(
+                                          value: 'edit',
+                                          child: Text('Düzenle')),
+                                      const PopupMenuItem(
+                                          value: 'delete',
+                                          child: Text('Sil',
+                                              style: TextStyle(
+                                                  color:
+                                                      ArucadColors.danger))),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                    if (shown < gridPosts.length)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 14),
+                        child: LoadMoreButton(
+                          shown: shown,
+                          total: gridPosts.length,
+                          itemLabel: 'gönderi',
+                          onTap: () =>
+                              setState(() => _visibleCount += kPageSize),
+                        ),
+                      ),
+                  ],
+                );
+              }),
             ],
           ],
         ),
@@ -492,7 +925,6 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
     );
   }
 }
-
 class _StatColumn extends StatelessWidget {
   final String label;
   final String value;
@@ -511,57 +943,14 @@ class _StatColumn extends StatelessWidget {
       ]);
 }
 
-class _Avatar extends StatefulWidget {
+class _Avatar extends StatelessWidget {
   final String name;
   final String? avatarUrl;
   const _Avatar({required this.name, required this.avatarUrl});
 
   @override
-  State<_Avatar> createState() => _AvatarState();
-}
-
-class _AvatarState extends State<_Avatar> {
-  bool _failed = false;
-
-  @override
-  void didUpdateWidget(covariant _Avatar oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.avatarUrl != widget.avatarUrl) _failed = false;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final initials = widget.name.isEmpty ? '?' : widget.name.substring(0, 1);
-    final fallback = CircleAvatar(
-      radius: 36,
-      backgroundColor: ArucadColors.primary,
-      child: Text(initials,
-          style:
-              const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w900)),
-    );
-    final url = widget.avatarUrl;
-    if (url == null || _failed) return fallback;
-    if (url.startsWith('data:')) {
-      try {
-        final bytes = base64Decode(url.split(',').last);
-        return ClipOval(child: Image.memory(bytes, width: 72, height: 72, fit: BoxFit.cover));
-      } catch (_) {
-        return fallback;
-      }
-    }
-    return ClipOval(
-      child: Image.network(
-        url,
-        width: 72,
-        height: 72,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) {
-          WidgetsBinding.instance.addPostFrameCallback((_) => setState(() => _failed = true));
-          return fallback;
-        },
-      ),
-    );
-  }
+  Widget build(BuildContext context) =>
+      CampusAvatar(name: name, avatarUrl: avatarUrl, radius: 36);
 }
 
 /// The "Öğrenci Kimliği" bio block — real CampusUser fields, not decorative.
@@ -570,10 +959,9 @@ class _StudentBioCard extends StatelessWidget {
   const _StudentBioCard({required this.user});
 
   @override
-  Widget build(BuildContext context) => Card(
-        child: Padding(
-          padding: const EdgeInsets.all(18),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.all(4),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             if (user.department != null) _BioLine(emoji: '🎓', text: user.department!),
             if (user.year != null || user.university != null)
               _BioLine(
@@ -585,20 +973,25 @@ class _StudentBioCard extends StatelessWidget {
             if (user.clubs.isNotEmpty) _BioLine(emoji: '🏛️', text: user.clubs.join(' · ')),
             if (user.achievements.isNotEmpty) ...[
               const SizedBox(height: 4),
-              const Text('Başarılar',
-                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5)),
+              Text('Başarılar',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12.5,
+                      color: Theme.of(context).colorScheme.onSurface)),
               const SizedBox(height: 4),
               for (final a in user.achievements) _BioLine(emoji: '🏆', text: a),
             ],
             if (user.projects.isNotEmpty) ...[
               const SizedBox(height: 4),
-              const Text('Projeler',
-                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5)),
+              Text('Projeler',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12.5,
+                      color: Theme.of(context).colorScheme.onSurface)),
               const SizedBox(height: 4),
               for (final p in user.projects) _BioLine(emoji: '💻', text: p),
             ],
           ]),
-        ),
       );
 }
 

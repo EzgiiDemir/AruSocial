@@ -1,0 +1,115 @@
+import 'dart:async';
+
+import 'package:geolocator/geolocator.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+/// Outcome of [LocationService.checkAndRequestPermission] — distinguishes
+/// "location services are off at the OS level" from the two denial states
+/// Geolocator's own [LocationPermission] enum already has, since callers
+/// (notably the app-wide startup prompt) want to tell the student which of
+/// those actually happened.
+enum LocationAccessStatus { granted, serviceDisabled, denied, deniedForever }
+
+extension LocationAccessStatusX on LocationAccessStatus {
+  bool get isGranted => this == LocationAccessStatus.granted;
+}
+
+/// Single home for the "is location on, do we have permission, get a fix"
+/// sequence that used to be copy-pasted verbatim across five different
+/// screens (app startup, Home, Explore, in-app navigation, Place check-in)
+/// — each one trusted to silently treat every denial the same way. Centralizing
+/// it means that guarantee only has to be correct once.
+class LocationService {
+  const LocationService();
+
+  static const handledPrefsKey = 'location_permission_handled';
+  static const softBannerPrefsKey = 'location_denied_soft_banner_shown';
+
+  /// Fires when OS permission becomes granted so Home/Explore can attach a
+  /// position without waiting for pull-to-refresh or a full rebuild.
+  static final StreamController<void> _grantedController =
+      StreamController<void>.broadcast();
+
+  static Stream<void> get onGranted => _grantedController.stream;
+
+  static void notifyGranted() {
+    if (!_grantedController.isClosed) _grantedController.add(null);
+  }
+
+  Future<bool> hasGranted() async {
+    final permission = await Geolocator.checkPermission();
+    return permission == LocationPermission.whileInUse ||
+        permission == LocationPermission.always;
+  }
+
+  Future<bool> isPermissionHandled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(handledPrefsKey) ?? false;
+  }
+
+  Future<void> markPermissionHandled() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(handledPrefsKey, true);
+  }
+
+  Future<bool> wasSoftBannerShown() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(softBannerPrefsKey) ?? false;
+  }
+
+  Future<void> markSoftBannerShown() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(softBannerPrefsKey, true);
+  }
+
+  Future<LocationAccessStatus> checkAndRequestPermission({
+    bool requestAgain = false,
+  }) async {
+    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) return LocationAccessStatus.serviceDisabled;
+
+    var permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      if (!requestAgain && await isPermissionHandled()) {
+        return LocationAccessStatus.denied;
+      }
+      await markPermissionHandled();
+      permission = await Geolocator.requestPermission();
+    }
+    if (permission == LocationPermission.denied) {
+      return LocationAccessStatus.denied;
+    }
+    if (permission == LocationPermission.deniedForever) {
+      return LocationAccessStatus.deniedForever;
+    }
+    notifyGranted();
+    return LocationAccessStatus.granted;
+  }
+
+  /// Null when permission isn't granted — callers already all treated a
+  /// denial as "this one feature just doesn't show," never as an error.
+  Future<Position?> getCurrentPosition({LocationSettings? settings}) async {
+    final status = await checkAndRequestPermission();
+    if (!status.isGranted) return null;
+    return Geolocator.getCurrentPosition(
+      locationSettings:
+          settings ?? const LocationSettings(accuracy: LocationAccuracy.medium),
+    );
+  }
+
+  /// One-shot fix without prompting — for Home/Explore after app-level grant.
+  Future<Position?> getCurrentPositionIfGranted(
+      {LocationSettings? settings}) async {
+    if (!await hasGranted()) return null;
+    return Geolocator.getCurrentPosition(
+      locationSettings:
+          settings ?? const LocationSettings(accuracy: LocationAccuracy.medium),
+    );
+  }
+
+  Stream<Position> positionStream({LocationSettings? settings}) =>
+      Geolocator.getPositionStream(
+        locationSettings:
+            settings ?? const LocationSettings(accuracy: LocationAccuracy.high),
+      );
+}

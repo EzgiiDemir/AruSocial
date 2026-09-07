@@ -74,6 +74,17 @@ class ChatChannelAuthorizationTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_ops_appointments_channel_requires_manage_permission(): void
+    {
+        $this->actingAsUser();
+        $this->postJson('/broadcasting/auth', $this->authBody('private-ops.appointments'))
+            ->assertForbidden();
+
+        $this->actingAsRole();
+        $this->postJson('/broadcasting/auth', $this->authBody('private-ops.appointments'))
+            ->assertOk();
+    }
+
     /** @return array{socket_id: string, channel_name: string} */
     private function authBody(string $channel): array
     {

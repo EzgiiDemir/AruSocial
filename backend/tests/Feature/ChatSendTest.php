@@ -46,4 +46,18 @@ class ChatSendTest extends TestCase
 
         $this->assertEquals(0, ChatMessage::count());
     }
+
+    public function test_abusive_chat_message_is_blocked_before_it_is_stored(): void
+    {
+        [$a, $tokenA] = $this->signInChatUser('Kullanıcı A', 'a@arucad.edu.tr');
+        [$b] = $this->signInChatUser('Kullanıcı B', 'b@arucad.edu.tr');
+
+        $this->withToken($tokenA)
+            ->postJson("/api/v1/chat/{$b->name}/messages", ['text' => 'Я тебя убью'])
+            ->assertStatus(400)
+            ->assertJsonPath('error.code', 'CONTENT_BLOCKED');
+
+        $this->assertSame(0, ChatMessage::count());
+        $this->assertSame(1, $a->fresh()->strikes);
+    }
 }

@@ -75,6 +75,11 @@ MAIL_FROM_NAME=
 
 SENTRY_DSN=                               # real backend DSN (P3-11)
 
+# Optional Mega-2 providers (empty = honest 501, never fake)
+# ROUTING_BASE_URL=https://routing.example.com   # OSRM-compatible base; Flutter never holds this
+# GROQ_API_KEY=                                  # vision poster → draft; also Ask ARUCAD text
+# GROQ_VISION_MODEL=meta-llama/llama-4-scout-17b-16e-instruct
+
 FIREBASE_PROJECT_ID=
 FIREBASE_CLIENT_EMAIL=
 FIREBASE_PRIVATE_KEY=
@@ -92,10 +97,11 @@ otherwise — unrelated to this milestone.
 ## 3. Build / cache procedure
 
 Verified locally against this exact codebase (Laravel 13.17, PHP 8.3,
-108 `/api/v1/*` routes — all controller-based, **no route closures**, so
+214 `/api/v1/*` routes — all controller-based, **no route closures**, so
 `route:cache` is safe here and was confirmed working: `php artisan
 route:cache` → `route:list` still resolves all routes → `php artisan test`
-still green → `route:clear`):
+still green → `route:clear`). Current API route count is **215**
+(see `docs/API_CONTRACT.md`):
 
 ```bash
 composer install --no-dev --optimize-autoloader
@@ -115,6 +121,55 @@ existing `database/migrations/*` set unchanged by this milestone.
 After deploying new code, `config:cache`/`route:cache`/`view:cache` must be
 re-run (they cache the *old* code's config/routes otherwise) — this is a
 build-time step, not one-time setup.
+
+### Android release build
+
+The APK never displays an IP/port prompt to a student. Its public HTTPS API
+address is compiled in once by `deploy/scripts/build-android.ps1`; the script
+refuses a LAN or loopback URL, so an APK cannot accidentally ship pointing at
+one developer machine. Release builds also disable Android cleartext HTTP;
+only a debug build permits a local `php artisan serve` address.
+The script discovers Flutter from `PATH`, `FLUTTER_ROOT`, or common local SDK
+locations and uses Android Studio's bundled JDK when `JAVA_HOME` is unset; the
+only build-time inputs that cannot be guessed are ARUCAD's real public service
+addresses and signing credentials.
+
+```powershell
+$env:API_BASE_URL = 'https://api.example.edu/api/v1'
+$env:REVERB_HOST = 'ws.example.edu'
+$env:REVERB_APP_KEY = 'public-reverb-key'
+.\deploy\scripts\build-android.ps1 -Environment production -Format appbundle
+```
+
+This needs a deployed API with a stable HTTPS DNS name. A physical phone cannot
+reliably discover a laptop's changing Wi-Fi IP after installation; embedding a
+LAN address or prompting each student for one is not a production solution.
+
+### Public release acceptance check
+
+After DNS, TLS and the services are deployed, run the verifier from the
+repository root. It checks the public API TLS socket plus JSON responses for
+the student event/place collections; optional arguments also check the Reverb
+port and a real OSRM-compatible route. It exits non-zero on the first failed
+check, making it suitable for CI or a release checklist.
+
+```powershell
+.\deploy\scripts\verify-public-release.ps1 `
+  -ApiBaseUrl 'https://api.example.edu/api/v1' `
+  -ReverbHost 'ws.example.edu' `
+  -OsrmBaseUrl 'https://routing.example.edu'
+```
+
+### Local test accounts
+
+`php artisan migrate:fresh --seed` creates these accounts in `local` and
+`testing` only (never staging/production):
+
+| Portal | E-mail | Password |
+|---|---|---|
+| Student | `student@arucad.edu.tr` | `password` |
+| Trainer | `trainer@arucad.edu.tr` | `password` |
+| Admin | `admin@arucad.edu.tr` | `password` |
 
 ---
 

@@ -7,11 +7,25 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class SocialFollow extends Model
 {
-    protected $fillable = ['follower_user_id', 'followed_user_id', 'created_at'];
+    protected $fillable = ['follower_user_id', 'followed_user_id', 'status', 'created_at'];
+
+    protected $attributes = [
+        'status' => 'accepted',
+    ];
 
     protected function casts(): array
     {
         return ['created_at' => 'datetime'];
+    }
+
+    public function scopeAccepted($query)
+    {
+        return $query->where('status', 'accepted');
+    }
+
+    public function scopePending($query)
+    {
+        return $query->where('status', 'pending');
     }
 
     public function follower(): BelongsTo

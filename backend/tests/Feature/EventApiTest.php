@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Event;
 use App\Models\EventParticipationType;
 use App\Models\Place;
+use App\Models\StaffProfile;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -28,6 +29,19 @@ class EventApiTest extends TestCase
         return $this->actingAsRole();
     }
 
+    private function seedDepartmentHead(string $id = 'staff-arch-head'): StaffProfile
+    {
+        return StaffProfile::create([
+            'id' => $id,
+            'name' => 'Architecture Head',
+            'faculty' => 'Fine Arts',
+            'department' => 'Architecture',
+            'title' => 'Department Head',
+            'is_department_head' => true,
+            'active' => true,
+        ]);
+    }
+
     public function test_events_index_only_returns_published_by_default(): void
     {
         Event::create(['id' => 'e1', 'title' => 'Published', 'time' => '10:00', 'place_name' => 'X', 'category' => 'C']);
@@ -47,11 +61,12 @@ class EventApiTest extends TestCase
         $event = Event::create(['id' => 'e1', 'title' => 'Test', 'time' => '10:00', 'place_name' => 'X', 'category' => 'C', 'xp' => 20]);
 
         $this->postJson("/api/v1/events/{$event->id}/join")->assertOk();
-        $this->assertEquals(1, $event->fresh()->attendees);
+        $this->assertEquals(0, $event->fresh()->attendees);
 
-        // Joining again must not double-count.
+        // Joining again must not double-count, and attendees stay 0 until
+        // attendance is actually approved.
         $this->postJson("/api/v1/events/{$event->id}/join")->assertOk();
-        $this->assertEquals(1, $event->fresh()->attendees);
+        $this->assertEquals(0, $event->fresh()->attendees);
     }
 
     public function test_join_rejects_a_participation_type_from_a_different_event(): void
@@ -70,14 +85,22 @@ class EventApiTest extends TestCase
     public function test_student_created_activity_starts_pending_and_is_not_publicly_listed(): void
     {
         $this->seedUser();
+        $this->seedDepartmentHead();
         Place::create(['id' => 'p1', 'name' => 'Garden', 'category' => 'Outdoor', 'lat' => 1, 'lng' => 1]);
 
-        $response = $this->postJson('/api/v1/events/mine', ['title' => 'Kendi Aktivitem', 'placeId' => 'p1']);
+        $response = $this->postJson('/api/v1/events/mine', [
+            'title' => 'Kendi Aktivitem',
+            'placeId' => 'p1',
+            'responsibleStaffId' => 'staff-arch-head',
+        ]);
 
         $response->assertStatus(201);
         $this->assertEquals('pending_review', $response->json('data.workflowStatus'));
+        $this->assertEquals('staff-arch-head', $response->json('data.responsibleStaffId'));
         $publicIds = collect($this->getJson('/api/v1/events')->json('data'))->pluck('id');
         $this->assertFalse($publicIds->contains($response->json('data.id')));
+        $pending = collect($this->getJson('/api/v1/admin/events/pending')->json('data'))->pluck('id');
+        $this->assertTrue($pending->contains($response->json('data.id')));
     }
 
     public function test_get_events_mine_is_not_swallowed_by_the_events_id_wildcard(): void
@@ -97,11 +120,37 @@ class EventApiTest extends TestCase
     public function test_own_activity_requires_a_real_place(): void
     {
         $this->seedUser();
+        $this->seedDepartmentHead();
 
-        $response = $this->postJson('/api/v1/events/mine', ['title' => 'X', 'placeId' => 'does-not-exist']);
+        $response = $this->postJson('/api/v1/events/mine', [
+            'title' => 'X',
+            'placeId' => 'does-not-exist',
+            'responsibleStaffId' => 'staff-arch-head',
+        ]);
 
         $response->assertStatus(400);
         $this->assertEquals('INVALID_PLACE', $response->json('error.code'));
+    }
+
+    public function test_own_activity_requires_a_department_head(): void
+    {
+        $this->seedUser();
+        Place::create(['id' => 'p1', 'name' => 'Garden', 'category' => 'Outdoor', 'lat' => 1, 'lng' => 1]);
+        StaffProfile::create([
+            'id' => 'staff-advisor',
+            'name' => 'Advisor',
+            'is_department_head' => false,
+            'active' => true,
+        ]);
+
+        $response = $this->postJson('/api/v1/events/mine', [
+            'title' => 'X',
+            'placeId' => 'p1',
+            'responsibleStaffId' => 'staff-advisor',
+        ]);
+
+        $response->assertStatus(400);
+        $this->assertEquals('INVALID_STAFF', $response->json('error.code'));
     }
 
     public function test_own_activity_accepts_an_explicitly_empty_time_field(): void
@@ -112,10 +161,16 @@ class EventApiTest extends TestCase
         // fallback and violated events.time's NOT NULL constraint with a
         // real 500 — see bootstrap/app.php's removal of that middleware.
         $this->seedUser();
+        $this->seedDepartmentHead();
         Place::create(['id' => 'p1', 'name' => 'Garden', 'category' => 'Outdoor', 'lat' => 1, 'lng' => 1]);
 
-        $response = $this->postJson('/api/v1/events/mine',
-            ['title' => 'No Time', 'placeId' => 'p1', 'time' => '', 'description' => '']);
+        $response = $this->postJson('/api/v1/events/mine', [
+            'title' => 'No Time',
+            'placeId' => 'p1',
+            'responsibleStaffId' => 'staff-arch-head',
+            'time' => '',
+            'description' => '',
+        ]);
 
         $response->assertStatus(201);
         $this->assertSame('', $response->json('data.time'));
@@ -126,6 +181,7 @@ class EventApiTest extends TestCase
     public function test_own_activity_is_rejected_when_the_place_is_already_booked_that_slot(): void
     {
         $this->seedUser();
+        $this->seedDepartmentHead();
         Place::create(['id' => 'p1', 'name' => 'Garden', 'category' => 'Outdoor', 'lat' => 1, 'lng' => 1]);
         Event::create([
             'id' => 'taken', 'title' => 'Zaten Var', 'time' => '14:00', 'event_date' => '2026-09-01',
@@ -133,7 +189,11 @@ class EventApiTest extends TestCase
         ]);
 
         $response = $this->postJson('/api/v1/events/mine', [
-            'title' => 'Çakışan', 'placeId' => 'p1', 'time' => '14:00', 'eventDate' => '2026-09-01',
+            'title' => 'Çakışan',
+            'placeId' => 'p1',
+            'responsibleStaffId' => 'staff-arch-head',
+            'time' => '14:00',
+            'eventDate' => '2026-09-01',
         ]);
 
         $response->assertStatus(409);
@@ -143,6 +203,7 @@ class EventApiTest extends TestCase
     public function test_own_activity_at_a_different_time_the_same_day_is_allowed(): void
     {
         $this->seedUser();
+        $this->seedDepartmentHead();
         Place::create(['id' => 'p1', 'name' => 'Garden', 'category' => 'Outdoor', 'lat' => 1, 'lng' => 1]);
         Event::create([
             'id' => 'taken', 'title' => 'Zaten Var', 'time' => '14:00', 'event_date' => '2026-09-01',
@@ -150,13 +211,18 @@ class EventApiTest extends TestCase
         ]);
 
         $this->postJson('/api/v1/events/mine', [
-            'title' => 'Farklı Saat', 'placeId' => 'p1', 'time' => '18:00', 'eventDate' => '2026-09-01',
+            'title' => 'Farklı Saat',
+            'placeId' => 'p1',
+            'responsibleStaffId' => 'staff-arch-head',
+            'time' => '18:00',
+            'eventDate' => '2026-09-01',
         ])->assertStatus(201);
     }
 
     public function test_a_rejected_event_does_not_block_the_slot_it_held(): void
     {
         $this->seedUser();
+        $this->seedDepartmentHead();
         Place::create(['id' => 'p1', 'name' => 'Garden', 'category' => 'Outdoor', 'lat' => 1, 'lng' => 1]);
         Event::create([
             'id' => 'rejected-one', 'title' => 'Reddedildi', 'time' => '14:00', 'event_date' => '2026-09-01',
@@ -164,7 +230,11 @@ class EventApiTest extends TestCase
         ]);
 
         $this->postJson('/api/v1/events/mine', [
-            'title' => 'Yeniden Dene', 'placeId' => 'p1', 'time' => '14:00', 'eventDate' => '2026-09-01',
+            'title' => 'Yeniden Dene',
+            'placeId' => 'p1',
+            'responsibleStaffId' => 'staff-arch-head',
+            'time' => '14:00',
+            'eventDate' => '2026-09-01',
         ])->assertStatus(201);
     }
 
@@ -226,8 +296,8 @@ class EventApiTest extends TestCase
 
     public function test_admin_can_list_and_approve_event_participants(): void
     {
-        $this->seedUser();
-        $event = Event::create(['id' => 'e1', 'title' => 'Test', 'time' => '10:00', 'place_name' => 'X', 'category' => 'C']);
+        $user = $this->seedUser();
+        $event = Event::create(['id' => 'e1', 'title' => 'Test', 'time' => '10:00', 'place_name' => 'X', 'category' => 'C', 'xp' => 20]);
         $this->postJson("/api/v1/events/{$event->id}/join")->assertOk();
 
         $list = $this->getJson("/api/v1/admin/events/{$event->id}/participants");
@@ -252,7 +322,9 @@ class EventApiTest extends TestCase
         $after = $this->getJson("/api/v1/admin/events/{$event->id}/participants");
         $this->assertNotNull($after->json('data.0.formSubmittedAt'));
         $this->assertNotNull($after->json('data.0.approvedAt'));
-        $this->assertEquals('Hoca', $after->json('data.0.approvedBy'));
+        $this->assertEquals('Test superAdmin', $after->json('data.0.approvedBy'));
+        $this->assertEquals(1, $event->fresh()->attendees);
+        $this->assertEquals(20, $user->fresh()->xp);
     }
 
     public function test_submitting_the_form_before_joining_is_rejected(): void
@@ -267,8 +339,13 @@ class EventApiTest extends TestCase
     public function test_approving_a_pending_activity_actually_makes_it_publicly_visible(): void
     {
         $this->seedUser();
+        $this->seedDepartmentHead();
         Place::create(['id' => 'p1', 'name' => 'Garden', 'category' => 'Outdoor', 'lat' => 1, 'lng' => 1]);
-        $created = $this->postJson('/api/v1/events/mine', ['title' => 'Kendi Aktivitem', 'placeId' => 'p1']);
+        $created = $this->postJson('/api/v1/events/mine', [
+            'title' => 'Kendi Aktivitem',
+            'placeId' => 'p1',
+            'responsibleStaffId' => 'staff-arch-head',
+        ]);
         $id = $created->json('data.id');
 
         $this->postJson("/api/v1/admin/events/{$id}/approve")->assertOk();

@@ -12,6 +12,6 @@ class DirectoryEntry extends Model
 
     protected $fillable = [
         'id', 'building', 'floor', 'room', 'occupant_name', 'occupant_role',
-        'related_service_id',
+        'related_service_id', 'tour_url', 'tour_target',
     ];
 }

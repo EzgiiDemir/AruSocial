@@ -6,6 +6,10 @@ This is the durable design contract for the app, written down so it doesn't need
 
 **Implementation status**: the sections below are marked ✅ **Built** where the app now does this for real, and 🔲 **Gap** where it's still the target, not yet the state. Built-but-real doesn't mean built-with-real-backend-data everywhere — e.g. the Social Now block reads real feed data, but a member count is a disclosed deterministic estimate, same pattern as `campusOnlineCount`. Check the code comment at each feature before assuming more than what's marked.
 
+## Design audit (2026-09-01)
+
+Sosyal, Kariyer, Ayarlar and Keşfet now share `ArucadColors` / `ArucadTextStyles` / `ArucadSpacing` (Montserrat via the ambient theme, brand red only as accent, title roles from `ThemeData.textTheme`). A pixel-perfect Figma pass was **not** possible: there is no Figma file in this repo and no live Figma link in the brief. Remaining visual QA is a designer review against the official file, screen-by-screen, on a real device.
+
 ## 1. The shell (never changes)
 
 ```

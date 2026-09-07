@@ -7,6 +7,7 @@ import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
 import 'package:arucad_campus_prototype/features/social/chat_screen.dart';
 import 'package:arucad_campus_prototype/features/social/post_detail_screen.dart';
 import 'package:arucad_campus_prototype/features/social/social_profile_screen.dart';
+import 'package:arucad_campus_prototype/features/widgets/campus_avatar.dart';
 import 'package:arucad_campus_prototype/features/widgets/campus_widgets.dart';
 
 /// Keşfet — real ARUCAD classmates (the same roster the leaderboard uses)
@@ -37,20 +38,25 @@ class _PeopleScreenState extends State<PeopleScreen> {
   }
 
   Future<void> _load() async {
-    final results = await Future.wait([
-      widget.repository.getLeaderboard(),
-      widget.repository.getFollowing(),
-      widget.repository.getBlocked(),
-      widget.repository.getFeed(),
-    ]);
-    if (!mounted) return;
-    setState(() {
-      _people = (results[0] as List<LeaderboardEntry>).where((p) => !p.isMe).toList();
-      _following = results[1] as Set<String>;
-      _blocked = results[2] as Set<String>;
-      _posts = results[3] as List<FeedPost>;
-      _loading = false;
-    });
+    try {
+      final results = await Future.wait([
+        widget.repository.getLeaderboard(),
+        widget.repository.getFollowing(),
+        widget.repository.getBlocked(),
+        widget.repository.getFeed(),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        _people = (results[0] as List<LeaderboardEntry>).where((p) => !p.isMe).toList();
+        _following = results[1] as Set<String>;
+        _blocked = results[2] as Set<String>;
+        _posts = results[3] as List<FeedPost>;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+    }
   }
 
   List<FeedPost> get _matchingPosts {
@@ -158,6 +164,16 @@ class _PeopleScreenState extends State<PeopleScreen> {
             hintText: strings.t('people_search_hint'),
             prefixIcon: const Icon(Icons.search),
             isDense: true,
+            filled: true,
+            fillColor: ArucadColors.paper,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide.none,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide.none,
+            ),
           ),
           onChanged: (v) => setState(() {
             _query = v;
@@ -184,7 +200,12 @@ class _PeopleScreenState extends State<PeopleScreen> {
                         for (final post in matchingPosts.take(10))
                           Card(
                             margin: const EdgeInsets.only(bottom: 8),
+                            surfaceTintColor: Colors.transparent,
+                            shadowColor: Colors.transparent,
+                            elevation: 0,
                             child: ListTile(
+                              hoverColor: Colors.transparent,
+                              mouseCursor: SystemMouseCursors.click,
                               leading: CircleAvatar(
                                   backgroundColor: ArucadColors.mist,
                                   child: Text(post.postType.emoji,
@@ -194,7 +215,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
-                              subtitle: Text(post.text.isEmpty ? (post.courseTag ?? post.locationTag ?? '') : post.text,
+                              subtitle: Text(post.displayText.isEmpty ? (post.courseTag ?? post.locationTag ?? '') : post.displayText,
                                   maxLines: 2, overflow: TextOverflow.ellipsis),
                               onTap: () => Navigator.of(context).push(MaterialPageRoute(
                                   builder: (_) => PostDetailScreen(
@@ -279,10 +300,14 @@ class _PersonTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Card(
         margin: const EdgeInsets.only(bottom: 8),
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.transparent,
+        elevation: 0,
         child: ListTile(
-          leading: CircleAvatar(
-              backgroundColor: ArucadColors.mist,
-              child: Text(person.name.substring(0, 1))),
+          hoverColor: Colors.transparent,
+          mouseCursor: SystemMouseCursors.click,
+          leading: CampusAvatar(
+              name: person.name, avatarUrl: person.avatarUrl),
           title: Text(person.name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,

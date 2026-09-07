@@ -5,23 +5,30 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="AruSocial — ARUCAD Social Life">
+  <meta name="description" content="ARUVERSE — ARUCAD Social Life">
 
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="AruSocial">
+  <meta name="apple-mobile-web-app-title" content="ARUVERSE">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>AruSocial</title>
+  <title>ARUVERSE</title>
   <link rel="manifest" href="manifest.json">
 
   <!-- MapLibre GL JS — renders real OpenStreetMap vector tiles (via
        OpenFreeMap, no API key) instead of Google Maps. -->
   <script src='https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js'></script>
   <link href='https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css' rel='stylesheet'/>
+
+  <!-- Warms the DNS/TLS connection to the 360° tour host in the
+       background as soon as the app loads, so tapping "360° Kampüs Turu"
+       doesn't pay that handshake cost on click — the tab opens against an
+       already-open connection instead of starting cold. -->
+  <link rel="preconnect" href="https://360.arucad.edu.tr" crossorigin>
+  <link rel="dns-prefetch" href="https://360.arucad.edu.tr">
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>

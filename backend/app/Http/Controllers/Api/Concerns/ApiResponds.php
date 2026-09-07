@@ -51,12 +51,20 @@ trait ApiResponds
         );
     }
 
-    protected function fail(int $status, string $code, string $message): JsonResponse
+    /**
+     * @param  array<string, mixed>  $details  Optional business fields (e.g. distanceMeters)
+     */
+    protected function fail(int $status, string $code, string $message, array $details = []): JsonResponse
     {
+        $error = ['code' => $code, 'message' => $message];
+        if ($details !== []) {
+            $error['details'] = $details;
+        }
+
         return response()->json([
             'data' => null,
             'meta' => ['request_id' => $this->requestId()],
-            'error' => ['code' => $code, 'message' => $message],
+            'error' => $error,
         ], $status);
     }
 

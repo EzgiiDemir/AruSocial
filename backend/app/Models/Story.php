@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Story extends Model
 {
@@ -12,8 +13,8 @@ class Story extends Model
     public $timestamps = false;
 
     protected $fillable = [
-        'id', 'author_id', 'author_name', 'text', 'background_color_value',
-        'visibility', 'created_at',
+        'id', 'author_id', 'author_name', 'text', 'image_url', 'media_mime_type', 'background_color_value',
+        'style_json', 'visibility', 'created_at',
     ];
 
     protected function casts(): array
@@ -21,11 +22,17 @@ class Story extends Model
         return [
             'author_id' => 'integer',
             'created_at' => 'datetime',
+            'style_json' => 'array',
         ];
     }
 
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class, 'author_id');
+    }
+
+    public function views(): HasMany
+    {
+        return $this->hasMany(StoryView::class, 'story_id');
     }
 }

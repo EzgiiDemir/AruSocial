@@ -27,6 +27,18 @@ class SchemaInventoryTest extends TestCase
             'app_settings',
             'admin_audit_log',
             'clubs',
+            'club_members',
+            'ask_conversations',
+            'ask_messages',
+            'wordpress_form_versions',
+            'onboarding_progress',
+            'achievement_definitions',
+            'user_achievements',
+            'career_opportunities',
+            'career_profiles',
+            'career_applications',
+            'consultations',
+            'consultation_applications',
             'conversations',
             'messages',
             'chat_messages',
@@ -34,9 +46,25 @@ class SchemaInventoryTest extends TestCase
             $this->assertTrue(Schema::hasTable($table), "missing table $table");
         }
 
-        $this->assertFalse(Schema::hasTable('club_members'));
+        $this->assertForeignKey('club_members', 'user_id', 'users', 'id', 'CASCADE');
+        $this->assertForeignKey('club_members', 'club_id', 'clubs', 'id', 'CASCADE');
+        $this->assertForeignKey('onboarding_progress', 'user_id', 'users', 'id', 'CASCADE');
+        $this->assertForeignKey('user_achievements', 'user_id', 'users', 'id', 'CASCADE');
+        $this->assertForeignKey('career_profiles', 'user_id', 'users', 'id', 'CASCADE');
+        $this->assertTrue(Schema::hasColumn('media_items', 'user_id'));
+        $this->assertTrue(Schema::hasColumn('media_items', 'moderation_status'));
+        $this->assertTrue(Schema::hasColumn('events', 'ai_draft'));
+        $this->assertForeignKey('media_items', 'user_id', 'users', 'id', 'SET NULL');
 
-        $this->assertTrue(Schema::hasColumn('feed_posts', 'author_id'));
+        $this->assertTrue(Schema::hasColumn('feed_posts', 'is_pinned'));
+        $this->assertTrue(Schema::hasColumn('feed_posts', 'workflow_status'));
+        $this->assertForeignKey('ask_messages', 'conversation_id', 'ask_conversations', 'id', 'CASCADE');
+        $this->assertForeignKey('ask_conversations', 'user_id', 'users', 'id', 'CASCADE');
+        $this->assertTrue(Schema::hasColumn('users', 'is_private_profile'));
+        $this->assertTrue(Schema::hasColumn('appointments', 'subject'));
+        $this->assertTrue(Schema::hasColumn('career_profiles', 'cv_path'));
+        $this->assertForeignKey('career_applications', 'user_id', 'users', 'id', 'CASCADE');
+        $this->assertForeignKey('consultation_applications', 'user_id', 'users', 'id', 'CASCADE');
         $this->assertTrue(Schema::hasColumn('stories', 'author_id'));
         $this->assertTrue(Schema::hasColumn('stories', 'author_name'));
         $this->assertTrue(Schema::hasColumn('reviews', 'user_id'));
@@ -94,7 +122,12 @@ class SchemaInventoryTest extends TestCase
         $this->assertStringNotContainsString('"author"', $comments);
 
         $this->assertNotFalse(strpos($dump, 'CREATE TABLE "chat_messages"'));
-        $this->assertFalse(str_contains($dump, 'CREATE TABLE "club_members"'));
+        $this->assertNotFalse(strpos($dump, 'CREATE TABLE "club_members"'));
+        $this->assertNotFalse(strpos($dump, 'CREATE TABLE "onboarding_progress"'));
+        $this->assertNotFalse(strpos($dump, 'CREATE TABLE "achievement_definitions"'));
+        $this->assertNotFalse(strpos($dump, 'CREATE TABLE "user_achievements"'));
+        $this->assertNotFalse(strpos($dump, 'CREATE TABLE "career_opportunities"'));
+        $this->assertNotFalse(strpos($dump, 'CREATE TABLE "career_profiles"'));
         $this->assertStringNotContainsString('liked_by_me', $dump);
     }
 
@@ -128,7 +161,19 @@ class SchemaInventoryTest extends TestCase
         $this->assertContains('app_settings', $tables);
         $this->assertContains('admin_audit_log', $tables);
         $this->assertContains('chat_messages', $tables);
-        $this->assertNotContains('club_members', $tables);
+        $this->assertContains('club_members', $tables);
+        $this->assertContains('onboarding_progress', $tables);
+        $this->assertContains('achievement_definitions', $tables);
+        $this->assertContains('user_achievements', $tables);
+        $this->assertContains('career_opportunities', $tables);
+        $this->assertContains('career_profiles', $tables);
+        $this->assertContains('staff_profiles', $tables);
+        $this->assertContains('participation_applications', $tables);
+        $this->assertContains('staff_availability_slots', $tables);
+        $this->assertContains('appointments', $tables);
+        $this->assertContains('career_applications', $tables);
+        $this->assertContains('consultations', $tables);
+        $this->assertContains('consultation_applications', $tables);
 
         $pdo = null;
         @unlink($path);

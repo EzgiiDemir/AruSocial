@@ -12,7 +12,8 @@ class Place extends Model
 
     protected $fillable = [
         'id', 'name', 'category', 'lat', 'lng', 'description', 'distance',
-        'density', 'street', 'tour_url', 'accessible', 'photos', 'rating',
+        'density', 'street', 'tour_url', 'tour_target', 'accessible', 'photos', 'rating',
+        'cover_url',
     ];
 
     protected function casts(): array

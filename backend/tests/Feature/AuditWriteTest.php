@@ -38,7 +38,7 @@ class AuditWriteTest extends TestCase
         $this->actingAsRole();
 
         $created = $this->post('/api/v1/media', [
-            'file' => UploadedFile::fake()->create('garden.jpg', 20, 'image/jpeg'),
+            'file' => $this->fakeJpeg('garden.jpg'),
         ], ['Accept' => 'application/json'])->assertCreated()->json('data');
 
         AdminAuditLog::query()->delete();

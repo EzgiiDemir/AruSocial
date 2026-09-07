@@ -17,7 +17,7 @@ class MediaApiTest extends TestCase
         Storage::fake('public');
         $this->actingAsRole('contentEditor');
 
-        $file = UploadedFile::fake()->create('garden.jpg', 20, 'image/jpeg');
+        $file = $this->fakeJpeg('garden.jpg');
         $created = $this->post('/api/v1/media', ['file' => $file], ['Accept' => 'application/json'])
             ->assertCreated()
             ->json('data');
@@ -48,7 +48,7 @@ class MediaApiTest extends TestCase
         Storage::fake('public');
         $this->actingAsRole('contentEditor');
         $created = $this->post('/api/v1/media', [
-            'file' => UploadedFile::fake()->create('keep.jpg', 20, 'image/jpeg'),
+            'file' => $this->fakeJpeg('keep.jpg'),
         ], ['Accept' => 'application/json'])->assertCreated()->json('data');
 
         $this->actingAsUser();
@@ -95,5 +95,32 @@ class MediaApiTest extends TestCase
         ], ['Accept' => 'application/json'])
             ->assertStatus(400)
             ->assertJsonPath('error.code', 'FILE_TOO_LARGE');
+
+        $this->post('/api/v1/media', [
+            'file' => UploadedFile::fake()->create('spoof.jpg', 20, 'image/jpeg'),
+        ], ['Accept' => 'application/json'])
+            ->assertStatus(400)
+            ->assertJsonPath('error.code', 'INVALID_FILE_CONTENTS');
+    }
+
+    public function test_public_file_by_name_serves_storage_basename(): void
+    {
+        Storage::fake('public');
+        $this->actingAsRole('contentEditor');
+        $created = $this->post('/api/v1/media', [
+            'file' => $this->fakeJpeg('garden.jpg'),
+        ], ['Accept' => 'application/json'])->assertCreated()->json('data');
+
+        $path = MediaItem::find($created['id'])->file_path;
+        $basename = basename($path);
+
+        // With no local semantic classifier configured, magic-byte-clean
+        // uploads are approved immediately and publicly readable.
+        $this->assertSame('approved', $created['moderationStatus']);
+
+        $this->app['auth']->forgetGuards();
+        $this->get('/api/v1/media/file/'.$basename)
+            ->assertOk()
+            ->assertHeader('access-control-allow-origin');
     }
 }

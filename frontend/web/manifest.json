@@ -1,11 +1,11 @@
 {
-    "name": "AruSocial",
-    "short_name": "AruSocial",
+    "name": "ARUVERSE",
+    "short_name": "ARUVERSE",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#F6F7F9",
-    "theme_color": "#2B4C7E",
-    "description": "AruSocial — ARUCAD Social Life",
+    "background_color": "#FFFFFF",
+    "theme_color": "#E20613",
+    "description": "ARUVERSE — ARUCAD Social Life",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

@@ -22,7 +22,7 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Sign-in Email Domain
+    | Sign-in Email Domain(s)
     |--------------------------------------------------------------------------
     |
     | Which accounts may open a session at all (POST /api/v1/auth/session).
@@ -30,9 +30,23 @@ return [
     | enforced here where a modified client can't skip it. Configurable so a
     | staging or partner domain doesn't need a code change.
     |
+    | Prefer AUTH_ALLOWED_EMAIL_DOMAINS (comma-separated). The singular
+    | AUTH_ALLOWED_EMAIL_DOMAIN key remains for backward compatibility and
+    | is the fallback when the plural list is unset/empty. Seeders that
+    | build student@/admin@/trainer@ still read the singular key.
+    |
     */
 
     'allowed_email_domain' => env('AUTH_ALLOWED_EMAIL_DOMAIN', '@arucad.edu.tr'),
+
+    'allowed_email_domains' => array_values(array_filter(array_map(
+        'trim',
+        explode(',', (string) (
+            filled(env('AUTH_ALLOWED_EMAIL_DOMAINS'))
+                ? env('AUTH_ALLOWED_EMAIL_DOMAINS')
+                : env('AUTH_ALLOWED_EMAIL_DOMAIN', '@arucad.edu.tr')
+        )),
+    ))),
 
     /*
     |--------------------------------------------------------------------------

@@ -10,5 +10,5 @@ class Sport extends Model
     protected $keyType = 'string';
     public $timestamps = false;
 
-    protected $fillable = ['id', 'name', 'facility', 'contact'];
+    protected $fillable = ['id', 'name', 'facility', 'contact', 'responsible_staff_id'];
 }

@@ -39,9 +39,20 @@ class PushNotificationService {
         messaging: messaging ?? NoopPushMessaging(),
       );
     }
+    // REST still boots if Firebase isn't configured — accessing
+    // FirebaseMessaging.instance before a successful initializeApp()
+    // throws and left the phone on a white first frame.
+    var resolved = messaging;
+    if (resolved == null) {
+      try {
+        resolved = defaultPushMessaging();
+      } catch (_) {
+        resolved = NoopPushMessaging();
+      }
+    }
     return PushNotificationService(
       repository: repository,
-      messaging: messaging ?? defaultPushMessaging(),
+      messaging: resolved,
     );
   }
 

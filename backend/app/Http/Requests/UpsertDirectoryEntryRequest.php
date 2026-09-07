@@ -13,19 +13,16 @@ class UpsertDirectoryEntryRequest extends FormRequest
 
     public function rules(): array
     {
-        return array (
-  'id' => 
-  array (
-    0 => 'required',
-  ),
-  'building' => 
-  array (
-    0 => 'required',
-  ),
-  'occupantName' => 
-  array (
-    0 => 'required',
-  ),
-);
+        return [
+            'id' => ['required', 'string'],
+            'building' => ['required', 'string'],
+            'occupantName' => ['required', 'string'],
+            'tourUrl' => ['nullable', 'url:http,https', 'max:1000'],
+            'floor' => ['nullable', 'string', 'max:200'],
+            'room' => ['nullable', 'string', 'max:200'],
+            'occupantRole' => ['nullable', 'string', 'max:200'],
+            'relatedServiceId' => ['nullable', 'string', 'exists:services,id'],
+            'tourTarget' => ['nullable', 'string', 'max:500'],
+        ];
     }
 }

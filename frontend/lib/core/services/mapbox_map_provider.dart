@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'contracts.dart';
@@ -11,7 +12,12 @@ class MapboxMapProvider implements MapProvider {
   @override
   Future<void> openTour(String tourUrl) async {
     final uri = Uri.parse(tourUrl);
-    if (!await launchUrl(uri)) {
+    final ok = await launchUrl(
+      uri,
+      mode: kIsWeb ? LaunchMode.platformDefault : LaunchMode.externalApplication,
+      webOnlyWindowName: '_blank',
+    );
+    if (!ok) {
       throw Exception('Unable to open tour URL');
     }
   }

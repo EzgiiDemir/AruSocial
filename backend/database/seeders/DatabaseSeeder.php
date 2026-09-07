@@ -28,6 +28,9 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
+        if (! app()->environment(['local', 'testing'])) {
+            throw new \RuntimeException('Demo accounts must never be seeded on staging or production. Provision real accounts through verified SSO.');
+        }
         $me = User::create([
             'name' => 'Ege Aydın',
             'email' => 'ege.aydin@arucad.edu.tr',
@@ -93,6 +96,25 @@ class DatabaseSeeder extends Seeder
             ]);
         }
 
+        // Real campus POI set + real academic staff/department-head roster
+        // (StaffProfile) — was never wired into the default `--seed` chain
+        // before, so a fresh `migrate:fresh --seed` produced an app with no
+        // staff records at all (Trainer Panel unusable, every application's
+        // responsibleStaffId resolving to null). Uses `updateOrCreate`, so
+        // it safely upgrades the 4 demo `place-*` rows above with real
+        // coordinates rather than conflicting with them.
+        $this->call(CampusCatalogSeeder::class);
+
+        // Local/demo portal accounts are seeded after staff records exist,
+        // so the trainer account can be attached to its real department.
+        $this->call(TestAccountsSeeder::class);
+
+        // Two-stage apply flow's default question set (Preview + Detail,
+        // per target type) — real defaults, still fully admin-editable
+        // afterward via /admin/application-questions.
+        $this->call(ApplicationQuestionSeeder::class);
+        $this->call(CrowdCampusSeeder::class);
+
         AcademicYear::create([
             'id' => '2025-2026', 'label' => '2025-2026', 'starts_on' => '2025-09-01',
             'ends_on' => '2026-08-31', 'is_active' => true,
@@ -104,6 +126,7 @@ class DatabaseSeeder extends Seeder
             'attendees' => 128, 'xp' => 50, 'audience' => 'Tümü', 'organizer' => 'Öğrenci Konseyi',
             'organizer_email' => 'ogrenci.konseyi@arucad.edu.tr', 'academic_year_id' => '2025-2026',
             'description' => 'Yıllık bahar şenliği — canlı müzik, stantlar ve yarışmalar.',
+            'responsible_staff_id' => 'staff-clubs',
         ]);
         Event::create([
             'id' => 'event-atelier-acik-kapi', 'title' => 'Atelier Açık Kapı Günü', 'time' => '11:00',
@@ -111,6 +134,7 @@ class DatabaseSeeder extends Seeder
             'attendees' => 41, 'xp' => 30, 'audience' => 'Tümü', 'organizer' => 'Tasarım Fakültesi',
             'organizer_email' => 'tasarim.fakultesi@arucad.edu.tr', 'academic_year_id' => '2025-2026',
             'description' => 'Atölyeler ziyarete açık, öğrenci projeleri sergileniyor.',
+            'responsible_staff_id' => 'staff-clubs',
         ]);
         foreach (['Katılımcı', 'Gönüllü', 'Organizasyon'] as $i => $label) {
             EventParticipationType::create([
@@ -149,28 +173,40 @@ class DatabaseSeeder extends Seeder
 
         Story::create([
             'id' => 'story-'.Str::uuid(), 'author_id' => $me->id, 'author_name' => 'Ege Aydın',
-            'text' => 'Bugün stüdyoda!', 'background_color_value' => 0xFF5B4DFF, 'created_at' => now(),
+            'text' => 'Bugün stüdyoda!', 'background_color_value' => 0xFF000F9F, 'created_at' => now(),
         ]);
 
-        Club::create([
-            'id' => 'club-photography', 'name' => 'Fotoğrafçılık Kulübü', 'category' => 'Sanat',
-            'description' => 'Kampüste ve şehirde birlikte fotoğraf çekimleri düzenleyen öğrenci kulübü.',
-        ]);
-        Sport::create([
-            'id' => 'sport-basketball', 'name' => 'Basketbol', 'facility' => 'Kapalı Spor Salonu',
-            'contact' => 'spor@arucad.edu.tr',
-        ]);
-        ServiceItem::create([
-            'id' => 'service-student-affairs', 'title' => 'Öğrenci İşleri', 'category' => 'İdari',
-            'description' => 'Kayıt, transkript ve genel öğrenci işlemleri.',
-            'contact' => 'ogrenciisleri@arucad.edu.tr', 'building' => 'A Blok', 'floor' => '1',
-            'topics' => ['Ders Kaydı', 'Transkript', 'Öğrenci Belgesi'],
-            'hours' => 'Hafta içi 09:00–17:00',
-        ]);
-        DirectoryEntry::create([
-            'id' => 'dir-1', 'building' => 'A Blok', 'floor' => '1', 'room' => '104',
+        Club::updateOrCreate(
+            ['id' => 'club-photography'],
+            [
+                'name' => 'Fotoğrafçılık Kulübü', 'category' => 'Sanat',
+                'description' => 'Kampüste ve şehirde birlikte fotoğraf çekimleri düzenleyen öğrenci kulübü.',
+                'responsible_staff_id' => 'staff-clubs',
+            ],
+        );
+        Sport::updateOrCreate(
+            ['id' => 'sport-basketball'],
+            [
+                'name' => 'Basketbol', 'facility' => 'Kapalı Spor Salonu',
+                'contact' => 'spor@arucad.edu.tr',
+                'responsible_staff_id' => 'staff-sports',
+            ],
+        );
+        ServiceItem::updateOrCreate(
+            ['id' => 'student-affairs'],
+            [
+                'title' => 'Öğrenci İşleri (Student Affairs)', 'category' => 'İdari',
+                'description' => 'Kayıt, transkript ve genel öğrenci işlemleri.',
+                'contact' => 'ogrenciisleri@arucad.edu.tr', 'building' => 'Titan', 'floor' => '1',
+                'topics' => ['Ders Kaydı', 'Transkript', 'Öğrenci Belgesi'],
+                'hours' => 'Hafta içi 09:00–17:00',
+                'responsible_staff_id' => 'staff-registrar',
+            ],
+        );
+        DirectoryEntry::updateOrCreate(['id' => 'dir-student-affairs'], [
+            'building' => 'Titan', 'floor' => '1',
             'occupant_name' => 'Öğrenci İşleri Ofisi', 'occupant_role' => 'İdari Birim',
-            'related_service_id' => 'service-student-affairs',
+            'related_service_id' => 'student-affairs',
         ]);
         $venue = FoodVenue::create([
             'id' => 'food-the-garden', 'name' => 'The Garden', 'hours' => '08:00–20:00',

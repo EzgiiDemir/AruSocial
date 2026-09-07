@@ -24,23 +24,25 @@ Each top-level folder has its own README with exact commands:
 ## Quick start
 
 ```bash
-# Frontend — web, using bundled Mock data (no backend needed)
-cd frontend
-flutter pub get
-flutter run -d web-server --web-port=8090 --web-hostname=0.0.0.0 --release
-
-# Backend — real Laravel API + SQLite (optional, opt-in from the app)
+# Backend first (required for persistence — admin sees student writes)
 cd backend
 composer install
 php artisan migrate:fresh --seed
 php artisan serve --port=4000
+
+# Frontend — local debug defaults to REST → http://localhost:4000/api/v1
+cd frontend
+flutter pub get
+flutter run -d chrome
+# Offline mock only if you explicitly want it:
+# flutter run -d chrome --dart-define=USE_REST_API=false
 ```
 
 Full test/run instructions (Android, connecting the frontend to the real
 backend, resetting data, etc.): **[`docs/TESTING.md`](docs/TESTING.md)**.
 
 **Test accounts:**
-- Student: any `@arucad.edu.tr` email + any non-empty password (e.g.
+- Student: any `@arucad.edu.tr` email + a password of at least 8 characters (e.g.
   `ogrenci@arucad.edu.tr` / `test1234`)
 - Admin (superAdmin): `ezgi.demir@arucad.edu.tr` / `Ez26m!r`
 
@@ -63,14 +65,13 @@ backend, resetting data, etc.): **[`docs/TESTING.md`](docs/TESTING.md)**.
 
 This app runs in two modes:
 
-- **Mock mode (default)** — `MockCampusRepository`, everything lives in
-  memory or on-device `SharedPreferences`. Zero setup, works offline,
-  nothing needs a server. This is what `flutter run` gives you with no
-  extra flags.
-- **Real backend mode** (`--dart-define=USE_REST_API=true`) — the exact
-  same UI, but talking to the real Laravel API in `backend/` over HTTP.
-  An admin action taken here is genuinely visible from a second device
-  hitting the same backend.
+- **Real backend mode (local debug default)** — same UI talking to Laravel
+  in `backend/` over HTTP. Student writes land in the shared SQLite DB, so
+  admin `/admin` and refresh see them. Keep `php artisan serve --port=4000`
+  running.
+- **Mock mode** (`--dart-define=USE_REST_API=false`) — in-memory /
+  on-device only. Offline demo; **another tab or refresh will not see
+  writes** (orange banner warns when this mode is on).
 
 Neither mode fakes success: where a real system doesn't exist yet (SMTP,
 push, a second real user), the app either shows real data clearly, uses

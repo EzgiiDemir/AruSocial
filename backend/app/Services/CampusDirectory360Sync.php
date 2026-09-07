@@ -1,0 +1,421 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\DirectoryEntry;
+use App\Models\Place;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use RuntimeException;
+
+/**
+ * Imports ARUCAD-operated 360 directory data into the local product API.
+ *
+ * The remote source is authoritative for room hierarchy and 360 navigation
+ * (tourUrl / tourTarget). Upstream coordinates, location, and marker fields
+ * are still null for campuses/buildings/rooms — we deliberately never invent
+ * map pins from that. Instead we bind real 360 tours onto existing verified
+ * Place pins (CampusCatalogSeeder) via building-name aliases and, when a
+ * building has no tourUrl of its own, the first room tour under that building.
+ */
+class CampusDirectory360Sync
+{
+    public function sync(): array
+    {
+        $apiKey = trim((string) config('services.campus_directory.api_key'));
+        if ($apiKey === '') {
+            throw new RuntimeException('CAMPUS_DIRECTORY_API_KEY is not configured.');
+        }
+
+        $baseUrl = rtrim((string) config('services.campus_directory.base_url'), '/');
+        if (! filter_var($baseUrl, FILTER_VALIDATE_URL)) {
+            throw new RuntimeException('CAMPUS_DIRECTORY_BASE_URL must be an absolute URL.');
+        }
+
+        try {
+            $response = Http::acceptJson()
+                ->withToken($apiKey)
+                ->timeout(20)
+                ->retry(2, 250, throw: false)
+                ->withOptions(['verify' => (bool) config('services.campus_directory.verify_ssl', true)])
+                ->get($baseUrl.'/api/integration/locations');
+        } catch (ConnectionException $e) {
+            throw new RuntimeException('Could not reach the ARUCAD 360 directory.', previous: $e);
+        }
+
+        if (! $response->successful()) {
+            throw new RuntimeException('ARUCAD 360 directory returned HTTP '.$response->status().'.');
+        }
+
+        $payload = $response->json();
+        if (! is_array($payload) || ! is_array($payload['rooms'] ?? null)) {
+            throw new RuntimeException('ARUCAD 360 directory response has no rooms array.');
+        }
+
+        return DB::transaction(function () use ($payload, $baseUrl): array {
+            $peopleByRoom = [];
+            foreach ($payload['people'] ?? [] as $person) {
+                if (! is_array($person) || ! is_string($person['roomId'] ?? null)) {
+                    continue;
+                }
+                $peopleByRoom[$person['roomId']][] = $this->localized($person['name'] ?? null);
+            }
+
+            $roomsSynced = 0;
+            $roomsWithTours = 0;
+            $tourByBuilding = [];
+            foreach ($payload['rooms'] as $room) {
+                if (! is_array($room) || ! is_string($room['id'] ?? null)) {
+                    continue;
+                }
+
+                $roomId = $room['id'];
+                $building = $this->localized(data_get($room, 'building.name'));
+                if ($building === '') {
+                    // A room without a building cannot participate in the
+                    // directory hierarchy, so leave it out rather than put it
+                    // under an invented campus label.
+                    continue;
+                }
+
+                $roomName = $this->localized($room['name'] ?? null);
+                $navigation = is_array($room['navigation'] ?? null) ? $room['navigation'] : [];
+                $tourUrl = $this->absoluteTourUrl($navigation['tourUrl'] ?? null, $baseUrl);
+                $tourTarget = is_string($navigation['tourTarget'] ?? null) ? $navigation['tourTarget'] : null;
+                $occupants = array_values(array_filter($peopleByRoom[$roomId] ?? []));
+                $entryId = '360-'.$roomId;
+                $existing = DirectoryEntry::find($entryId);
+
+                DirectoryEntry::updateOrCreate(['id' => $entryId], [
+                    'building' => $building,
+                    // The upstream contract currently has no floor field.
+                    // Grouping such rooms under one honest, explicit level
+                    // keeps all 131 rooms reachable in the existing UI.
+                    'floor' => is_string($room['number'] ?? null) && $room['number'] !== ''
+                        ? $room['number'] : 'Tümü',
+                    'room' => $roomName !== '' ? $roomName : $roomId,
+                    'occupant_name' => implode(', ', $occupants),
+                    'occupant_role' => $this->localized(data_get($room, 'category.name')) ?: null,
+                    // Never wipe a curated service link seeded by CampusCatalogSeeder.
+                    'related_service_id' => $existing?->related_service_id,
+                    'tour_url' => $tourUrl,
+                    'tour_target' => $tourTarget,
+                ]);
+
+                $roomsSynced++;
+                if ($tourUrl !== null) {
+                    $roomsWithTours++;
+                    // First room tour wins as the building fallback when the
+                    // building row itself has a null navigation.tourUrl.
+                    $tourByBuilding[$this->key($building)] ??= $tourUrl;
+                }
+            }
+
+            $placesUpdated = 0;
+            foreach ($payload['buildings'] ?? [] as $building) {
+                if (! is_array($building)) {
+                    continue;
+                }
+                $name = $this->localized($building['name'] ?? null);
+                if ($name === '') {
+                    continue;
+                }
+                $navigation = is_array($building['navigation'] ?? null) ? $building['navigation'] : [];
+                // Prefer the building's own tour; many buildings only expose
+                // tours on rooms (e.g. Iris) — fall back to first room tour.
+                $tourUrl = $this->absoluteTourUrl($navigation['tourUrl'] ?? null, $baseUrl)
+                    ?? ($tourByBuilding[$this->key($name)] ?? null);
+                $tourTarget = is_string($navigation['tourTarget'] ?? null) ? $navigation['tourTarget'] : null;
+                $coordinates = $this->coordinates($building['coordinates'] ?? $building['location'] ?? null);
+                $place = $this->placeForDirectoryBuilding($name);
+                if ($place === null && $coordinates !== null) {
+                    $place = Place::create([
+                        'id' => '360-building-'.strtolower((string) ($building['id'] ?? md5($name))),
+                        'name' => $name,
+                        'category' => 'Campus building',
+                        'lat' => $coordinates['lat'],
+                        'lng' => $coordinates['lng'],
+                        'description' => '',
+                        'distance' => '',
+                        'density' => 'quiet',
+                        'street' => $this->localized(data_get($building, 'campus.name')),
+                        'tour_url' => $tourUrl,
+                        'tour_target' => $tourTarget,
+                        'accessible' => true,
+                        'photos' => 0,
+                        'rating' => 0,
+                    ]);
+                    $placesUpdated++;
+
+                    continue;
+                }
+                if ($place === null) {
+                    continue;
+                }
+                $changes = [];
+                if ($tourUrl !== null) {
+                    $changes['tour_url'] = $tourUrl;
+                }
+                // Only persist tour_target when the API sends one. If the
+                // tour URL already carries a #fragment and tourTarget is
+                // null, leave the column as-is — the URL is the target.
+                if ($tourTarget !== null) {
+                    $changes['tour_target'] = $tourTarget;
+                }
+                if ($coordinates !== null) {
+                    $changes['lat'] = $coordinates['lat'];
+                    $changes['lng'] = $coordinates['lng'];
+                }
+                if ($changes === []) {
+                    continue;
+                }
+                $place->update($changes);
+                $placesUpdated++;
+            }
+
+            // Second pass: any curated Place whose name matches a directory
+            // building key still missing a real tour (empty or legacy
+            // /tour?campusId= stubs) gets the building's first room tour.
+            foreach (Place::query()->get() as $place) {
+                $tour = $this->tourForPlaceName($place->name, $tourByBuilding);
+                if ($tour === null || ! $this->tourUrlNeedsUpdate($place->tour_url)) {
+                    continue;
+                }
+                $place->update(['tour_url' => $tour]);
+                $placesUpdated++;
+            }
+
+            // Backfill tour URLs onto curated service-linked directory rows
+            // (seeded with related_service_id) from the building's 360 link.
+            $serviceLinksUpdated = 0;
+            foreach (DirectoryEntry::query()
+                ->whereNotNull('related_service_id')
+                ->where('related_service_id', '!=', '')
+                ->get() as $entry) {
+                $tour = $tourByBuilding[$this->key($entry->building)] ?? null;
+                if ($tour === null) {
+                    continue;
+                }
+                if ($entry->tour_url === $tour) {
+                    continue;
+                }
+                $entry->update(['tour_url' => $tour]);
+                $serviceLinksUpdated++;
+            }
+
+            return [
+                'generatedAt' => $payload['generatedAt'] ?? null,
+                'campuses' => count($payload['campuses'] ?? []),
+                'buildings' => count($payload['buildings'] ?? []),
+                'roomsSynced' => $roomsSynced,
+                'roomsWithTours' => $roomsWithTours,
+                'placesUpdated' => $placesUpdated,
+                'serviceLinksUpdated' => $serviceLinksUpdated,
+                // Source audit: coords remain null upstream; this count
+                // makes that limitation observable, not hidden.
+                'coordinatesReceived' => $this->coordinatesReceived($payload),
+            ];
+        });
+    }
+
+    private function localized(mixed $value): string
+    {
+        if (is_string($value)) {
+            return trim($value);
+        }
+        if (! is_array($value)) {
+            return '';
+        }
+
+        foreach (['tr', 'en', 'ru'] as $locale) {
+            if (is_string($value[$locale] ?? null) && trim($value[$locale]) !== '') {
+                return trim($value[$locale]);
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * Resolve a relative or absolute tour URL while preserving both the
+     * query string (?media-name=…) and the fragment (#media-name=…).
+     * 3DVista deep-links need the fragment; FILTER_VALIDATE_URL alone is
+     * unreliable across PHP builds for fragment-bearing URLs.
+     */
+    public function absoluteTourUrl(mixed $url, string $baseUrl): ?string
+    {
+        if (! is_string($url) || trim($url) === '') {
+            return null;
+        }
+        $url = trim($url);
+        if (str_starts_with($url, '/')) {
+            return $baseUrl.$url;
+        }
+        if (preg_match('#^https?://#i', $url) === 1) {
+            return $url;
+        }
+
+        return null;
+    }
+
+    /** Case-fold + fold Turkish letters so BANDABULİYA / Bandabuliya match. */
+    private function key(string $value): string
+    {
+        $lower = mb_strtolower(trim($value));
+
+        return strtr($lower, [
+            'ı' => 'i',
+            'İ' => 'i',
+            'i̇' => 'i',
+            'ü' => 'u',
+            'ö' => 'o',
+            'ş' => 's',
+            'ğ' => 'g',
+            'ç' => 'c',
+            'â' => 'a',
+            'î' => 'i',
+            'û' => 'u',
+        ]);
+    }
+
+    /**
+     * Directory building label → curated Place.name (lowercased).
+     * Explicit aliases first; then fuzzy contains either way.
+     *
+     * @return array<string, string>
+     */
+    private function buildingAliases(): array
+    {
+        return [
+            'iris' => 'iris (atelier building)',
+            'age of bronze' => 'age of bronze',
+            'bandabuliya kampus' => 'nicosia bandabuliya campus',
+            'bandabuliya' => 'nicosia bandabuliya campus',
+            'rodin' => 'rodin',
+            'falling man' => 'falling man',
+            'titan' => 'titan',
+            'eve' => 'eve',
+            'daniede' => 'daniele',
+            'daniele' => 'daniele',
+            'eternal spring' => 'eternal spring',
+            'meditation' => 'meditation',
+            'minotaur' => 'minotaur',
+            'eternal idol' => 'eternal idol',
+            'the kiss' => 'the kiss',
+            'the garden' => 'the garden',
+            'carpentry studio' => 'carpentry studio',
+        ];
+    }
+
+    private function placeForDirectoryBuilding(string $name): ?Place
+    {
+        // The 360 source uses official building labels; curated Places keep
+        // a few longer/public-facing names. Explicit aliases are preferred
+        // over fuzzy matching so artwork-named buildings land on the right pin.
+        $aliases = $this->buildingAliases();
+        $key = $this->key($name);
+        $target = $aliases[$key] ?? $key;
+
+        $exact = Place::query()->whereRaw('lower(name) = ?', [$target])->first();
+        if ($exact !== null) {
+            return $exact;
+        }
+        if ($target !== $key) {
+            $exact = Place::query()->whereRaw('lower(name) = ?', [$key])->first();
+            if ($exact !== null) {
+                return $exact;
+            }
+        }
+
+        // Fuzzy: place name contains the building key (or vice versa).
+        foreach (Place::query()->get() as $place) {
+            $placeKey = $this->key($place->name);
+            if ($placeKey === '' || $key === '') {
+                continue;
+            }
+            if (str_contains($placeKey, $key) || str_contains($key, $placeKey)) {
+                return $place;
+            }
+            if ($target !== $key && (str_contains($placeKey, $target) || str_contains($target, $placeKey))) {
+                return $place;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array<string, string>  $tourByBuilding
+     */
+    private function tourForPlaceName(string $placeName, array $tourByBuilding): ?string
+    {
+        if ($tourByBuilding === []) {
+            return null;
+        }
+        $placeKey = $this->key($placeName);
+        $aliases = $this->buildingAliases();
+
+        // Prefer exact alias / key hits before fuzzy contains.
+        foreach ($tourByBuilding as $buildingKey => $tourUrl) {
+            $aliasTarget = $aliases[$buildingKey] ?? $buildingKey;
+            if ($placeKey === $buildingKey || $placeKey === $aliasTarget) {
+                return $tourUrl;
+            }
+        }
+
+        foreach ($tourByBuilding as $buildingKey => $tourUrl) {
+            $aliasTarget = $aliases[$buildingKey] ?? $buildingKey;
+            if ($buildingKey !== '' && (str_contains($placeKey, $buildingKey) || str_contains($buildingKey, $placeKey))) {
+                return $tourUrl;
+            }
+            if ($aliasTarget !== $buildingKey
+                && (str_contains($placeKey, $aliasTarget) || str_contains($aliasTarget, $placeKey))) {
+                return $tourUrl;
+            }
+        }
+
+        return null;
+    }
+
+    /** Empty or legacy /tour?campusId= stubs should be replaced by real vista URLs. */
+    private function tourUrlNeedsUpdate(?string $current): bool
+    {
+        if ($current === null || trim($current) === '') {
+            return true;
+        }
+
+        return str_contains($current, '/tour?campusId=');
+    }
+
+    /** @return array{lat: float, lng: float}|null */
+    private function coordinates(mixed $value): ?array
+    {
+        if (! is_array($value)) {
+            return null;
+        }
+        $lat = $value['lat'] ?? $value['latitude'] ?? $value[0] ?? null;
+        $lng = $value['lng'] ?? $value['longitude'] ?? $value[1] ?? null;
+        if (! is_numeric($lat) || ! is_numeric($lng)) {
+            return null;
+        }
+        $lat = (float) $lat;
+        $lng = (float) $lng;
+
+        return $lat >= -90 && $lat <= 90 && $lng >= -180 && $lng <= 180
+            ? ['lat' => $lat, 'lng' => $lng] : null;
+    }
+
+    private function coordinatesReceived(array $payload): int
+    {
+        $items = array_merge($payload['campuses'] ?? [], $payload['buildings'] ?? [], $payload['rooms'] ?? []);
+
+        return count(array_filter($items, function ($item): bool {
+            if (! is_array($item)) {
+                return false;
+            }
+
+            return $this->coordinates($item['coordinates'] ?? $item['location'] ?? null) !== null;
+        }));
+    }
+}

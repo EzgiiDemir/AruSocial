@@ -1,20 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:arucad_campus_prototype/core/models/geo_point.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import 'package:arucad_campus_prototype/core/config/campus_life_config.dart';
+import 'package:arucad_campus_prototype/core/config/place_catalog.dart';
 import 'package:arucad_campus_prototype/core/config/poi_config.dart';
 import 'package:arucad_campus_prototype/core/models/campus_models.dart';
 import 'package:arucad_campus_prototype/core/services/contracts.dart';
 import 'package:arucad_campus_prototype/core/services/groq_ai_service.dart';
 import 'package:arucad_campus_prototype/core/services/rest_campus_repository.dart';
+import 'package:arucad_campus_prototype/core/network/api_client.dart';
 import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
 import 'package:arucad_campus_prototype/features/clubs/club_detail_screen.dart';
 import 'package:arucad_campus_prototype/features/guide/guide_context.dart';
 import 'package:arucad_campus_prototype/features/home/campus_live_map.dart';
 import 'package:arucad_campus_prototype/features/map/in_app_navigation_screen.dart';
 import 'package:arucad_campus_prototype/features/place/place_detail_screen.dart';
+import 'package:arucad_campus_prototype/features/services/apply_bottom_sheet.dart';
 import 'package:arucad_campus_prototype/features/services/service_detail_screen.dart';
+import 'package:arucad_campus_prototype/features/services/sport_application_screen.dart';
 
 /// "Ask ARUCAD" — the campus assistant. Deliberately text-first: no
 /// mic/voice input and no text-to-speech playback. A voice interface adds
@@ -64,37 +67,41 @@ class _GuideSheetState extends State<GuideSheet> {
     GuideContext.load(widget.repository).then((ctx) {
       if (!mounted) return;
       setState(() => _ctx = ctx);
-    });
+    }, onError: (_) {});
   }
 
-  Poi _poiFromPlace(CampusPlace place) =>
-      Poi(name: place.name, category: place.category, lat: place.lat, lng: place.lng);
+  Poi _poiFromPlace(CampusPlace place) => poiFromPlace(place);
 
   Future<String> _getAnswer(String value) async {
-    // With a real backend configured, the AI call goes through
-    // CampusRepository.askGuide() → the backend's own /ai/query proxy,
-    // which is where the Groq key actually lives server-side — calling
-    // Groq directly from the client here too would defeat that (see
-    // docs/GERCEK_PROJEYE_GECIS.md §4/§18, the "key ships inside the app"
-    // gap). Without a real backend there's nothing to proxy through, so
-    // this keeps the direct call as the demo-mode fallback it always was.
-    if (widget.repository is RestCampusRepository) {
-      return widget.repository.askGuide(value);
-    }
+    // REST: CampusRepository.askGuide → /ai/query (server-side key, catalog fallback).
+    // Mock: optional dart-define Groq, else catalog / repository answers.
     try {
-      return await _groq.ask(
-        value,
-        places: _ctx.places,
-        events: _ctx.events,
-        clubs: _ctx.clubs,
-        sports: _ctx.sports,
-        services: _ctx.services,
-        foodVenues: _ctx.foodVenues,
-      );
+      if (widget.repository is RestCampusRepository) {
+        final answer = await widget.repository.askGuide(value);
+        if (answer.trim().isEmpty) return _ctx.localAnswer(value);
+        return answer;
+      }
+      try {
+        return await _groq.ask(
+          value,
+          places: _ctx.places,
+          events: _ctx.events,
+          clubs: _ctx.clubs,
+          sports: _ctx.sports,
+          services: _ctx.services,
+          foodVenues: _ctx.foodVenues,
+        );
+      } catch (_) {
+        try {
+          final answer = await widget.repository.askGuide(value);
+          if (answer.trim().isNotEmpty) return answer;
+        } catch (_) {}
+        return _ctx.localAnswer(value);
+      }
+    } on ApiClientException catch (_) {
+      return _ctx.localAnswer(value);
     } catch (_) {
-      // Groq unreachable (offline, CORS-blocked, quota, etc.) — fall back to
-      // the built-in canned answers so the assistant still responds.
-      return widget.repository.askGuide(value);
+      return _ctx.localAnswer(value);
     }
   }
 
@@ -130,39 +137,44 @@ class _GuideSheetState extends State<GuideSheet> {
 
   void _openClub(CampusClub club) {
     Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => ClubDetailScreen(club: club, events: _ctx.events)));
+        builder: (_) =>
+            ClubDetailScreen(club: club, repository: widget.repository, events: _ctx.events)));
   }
 
   Future<void> _contactSport(CampusSport sport) async {
     widget.analyticsTracker.track('service_contact', {'sport': sport.id});
-    await launchUrl(Uri(
-      scheme: 'mailto',
-      path: sport.contact ?? 'destek@arucad.edu.tr',
-      query: 'subject=${Uri.encodeComponent('${sport.name} - Katılmak istiyorum')}',
-    ));
+    await Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => SportApplicationScreen(
+            sport: sport, repository: widget.repository)));
   }
 
   void _startNavigation(CampusPlace place) {
     widget.analyticsTracker.track('route_started', {'place': place.name});
+    Navigator.of(context).pop();
     Navigator.of(context).push(MaterialPageRoute(
         builder: (_) => InAppNavigationScreen(
             destinationName: place.name,
-            destination: GeoPoint(place.lat, place.lng))));
+            destination: GeoPoint(place.lat, place.lng),
+            repository: widget.repository,
+            mapProvider: widget.mapProvider,
+            analyticsTracker: widget.analyticsTracker)));
   }
 
   void _openServiceDetails(CampusService service) {
     Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => ServiceDetailScreen(service: service)));
+        builder: (_) => ServiceDetailScreen(
+            service: service, repository: widget.repository)));
   }
 
   Future<void> _contactService(CampusService service) async {
     widget.analyticsTracker.track('service_contact', {'service': service.id});
-    final uri = Uri(
-      scheme: 'mailto',
-      path: service.contact,
-      query: 'subject=${Uri.encodeComponent(service.title)}',
+    await showApplyBottomSheet(
+      context,
+      repository: widget.repository,
+      targetType: 'service',
+      targetId: service.id,
+      targetLabel: service.title,
     );
-    await launchUrl(uri);
   }
 
   void _openDetails(CampusPlace place) {
@@ -171,6 +183,7 @@ class _GuideSheetState extends State<GuideSheet> {
       poi: _poiFromPlace(place),
       place: place,
       events: _ctx.eventsAt(place.name),
+      repository: widget.repository,
       onNavigate: () => _startNavigation(place),
       onDetails: () {
         Navigator.of(context).pop();
@@ -302,8 +315,8 @@ class _GuideSheetState extends State<GuideSheet> {
                                   Expanded(
                                     child: FilledButton.icon(
                                       onPressed: () => _contactService(matchedService!),
-                                      icon: const Icon(Icons.mail_outline),
-                                      label: const Text('İletişime Geç'),
+                                      icon: const Icon(Icons.send_outlined),
+                                      label: const Text('Ön Başvuru'),
                                     ),
                                   ),
                                   const SizedBox(width: 10),
@@ -334,7 +347,7 @@ class _GuideSheetState extends State<GuideSheet> {
                                   child: FilledButton.icon(
                                     onPressed: () => _contactSport(matchedSport!),
                                     icon: const Icon(Icons.mail_outline),
-                                    label: const Text('Katıl / İletişime Geç'),
+                                    label: const Text('Ön Başvuru / Katıl'),
                                   ),
                                 ),
                               ],

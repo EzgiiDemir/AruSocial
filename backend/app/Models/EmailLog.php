@@ -10,7 +10,10 @@ class EmailLog extends Model
     protected $keyType = 'string';
     public $timestamps = false;
 
-    protected $fillable = ['id', 'to_email', 'subject', 'template', 'status', 'error', 'attempts', 'sent_at'];
+    protected $fillable = [
+        'id', 'to_email', 'subject', 'template', 'status', 'error', 'attempts', 'sent_at',
+        'application_id',
+    ];
 
     protected function casts(): array
     {

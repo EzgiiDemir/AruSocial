@@ -1,24 +1,43 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
-/// Opens a 360° tour URL in the real browser/tour app.
+import 'package:arucad_campus_prototype/features/map/tour_360_screen.dart';
+
+/// Opens a 360° tour **inside the app** (full-screen WebView).
 ///
-/// An in-app iframe embed was tried first, but ARUCAD's tour site sends
-/// X-Frame-Options headers that block framing entirely — every attempt
-/// rendered as a permanently blank/gray box with no error Dart could even
-/// detect (browsers don't fire onError for that). Rather than keep a broken
-/// "embedded" experience, this opens the real tour directly.
-Future<void> open360Tour(BuildContext context, String url) async {
-  try {
-    final ok =
-        await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-    if (!ok && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('360° tur açılamadı.')));
-    }
-  } catch (e) {
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text('360° tur açılamadı: $e')));
+/// External browser launch was removed: ARUCAD tours load as the WebView's
+/// top-level document (X-Frame-Options only blocked iframe embeds).
+Future<void> open360Tour(
+  BuildContext context,
+  String url, {
+  String? tourTarget,
+  String? title,
+}) async {
+  final resolved = composeTourUrl(url, tourTarget);
+  if (!context.mounted) return;
+  await Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => Tour360Screen(
+        url: resolved,
+        title: title,
+      ),
+      fullscreenDialog: true,
+    ),
+  );
+}
+
+/// Attaches a scene / hotspot target when the 360 directory provides one.
+String composeTourUrl(String url, String? tourTarget) {
+  final target = tourTarget?.trim();
+  if (target == null || target.isEmpty) return url;
+  final uri = Uri.tryParse(url);
+  if (uri == null) return url;
+  if (uri.fragment.isNotEmpty) return url;
+  if (target.contains('=') || target.startsWith('?')) {
+    final cleaned = target.startsWith('?') ? target.substring(1) : target;
+    return uri.replace(queryParameters: {
+      ...uri.queryParameters,
+      ...Uri.splitQueryString(cleaned),
+    }).toString();
   }
+  return uri.replace(fragment: target).toString();
 }

@@ -1,13 +1,14 @@
-/// Real, live-aggregated usage statistics for the Admin Panel's
-/// İstatistikler tab — mirrors `Admin\StatsController::index()` exactly,
-/// down to the two fields that are honestly *not* trackable from this
-/// backend rather than faked (see [AdminStats.appUsage]).
+/// Real, live-aggregated usage statistics for the Admin Panel dashboard.
+/// Mirrors `Admin\StatsController::index()` — no client-side summing of
+/// raw lists for these totals.
 class AdminStats {
   final AppUsageStats appUsage;
   final UserSummaryStats userSummary;
   final CheckinStats checkins;
   final EventStats events;
   final SocialStats social;
+  final ApplicationStats applications;
+  final NotificationStats notifications;
   final SurveyStats surveys;
   final List<KindCount> activityByKind;
   final EmailStats email;
@@ -19,6 +20,8 @@ class AdminStats {
     required this.checkins,
     required this.events,
     required this.social,
+    required this.applications,
+    required this.notifications,
     required this.surveys,
     required this.activityByKind,
     required this.email,
@@ -27,10 +30,15 @@ class AdminStats {
 
   factory AdminStats.fromJson(Map<String, dynamic> json) => AdminStats(
         appUsage: AppUsageStats.fromJson(json['appUsage'] as Map<String, dynamic>),
-        userSummary: UserSummaryStats.fromJson(json['userSummary'] as Map<String, dynamic>),
+        userSummary:
+            UserSummaryStats.fromJson(json['userSummary'] as Map<String, dynamic>),
         checkins: CheckinStats.fromJson(json['checkins'] as Map<String, dynamic>),
         events: EventStats.fromJson(json['events'] as Map<String, dynamic>),
         social: SocialStats.fromJson(json['social'] as Map<String, dynamic>),
+        applications: ApplicationStats.fromJson(
+            json['applications'] as Map<String, dynamic>? ?? const {}),
+        notifications: NotificationStats.fromJson(
+            json['notifications'] as Map<String, dynamic>? ?? const {}),
         surveys: SurveyStats.fromJson(json['surveys'] as Map<String, dynamic>),
         activityByKind: (json['activityByKind'] as List<dynamic>)
             .map((e) => KindCount.fromJson(e as Map<String, dynamic>))
@@ -40,37 +48,43 @@ class AdminStats {
       );
 }
 
-/// "Kaç kişi indirdi" genuinely can't be answered from this backend — that
-/// lives in an app-store/analytics console this prototype has no access
-/// to. [trackable] is always false; [note] explains why, for display
-/// instead of a silently-omitted or faked number.
 class AppUsageStats {
   final bool trackable;
   final String note;
   const AppUsageStats({required this.trackable, required this.note});
-  factory AppUsageStats.fromJson(Map<String, dynamic> json) =>
-      AppUsageStats(trackable: json['trackable'] as bool, note: json['note'] as String);
+  factory AppUsageStats.fromJson(Map<String, dynamic> json) => AppUsageStats(
+      trackable: json['trackable'] as bool? ?? false,
+      note: json['note'] as String? ?? '');
 }
 
 class UserSummaryStats {
   final int realAccountCount;
+  final int activeAccounts;
+  final int newAccounts;
   final String note;
   final int totalXp;
   final int totalStrikes;
   final int bannedAccounts;
   const UserSummaryStats({
     required this.realAccountCount,
+    required this.activeAccounts,
+    required this.newAccounts,
     required this.note,
     required this.totalXp,
     required this.totalStrikes,
     required this.bannedAccounts,
   });
-  factory UserSummaryStats.fromJson(Map<String, dynamic> json) => UserSummaryStats(
-        realAccountCount: json['realAccountCount'] as int,
-        note: json['note'] as String,
-        totalXp: json['totalXp'] as int,
-        totalStrikes: json['totalStrikes'] as int,
-        bannedAccounts: json['bannedAccounts'] as int,
+  factory UserSummaryStats.fromJson(Map<String, dynamic> json) =>
+      UserSummaryStats(
+        realAccountCount: (json['realAccountCount'] as num?)?.toInt() ?? 0,
+        activeAccounts: (json['activeAccounts'] as num?)?.toInt() ??
+            (json['realAccountCount'] as num?)?.toInt() ??
+            0,
+        newAccounts: (json['newAccounts'] as num?)?.toInt() ?? 0,
+        note: json['note'] as String? ?? '',
+        totalXp: (json['totalXp'] as num?)?.toInt() ?? 0,
+        totalStrikes: (json['totalStrikes'] as num?)?.toInt() ?? 0,
+        bannedAccounts: (json['bannedAccounts'] as num?)?.toInt() ?? 0,
       );
 }
 
@@ -78,11 +92,12 @@ class PlaceCount {
   final String placeId;
   final String placeName;
   final int total;
-  const PlaceCount({required this.placeId, required this.placeName, required this.total});
+  const PlaceCount(
+      {required this.placeId, required this.placeName, required this.total});
   factory PlaceCount.fromJson(Map<String, dynamic> json) => PlaceCount(
-        placeId: json['place_id'] as String,
-        placeName: json['place_name'] as String,
-        total: json['total'] as int,
+        placeId: '${json['place_id'] ?? json['placeId'] ?? ''}',
+        placeName: '${json['place_name'] ?? json['placeName'] ?? ''}',
+        total: (json['total'] as num?)?.toInt() ?? 0,
       );
 }
 
@@ -90,8 +105,8 @@ class DailyCount {
   final String day;
   final int total;
   const DailyCount({required this.day, required this.total});
-  factory DailyCount.fromJson(Map<String, dynamic> json) =>
-      DailyCount(day: json['day'] as String, total: json['total'] as int);
+  factory DailyCount.fromJson(Map<String, dynamic> json) => DailyCount(
+      day: '${json['day']}', total: (json['total'] as num?)?.toInt() ?? 0);
 }
 
 class CheckinStats {
@@ -106,12 +121,12 @@ class CheckinStats {
     required this.byDay,
   });
   factory CheckinStats.fromJson(Map<String, dynamic> json) => CheckinStats(
-        total: json['total'] as int,
-        visibleToOthers: json['visibleToOthers'] as int,
-        mostCheckedInPlaces: (json['mostCheckedInPlaces'] as List<dynamic>)
+        total: (json['total'] as num?)?.toInt() ?? 0,
+        visibleToOthers: (json['visibleToOthers'] as num?)?.toInt() ?? 0,
+        mostCheckedInPlaces: (json['mostCheckedInPlaces'] as List<dynamic>? ?? [])
             .map((e) => PlaceCount.fromJson(e as Map<String, dynamic>))
             .toList(),
-        byDay: (json['byDay'] as List<dynamic>)
+        byDay: (json['byDay'] as List<dynamic>? ?? [])
             .map((e) => DailyCount.fromJson(e as Map<String, dynamic>))
             .toList(),
       );
@@ -121,11 +136,12 @@ class EventJoinCount {
   final String eventId;
   final String title;
   final int total;
-  const EventJoinCount({required this.eventId, required this.title, required this.total});
+  const EventJoinCount(
+      {required this.eventId, required this.title, required this.total});
   factory EventJoinCount.fromJson(Map<String, dynamic> json) => EventJoinCount(
-        eventId: json['event_id'] as String,
-        title: json['title'] as String,
-        total: json['total'] as int,
+        eventId: '${json['event_id'] ?? json['eventId'] ?? ''}',
+        title: '${json['title'] ?? ''}',
+        total: (json['total'] as num?)?.toInt() ?? 0,
       );
 }
 
@@ -147,13 +163,13 @@ class EventStats {
     required this.mostJoinedEvents,
   });
   factory EventStats.fromJson(Map<String, dynamic> json) => EventStats(
-        total: json['total'] as int,
-        published: json['published'] as int,
-        pendingReview: json['pendingReview'] as int,
-        totalJoins: json['totalJoins'] as int,
-        formsSubmitted: json['formsSubmitted'] as int,
-        attendanceApproved: json['attendanceApproved'] as int,
-        mostJoinedEvents: (json['mostJoinedEvents'] as List<dynamic>)
+        total: (json['total'] as num?)?.toInt() ?? 0,
+        published: (json['published'] as num?)?.toInt() ?? 0,
+        pendingReview: (json['pendingReview'] as num?)?.toInt() ?? 0,
+        totalJoins: (json['totalJoins'] as num?)?.toInt() ?? 0,
+        formsSubmitted: (json['formsSubmitted'] as num?)?.toInt() ?? 0,
+        attendanceApproved: (json['attendanceApproved'] as num?)?.toInt() ?? 0,
+        mostJoinedEvents: (json['mostJoinedEvents'] as List<dynamic>? ?? [])
             .map((e) => EventJoinCount.fromJson(e as Map<String, dynamic>))
             .toList(),
       );
@@ -162,6 +178,7 @@ class EventStats {
 class SocialStats {
   final int feedPosts;
   final int comments;
+  final int likes;
   final int stories;
   final int reviews;
   final double averageRating;
@@ -170,6 +187,7 @@ class SocialStats {
   const SocialStats({
     required this.feedPosts,
     required this.comments,
+    required this.likes,
     required this.stories,
     required this.reviews,
     required this.averageRating,
@@ -177,13 +195,55 @@ class SocialStats {
     required this.moderationReportsUnresolved,
   });
   factory SocialStats.fromJson(Map<String, dynamic> json) => SocialStats(
-        feedPosts: json['feedPosts'] as int,
-        comments: json['comments'] as int,
-        stories: json['stories'] as int,
-        reviews: json['reviews'] as int,
-        averageRating: (json['averageRating'] as num).toDouble(),
-        moderationReportsFiled: json['moderationReportsFiled'] as int,
-        moderationReportsUnresolved: json['moderationReportsUnresolved'] as int,
+        feedPosts: (json['feedPosts'] as num?)?.toInt() ?? 0,
+        comments: (json['comments'] as num?)?.toInt() ?? 0,
+        likes: (json['likes'] as num?)?.toInt() ?? 0,
+        stories: (json['stories'] as num?)?.toInt() ?? 0,
+        reviews: (json['reviews'] as num?)?.toInt() ?? 0,
+        averageRating: (json['averageRating'] as num?)?.toDouble() ?? 0,
+        moderationReportsFiled:
+            (json['moderationReportsFiled'] as num?)?.toInt() ?? 0,
+        moderationReportsUnresolved:
+            (json['moderationReportsUnresolved'] as num?)?.toInt() ?? 0,
+      );
+}
+
+class ApplicationStats {
+  final int pending;
+  final int approved;
+  final int rejected;
+  final List<KindCount> byType;
+  const ApplicationStats({
+    required this.pending,
+    required this.approved,
+    required this.rejected,
+    required this.byType,
+  });
+  factory ApplicationStats.fromJson(Map<String, dynamic> json) =>
+      ApplicationStats(
+        pending: (json['pending'] as num?)?.toInt() ?? 0,
+        approved: (json['approved'] as num?)?.toInt() ?? 0,
+        rejected: (json['rejected'] as num?)?.toInt() ?? 0,
+        byType: (json['byType'] as List<dynamic>? ?? [])
+            .map((e) {
+              final m = e as Map<String, dynamic>;
+              return KindCount(
+                kind: '${m['target_type'] ?? m['kind'] ?? ''}',
+                total: (m['total'] as num?)?.toInt() ?? 0,
+              );
+            })
+            .toList(),
+      );
+}
+
+class NotificationStats {
+  final int total;
+  final int unread;
+  const NotificationStats({required this.total, required this.unread});
+  factory NotificationStats.fromJson(Map<String, dynamic> json) =>
+      NotificationStats(
+        total: (json['total'] as num?)?.toInt() ?? 0,
+        unread: (json['unread'] as num?)?.toInt() ?? 0,
       );
 }
 
@@ -191,24 +251,26 @@ class SurveyStats {
   final int total;
   final int totalResponses;
   const SurveyStats({required this.total, required this.totalResponses});
-  factory SurveyStats.fromJson(Map<String, dynamic> json) =>
-      SurveyStats(total: json['total'] as int, totalResponses: json['totalResponses'] as int);
+  factory SurveyStats.fromJson(Map<String, dynamic> json) => SurveyStats(
+      total: (json['total'] as num?)?.toInt() ?? 0,
+      totalResponses: (json['totalResponses'] as num?)?.toInt() ?? 0);
 }
 
 class KindCount {
   final String kind;
   final int total;
   const KindCount({required this.kind, required this.total});
-  factory KindCount.fromJson(Map<String, dynamic> json) =>
-      KindCount(kind: json['kind'] as String, total: json['total'] as int);
+  factory KindCount.fromJson(Map<String, dynamic> json) => KindCount(
+      kind: '${json['kind']}', total: (json['total'] as num?)?.toInt() ?? 0);
 }
 
 class EmailStats {
   final int sent;
   final int failed;
   const EmailStats({required this.sent, required this.failed});
-  factory EmailStats.fromJson(Map<String, dynamic> json) =>
-      EmailStats(sent: json['sent'] as int, failed: json['failed'] as int);
+  factory EmailStats.fromJson(Map<String, dynamic> json) => EmailStats(
+      sent: (json['sent'] as num?)?.toInt() ?? 0,
+      failed: (json['failed'] as num?)?.toInt() ?? 0);
 }
 
 class CatalogStats {
@@ -229,12 +291,12 @@ class CatalogStats {
     required this.mediaItems,
   });
   factory CatalogStats.fromJson(Map<String, dynamic> json) => CatalogStats(
-        places: json['places'] as int,
-        clubs: json['clubs'] as int,
-        sports: json['sports'] as int,
-        services: json['services'] as int,
-        foodVenues: json['foodVenues'] as int,
-        directoryEntries: json['directoryEntries'] as int,
-        mediaItems: json['mediaItems'] as int,
+        places: (json['places'] as num?)?.toInt() ?? 0,
+        clubs: (json['clubs'] as num?)?.toInt() ?? 0,
+        sports: (json['sports'] as num?)?.toInt() ?? 0,
+        services: (json['services'] as num?)?.toInt() ?? 0,
+        foodVenues: (json['foodVenues'] as num?)?.toInt() ?? 0,
+        directoryEntries: (json['directoryEntries'] as num?)?.toInt() ?? 0,
+        mediaItems: (json['mediaItems'] as num?)?.toInt() ?? 0,
       );
 }

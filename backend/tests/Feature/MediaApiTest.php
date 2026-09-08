@@ -84,14 +84,19 @@ class MediaApiTest extends TestCase
         Storage::fake('public');
         $this->actingAsRole('contentEditor');
 
+        // A wrong file type is now refused by the form request, before the
+        // bytes reach storage or moderation — cheaper, and it cannot be
+        // reached by a code path that forgot to call the controller check.
         $this->post('/api/v1/media', [
             'file' => UploadedFile::fake()->create('notes.txt', 20, 'text/plain'),
         ], ['Accept' => 'application/json'])
             ->assertStatus(400)
-            ->assertJsonPath('error.code', 'UNSUPPORTED_FILE_TYPE');
+            ->assertJsonPath('error.code', 'VALIDATION');
 
+        // Over the per-type byte limit but under the form request's overall
+        // cap, so this is the controller's own size check answering.
         $this->post('/api/v1/media', [
-            'file' => UploadedFile::fake()->create('huge.jpg', 9000, 'image/jpeg'),
+            'file' => UploadedFile::fake()->create('huge.jpg', 20000, 'image/jpeg'),
         ], ['Accept' => 'application/json'])
             ->assertStatus(400)
             ->assertJsonPath('error.code', 'FILE_TOO_LARGE');
@@ -114,11 +119,23 @@ class MediaApiTest extends TestCase
         $path = MediaItem::find($created['id'])->file_path;
         $basename = basename($path);
 
-        // With no local semantic classifier configured, magic-byte-clean
-        // uploads are approved immediately and publicly readable.
-        $this->assertSame('approved', $created['moderationStatus']);
+        // Held, not approved. Magic bytes prove the file is a real JPEG;
+        // they say nothing about what the JPEG shows. With no vision model
+        // available in tests, nothing has looked at the picture, and
+        // publishing uninspected imagery is the exact failure this gate
+        // exists to prevent — so it waits for a human instead.
+        $this->assertSame('pending', $created['moderationStatus']);
 
+        // While it is held, the bytes are not reachable either. A file that
+        // is "not on the timeline" but still fetchable by URL has not
+        // actually been withheld — anyone with the link could see it, and
+        // links get shared.
         $this->app['auth']->forgetGuards();
+        $this->get('/api/v1/media/file/'.$basename)->assertNotFound();
+
+        // Once a moderator approves it, the same URL serves normally.
+        MediaItem::find($created['id'])->update(['moderation_status' => 'approved']);
+
         $this->get('/api/v1/media/file/'.$basename)
             ->assertOk()
             ->assertHeader('access-control-allow-origin');

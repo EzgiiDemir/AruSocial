@@ -112,7 +112,16 @@ class VideoModerator
         }
     }
 
-    private function durationSeconds(string $path): ?float
+    /**
+     * Clip length in seconds, or null when it cannot be determined.
+     *
+     * Public because the upload path needs it before moderation: an
+     * over-long video should be refused with a clear reason rather than
+     * spending frame extraction on it first. Null is not treated as "fine"
+     * anywhere — an unreadable duration means frame extraction will fail
+     * too, and that path holds the upload.
+     */
+    public function durationSeconds(string $path): ?float
     {
         try {
             // ffprobe ships with ffmpeg; fall back to parsing ffmpeg output

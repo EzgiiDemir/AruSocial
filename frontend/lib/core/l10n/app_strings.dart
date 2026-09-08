@@ -369,6 +369,22 @@ class AppStrings {
     'home_campus_now': {AppLanguage.tr: 'Kampüste Şimdi', AppLanguage.en: 'On Campus Now', AppLanguage.ru: 'Сейчас в кампусе'},
     'home_see_social': {AppLanguage.tr: 'Sosyali Gör', AppLanguage.en: 'See Social', AppLanguage.ru: 'В соцсеть'},
 
+    // Home — greeting card. Times: 05–11 morning, 12–17 day, 18–21 evening,
+    // 22–04 night.
+    'greet_morning': {AppLanguage.tr: 'Günaydın', AppLanguage.en: 'Good morning', AppLanguage.ru: 'Доброе утро'},
+    'greet_day': {AppLanguage.tr: 'İyi günler', AppLanguage.en: 'Good afternoon', AppLanguage.ru: 'Добрый день'},
+    'greet_evening': {AppLanguage.tr: 'İyi akşamlar', AppLanguage.en: 'Good evening', AppLanguage.ru: 'Добрый вечер'},
+    'greet_night': {AppLanguage.tr: 'İyi geceler', AppLanguage.en: 'Good night', AppLanguage.ru: 'Доброй ночи'},
+
+    // One line per weekday (1 = Monday, matching DateTime.weekday).
+    'greet_line_1': {AppLanguage.tr: 'Yeni hafta, yeni fikirler için boş bir tuval.', AppLanguage.en: 'A new week: an empty canvas for new ideas.', AppLanguage.ru: 'Новая неделя — чистый холст для новых идей.'},
+    'greet_line_2': {AppLanguage.tr: 'Küçük bir adım bile seni yeni bir yere götürebilir.', AppLanguage.en: 'Even a small step can take you somewhere new.', AppLanguage.ru: 'Даже маленький шаг может привести вас к новому.'},
+    'greet_line_3': {AppLanguage.tr: 'Haftanın ortası; ritmini bul ve devam et.', AppLanguage.en: 'Midweek — find your rhythm and keep going.', AppLanguage.ru: 'Середина недели: найдите свой ритм и продолжайте.'},
+    'greet_line_4': {AppLanguage.tr: 'Merak ettiğin şeylerin peşinden git.', AppLanguage.en: 'Follow the things you are curious about.', AppLanguage.ru: 'Идите за тем, что вам любопытно.'},
+    'greet_line_5': {AppLanguage.tr: 'Haftayı güzel bir iz bırakarak tamamla.', AppLanguage.en: 'Finish the week leaving a good mark.', AppLanguage.ru: 'Завершите неделю, оставив добрый след.'},
+    'greet_line_6': {AppLanguage.tr: 'Biraz keşfet, biraz dinlen, biraz da kendine zaman ayır.', AppLanguage.en: 'Explore a little, rest a little, keep some time for yourself.', AppLanguage.ru: 'Немного исследуйте, немного отдохните, оставьте время себе.'},
+    'greet_line_7': {AppLanguage.tr: 'Yeni haftaya yer açmak için bugün biraz yavaşla.', AppLanguage.en: 'Slow down today to make room for the week ahead.', AppLanguage.ru: 'Сбавьте темп сегодня, чтобы освободить место новой неделе.'},
+
     // Home — feedback / surveys
     'home_feedback': {AppLanguage.tr: 'Geri Bildirim', AppLanguage.en: 'Feedback', AppLanguage.ru: 'Обратная связь'},
     'home_feedback_title': {AppLanguage.tr: 'Kampüs anketleri', AppLanguage.en: 'Campus surveys', AppLanguage.ru: 'Опросы кампуса'},

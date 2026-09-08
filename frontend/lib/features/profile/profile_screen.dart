@@ -5,6 +5,7 @@ import 'package:arucad_campus_prototype/core/l10n/app_strings.dart';
 import 'package:arucad_campus_prototype/core/models/campus_models.dart';
 import 'package:arucad_campus_prototype/core/services/contracts.dart';
 import 'package:arucad_campus_prototype/core/services/photo_picker_service.dart';
+import 'package:arucad_campus_prototype/core/services/upload_rules.dart';
 import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
 import 'package:arucad_campus_prototype/features/admin/admin_panel_screen.dart';
 import 'package:arucad_campus_prototype/features/home/campus_live_map.dart';
@@ -12,6 +13,7 @@ import 'package:arucad_campus_prototype/features/profile/my_applications_screen.
 import 'package:arucad_campus_prototype/features/quests/quests_screen.dart';
 import 'package:arucad_campus_prototype/features/services/appointment_booking_screen.dart';
 import 'package:arucad_campus_prototype/features/trainer/trainer_panel_screen.dart';
+import 'package:arucad_campus_prototype/features/widgets/moderation_notice.dart';
 import 'package:arucad_campus_prototype/features/widgets/campus_avatar.dart';
 import 'package:arucad_campus_prototype/features/widgets/campus_network_image.dart';
 import 'package:arucad_campus_prototype/features/widgets/campus_widgets.dart';
@@ -164,6 +166,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final bytes = await PhotoPickerService.pick(context,
             imageQuality: 70, maxWidth: 480);
         if (bytes == null) return;
+
+        // Checked before the upload starts so an obviously unusable file
+        // fails in a second rather than after a slow transfer.
+        final reason = UploadRules.rejectionReason(bytes, 'avatar.jpg');
+        if (reason != null) {
+          if (!context.mounted) return;
+          await showModerationNotice(context, message: reason);
+
+          return;
+        }
+
         final item = await widget.repository
             .uploadMyMedia(bytes, fileName: 'avatar.jpg');
         final remote = item.url;
@@ -180,6 +193,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       await AppSettingsStore.setAvatarUrl(persisted);
       if (mounted) setState(() => _avatarOverride = persisted);
     } catch (e) {
+      if (!context.mounted) return;
+      // A refusal deserves the full explanation, not a one-line snackbar.
+      if (await showModerationNoticeFor(context, e)) return;
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Profil fotoğrafı kaydedilemedi: $e')),

@@ -96,6 +96,27 @@ return [
         ),
     ],
 
+    /*
+     * What a phone is allowed to upload.
+     *
+     * Deliberately a short allowlist rather than a blocklist: every format
+     * here is one the app can actually display, and anything else is
+     * refused by name instead of being stored and discovered later. The
+     * limits are sized for a normal phone photo or a short clip — big
+     * enough that ordinary use never hits them, small enough that a single
+     * upload cannot fill the disk or stall moderation.
+     */
+    'media_uploads' => [
+        'image_mimes' => ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'],
+        'video_mimes' => ['video/mp4', 'video/quicktime', 'video/webm'],
+        'max_image_bytes' => (int) env('MEDIA_MAX_IMAGE_BYTES', 12 * 1024 * 1024),
+        'max_video_bytes' => (int) env('MEDIA_MAX_VIDEO_BYTES', 100 * 1024 * 1024),
+        // Beyond this a still is almost certainly a scan or a screenshot of
+        // something else, and it costs real time to inspect.
+        'max_image_pixels' => (int) env('MEDIA_MAX_IMAGE_PIXELS', 50_000_000),
+        'max_video_seconds' => (int) env('MEDIA_MAX_VIDEO_SECONDS', 180),
+    ],
+
     // ARUCAD-operated semantic image/video model. This is a local executable
     // path, never a vendor API key or URL. With no model installed, magic-byte
     // clean uploads are approved; a configured-but-unavailable model fails closed.

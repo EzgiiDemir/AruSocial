@@ -6,6 +6,7 @@ import 'package:arucad_campus_prototype/core/config/campus_life_config.dart';
 import 'package:arucad_campus_prototype/core/models/academic_year.dart';
 import 'package:arucad_campus_prototype/core/l10n/app_strings.dart';
 import 'package:arucad_campus_prototype/core/models/campus_models.dart';
+import 'package:arucad_campus_prototype/core/models/campus_weather.dart';
 import 'package:arucad_campus_prototype/core/models/geo_point.dart';
 import 'package:arucad_campus_prototype/core/network/api_client.dart';
 import 'package:arucad_campus_prototype/core/services/campus_access_policy.dart';
@@ -16,10 +17,12 @@ import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
 import 'package:arucad_campus_prototype/core/utils/relative_time.dart';
 import 'package:arucad_campus_prototype/features/home/campus_live_map.dart';
 import 'package:arucad_campus_prototype/features/home/create_own_activity_screen.dart';
+import 'package:arucad_campus_prototype/features/home/greeting_card.dart';
 import 'package:arucad_campus_prototype/features/home/survey_popup.dart';
 import 'package:arucad_campus_prototype/features/map/in_app_navigation_screen.dart';
 import 'package:arucad_campus_prototype/features/place/place_detail_screen.dart';
 import 'package:arucad_campus_prototype/features/services/service_detail_screen.dart';
+import 'package:arucad_campus_prototype/features/social/notifications_screen.dart';
 import 'package:arucad_campus_prototype/features/social/post_detail_screen.dart';
 import 'package:arucad_campus_prototype/features/widgets/campus_widgets.dart';
 
@@ -76,6 +79,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   StreamSubscription<void>? _grantedSub;
   bool _refreshingEvents = false;
   bool _refreshingCatalog = false;
+  int _unreadNotifs = 0;
+  CampusWeather? _weather;
   static const _location = LocationService();
 
   /// `/feed` is ordered by pinned state first for the social screen. Home's
@@ -121,6 +126,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     });
     unawaited(_attachLiveLocation());
     _startRealtime();
+    unawaited(_refreshUnread());
+    unawaited(_loadWeather());
 
     // Surface an unanswered campus survey once Home has painted. Silent when
     // there is nothing pending, so this costs nothing on a normal launch.
@@ -163,6 +170,34 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     } finally {
       _refreshingEvents = false;
     }
+  }
+
+  Future<void> _loadWeather() async {
+    try {
+      final weather = await widget.repository.getWeather();
+      if (mounted) setState(() => _weather = weather);
+    } catch (_) {
+      // The greeting card simply omits the weather row rather than
+      // showing a made-up temperature.
+    }
+  }
+
+  Future<void> _refreshUnread() async {
+    try {
+      final items = await widget.repository.getInboxNotifications();
+      if (!mounted) return;
+      setState(() => _unreadNotifs = items.where((n) => !n.read).length);
+    } catch (_) {
+      // A badge is not worth surfacing an error for; the bell still works.
+    }
+  }
+
+  Future<void> _openNotifications() async {
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => NotificationsScreen(repository: widget.repository),
+    ));
+    // Opening the screen marks them read, so the badge has to catch up.
+    await _refreshUnread();
   }
 
   Future<void> _refreshCatalog(List<String> resources) async {
@@ -415,9 +450,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   ),
                 ),
                 const SizedBox(width: 8),
-                // Notifications moved to the Explore and Social headers,
-                // where students actually go looking for them.
                 _ScoreChip(xp: widget.user.xp, onTap: widget.onQuests),
+                // Home is where people land, so the unread badge belongs
+                // here too — not only on Explore and Social, which they
+                // have to navigate to before they learn anything happened.
+                _NotificationBell(
+                  unread: _unreadNotifs,
+                  onTap: _openNotifications,
+                ),
                 IconButton(
                   visualDensity: VisualDensity.compact,
                   padding: EdgeInsets.zero,
@@ -454,21 +494,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ],
               const SizedBox(height: ArucadSpacing.lg),
 
-              // FEEDBACK
-              Text(strings.t('home_feedback'),
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w900, fontSize: 18)),
-              const SizedBox(height: ArucadSpacing.sm),
-              Card(
-                child: ListTile(
-                  leading: const Icon(Icons.poll_outlined,
-                      color: ArucadColors.primary),
-                  title: Text(strings.t('home_feedback_title'),
-                      style: const TextStyle(fontWeight: FontWeight.w800)),
-                  subtitle: Text(strings.t('home_feedback_sub')),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => maybeShowSurveyPopup(context, widget.repository),
-                ),
+              // GREETING — replaces the old feedback tile. Surveys still
+              // reach students, but as a prompt when one is actually
+              // waiting rather than as a permanent row asking for input.
+              GreetingCard(
+                userName: widget.user.name,
+                weather: _weather,
               ),
               const SizedBox(height: ArucadSpacing.lg),
 
@@ -812,6 +843,57 @@ class _CampusNowAvatar extends StatelessWidget {
               ),
       ),
     );
+  }
+}
+
+/// Bell with an unread count.
+///
+/// The badge is capped at "9+" rather than showing a real total: past a
+/// handful the exact number changes nothing about what you do, and a
+/// three-digit badge either overflows the icon or shrinks the text to
+/// unreadable.
+class _NotificationBell extends StatelessWidget {
+  final int unread;
+  final VoidCallback onTap;
+
+  const _NotificationBell({required this.unread, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(clipBehavior: Clip.none, children: [
+      IconButton(
+        visualDensity: VisualDensity.compact,
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+        onPressed: onTap,
+        icon: const Icon(Icons.notifications_none_rounded,
+            color: ArucadColors.muted),
+        tooltip: AppLocale.of(context).t('social_notifications'),
+      ),
+      if (unread > 0)
+        Positioned(
+          right: 4,
+          top: 4,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+            constraints: const BoxConstraints(minWidth: 16),
+            decoration: BoxDecoration(
+              color: ArucadColors.red,
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: Colors.white, width: 1.5),
+            ),
+            child: Text(
+              unread > 9 ? '9+' : '$unread',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 9.5,
+                  height: 1.2,
+                  fontWeight: FontWeight.w900),
+            ),
+          ),
+        ),
+    ]);
   }
 }
 

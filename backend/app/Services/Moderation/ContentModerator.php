@@ -76,6 +76,21 @@ class ContentModerator
         // uninspected, so it is held rather than published.
         $outage = ! $provider->available && $provider->unavailableReason !== 'not_configured';
 
+        // Media has no local fallback. The offline engine reads text; it
+        // cannot look at pixels, so when a submission carries images (or
+        // video frames) and the provider did not actually inspect them,
+        // nothing has judged that content at all. Unlike text — where
+        // degrading to the local engine still enforces a real policy —
+        // "no key configured" here means completely uninspected media, and
+        // approving it would publish exactly what this gate exists to stop.
+        // So media is held whatever the reason, including a missing key.
+        if ($imageUrls !== [] && ! $provider->available) {
+            $this->record($user, $contentType, $sourceFeature, ModerationEvent::ACTION_REVIEW,
+                $provider, $local, $text, $hash, null);
+
+            return ModerationOutcome::mediaUninspected();
+        }
+
         if ($outage && ! $this->localSaysBlock($local)) {
             if (! config('services.moderation.fail_open', false)) {
                 $this->record($user, $contentType, $sourceFeature, ModerationEvent::ACTION_REVIEW,

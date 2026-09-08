@@ -66,6 +66,18 @@ final class ModerationOutcome
         return new self(self::SUPPORT, ['self_harm']);
     }
 
+    /**
+     * Media arrived but no vision model looked at it.
+     *
+     * Distinct from a text outage because there is no local fallback for
+     * pixels: the offline engine reads words. Publishing here would mean
+     * publishing genuinely uninspected images.
+     */
+    public static function mediaUninspected(): self
+    {
+        return new self(self::UNAVAILABLE, ['media_uninspected']);
+    }
+
     /** @param list<string> $categories */
     public static function rejected(array $categories, int $strike, string $action, ?Carbon $bannedUntil, string $eventId): self
     {
@@ -121,7 +133,11 @@ final class ModerationOutcome
                 ? 'Hesabın geçici olarak askıya alındı. Tekrar paylaşabileceğin zaman: '
                     .$this->bannedUntil->timezone(config('app.timezone'))->format('d.m.Y H:i').'.'
                 : 'Hesabın topluluk kurallarını ihlal nedeniyle askıya alındı.',
-            self::UNAVAILABLE => 'İçerik kontrolü şu anda yapılamıyor. Lütfen birazdan tekrar dene.',
+            self::UNAVAILABLE => in_array('media_uninspected', $this->categories, true)
+                ? 'Görsel ve video kontrolü şu anda yapılamıyor, bu yüzden dosyan '
+                    .'yayınlanmadı ve incelemeye alındı. Kontrol edilmeden hiçbir '
+                    .'görsel akışta gösterilmez.'
+                : 'İçerik kontrolü şu anda yapılamıyor. Lütfen birazdan tekrar dene.',
             // Not a penalty and not an error — the post went through. This
             // is the app noticing and offering a way to talk to someone.
             self::SUPPORT => 'Paylaşımın yayınlandı. Zor bir dönemden geçiyorsan yalnız '
@@ -143,7 +159,12 @@ final class ModerationOutcome
                 str_starts_with($category, 'hate'), $category === 'HATE' => 'nefret söylemi',
                 str_starts_with($category, 'harassment'), $category === 'HAR' => 'taciz veya hakaret',
                 str_starts_with($category, 'sexual/minors'), $category === 'CSA', $category === 'MINOR' => 'çocuk güvenliği',
-                str_starts_with($category, 'sexual'), $category === 'SEX' => 'cinsel içerik',
+                // "Çıplaklık" is named explicitly: the provider files nude
+                // photos under `sexual`, and someone told only "cinsel
+                // içerik" often does not realise their holiday photo was
+                // rejected for nudity and simply tries again.
+                str_starts_with($category, 'sexual'), $category === 'SEX' => 'çıplaklık veya cinsel içerik',
+                str_starts_with($category, 'violence/graphic'), $category === 'GORE' => 'kan veya grafik şiddet',
                 str_starts_with($category, 'violence'), $category === 'VIO' => 'şiddet',
                 str_starts_with($category, 'illicit'), $category === 'CRIME', $category === 'DRUG' => 'yasadışı faaliyet',
                 $category === 'THR' => 'tehdit',
@@ -178,10 +199,18 @@ final class ModerationOutcome
         if ($this->bannedUntil !== null) {
             return $base.' Tekrarlanan ihlal nedeniyle hesabın '
                 .$this->bannedUntil->timezone(config('app.timezone'))->format('d.m.Y H:i')
-                .' tarihine kadar askıya alındı.';
+                .' tarihine kadar askıya alındı. Askı süresi bittiğinde hesabın '
+                .'otomatik olarak açılır; ihlal devam ederse süre uzar.';
         }
 
-        return $base.' Uyarı '.$this->strike.'/3.';
+        // Someone who has just had a post refused is the one person certain
+        // to be reading this, so it is where the consequence of doing it
+        // again actually lands. Saying "warning 1/3" alone leaves them to
+        // guess what happens at 4.
+        return $base.' Uyarı '.$this->strike.'/3. '
+            .'Lütfen paylaşacağın görsel ve videolara dikkat et: 3 uyarıdan sonra '
+            .'hesabın geçici olarak askıya alınır (4. ihlal 24 saat, 5. ihlal 3 gün, '
+            .'6. ihlal 7 gün).';
     }
 
     /** Structured payload for the API error envelope. */

@@ -27,8 +27,8 @@ class MediaController extends Controller
 {
     use ApiResponds, ModeratesContent;
 
-    private const MAX_IMAGE_BYTES = 8 * 1024 * 1024; // 8MB
-    private const MAX_VIDEO_BYTES = 64 * 1024 * 1024; // 64MB
+    // Size limits live in config('services.media_uploads') so the upload
+    // request and this controller cannot disagree about what is accepted.
     private const IMAGE_MIME = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
     private const VIDEO_MIME = ['video/mp4', 'video/webm', 'video/quicktime'];
 
@@ -65,22 +65,33 @@ class MediaController extends Controller
         $isVideo = $this->isVideo($mime);
         $isImage = $this->isImage($mime);
 
+        $limits = config('services.media_uploads');
+
         if (! $isVideo && ! $isImage) {
-            return [$this->fail(400, 'UNSUPPORTED_FILE_TYPE', 'Only JPEG/PNG/WEBP/GIF images and MP4/WEBM/MOV videos are accepted.'), null];
+            return [$this->fail(400, 'UNSUPPORTED_FILE_TYPE',
+                'Bu dosya türü desteklenmiyor. Fotoğraf için JPG, PNG, WEBP veya HEIC; '
+                .'video için MP4, MOV veya WEBM yükleyebilirsin.'), null];
         }
 
-        $max = $isVideo ? self::MAX_VIDEO_BYTES : self::MAX_IMAGE_BYTES;
+        $max = $isVideo ? $limits['max_video_bytes'] : $limits['max_image_bytes'];
         if ($file->getSize() > $max) {
-            return [$this->fail(400, 'FILE_TOO_LARGE', $isVideo
-                ? 'Video exceeds the 64MB limit.'
-                : 'File exceeds the 8MB limit.'), null];
+            return [$this->fail(400, 'FILE_TOO_LARGE', sprintf(
+                '%s çok büyük (%s MB). En fazla %s MB olabilir.',
+                $isVideo ? 'Video' : 'Fotoğraf',
+                number_format($file->getSize() / 1048576, 1),
+                (int) round($max / 1048576),
+            )), null];
         }
 
+        // Magic bytes, not the extension: renaming a file does not change
+        // what it is, and the client's Content-Type is attacker-controlled.
         if ($isImage && ! UploadMagic::isImage($file)) {
-            return [$this->fail(400, 'INVALID_FILE_CONTENTS', 'File contents do not match a JPEG, PNG, GIF, or WEBP image.'), null];
+            return [$this->fail(400, 'INVALID_FILE_CONTENTS',
+                'Dosya içeriği geçerli bir fotoğrafla eşleşmiyor.'), null];
         }
         if ($isVideo && ! UploadMagic::isVideo($file)) {
-            return [$this->fail(400, 'INVALID_FILE_CONTENTS', 'File contents do not match an MP4, WEBM, or MOV video.'), null];
+            return [$this->fail(400, 'INVALID_FILE_CONTENTS',
+                'Dosya içeriği geçerli bir videoyla eşleşmiyor.'), null];
         }
 
         if ($isImage) {
@@ -91,16 +102,45 @@ class MediaController extends Controller
             if ($invalid !== null) {
                 return [$this->fail(400, 'INVALID_FILE_CONTENTS', $invalid), null];
             }
+
+            // A decompression bomb is small on disk and enormous in memory,
+            // so it has to be refused on dimensions before anything decodes
+            // it — including our own moderation pass.
+            $size = @getimagesize($file->getRealPath());
+            if (is_array($size) && ($size[0] * $size[1]) > $limits['max_image_pixels']) {
+                return [$this->fail(400, 'IMAGE_TOO_LARGE', sprintf(
+                    'Fotoğraf çözünürlüğü çok yüksek (%d×%d).', $size[0], $size[1],
+                )), null];
+            }
         }
 
-        // Primary layer: OpenAI's moderation model actually looks at the
-        // picture. Images go straight in; videos are sampled into frames
-        // first, so prohibited content buried mid-clip is still caught.
-        if ($submitter !== null) {
-            $decision = $this->inspectUploadWithProvider($file, $mime, $isVideo, $submitter);
-            if ($decision !== null) {
-                return $decision;
+        if ($isVideo) {
+            $seconds = (new \App\Services\Moderation\VideoModerator())
+                ->durationSeconds($file->getRealPath());
+            // Null means the duration could not be read — that is handled by
+            // the frame-extraction step, which holds the upload rather than
+            // guessing. Only a known, over-limit duration is refused here.
+            if ($seconds !== null && $seconds > $limits['max_video_seconds']) {
+                return [$this->fail(400, 'VIDEO_TOO_LONG', sprintf(
+                    'Video çok uzun (%d saniye). En fazla %d saniye olabilir.',
+                    (int) round($seconds), $limits['max_video_seconds'],
+                )), null];
             }
+        }
+
+        // Primary layer: the moderation model actually looks at the picture.
+        // Images go straight in; videos are sampled into frames first, so
+        // prohibited content buried mid-clip is still caught.
+        if ($submitter === null) {
+            // No account to attribute the upload to means no moderation ran.
+            // Hold it rather than approve — an unattributed upload is the
+            // last thing that should skip the check.
+            return [null, 'pending'];
+        }
+
+        $decision = $this->inspectUploadWithProvider($file, $mime, $isVideo, $submitter);
+        if ($decision !== null) {
+            return $decision;
         }
 
         // A configured ARUCAD-owned semantic model may make a high-confidence

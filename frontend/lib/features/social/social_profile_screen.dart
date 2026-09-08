@@ -8,9 +8,11 @@ import 'package:arucad_campus_prototype/core/services/content_moderation.dart';
 import 'package:arucad_campus_prototype/core/services/contracts.dart';
 import 'package:arucad_campus_prototype/core/services/photo_picker_service.dart';
 import 'package:arucad_campus_prototype/core/services/profile_bio_store.dart';
+import 'package:arucad_campus_prototype/core/services/upload_rules.dart';
 import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
 import 'package:arucad_campus_prototype/features/social/chat_screen.dart';
 import 'package:arucad_campus_prototype/features/social/post_detail_screen.dart';
+import 'package:arucad_campus_prototype/features/widgets/moderation_notice.dart';
 import 'package:arucad_campus_prototype/features/widgets/campus_avatar.dart';
 import 'package:arucad_campus_prototype/features/widgets/campus_back_button.dart';
 import 'package:arucad_campus_prototype/features/widgets/campus_network_image.dart';
@@ -318,6 +320,16 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
     if (choice != '__pick__' || !mounted) return;
     final bytes = await PhotoPickerService.pick(context, imageQuality: 70, maxWidth: 480);
     if (bytes == null) return;
+
+    // Refused locally before spending an upload on it.
+    final reason = UploadRules.rejectionReason(bytes, 'avatar.jpg');
+    if (reason != null) {
+      if (!mounted || !context.mounted) return;
+      await showModerationNotice(context, message: reason);
+
+      return;
+    }
+
     try {
       final item =
           await widget.repository.uploadMyMedia(bytes, fileName: 'avatar.jpg');
@@ -333,6 +345,8 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
       await AppSettingsStore.setAvatarUrl(persisted);
       if (mounted) setState(() => _avatarOverride = persisted);
     } catch (e) {
+      if (!mounted || !context.mounted) return;
+      if (await showModerationNoticeFor(context, e)) return;
       if (!mounted || !context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Profil fotoğrafı kaydedilemedi: $e')),

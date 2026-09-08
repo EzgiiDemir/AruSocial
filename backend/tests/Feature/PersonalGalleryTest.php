@@ -22,10 +22,12 @@ class PersonalGalleryTest extends TestCase
             'file' => $this->fakeJpeg('shot.jpg'),
         ], ['Accept' => 'application/json'])->assertCreated()->json('data');
 
-        $this->assertSame('approved', $created['moderationStatus']);
+        // Held until something has actually looked at the image. See
+        // MediaApiTest for why a magic-byte check is not enough.
+        $this->assertSame('pending', $created['moderationStatus']);
         $this->assertDatabaseHas('media_items', [
             'id' => $created['id'], 'user_id' => $me->id, 'file_name' => 'shot.jpg',
-            'moderation_status' => 'approved',
+            'moderation_status' => 'pending',
         ]);
 
         $page = $this->getJson('/api/v1/media/mine')->assertOk();

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'package:arucad_campus_prototype/core/config/campus_life_config.dart';
+import 'package:arucad_campus_prototype/core/config/place_catalog.dart';
 import 'package:arucad_campus_prototype/core/l10n/app_strings.dart';
 import 'package:arucad_campus_prototype/core/models/campus_models.dart';
 import 'package:arucad_campus_prototype/core/services/contracts.dart';
@@ -65,6 +66,96 @@ class _ExploreScreenState extends State<ExploreScreen> {
   ChatRealtimeService? _realtime;
   StreamSubscription<List<String>>? _campusChanges;
   bool _refreshing = false;
+  final _searchC = TextEditingController();
+  String _query = '';
+
+  /// Matches across everything the hub can open, so one box answers
+  /// "where is X" whether X is a building, an event, a club or a team.
+  ///
+  /// Each hit carries the screen it belongs to, because a result is only
+  /// useful if tapping it lands somewhere — a list of names that does
+  /// nothing is worse than no search at all.
+  List<(IconData, String, String, VoidCallback)> get _matches {
+    final q = _query.toLowerCase();
+    if (q.isEmpty) return const [];
+
+    final out = <(IconData, String, String, VoidCallback)>[];
+    for (final place in _places) {
+      if (place.name.toLowerCase().contains(q) ||
+          place.category.toLowerCase().contains(q)) {
+        out.add((Icons.location_on_rounded, place.name,
+            normalizeCategory(place.category), _openPlaces));
+      }
+    }
+    for (final event in _events) {
+      if (event.title.toLowerCase().contains(q) ||
+          event.placeName.toLowerCase().contains(q)) {
+        out.add((Icons.local_activity_rounded, event.title,
+            '${event.time} · ${event.placeName}', _openEvents));
+      }
+    }
+    for (final club in _clubs) {
+      if (club.name.toLowerCase().contains(q)) {
+        out.add((Icons.diversity_3_rounded, club.name, club.category, _openClubs));
+      }
+    }
+    for (final sport in _sports) {
+      if (sport.name.toLowerCase().contains(q)) {
+        out.add((Icons.sports_soccer_rounded, sport.name, sport.facility,
+            _openSports));
+      }
+    }
+
+    return out.take(30).toList();
+  }
+
+  List<Widget> _searchSlivers(AppStrings strings) {
+    final results = _matches;
+    if (results.isEmpty) {
+      return [
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 40, 20, 40),
+            child: Column(children: [
+              const Icon(Icons.search_off_rounded,
+                  size: 40, color: ArucadColors.muted),
+              const SizedBox(height: 12),
+              Text(strings.t('clm_no_results'),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: ArucadColors.muted)),
+            ]),
+          ),
+        ),
+      ];
+    }
+
+    return [
+      SliverList.builder(
+        itemCount: results.length,
+        itemBuilder: (_, i) {
+          final (icon, title, subtitle, onTap) = results[i];
+
+          return ListTile(
+            leading: CircleAvatar(
+              radius: 18,
+              backgroundColor: ArucadColors.primary.withValues(alpha: .09),
+              child: Icon(icon, size: 18, color: ArucadColors.primary),
+            ),
+            title: Text(title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w700)),
+            subtitle: subtitle.isEmpty
+                ? null
+                : Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: onTap,
+          );
+        },
+      ),
+      const SliverToBoxAdapter(child: SizedBox(height: 24)),
+    ];
+  }
 
   @override
   void initState() {
@@ -171,50 +262,29 @@ class _ExploreScreenState extends State<ExploreScreen> {
   /// One search box over everything the hub already loaded — places,
   /// events, clubs and sports — so a student who knows the name of a thing
   /// does not have to guess which of the eight cards it lives behind.
-  Future<void> _openSearch() async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      builder: (sheetContext) => _ExploreSearchSheet(
-        places: _places,
-        events: _events,
-        clubs: _clubs,
-        sports: _sports,
-        onOpenPlaces: () {
-          Navigator.pop(sheetContext);
-          Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => ExplorePlacesScreen(
-              repository: widget.repository,
-              mapProvider: widget.mapProvider,
-              analyticsTracker: widget.analyticsTracker,
-            ),
-          ));
-        },
-        onOpenEvents: () {
-          Navigator.pop(sheetContext);
-          Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => ExploreEventsScreen(
-              repository: widget.repository,
-              mapProvider: widget.mapProvider,
-              analyticsTracker: widget.analyticsTracker,
-            ),
-          ));
-        },
-        onOpenClubs: () {
-          Navigator.pop(sheetContext);
-          Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => ExploreClubsScreen(repository: widget.repository),
-          ));
-        },
-        onOpenSports: () {
-          Navigator.pop(sheetContext);
-          Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => ExploreSportsScreen(repository: widget.repository),
-          ));
-        },
-      ),
-    );
-  }
+  void _openPlaces() => Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => ExplorePlacesScreen(
+          repository: widget.repository,
+          mapProvider: widget.mapProvider,
+          analyticsTracker: widget.analyticsTracker,
+        ),
+      ));
+
+  void _openEvents() => Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => ExploreEventsScreen(
+          repository: widget.repository,
+          mapProvider: widget.mapProvider,
+          analyticsTracker: widget.analyticsTracker,
+        ),
+      ));
+
+  void _openClubs() => Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => ExploreClubsScreen(repository: widget.repository),
+      ));
+
+  void _openSports() => Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => ExploreSportsScreen(repository: widget.repository),
+      ));
 
   void _openCalendar({DateTime? day}) {
     Navigator.of(context).push(MaterialPageRoute(
@@ -255,11 +325,6 @@ class _ExploreScreenState extends State<ExploreScreen> {
                               ?.copyWith(fontWeight: FontWeight.w900)),
                     ),
                     IconButton(
-                      tooltip: strings.t('explore_places_search'),
-                      icon: const Icon(Icons.search_rounded),
-                      onPressed: _openSearch,
-                    ),
-                    IconButton(
                       tooltip: strings.t('social_notifications'),
                       icon: const Icon(Icons.notifications_none_rounded),
                       onPressed: () => Navigator.of(context).push(
@@ -270,6 +335,51 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   ]),
                 ),
               ),
+
+              // Search is a bar, not an icon that opens a sheet. Someone
+              // looking for a room does not first have to discover that the
+              // magnifier is where searching lives, and results appear under
+              // what they typed instead of in a panel that covers the page.
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+                  child: TextField(
+                    controller: _searchC,
+                    textInputAction: TextInputAction.search,
+                    onChanged: (value) =>
+                        setState(() => _query = value.trim()),
+                    decoration: InputDecoration(
+                      hintText: strings.t('explore_search_hint'),
+                      prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                      suffixIcon: _query.isEmpty
+                          ? null
+                          : IconButton(
+                              tooltip: strings.t('sf_clear_search'),
+                              icon: const Icon(Icons.close_rounded, size: 18),
+                              onPressed: () {
+                                _searchC.clear();
+                                setState(() => _query = '');
+                              },
+                            ),
+                      isDense: true,
+                      filled: true,
+                      fillColor: Theme.of(context).colorScheme.surface,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(999),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding:
+                          const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+                    ),
+                  ),
+                ),
+              ),
+
+              // While a query is active the suggestions replace the category
+              // grid: showing both would mean scrolling past the grid to
+              // reach the answer to what you just typed.
+              if (_query.isNotEmpty) ..._searchSlivers(strings),
+              if (_query.isEmpty) ...[
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
@@ -439,6 +549,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   ),
                 ),
               ),
+              ],
             ],
           ),
         ),
@@ -450,124 +561,6 @@ class _ExploreScreenState extends State<ExploreScreen> {
 /// Searches everything the Explore hub already has in memory. No network
 /// call: the hub loads places, events, clubs and sports on entry, so typing
 /// filters instantly instead of waiting on a round trip per keystroke.
-class _ExploreSearchSheet extends StatefulWidget {
-  final List<CampusPlace> places;
-  final List<CampusEvent> events;
-  final List<CampusClub> clubs;
-  final List<CampusSport> sports;
-  final VoidCallback onOpenPlaces;
-  final VoidCallback onOpenEvents;
-  final VoidCallback onOpenClubs;
-  final VoidCallback onOpenSports;
-
-  const _ExploreSearchSheet({
-    required this.places,
-    required this.events,
-    required this.clubs,
-    required this.sports,
-    required this.onOpenPlaces,
-    required this.onOpenEvents,
-    required this.onOpenClubs,
-    required this.onOpenSports,
-  });
-
-  @override
-  State<_ExploreSearchSheet> createState() => _ExploreSearchSheetState();
-}
-
-class _ExploreSearchSheetState extends State<_ExploreSearchSheet> {
-  String _query = '';
-
-  /// (icon, label, subtitle, onTap)
-  List<(IconData, String, String, VoidCallback)> get _results {
-    final q = _query.trim().toLowerCase();
-    if (q.isEmpty) return const [];
-
-    final out = <(IconData, String, String, VoidCallback)>[];
-    for (final place in widget.places) {
-      if (place.name.toLowerCase().contains(q) ||
-          place.category.toLowerCase().contains(q)) {
-        out.add((Icons.location_on_rounded, place.name, place.category,
-            widget.onOpenPlaces));
-      }
-    }
-    for (final event in widget.events) {
-      if (event.title.toLowerCase().contains(q) ||
-          event.placeName.toLowerCase().contains(q)) {
-        out.add((Icons.local_activity_rounded, event.title,
-            '${event.time} · ${event.placeName}', widget.onOpenEvents));
-      }
-    }
-    for (final club in widget.clubs) {
-      if (club.name.toLowerCase().contains(q)) {
-        out.add((Icons.diversity_3_rounded, club.name, club.category,
-            widget.onOpenClubs));
-      }
-    }
-    for (final sport in widget.sports) {
-      if (sport.name.toLowerCase().contains(q)) {
-        out.add((Icons.sports_soccer_rounded, sport.name, sport.facility,
-            widget.onOpenSports));
-      }
-    }
-    return out.take(40).toList();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final strings = AppLocale.of(context);
-    final results = _results;
-
-    return SafeArea(
-      child: Padding(
-        padding:
-            EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-        child: SizedBox(
-          height: MediaQuery.of(context).size.height * .78,
-          child: Column(children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: TextField(
-                autofocus: true,
-                textInputAction: TextInputAction.search,
-                onChanged: (value) => setState(() => _query = value),
-                decoration: InputDecoration(
-                  hintText: strings.t('explore_search_hint'),
-                  prefixIcon: const Icon(Icons.search_rounded),
-                  border: const OutlineInputBorder(),
-                ),
-              ),
-            ),
-            Expanded(
-              child: _query.trim().isEmpty
-                  ? Center(
-                      child: Text(strings.t('explore_search_hint'),
-                          style: const TextStyle(color: ArucadColors.muted)))
-                  : results.isEmpty
-                      ? Center(
-                          child: Text(strings.t('explore_places_empty'),
-                              style:
-                                  const TextStyle(color: ArucadColors.muted)))
-                      : ListView.builder(
-                          itemCount: results.length,
-                          itemBuilder: (context, i) {
-                            final (icon, title, subtitle, onTap) = results[i];
-                            return ListTile(
-                              leading: Icon(icon, color: ArucadColors.primary),
-                              title: Text(title),
-                              subtitle:
-                                  subtitle.isEmpty ? null : Text(subtitle),
-                              onTap: onTap,
-                            );
-                          },
-                        ),
-            ),
-          ]),
-        ),
-      ),
-    );
-  }
-}
 
 class _RecommendationTile extends StatelessWidget {
   final IconData icon;

@@ -60,7 +60,7 @@ final class TextNormalizer
 
     public function normalize(string $text): NormalizedText
     {
-        $lower = mb_strtolower($text, 'UTF-8');
+        $lower = $this->foldCase($text);
         $obfuscations = [];
 
         $hasMention = (bool) preg_match('/@\p{L}[\p{L}\p{N}_]*/u', $lower);
@@ -136,10 +136,27 @@ final class TextNormalizer
         );
     }
 
+    /**
+     * Lowercase, then drop the combining marks lowercasing can leave behind.
+     *
+     * Turkish "İ" lowercases to "i" followed by U+0307 COMBINING DOT ABOVE.
+     * The tokenizer treats a non-letter as a word separator, so "İBNE"
+     * became the two tokens "i" and "bne" and matched nothing — anyone
+     * typing in caps lock walked straight past the filter, for every
+     * Turkish word beginning with İ, not just this one. Stripping the
+     * U+0300–U+036F block keeps the letter and loses the mark.
+     */
+    private function foldCase(string $text): string
+    {
+        $lower = mb_strtolower($text, 'UTF-8');
+
+        return preg_replace('/\p{Mn}/u', '', $lower) ?? $lower;
+    }
+
     /** Folds a lexicon term through the same pipeline as user text. */
     public function canonicalizeFragment(string $fragment): string
     {
-        $work = mb_strtolower($fragment, 'UTF-8');
+        $work = $this->foldCase($fragment);
         $work = str_replace(self::MASKING_CHARS, '', $work);
         $work = strtr($work, self::LEET);
         $work = strtr($work, self::TURKISH);

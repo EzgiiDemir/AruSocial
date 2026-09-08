@@ -139,6 +139,88 @@ final class PolicyLexicon
      *
      * @var list<array{kind: string, labels: list<string>, severity: string, phrases: list<string>}>
      */
+    /**
+     * Words that are only ever slurs.
+     *
+     * These carry no neutral use: there is no sentence where calling
+     * somebody one of these is anything but an attack on who they are. So
+     * unlike an insult, no target pronoun is needed — the word alone is the
+     * violation. Quoting one to condemn, report or teach about it is still
+     * allowed, because the exemption pass runs before this (see
+     * TextPolicyEngine::evaluate and the counterspeech corpus cases).
+     *
+     * Kept deliberately separate from PROTECTED_GROUPS below: "siyahi" and
+     * "arap" are ordinary words for who someone is and must never be
+     * blocked on their own.
+     *
+     * @var list<string>
+     */
+    public const SLURS = [
+        // Racial — Turkish
+        'zenci', 'zenciler', 'arap kokulu', 'maymun gibi siyah',
+        // Racial — English
+        'nigger', 'nigga', 'niggas', 'niggers', 'negro', 'coon', 'jigaboo',
+        // Racial — Russian
+        'ниггер', 'негритос', 'черномазый',
+        // Ethnic — Turkish
+        'cingene', 'kiro', 'moruk kurt', 'pkkli', 'terorist kurt',
+        // Ethnic — Russian/other
+        'чурка', 'чурки', 'хач', 'жид', 'жиды', 'хохол',
+        // Ethnic — English
+        'kike', 'spic', 'chink', 'gook', 'wetback', 'towelhead', 'raghead',
+        'paki', 'gypsy scum',
+        // Homophobic / transphobic
+        'ibne', 'ibneler', 'top oglan', 'nonos',
+        'faggot', 'faggots', 'fag', 'tranny', 'dyke',
+        'пидор', 'пидорас', 'петух',
+        // Ableist
+        'sakat herif', 'ozurlu herif', 'mongol',
+        'retard', 'retarded', 'spastic', 'cripple',
+        'даун', 'дебил',
+    ];
+
+    /**
+     * Identity words that are perfectly normal on their own.
+     *
+     * "Siyahi", "Kürt", "Arap", "Suriyeli" are how people describe
+     * themselves and each other, and a filter that blocks them makes it
+     * impossible to talk about identity at all — including to discuss
+     * racism. They only become an attack when paired with something
+     * hostile, which is what HOSTILE_MODIFIERS is for.
+     *
+     * @var list<string>
+     */
+    public const PROTECTED_GROUPS = [
+        'siyahi', 'siyahiler', 'siyah irk', 'zencı',
+        'arap', 'araplar', 'kurt', 'kurtler', 'ermeni', 'ermeniler',
+        'suriyeli', 'suriyeliler', 'afgan', 'afganlar', 'gocmen', 'gocmenler',
+        'multeci', 'multeciler', 'yahudi', 'yahudiler', 'musluman', 'muslumanlar',
+        'hristiyan', 'hristiyanlar', 'alevi', 'aleviler', 'rum', 'rumlar',
+        'kadinlar', 'erkekler', 'engelliler', 'escinseller', 'translar',
+        'black people', 'jews', 'muslims', 'christians', 'arabs', 'kurds',
+        'immigrants', 'refugees', 'gay people', 'trans people', 'disabled people',
+        'women', 'foreigners',
+        'евреи', 'мусульмане', 'мигранты', 'беженцы', 'женщины', 'инвалиды',
+    ];
+
+    /**
+     * Hostility that turns naming a group into attacking it.
+     *
+     * @var list<string>
+     */
+    public const HOSTILE_MODIFIERS = [
+        'lanet', 'pis', 'igrenc', 'asagilik', 'adi', 'serefsiz', 'pislik',
+        'dolu', 'tohumu', 'bozuntusu', 'kirmasi', 'melez',
+        'defol', 'defolsun', 'gitsin', 'gitsinler', 'kovun', 'sinir disi',
+        'istemiyoruz', 'terorist', 'hain', 'kopek', 'hayvan', 'maymun',
+        'parazit', 'bocek', 'olsun', 'gebersin', 'gebersinler', 'yok edilmeli',
+        'temizlenmeli', 'insan degil', 'asalak', 'ustun irk', 'alt irk',
+        'damn', 'filthy', 'dirty', 'disgusting', 'vermin', 'parasite',
+        'subhuman', 'inferior', 'scum', 'should die', 'get out', 'go home',
+        'kick them out', 'throw them out', 'not human', 'animals',
+        'грязные', 'мрази', 'паразиты', 'убирайтесь', 'не люди', 'выгнать',
+    ];
+
     public const PHRASE_RULES = [
         [
             'kind' => 'threat',
@@ -236,6 +318,22 @@ final class PolicyLexicon
                 'women arent intelligent', 'women are not intelligent',
                 'disabled people are nothing but a burden', 'burden on society',
                 'женщинам не хватает ума', 'инвалиды только обуза', 'только обуза',
+            ],
+        ],
+        [
+            // Glorifying genocide or its perpetrators. Named separately
+            // from slurs because it attacks a group without using one:
+            // "Hitler haklıydı" contains no insult a word list would see.
+            'kind' => 'hate_group',
+            'labels' => ['HATE'],
+            'severity' => 'S4',
+            'phrases' => [
+                'hitler hakliydi', 'hitler dogru', 'keske hitler', 'gaz odalari',
+                'soykirim yalan', 'holokost yalan', 'yine gelsin hitler',
+                'hitler was right', 'gas the', 'holocaust is a lie',
+                'holocaust never happened', 'heil hitler', 'white power',
+                'blood and soil', 'race war', 'final solution',
+                'гитлер был прав', 'холокост ложь', 'зиг хайль',
             ],
         ],
         [

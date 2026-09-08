@@ -82,6 +82,18 @@ final class TextPolicyEngine
             );
         }
 
+        // Hate is decided before the ordinary insult scoring, because it
+        // does not follow the same rules. An insult needs a target — "you
+        // are an idiot" is an attack, "what an idiot" is a grumble. A slur
+        // needs nobody: the word is the attack, and "lanet zenci" with no
+        // pronoun anywhere used to score as a mild non-targeted grumble and
+        // publish. It sits after the exemption pass so quoting a slur in
+        // order to condemn or report it stays allowed.
+        $hate = $this->detectHate($n);
+        if ($hate !== null) {
+            return $hate;
+        }
+
         if ($phraseHits !== []) {
             $verdict = $this->decideFromPhrase($phraseHits[0], $n, $targeted, $ambiguity);
             if ($verdict !== null) {
@@ -90,6 +102,43 @@ final class TextPolicyEngine
         }
 
         return $this->decideFromWords($n, $words, $targeted, $contentAttack, $ambiguity);
+    }
+
+    /**
+     * Hate speech: an unambiguous slur, or a group named with hostility.
+     *
+     * The two halves exist because they fail in opposite directions. A slur
+     * list alone misses "lanet siyahiler" — every word in it is innocent on
+     * its own. Adding the identity words to the slur list instead would
+     * block "siyahi arkadaşım" and any discussion of racism, which is worse
+     * than useless: it silences exactly the people the rule protects.
+     *
+     * So slurs match alone, and identity words only match when something
+     * hostile appears with them.
+     */
+    private function detectHate(NormalizedText $n): ?ModerationVerdict
+    {
+        $slurs = $this->matchList($n, PolicyLexicon::SLURS);
+        if ($slurs !== []) {
+            return new ModerationVerdict(
+                ModerationVerdict::REMOVE, 'S4', ['HATE'], true, 'hate_slur',
+                array_map(fn (string $s): string => 'slur:'.$s, $slurs),
+            );
+        }
+
+        $groups = $this->matchList($n, PolicyLexicon::PROTECTED_GROUPS);
+        if ($groups === []) {
+            return null;
+        }
+        $hostile = $this->matchList($n, PolicyLexicon::HOSTILE_MODIFIERS);
+        if ($hostile === []) {
+            return null;
+        }
+
+        return new ModerationVerdict(
+            ModerationVerdict::REMOVE, 'S4', ['HATE'], true, 'hate_group',
+            ['group:'.$groups[0], 'hostility:'.$hostile[0]],
+        );
     }
 
     /**

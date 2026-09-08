@@ -70,7 +70,11 @@ class DemoCampusLifeSeeder extends Seeder
                 'name' => $author->name,
                 'text' => $text,
                 'meta' => 'az önce',
-                'visibility' => 'public',
+                // 'everyone', not 'public': SocialAudience::visibility()
+                // only recognises onlyMe/friends/everyone, so anything else
+                // is a value no reader ever matches — the posts existed and
+                // were simply invisible to every account.
+                'visibility' => 'everyone',
                 'post_type' => 'normal',
                 'location_tag' => $place?->name,
                 'official' => false,

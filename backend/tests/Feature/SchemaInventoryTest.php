@@ -184,7 +184,13 @@ class SchemaInventoryTest extends TestCase
         $path = base_path('../sql/schema.sql');
         $this->assertFileExists($path);
 
-        return file_get_contents($path);
+        $contents = file_get_contents($path);
+        $this->assertNotFalse($contents);
+
+        // Keep the canonical SQL dump portable across Git's autocrlf
+        // settings. Several anchored regexes below intentionally operate on
+        // logical SQL lines, not platform-specific line endings.
+        return str_replace(["\r\n", "\r"], "\n", $contents);
     }
 
     private function createTableSql(string $dump, string $table): string

@@ -167,60 +167,6 @@ class _ExplorePlacesScreenState extends State<ExplorePlacesScreen>
     }).toList();
   }
 
-  Future<void> _openFilters() async {
-    final strings = AppLocale.of(context);
-    final selected = await showModalBottomSheet<String?>(
-      context: context,
-      showDragHandle: true,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (ctx) {
-        return SafeArea(
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
-                child: Text(strings.t('explore_places_filter'),
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w900, fontSize: 16)),
-              ),
-              ListTile(
-                title: Text(strings.t('category_all'),
-                    style: TextStyle(
-                        fontWeight: _category == null
-                            ? FontWeight.w800
-                            : FontWeight.w500)),
-                trailing: _category == null
-                    ? const Icon(Icons.check, color: ArucadColors.primary)
-                    : null,
-                onTap: () => Navigator.pop(ctx, ''),
-              ),
-              for (final cat in _categories)
-                ListTile(
-                  title: Text(cat,
-                      style: TextStyle(
-                          fontWeight: _category == cat
-                              ? FontWeight.w800
-                              : FontWeight.w500)),
-                  trailing: _category == cat
-                      ? const Icon(Icons.check, color: ArucadColors.primary)
-                      : null,
-                  onTap: () => Navigator.pop(ctx, cat),
-                ),
-              const SizedBox(height: 8),
-            ],
-          ),
-        );
-      },
-    );
-    if (!mounted || selected == null) return;
-    setState(() {
-      _category = selected.isEmpty ? null : selected;
-      _resetVisible();
-    });
-  }
-
   void _openPlace(CampusPlace place) {
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -254,138 +200,240 @@ class _ExplorePlacesScreenState extends State<ExplorePlacesScreen>
     final page = filtered.take(shown).toList();
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(strings.t('discover_places')),
-        actions: [
-          TextButton.icon(
-            onPressed: _openBuildingDirectory,
-            icon: const Icon(Icons.apartment_outlined, size: 18),
-            label: const Text('Binalar & 360°'),
-          ),
-        ],
-      ),
+      appBar: AppBar(title: Text(strings.t('discover_places'))),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _load,
-              child: CustomScrollView(
-                slivers: [
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 12, 12, 8),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: _searchController,
-                              focusNode: _searchFocus,
-                              textInputAction: TextInputAction.search,
-                              onChanged: (v) => setState(() {
-                                _query = v;
-                                _resetVisible();
-                              }),
-                              decoration: InputDecoration(
-                                hintText: strings.t('explore_places_search'),
-                                prefixIcon: const Icon(Icons.search_rounded),
-                                filled: true,
-                                fillColor: ArucadColors.mist,
-                                contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 14, vertical: 12),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                  borderSide: BorderSide.none,
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                  borderSide: BorderSide.none,
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                  borderSide: const BorderSide(
-                                      color: ArucadColors.primary, width: 1.2),
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          IconButton(
-                            tooltip: strings.t('explore_places_filter'),
-                            onPressed: _openFilters,
-                            icon: Badge(
-                              isLabelVisible: _category != null,
-                              smallSize: 8,
-                              backgroundColor: ArucadColors.primary,
-                              child: Icon(
-                                Icons.filter_list_rounded,
-                                color: _category != null
-                                    ? ArucadColors.primary
-                                    : ArucadColors.ink,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  if (_category != null)
+          : LayoutBuilder(builder: (context, constraints) {
+              final isWide = constraints.maxWidth >= 700;
+              return RefreshIndicator(
+                onRefresh: _load,
+                child: CustomScrollView(
+                  slivers: [
                     SliverToBoxAdapter(
                       child: Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: InputChip(
-                            label: Text(_category!),
-                            deleteIcon: const Icon(Icons.close, size: 16),
-                            onDeleted: () => setState(() {
-                              _category = null;
-                              _resetVisible();
-                            }),
-                            onPressed: _openFilters,
+                        padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                        child: _BuildingDirectoryEntryCard(
+                            onTap: _openBuildingDirectory),
+                      ),
+                    ),
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 14, 12, 8),
+                        child: TextField(
+                          controller: _searchController,
+                          focusNode: _searchFocus,
+                          textInputAction: TextInputAction.search,
+                          onChanged: (v) => setState(() {
+                            _query = v;
+                            _resetVisible();
+                          }),
+                          decoration: InputDecoration(
+                            hintText: strings.t('explore_places_search'),
+                            prefixIcon: const Icon(Icons.search_rounded),
+                            filled: true,
+                            fillColor: ArucadColors.mist,
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 12),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide.none,
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide.none,
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: const BorderSide(
+                                  color: ArucadColors.primary, width: 1.2),
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  if (filtered.isEmpty)
-                    SliverFillRemaining(
-                      hasScrollBody: false,
-                      child: Center(
-                        child: Text(strings.t('explore_places_empty'),
-                            style: const TextStyle(color: ArucadColors.muted)),
-                      ),
-                    )
-                  else
-                    SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
-                      sliver: SliverList.builder(
-                        itemCount: page.length + 1,
-                        itemBuilder: (context, i) {
-                          if (i == page.length) {
-                            return LoadMoreButton(
-                              shown: shown,
-                              total: filtered.length,
-                              itemLabel: 'yer',
-                              onTap: () =>
-                                  setState(() => _visible += kPageSize),
-                            );
-                          }
-                          final place = page[i];
-                          return Padding(
-                            padding: EdgeInsets.only(top: i == 0 ? 0 : 10),
-                            child: PlaceCard(
-                              place: place,
-                              events: _events,
-                              checkInCount: _checkInCounts[place.id] ?? 0,
-                              distanceLabel: _liveDistanceLabel(place),
-                              accentColor: brandAccentAt(i),
-                              onOpen: () => _openPlace(place),
+                    SliverToBoxAdapter(
+                      child: SizedBox(
+                        height: 42,
+                        child: ListView(
+                          scrollDirection: Axis.horizontal,
+                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+                          children: [
+                            // SelectableChip, not a bare ChoiceChip: it is
+                            // the one that flips the label to white on the
+                            // dark selected fill. A plain ChoiceChip keeps
+                            // its dark default label and becomes unreadable
+                            // on the navy background once selected.
+                            Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: SelectableChip(
+                                label: strings.t('category_all'),
+                                selected: _category == null,
+                                onSelected: (_) => setState(() {
+                                  _category = null;
+                                  _resetVisible();
+                                }),
+                              ),
                             ),
-                          );
-                        },
+                            for (final cat in _categories)
+                              Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: SelectableChip(
+                                  label: cat,
+                                  selected: _category == cat,
+                                  onSelected: (_) => setState(() {
+                                    _category = cat;
+                                    _resetVisible();
+                                  }),
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
                     ),
+                    if (filtered.isEmpty)
+                      SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: Center(
+                          child: Text(strings.t('explore_places_empty'),
+                              style: const TextStyle(color: ArucadColors.muted)),
+                        ),
+                      )
+                    else if (isWide)
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
+                        sliver: SliverList.builder(
+                          itemCount: (page.length / 2).ceil() + 1,
+                          itemBuilder: (context, row) {
+                            if (row == (page.length / 2).ceil()) {
+                              return LoadMoreButton(
+                                shown: shown,
+                                total: filtered.length,
+                                itemLabel: 'yer',
+                                onTap: () =>
+                                    setState(() => _visible += kPageSize),
+                              );
+                            }
+                            final left = page[row * 2];
+                            final rightIndex = row * 2 + 1;
+                            final right =
+                                rightIndex < page.length ? page[rightIndex] : null;
+                            return Padding(
+                              padding: EdgeInsets.only(top: row == 0 ? 0 : 10),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    child: PlaceCard(
+                                      place: left,
+                                      events: _events,
+                                      checkInCount:
+                                          _checkInCounts[left.id] ?? 0,
+                                      distanceLabel: _liveDistanceLabel(left),
+                                      accentColor: brandAccentAt(row * 2),
+                                      onOpen: () => _openPlace(left),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: right == null
+                                        ? const SizedBox.shrink()
+                                        : PlaceCard(
+                                            place: right,
+                                            events: _events,
+                                            checkInCount:
+                                                _checkInCounts[right.id] ?? 0,
+                                            distanceLabel:
+                                                _liveDistanceLabel(right),
+                                            accentColor:
+                                                brandAccentAt(rightIndex),
+                                            onOpen: () => _openPlace(right),
+                                          ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      )
+                    else
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
+                        sliver: SliverList.builder(
+                          itemCount: page.length + 1,
+                          itemBuilder: (context, i) {
+                            if (i == page.length) {
+                              return LoadMoreButton(
+                                shown: shown,
+                                total: filtered.length,
+                                itemLabel: 'yer',
+                                onTap: () =>
+                                    setState(() => _visible += kPageSize),
+                              );
+                            }
+                            final place = page[i];
+                            return Padding(
+                              padding: EdgeInsets.only(top: i == 0 ? 0 : 10),
+                              child: PlaceCard(
+                                place: place,
+                                events: _events,
+                                checkInCount: _checkInCounts[place.id] ?? 0,
+                                distanceLabel: _liveDistanceLabel(place),
+                                accentColor: brandAccentAt(i),
+                                onOpen: () => _openPlace(place),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            }),
+    );
+  }
+}
+
+class _BuildingDirectoryEntryCard extends StatelessWidget {
+  final VoidCallback onTap;
+  const _BuildingDirectoryEntryCard({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: ArucadColors.paper,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                  color: ArucadColors.primary.withValues(alpha: .12),
+                  borderRadius: BorderRadius.circular(14)),
+              child: const Icon(Icons.apartment_outlined,
+                  color: ArucadColors.primary),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Binalar & 360° Tur',
+                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14.5)),
+                  SizedBox(height: 2),
+                  Text('Bina, kat ve odalara göz at',
+                      style: TextStyle(color: ArucadColors.muted, fontSize: 12)),
                 ],
               ),
             ),
+            const Icon(Icons.chevron_right, color: ArucadColors.muted),
+          ]),
+        ),
+      ),
     );
   }
 }

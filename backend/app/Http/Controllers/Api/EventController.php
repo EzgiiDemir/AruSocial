@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Api\Concerns\ApiResponds;
+use App\Http\Controllers\Api\Concerns\ModeratesContent;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\CreateOwnActivityRequest;
 use App\Mail\EventParticipationClubMail;
@@ -24,7 +25,7 @@ use Illuminate\Validation\UniqueConstraintViolationException;
 
 class EventController extends Controller
 {
-    use ApiResponds;
+    use ApiResponds, ModeratesContent;
 
     private function eventToJson(Event $e): array
     {
@@ -258,6 +259,18 @@ class EventController extends Controller
 
         $place = \App\Models\Place::find($placeId);
         $activeYear = AcademicYear::where('is_active', true)->first();
+
+        // Student-created activities are public listings once approved, so
+        // the title and description are moderated before the row is written
+        // rather than relying on the human approval step alone.
+        if ($blocked = $this->moderationBlock(
+            $me,
+            trim($title."\n".(string) $request->input('description', '')),
+            'event',
+            'event.createOwnActivity',
+        )) {
+            return $blocked;
+        }
 
         $event = Event::create([
             'id' => $this->newId('event'),

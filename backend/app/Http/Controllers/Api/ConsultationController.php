@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Api\Concerns\ApiResponds;
+use App\Http\Controllers\Api\Concerns\ModeratesContent;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ApplyConsultationRequest;
 use App\Http\Requests\PaginatedListRequest;
@@ -17,7 +18,7 @@ use Illuminate\Support\Str;
 
 class ConsultationController extends Controller
 {
-    use ApiResponds;
+    use ApiResponds, ModeratesContent;
 
     public function index(PaginatedListRequest $request): JsonResponse
     {

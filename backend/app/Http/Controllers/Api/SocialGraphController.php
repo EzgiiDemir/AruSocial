@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Api\Concerns\ApiResponds;
+use App\Http\Controllers\Api\Concerns\ModeratesContent;
 use App\Http\Controllers\Controller;
 use App\Models\ModerationReport;
 use App\Models\Notification as InboxNotification;
@@ -19,7 +20,7 @@ use Illuminate\Http\Request;
 // discarded. The rows themselves never store a name.
 class SocialGraphController extends Controller
 {
-    use ApiResponds;
+    use ApiResponds, ModeratesContent;
 
     public function following(Request $request): JsonResponse
     {
@@ -59,6 +60,11 @@ class SocialGraphController extends Controller
         }
 
         $reason = trim((string) $request->input('reason', ''));
+        if ($reason !== '' && ($blocked = $this->moderationBlock(
+            $me, $reason, 'report_reason', 'social.reportUser'
+        ))) {
+            return $blocked;
+        }
         if ($reason === '') {
             return $this->fail(400, 'VALIDATION', 'reason is required.');
         }

@@ -38,7 +38,7 @@ class TestAccountsSeederTest extends TestCase
 
         $staff = StaffProfile::find('staff-arch-head');
         $this->assertNotNull($staff);
-        $this->assertSame($gmailTrainer->id, $staff->user_id);
+        $this->assertSame($trainer->id, $staff->user_id);
         $this->assertSame('ezgidemir825@gmail.com', $staff->email);
     }
 }

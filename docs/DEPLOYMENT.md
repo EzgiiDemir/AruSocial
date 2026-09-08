@@ -97,10 +97,10 @@ otherwise — unrelated to this milestone.
 ## 3. Build / cache procedure
 
 Verified locally against this exact codebase (Laravel 13.17, PHP 8.3,
-214 `/api/v1/*` routes — all controller-based, **no route closures**, so
+244 `/api/v1/*` routes — all controller-based, **no route closures**, so
 `route:cache` is safe here and was confirmed working: `php artisan
 route:cache` → `route:list` still resolves all routes → `php artisan test`
-still green → `route:clear`). Current API route count is **215**
+still green → `route:clear`). Current API route count is **244**
 (see `docs/API_CONTRACT.md`):
 
 ```bash

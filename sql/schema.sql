@@ -2,97 +2,52 @@
 -- Source of truth: backend/database/migrations/. Do not edit by hand;
 -- update migrations, then regenerate (see sql/README.md).
 -- No seed data. Does not represent sql/database.sqlite runtime contents.
-
 CREATE TABLE "academic_years" ("id" varchar not null, "label" varchar not null, "starts_on" date not null, "ends_on" date not null, "is_active" tinyint(1) not null default '0', primary key ("id"));
-
 CREATE TABLE "achievement_definitions" ("id" varchar not null, "title" varchar not null, "subtitle" varchar not null default '', "trigger_kind" varchar not null, "threshold" integer not null default '1', "sort_order" integer not null default '0', "active" tinyint(1) not null default '1', primary key ("id"));
-
 CREATE TABLE "activity_log" ("id" varchar not null, "user_id" integer not null, "kind" varchar not null, "title" varchar not null, "subtitle" varchar not null, "meta" varchar not null, "created_at" datetime not null, foreign key("user_id") references "users"("id") on delete cascade, primary key ("id"));
-
 CREATE TABLE "admin_audit_log" ("id" varchar not null, "actor_name" varchar not null, "action" varchar not null, "target_type" varchar not null, "target_label" varchar not null, "at" datetime not null, primary key ("id"));
-
 CREATE TABLE "admin_pages" ("id" varchar not null, "title" varchar not null, "slug" varchar not null, "blocks" text, "status" varchar not null default 'draft', "updated_at" datetime not null, "updated_by" varchar not null, primary key ("id"));
-
 CREATE TABLE "app_settings" ("key" varchar not null, "value" text, primary key ("key"));
-
 CREATE TABLE "application_questions" ("id" varchar not null, "target_type" varchar not null, "stage" varchar not null, "type" varchar not null, "label" varchar not null, "help_text" varchar, "options" text, "required" tinyint(1) not null default '0', "sort_order" integer not null default '0', "active" tinyint(1) not null default '1', "created_at" datetime, "updated_at" datetime, primary key ("id"));
-
 CREATE TABLE "application_status_events" ("id" varchar not null, "application_id" varchar not null, "from_status" varchar, "to_status" varchar not null, "note" text, "actor_user_id" integer, "actor_label" varchar, "created_at" datetime not null, foreign key("application_id") references "participation_applications"("id") on delete cascade, foreign key("actor_user_id") references "users"("id") on delete set null, primary key ("id"));
-
 CREATE TABLE "appointments" ("id" varchar not null, "staff_profile_id" varchar not null, "student_user_id" integer not null, "slot_date" date not null, "start_time" varchar not null, "end_time" varchar not null, "application_id" varchar, "status" varchar not null default 'booked', "created_at" datetime, "updated_at" datetime, "subject" varchar, "notes" text, "admin_notes" text, foreign key("student_user_id") references "users"("id") on delete cascade, foreign key("staff_profile_id") references "staff_profiles"("id") on delete cascade, primary key ("id"));
-
 CREATE TABLE "ask_conversations" ("id" varchar not null, "user_id" integer not null, "title" varchar not null, "created_at" datetime, "updated_at" datetime, foreign key("user_id") references "users"("id") on delete cascade, primary key ("id"));
-
 CREATE TABLE "ask_messages" ("id" varchar not null, "conversation_id" varchar not null, "role" varchar not null, "content" text not null, "created_at" datetime not null default CURRENT_TIMESTAMP, foreign key("conversation_id") references "ask_conversations"("id") on delete cascade, primary key ("id"));
-
 CREATE TABLE "cache" ("key" varchar not null, "value" text not null, "expiration" integer not null, primary key ("key"));
-
 CREATE TABLE "cache_locks" ("key" varchar not null, "owner" varchar not null, "expiration" integer not null, primary key ("key"));
-
 CREATE TABLE "career_applications" ("id" varchar not null, "user_id" integer not null, "opportunity_id" varchar not null, "cv_path" varchar, "cv_original_name" varchar, "cv_mime" varchar, "status" varchar not null default 'pending', "admin_notes" text, "created_at" datetime, "updated_at" datetime, foreign key("user_id") references "users"("id") on delete cascade, foreign key("opportunity_id") references "career_opportunities"("id") on delete cascade, primary key ("id"));
-
 CREATE TABLE "career_opportunities" ("id" varchar not null, "title" varchar not null, "kind" varchar not null, "organization" varchar not null default '', "url" varchar, "deadline" date, "description" text, "published" tinyint(1) not null default '1', "created_at" datetime not null default CURRENT_TIMESTAMP, "department" varchar, "purpose" text, "skills" text, "experience" text, "education" text, "work_type" varchar, "location" varchar, "posted_at" date, "extra_info" text, primary key ("id"));
-
 CREATE TABLE "career_profiles" ("id" integer primary key autoincrement not null, "user_id" integer not null, "headline" varchar, "cv_url" varchar, "looking_for_internships" tinyint(1) not null default '0', "looking_for_jobs" tinyint(1) not null default '0', "updated_at" datetime, "expertise" varchar, "cv_path" varchar, "cv_original_name" varchar, "cv_mime" varchar, "cv_size_bytes" integer, foreign key("user_id") references "users"("id") on delete cascade);
-
 CREATE TABLE "chat_group_members" ("id" integer primary key autoincrement not null, "group_id" varchar not null, "user_id" integer not null, "created_at" datetime, "updated_at" datetime, "muted_at" datetime, "archived_at" datetime, foreign key("user_id") references "users"("id") on delete cascade, foreign key("group_id") references "chat_groups"("id") on delete cascade);
-
 CREATE TABLE "chat_group_messages" ("id" varchar not null, "group_id" varchar not null, "sender_user_id" integer not null, "text" text not null, "created_at" datetime not null, foreign key("sender_user_id") references "users"("id") on delete cascade, foreign key("group_id") references "chat_groups"("id") on delete cascade, primary key ("id"));
-
 CREATE TABLE "chat_groups" ("id" varchar not null, "name" varchar not null, "created_by" integer not null, "created_at" datetime, "updated_at" datetime, foreign key("created_by") references "users"("id") on delete cascade, primary key ("id"));
-
 CREATE TABLE "chat_messages" ("id" varchar not null, "user_id" integer not null, "peer_name" varchar not null, "from_me" tinyint(1) not null, "text" text not null, "sent_at" datetime not null, foreign key("user_id") references "users"("id") on delete cascade, primary key ("id"));
-
 CREATE TABLE "chat_thread_prefs" ("id" integer primary key autoincrement not null, "user_id" integer not null, "peer_user_id" integer not null, "muted_at" datetime, "archived_at" datetime, "restricted_at" datetime, "created_at" datetime, "updated_at" datetime, foreign key("user_id") references "users"("id") on delete cascade, foreign key("peer_user_id") references "users"("id") on delete cascade);
-
 CREATE TABLE "checkins" ("id" varchar not null, "place_id" varchar not null, "user_id" integer not null, "visible_to_others" tinyint(1) not null default '1', "created_at" datetime not null, foreign key("place_id") references "places"("id") on delete cascade, foreign key("user_id") references "users"("id") on delete cascade, primary key ("id"));
-
 CREATE TABLE "club_members" ("id" integer primary key autoincrement not null, "user_id" integer not null, "club_id" varchar not null, "created_at" datetime not null, foreign key("user_id") references "users"("id") on delete cascade, foreign key("club_id") references "clubs"("id") on delete cascade);
-
 CREATE TABLE "clubs" ("id" varchar not null, "name" varchar not null, "category" varchar not null, "description" text not null default '', "body" text, "responsible_staff_id" varchar, primary key ("id"));
-
 CREATE TABLE "collaboration_posts" ("id" varchar not null, "place_id" varchar not null, "author_id" integer not null, "text" text not null, "created_at" datetime not null default CURRENT_TIMESTAMP, "expires_at" datetime not null, foreign key("place_id") references "places"("id") on delete cascade, foreign key("author_id") references "users"("id") on delete cascade, primary key ("id"));
-
 CREATE TABLE "consultation_applications" ("id" varchar not null, "user_id" integer not null, "consultation_id" varchar not null, "status" varchar not null default 'pending', "notes" text, "admin_notes" text, "created_at" datetime, "updated_at" datetime, foreign key("user_id") references "users"("id") on delete cascade, foreign key("consultation_id") references "consultations"("id") on delete cascade, primary key ("id"));
-
 CREATE TABLE "consultations" ("id" varchar not null, "title" varchar not null, "purpose" text, "audience" text, "content" text, "outcomes" text, "duration" varchar, "format" varchar, "requirements" text, "counselor_name" varchar, "counselor_staff_id" varchar, "published" tinyint(1) not null default '1', "created_at" datetime, "updated_at" datetime, primary key ("id"));
-
 CREATE TABLE "content_revisions" ("id" varchar not null, "content_key" varchar not null, "editor_name" varchar not null, "snapshot" text not null, "saved_at" datetime not null, primary key ("id"));
-
 CREATE TABLE "conversation_participants" ("id" integer primary key autoincrement not null, "conversation_id" integer not null, "user_id" integer not null, "created_at" datetime, "updated_at" datetime, foreign key("conversation_id") references "conversations"("id") on delete cascade, foreign key("user_id") references "users"("id") on delete cascade);
-
 CREATE TABLE "conversations" ("id" integer primary key autoincrement not null, "pair_key" varchar not null, "created_at" datetime, "updated_at" datetime);
-
 CREATE TABLE "directory_entries" ("id" varchar not null, "building" varchar not null, "floor" varchar, "room" varchar, "occupant_name" varchar not null, "occupant_role" varchar, "related_service_id" varchar, "tour_url" varchar, "tour_target" varchar, foreign key("related_service_id") references "services"("id") on delete set null, primary key ("id"));
-
 CREATE TABLE "drafts" ("content_key" varchar not null, "blocks" text not null, "updated_at" datetime not null, primary key ("content_key"));
-
 CREATE TABLE "email_logs" ("id" varchar not null, "to_email" varchar not null, "subject" varchar not null, "template" varchar not null, "status" varchar not null, "error" text, "attempts" integer not null default '1', "sent_at" datetime not null, "application_id" varchar, primary key ("id"));
-
 CREATE TABLE "event_joins" ("id" varchar not null, "event_id" varchar not null, "user_id" integer not null, "participation_type_id" varchar, "joined_at" datetime not null, "approved_at" datetime, "approved_by" varchar, "form_submitted_at" datetime, foreign key("event_id") references "events"("id") on delete cascade, foreign key("user_id") references "users"("id") on delete cascade, foreign key("participation_type_id") references "event_participation_types"("id") on delete set null, primary key ("id"));
-
 CREATE TABLE "event_participation_types" ("id" varchar not null, "event_id" varchar not null, "label" varchar not null, "sort_order" integer not null default '0', foreign key("event_id") references "events"("id") on delete cascade, primary key ("id"));
-
 CREATE TABLE "events" ("id" varchar not null, "title" varchar not null, "time" varchar not null, "place_name" varchar not null, "category" varchar not null, "attendees" integer not null default ('0'), "xp" integer not null default ('0'), "draft" tinyint(1) not null default ('0'), "publish_at" datetime, "expires_at" datetime, "audience" varchar not null default ('Tümü'), "organizer" varchar not null default (''), "description" text not null default (''), "created_by_user_id" integer, "workflow_status" varchar not null default 'published', "review_note" text, "place_id" varchar, "academic_year_id" varchar, "organizer_email" varchar, "event_date" date, "ai_draft" tinyint(1) not null default '0', "ai_source_media_id" varchar, "responsible_staff_id" varchar, foreign key("created_by_user_id") references "users"("id") on delete set null, foreign key("place_id") references "places"("id") on delete set null, foreign key("academic_year_id") references "academic_years"("id") on delete set null, primary key ("id"));
-
 CREATE TABLE "failed_jobs" ("id" integer primary key autoincrement not null, "uuid" varchar not null, "connection" varchar not null, "queue" varchar not null, "payload" text not null, "exception" text not null, "failed_at" datetime not null default CURRENT_TIMESTAMP);
-
 CREATE TABLE "feed_posts" ("id" varchar not null, "name" varchar not null, "text" text not null default (''), "meta" varchar not null default (''), "image_url" varchar, "visibility" varchar not null default ('everyone'), "post_type" varchar not null default ('normal'), "course_tag" varchar, "location_tag" varchar, "official" tinyint(1) not null default ('0'), "created_at" datetime not null, "author_id" integer, "is_pinned" tinyint(1) not null default '0', "pinned_at" datetime, "pinned_by" integer, "workflow_status" varchar not null default 'published', "review_note" text, "media_mime_type" varchar, foreign key("author_id") references "users"("id") on delete cascade, primary key ("id"));
-
 CREATE TABLE "food_daily_menus" ("id" varchar not null, "food_venue_id" varchar not null, "menu_date" date not null, "items" text, "price" varchar, "hours" varchar, foreign key("food_venue_id") references "food_venues"("id") on delete cascade, primary key ("id"));
-
 CREATE TABLE "food_venues" ("id" varchar not null, "name" varchar not null, "hours" varchar, "menu_file_url" varchar, primary key ("id"));
-
 CREATE TABLE "job_batches" ("id" varchar not null, "name" varchar not null, "total_jobs" integer not null, "pending_jobs" integer not null, "failed_jobs" integer not null, "failed_job_ids" text not null, "options" text, "cancelled_at" integer, "created_at" integer not null, "finished_at" integer, primary key ("id"));
-
 CREATE TABLE "jobs" ("id" integer primary key autoincrement not null, "queue" varchar not null, "payload" text not null, "attempts" integer not null, "reserved_at" integer, "available_at" integer not null, "created_at" integer not null);
-
 CREATE TABLE "media_items" ("id" varchar not null, "file_path" varchar not null, "file_name" varchar not null, "mime_type" varchar, "size_bytes" integer not null default ('0'), "uploaded_at" datetime not null, "uploaded_by" varchar not null, "used_in" text, "user_id" integer, "moderation_status" varchar not null default 'approved', foreign key("user_id") references "users"("id") on delete set null, primary key ("id"));
-
 CREATE TABLE "messages" ("id" varchar not null, "conversation_id" integer not null, "sender_id" integer not null, "body" text not null, "created_at" datetime, "updated_at" datetime, foreign key("conversation_id") references "conversations"("id") on delete cascade, foreign key("sender_id") references "users"("id") on delete cascade, primary key ("id"));
-
 CREATE TABLE "migrations" ("id" integer primary key autoincrement not null, "migration" varchar not null, "batch" integer not null);
-
+CREATE TABLE "moderation_events" ("id" varchar not null, "user_id" varchar not null, "content_type" varchar not null, "source_feature" varchar not null, "content_id" varchar, "action" varchar not null, "flagged" tinyint(1) not null default '0', "categories" text, "category_scores" text, "decided_by" varchar not null default 'openai', "strike_number" integer, "penalty" varchar, "banned_until" datetime, "moderation_provider" varchar not null default 'openai', "moderation_model" varchar, "excerpt" text, "excerpt_purge_after" datetime, "submission_hash" varchar, "created_at" datetime, "updated_at" datetime, primary key ("id"));
 CREATE TABLE "moderation_reports" ("id" varchar not null, "kind" varchar not null, "target_id" varchar not null, "target_label" varchar not null, "reason" text not null, "reported_at" datetime not null, "action" varchar, primary key ("id"));
 
 CREATE TABLE "notifications" ("id" varchar not null, "user_id" integer not null, "kind" varchar not null, "title" varchar not null, "body" varchar not null, "read_at" datetime, "created_at" datetime not null, "actor_user_id" integer, "data" text, foreign key("user_id") references users("id") on delete cascade on update no action, foreign key("actor_user_id") references "users"("id") on delete set null, primary key ("id"));

@@ -27,6 +27,13 @@
         <env name="DB_DATABASE" value=":memory:" force="true"/>
         <env name="DB_URL" value="" force="true"/>
         <env name="GROQ_API_KEY" value="" force="true"/>
+        <!--
+            The test suite must never call the real moderation API: it would
+            be slow, non-deterministic, and would spend a live quota. Tests
+            therefore run on the local engine by default; the ones that
+            exercise the OpenAI path set the key themselves and fake HTTP.
+        -->
+        <env name="OPENAI_API_KEY" value="" force="true"/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>

@@ -1,6 +1,6 @@
 # Current System Audit
 
-Updated: 2026-09-02. This document describes the current code, not an old
+Updated: 2026-09-07. This document describes the current code, not an old
 prototype plan.
 
 ## Product surfaces
@@ -99,6 +99,7 @@ controls, so students never configure a server manually.
 
 ## Latest verification
 
-- Backend: `php artisan test --stop-on-failure` — 506 passed, 2,552 assertions.
-- Flutter: `flutter test --no-pub --reporter compact` — all tests passed.
+- Backend: `php artisan test --compact` — 563 passed, 2,797 assertions.
+- Flutter: `flutter test --no-pub --reporter compact` — 230 passed.
 - Flutter static analysis: `flutter analyze` — no issues found.
+- Production web compile: Flutter 3.47.1 `flutter build web --release` — passed.

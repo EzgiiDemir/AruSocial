@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Api\Concerns\ApiResponds;
+use App\Http\Controllers\Api\Concerns\ModeratesContent;
 use App\Http\Controllers\Controller;
 use App\Events\CampusDataChanged;
 use App\Http\Requests\PaginatedListRequest;
@@ -25,7 +26,7 @@ use Illuminate\Http\Request;
 
 class FeedController extends Controller
 {
-    use ApiResponds;
+    use ApiResponds, ModeratesContent;
 
     // `likes` and `likedByMe` are the same two field names the Flutter DTO
     // has always parsed, but they are no longer columns: both are derived
@@ -108,9 +109,6 @@ class FeedController extends Controller
     {
         $me = $this->currentUser();
         $text = (string) $request->input('text', '');
-        if ($blocked = ModerationService::checkText($me, $text)) {
-            return $this->fail(400, 'CONTENT_BLOCKED', $blocked);
-        }
         if (mb_strlen($text) > 2000) {
             return $this->fail(400, 'VALIDATION', 'Text must be at most 2000 characters.');
         }
@@ -119,6 +117,15 @@ class FeedController extends Controller
         $attachment = SocialMediaAttachment::resolve($request->input('imageUrl'), $me);
         if ($attachment['code'] !== null) {
             return $this->fail(422, $attachment['code'], $attachment['message']);
+        }
+
+        // Caption and attached image are judged together, before the row
+        // exists — an image is often only abusive in light of its caption.
+        if ($blocked = $this->moderationBlock(
+            $me, $text, 'post', 'feed.store',
+            $this->moderatableImages($attachment['url'] ?? null),
+        )) {
+            return $blocked;
         }
 
         $row = [
@@ -200,8 +207,8 @@ class FeedController extends Controller
         if (mb_strlen($text) > 2000) {
             return $this->fail(400, 'VALIDATION', 'Text must be at most 2000 characters.');
         }
-        if ($blocked = ModerationService::checkText($me, $text)) {
-            return $this->fail(400, 'CONTENT_BLOCKED', $blocked);
+        if ($blocked = $this->moderationBlock($me, $text, 'comment', 'feed.comment')) {
+            return $blocked;
         }
 
         $createdAt = now();
@@ -255,8 +262,10 @@ class FeedController extends Controller
         if (mb_strlen($text) > 2000) {
             return $this->fail(400, 'VALIDATION', 'Text must be at most 2000 characters.');
         }
-        if ($blocked = ModerationService::checkText($me, $text)) {
-            return $this->fail(400, 'CONTENT_BLOCKED', $blocked);
+        // Editing is a publication path too: an approved post must not
+        // become abusive by being rewritten afterwards.
+        if ($blocked = $this->moderationBlock($me, $text, 'post_edit', 'feed.update')) {
+            return $blocked;
         }
 
         $post->update([
@@ -288,15 +297,18 @@ class FeedController extends Controller
     {
         $me = $this->currentUser();
         $text = (string) $request->input('text', '');
-        if ($blocked = ModerationService::checkText($me, $text)) {
-            return $this->fail(400, 'CONTENT_BLOCKED', $blocked);
-        }
         if (mb_strlen($text) > 2000) {
             return $this->fail(400, 'VALIDATION', 'Text must be at most 2000 characters.');
         }
         $attachment = SocialMediaAttachment::resolve($request->input('imageUrl'), $me, false);
         if ($attachment['code'] !== null) {
             return $this->fail(422, $attachment['code'], $attachment['message']);
+        }
+        if ($blocked = $this->moderationBlock(
+            $me, $text, 'official_post', 'feed.storeOfficial',
+            $this->moderatableImages($attachment['url'] ?? null),
+        )) {
+            return $blocked;
         }
 
         $row = [
@@ -409,6 +421,11 @@ class FeedController extends Controller
             return $this->fail(404, 'POST_NOT_FOUND', 'Post not found.');
         }
         $reason = (string) $request->input('reason', '');
+        // A report reason is read by moderators and stored — it is still
+        // user-written text and has been used as an abuse channel of its own.
+        if ($blocked = $this->moderationBlock($me, $reason, 'report_reason', 'feed.report')) {
+            return $blocked;
+        }
 
         ActivityLogger::log($me->id, 'report', "Gönderiyi şikayet ettin: {$post->name}", $reason);
 

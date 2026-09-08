@@ -29,6 +29,10 @@ class User extends Authenticatable
         'avatar_url',
         'strikes',
         'banned_at',
+        'banned_until',
+        'last_violation_at',
+        'moderation_status',
+        'moderation_reason',
         'department',
         'year',
         'university',
@@ -55,6 +59,8 @@ class User extends Authenticatable
             'password' => 'hashed',
             'interests' => 'array',
             'banned_at' => 'datetime',
+            'banned_until' => 'datetime',
+            'last_violation_at' => 'datetime',
             // Free-text profile display lists (Social tab bio editor) — not
             // the same as club_members ("clubs" here is a name a student
             // typed in, no FK to the clubs table).

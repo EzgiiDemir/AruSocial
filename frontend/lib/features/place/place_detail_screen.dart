@@ -107,18 +107,18 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(place.name),
-        leading: const CampusBackButton(),
+        leading: CampusBackButton(),
         actions: [
           IconButton(
             tooltip: strings.t('place_report'),
             onPressed: () => _report(context),
-            icon: const Icon(Icons.flag_outlined),
+            icon: Icon(Icons.flag_outlined),
           ),
         ],
       ),
       body: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 760),
+          constraints: BoxConstraints(maxWidth: 760),
           child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
         children: [
@@ -190,7 +190,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
                       fontWeight: FontWeight.w800,
                       color: Theme.of(context).colorScheme.onSurface)),
             ),
-            const Spacer(),
+            Spacer(),
             Text('⭐ ${place.rating}',
                 style: const TextStyle(fontWeight: FontWeight.w700)),
           ]),
@@ -211,10 +211,10 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
                   Text(meta),
                 ],
                 if (desc.isNotEmpty) ...[
-                  const SizedBox(height: 14),
+                  SizedBox(height: 14),
                   Text(desc, style: Theme.of(context).textTheme.bodyLarge),
                 ],
-                const SizedBox(height: 18),
+                SizedBox(height: 18),
               ],
             );
           }),
@@ -237,7 +237,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
                     onPressed: () => _checkIn(context),
                     icon: const Icon(Icons.verified_outlined),
                     label: Text(strings.t('place_checkin')))),
-            const SizedBox(width: 10),
+            SizedBox(width: 10),
             Expanded(
                 child: OutlinedButton.icon(
                     onPressed: () => _navigate(context),
@@ -247,18 +247,18 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
           const SizedBox(height: 10),
           OutlinedButton.icon(
               onPressed: () => _openOnMap(context),
-              icon: const Icon(Icons.map_outlined),
-              label: const Text('Haritada göster')),
+              icon: Icon(Icons.map_outlined),
+              label: Text(AppLocale.of(context).t('pd_show_on_map'))),
           const SizedBox(height: 10),
           OutlinedButton.icon(
               onPressed: () => _tour(context),
-              icon: const Icon(Icons.threesixty),
+              icon: Icon(Icons.threesixty),
               label: Text(strings.t('place_tour'))),
           const SizedBox(height: 22),
           // Photos / Gallery
           Card(
             child: Padding(
-              padding: const EdgeInsets.all(12),
+              padding: EdgeInsets.all(12),
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -273,7 +273,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
                     ]),
                     const SizedBox(height: 8),
                     if (_localPhotos.isEmpty)
-                      const Text('Bu oturumda henüz fotoğraf eklenmedi')
+                      Text(AppLocale.of(context).t('pd_no_photos'))
                     else
                       SizedBox(
                         height: 100,
@@ -305,20 +305,20 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
     final strings = AppLocale.of(context);
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(18),
+        padding: EdgeInsets.all(18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(children: [
               Text(strings.t('place_reviews'),
-                  style: const TextStyle(fontWeight: FontWeight.w900)),
+                  style: TextStyle(fontWeight: FontWeight.w900)),
               const Spacer(),
               TextButton.icon(
                   onPressed: () => _addReview(context),
-                  icon: const Icon(Icons.star_outline),
-                  label: const Text('Puanla')),
+                  icon: Icon(Icons.star_outline),
+                  label: Text('Puanla')),
             ]),
-            const SizedBox(height: 6),
+            SizedBox(height: 6),
             FutureBuilder<List<Review>>(
               future: _reviewsFuture,
               builder: (context, snap) {
@@ -330,9 +330,9 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
                 }
                 final reviews = snap.data ?? const <Review>[];
                 if (reviews.isEmpty) {
-                  return const Padding(
+                  return Padding(
                     padding: EdgeInsets.symmetric(vertical: 8),
-                    child: Text('Henüz yorum yok · ilk yorumu sen ekle.'),
+                    child: Text(AppLocale.of(context).t('pd_no_reviews')),
                   );
                 }
                 final shown = _visibleReviews.clamp(0, reviews.length);
@@ -358,13 +358,13 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
   Widget _buildRecentCheckInsCard(BuildContext context) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(18),
+        padding: EdgeInsets.all(18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(AppLocale.of(context).t('place_recent_checkins'),
                 style: const TextStyle(fontWeight: FontWeight.w900)),
-            const SizedBox(height: 6),
+            SizedBox(height: 6),
             FutureBuilder<List<FeedPost>>(
               future: _feedFuture,
               builder: (context, snap) {
@@ -380,16 +380,16 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
                     .take(4)
                     .toList();
                 if (posts.isEmpty) {
-                  return const Padding(
+                  return Padding(
                     padding: EdgeInsets.symmetric(vertical: 8),
-                    child: Text('Bu yerde henüz yakın zamanda check-in yok.'),
+                    child: Text(AppLocale.of(context).t('pd_no_checkins')),
                   );
                 }
                 return Column(
                   children: [
                     for (final post in posts)
                       Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        padding: EdgeInsets.symmetric(vertical: 6),
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -427,8 +427,8 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
     final position = await _requirePosition(context);
     if (position == null || !context.mounted) return;
     if (!CampusGeofence.contains(position.latitude, position.longitude)) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Check-in yalnızca ARUCAD kampüs sınırları içinde yapılabilir.'),
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(AppLocale.of(context).t('pd_checkin_on_campus_only')),
       ));
       return;
     }
@@ -439,19 +439,19 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const ListTile(
-              title: Text('Check-in başarılı olacak'),
-              subtitle: Text('XP bir kez verilir. Sosyal paylaşım isteğe bağlı.'),
+            ListTile(
+              title: Text(AppLocale.of(context).t('pd_checkin_ok')),
+              subtitle: Text(AppLocale.of(context).t('pd_xp_once')),
             ),
             ListTile(
               leading: const Icon(Icons.lock_outline),
               title: const Text('Gizlice XP kazan'),
-              subtitle: const Text('Akışa düşmez · +10 XP'),
+              subtitle: Text(AppLocale.of(context).t('pd_not_in_feed')),
               onTap: () => Navigator.pop(ctx, false),
             ),
             ListTile(
               leading: const Icon(Icons.share_outlined),
-              title: const Text('Sosyalde paylaş'),
+              title: Text(AppLocale.of(context).t('pd_share_social')),
               subtitle: const Text('Feed + +10 XP'),
               onTap: () => Navigator.pop(ctx, true),
             ),
@@ -493,7 +493,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
     } catch (_) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Check-in kaydedilemedi. Lütfen tekrar dene.')));
+          SnackBar(content: Text(AppLocale.of(context).t('pd_checkin_failed'))));
       return;
     }
     if (!context.mounted) return;
@@ -524,15 +524,15 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
       final status = await location.checkAndRequestPermission();
       if (status == LocationAccessStatus.serviceDisabled) {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text('Konum servisi kapalı — check-in için açmalısın.')));
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text(AppLocale.of(context).t('pd_location_off'))));
         }
         return null;
       }
       if (!status.isGranted) {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text('Konum izni yok — check-in yapılamaz.')));
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text(AppLocale.of(context).t('pd_location_denied'))));
         }
         return null;
       }
@@ -558,8 +558,8 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
       return position;
     } catch (_) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Konum alınamadı — check-in yapılamaz.')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(AppLocale.of(context).t('pd_location_failed'))));
       }
       return null;
     }
@@ -647,10 +647,10 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
           actions: [
             TextButton(
                 onPressed: () => Navigator.of(ctx).pop(false),
-                child: const Text('Vazgeç')),
+                child: Text(AppLocale.of(context).t('act_cancel'))),
             FilledButton(
                 onPressed: () => Navigator.of(ctx).pop(true),
-                child: const Text('Gönder')),
+                child: Text(AppLocale.of(context).t('act_send'))),
           ],
         ),
       ),
@@ -670,7 +670,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
       _reviewsFuture = repository.getReviews(place.id);
     });
     ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('Yorumun eklendi, teşekkürler!')));
+        .showSnackBar(SnackBar(content: Text(AppLocale.of(context).t('pd_review_thanks'))));
   }
 
   Future<void> _report(BuildContext context) async {
@@ -686,7 +686,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text('Bu yeri şikayet et'),
+          title: Text(AppLocale.of(context).t('pd_report_place')),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -706,17 +706,17 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
               TextField(
                 controller: controller,
                 decoration:
-                    const InputDecoration(hintText: 'Ek açıklama (opsiyonel)'),
+                    InputDecoration(hintText: AppLocale.of(context).t('pd_note_optional')),
               ),
             ],
           ),
           actions: [
             TextButton(
                 onPressed: () => Navigator.of(ctx).pop(false),
-                child: const Text('Vazgeç')),
+                child: Text(AppLocale.of(context).t('act_cancel'))),
             FilledButton(
                 onPressed: () => Navigator.of(ctx).pop(true),
-                child: const Text('Gönder')),
+                child: Text(AppLocale.of(context).t('act_send'))),
           ],
         ),
       ),
@@ -728,8 +728,8 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
     if (!context.mounted) return;
     widget.analyticsTracker
         .track('place_reported', {'placeId': place.id, 'reason': selected});
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Şikayetin alındı, kampüs ekibine iletilecek.')));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(AppLocale.of(context).t('pd_report_received'))));
   }
 
   Future<void> _addPhoto(BuildContext context) async {
@@ -739,7 +739,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
     widget.analyticsTracker.track('photo_added', {'placeId': place.id});
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Fotoğraf eklendi')));
+        SnackBar(content: Text(AppLocale.of(context).t('pd_photo_added'))));
   }
 }
 

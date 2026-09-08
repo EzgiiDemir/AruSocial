@@ -396,10 +396,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: ListTile(
               leading: const Icon(Icons.assignment_outlined,
                   color: ArucadColors.primary),
-              title: const Text('Başvurularım',
+              title: Text(AppLocale.of(context).t('pr_my_applications'),
                   style: TextStyle(fontWeight: FontWeight.w800)),
               subtitle:
-                  const Text('Kulüp, etkinlik ve hizmet başvurularının durumu'),
+                  Text(AppLocale.of(context).t('pr_my_applications_sub')),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => Navigator.of(context).push(MaterialPageRoute(
                   builder: (_) =>
@@ -411,9 +411,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: ListTile(
               leading: const Icon(Icons.event_available_outlined,
                   color: ArucadColors.primary),
-              title: const Text('Randevularım',
+              title: Text(AppLocale.of(context).t('pr_my_appointments'),
                   style: TextStyle(fontWeight: FontWeight.w800)),
-              subtitle: const Text('Personel ile randevu al veya iptal et'),
+              subtitle: Text(AppLocale.of(context).t('pr_my_appointments_sub')),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => Navigator.of(context).push(MaterialPageRoute(
                   builder: (_) =>
@@ -476,7 +476,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           child: Column(children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
-              child: Text('Konum görünürlüğüm',
+              child: Text(AppLocale.of(context).t('pr_location_visibility'),
                   style: Theme.of(context)
                       .textTheme
                       .titleSmall
@@ -540,7 +540,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const Divider(height: 1),
               ListTile(
                 leading: const Icon(Icons.admin_panel_settings_outlined),
-                title: const Text('Yönetim paneli'),
+                title: Text(AppLocale.of(context).t('pr_admin_panel')),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => Navigator.of(context).push(MaterialPageRoute(
                   builder: (ctx) => AdminPanelScreen(
@@ -556,7 +556,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const Divider(height: 1),
               ListTile(
                 leading: const Icon(Icons.school_outlined),
-                title: const Text('Eğitmen paneli'),
+                title: Text(AppLocale.of(context).t('pr_trainer_panel')),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => Navigator.of(context).push(MaterialPageRoute(
                   builder: (ctx) => TrainerPanelScreen(
@@ -648,7 +648,7 @@ class _MenuButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return IconButton(
       onPressed: onTap,
-      tooltip: 'Menü',
+      tooltip: AppLocale.of(context).t('pr_menu'),
       padding: EdgeInsets.zero,
       constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
       style: IconButton.styleFrom(

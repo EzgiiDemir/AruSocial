@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:arucad_campus_prototype/core/l10n/app_strings.dart';
 import 'package:arucad_campus_prototype/core/models/campus_models.dart';
 import 'package:arucad_campus_prototype/core/models/staff_application.dart';
 import 'package:arucad_campus_prototype/core/services/contracts.dart';
@@ -137,7 +138,7 @@ class _CreateOwnActivityScreenState extends State<CreateOwnActivityScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Kendi Aktiviteni Oluştur'), leading: const CampusBackButton()),
+      appBar: AppBar(title: Text(AppLocale.of(context).t('ca_title_screen')), leading: const CampusBackButton()),
       body: FutureBuilder<_CreateFormData>(
         future: _formFuture,
         builder: (context, snap) {
@@ -170,13 +171,13 @@ class _CreateOwnActivityScreenState extends State<CreateOwnActivityScreen> {
               const SizedBox(height: 20),
               TextField(
                 controller: _titleC,
-                decoration: const InputDecoration(labelText: 'Başlık'),
+                decoration: InputDecoration(labelText: AppLocale.of(context).t('ca_title')),
               ),
               const SizedBox(height: 14),
               DropdownButtonFormField<String>(
                 isExpanded: true,
                 initialValue: _placeId,
-                decoration: const InputDecoration(labelText: 'Mekân (sadece kayıtlı yerler)'),
+                decoration: InputDecoration(labelText: AppLocale.of(context).t('ca_place')),
                 items: places
                     .map((p) => DropdownMenuItem(
                           value: p.id,
@@ -208,7 +209,7 @@ class _CreateOwnActivityScreenState extends State<CreateOwnActivityScreen> {
               const SizedBox(height: 14),
               TextField(
                 controller: _timeC,
-                decoration: const InputDecoration(labelText: 'Saat (opsiyonel, örn. 18:00)'),
+                decoration: InputDecoration(labelText: AppLocale.of(context).t('ca_time')),
                 onChanged: (_) => _refreshAvailability(),
               ),
               if (_loadingAvailability) ...[
@@ -222,7 +223,7 @@ class _CreateOwnActivityScreenState extends State<CreateOwnActivityScreen> {
                       color: ArucadColors.warning.withValues(alpha: .1),
                       borderRadius: BorderRadius.circular(12)),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    const Text('Bu mekân o gün şu saatlerde dolu:',
+                    Text(AppLocale.of(context).t('ca_place_busy'),
                         style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
                     const SizedBox(height: 4),
                     for (final b in _booked)
@@ -235,7 +236,7 @@ class _CreateOwnActivityScreenState extends State<CreateOwnActivityScreen> {
               DropdownButtonFormField<String>(
                 isExpanded: true,
                 initialValue: _staffId,
-                decoration: const InputDecoration(labelText: 'Bölüm başkanı (onaylayan)'),
+                decoration: InputDecoration(labelText: AppLocale.of(context).t('ca_head')),
                 items: heads
                     .map((s) => DropdownMenuItem(
                           value: s.id,
@@ -274,7 +275,7 @@ class _CreateOwnActivityScreenState extends State<CreateOwnActivityScreen> {
               const SizedBox(height: 14),
               TextField(
                 controller: _descriptionC,
-                decoration: const InputDecoration(labelText: 'Açıklama'),
+                decoration: InputDecoration(labelText: AppLocale.of(context).t('ca_description')),
                 maxLines: 4,
               ),
               if (_error != null) ...[

@@ -31,4 +31,22 @@ void main() {
         moderateText('Bugün stüdyoda harika bir gün geçirdim').allowed, isTrue);
     expect(moderateText('Bu uygulama yine çöktü, lanet olsun.').allowed, isTrue);
   });
+
+  test(
+      'political party campaigning is blocked but student council elections are allowed',
+      () {
+    final political = moderateText(
+        'CHP ve AKP arasındaki tartışma bu sabah yine gündemdeydi.');
+    expect(political.allowed, isFalse);
+    expect(political.reason, contains('siyasi'));
+
+    expect(
+        moderateText('Kulüp başkanlığı seçimi için adaylık başvuruları başladı.')
+            .allowed,
+        isTrue);
+  });
+
+  test('stretched-letter evasion is still caught', () {
+    expect(moderateText('saaaalak davranma').allowed, isFalse);
+  });
 }

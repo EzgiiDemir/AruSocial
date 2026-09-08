@@ -577,8 +577,8 @@ class _DemoSessionState extends State<_DemoSession>
             : s.t('login_biometric_finger'),
       );
       if (!confirmed) return false;
-      final unlocked = await widget.authProvider
-          .unlockWithBiometrics(email: enrolledEmail);
+      final unlocked =
+          await widget.authProvider.unlockWithBiometrics(email: enrolledEmail);
       return unlocked;
     });
   }
@@ -798,117 +798,130 @@ class _DemoLoginScreenState extends State<_DemoLoginScreen> {
       backgroundColor: scheme.surface,
       body: SafeArea(
         child: Stack(children: [
-          SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 20),
-            child: Column(
-              children: [
-                const SizedBox(height: 24),
-                Image.asset(
-                  'assets/images/arucad_logo.png',
-                  width: 190,
-                  errorBuilder: (_, __, ___) => Image.asset(
-                    'assets/images/ARUCAD_MAIN_LOGO.png',
-                    width: 190,
-                    errorBuilder: (_, __, ___) => const SizedBox(height: 72),
-                  ),
-                ),
-                const SizedBox(height: 36),
-                if (widget.error != null) ...[
-                  Text(widget.error!,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: ArucadColors.danger)),
-                  const SizedBox(height: 16),
-                ],
-                TextField(
-                  controller: _identifierController,
-                  decoration: InputDecoration(
-                    labelText: s.t('login_identifier'),
-                    prefixIcon: const Icon(Icons.person_outline),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _passwordController,
-                  obscureText: _obscure,
-                  onSubmitted: (_) => _submitPassword(),
-                  decoration: InputDecoration(
-                    labelText: s.t('login_password'),
-                    prefixIcon: const Icon(Icons.lock_outline),
-                    suffixIcon: IconButton(
-                      onPressed: () => setState(() => _obscure = !_obscure),
-                      icon: Icon(_obscure
-                          ? Icons.visibility_outlined
-                          : Icons.visibility_off_outlined),
+          Align(
+            alignment: Alignment.topCenter,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 520),
+              child: SingleChildScrollView(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 28, vertical: 20),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 24),
+                    Image.asset(
+                      'assets/images/arucad_logo.png',
+                      width: 190,
+                      errorBuilder: (_, __, ___) => Image.asset(
+                        'assets/images/ARUCAD_MAIN_LOGO.png',
+                        width: 190,
+                        errorBuilder: (_, __, ___) =>
+                            const SizedBox(height: 72),
+                      ),
                     ),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Row(children: [
-                  Checkbox(
-                    value: _rememberMe,
-                    onChanged: (v) => setState(() => _rememberMe = v ?? false),
-                  ),
-                  Text(s.t('login_remember')),
-                ]),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  height: 54,
-                  child: FilledButton(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: ArucadColors.primary,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                          borderRadius:
-                              BorderRadius.circular(ArucadRadius.compact)),
+                    const SizedBox(height: 36),
+                    if (widget.error != null) ...[
+                      Text(widget.error!,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: ArucadColors.danger)),
+                      const SizedBox(height: 16),
+                    ],
+                    TextField(
+                      controller: _identifierController,
+                      decoration: InputDecoration(
+                        labelText: s.t('login_identifier'),
+                        prefixIcon: const Icon(Icons.person_outline),
+                      ),
                     ),
-                    onPressed: widget.loading ? null : _submitPassword,
-                    child: Text(s.t('login_submit'),
-                        style: const TextStyle(fontWeight: FontWeight.w800)),
-                  ),
-                ),
-                if (widget.showMicrosoftSignIn) ...[
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 54,
-                    child: OutlinedButton.icon(
-                      onPressed:
-                          widget.loading ? null : widget.onSignInWithMicrosoft,
-                      icon: const Icon(Icons.window_outlined),
-                      label: Text(s.t('login_microsoft'),
-                          style: const TextStyle(fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _passwordController,
+                      obscureText: _obscure,
+                      onSubmitted: (_) => _submitPassword(),
+                      decoration: InputDecoration(
+                        labelText: s.t('login_password'),
+                        prefixIcon: const Icon(Icons.lock_outline),
+                        suffixIcon: IconButton(
+                          onPressed: () => setState(() => _obscure = !_obscure),
+                          icon: Icon(_obscure
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined),
+                        ),
+                      ),
                     ),
-                  ),
-                ],
-                if (_biometricAvailable) ...[
-                  const SizedBox(height: 16),
-                  GestureDetector(
-                    onTap:
-                        widget.loading ? null : widget.onSignInWithBiometrics,
-                    child: Container(
-                      width: 54,
+                    const SizedBox(height: 4),
+                    Row(children: [
+                      Checkbox(
+                        value: _rememberMe,
+                        onChanged: (v) =>
+                            setState(() => _rememberMe = v ?? false),
+                      ),
+                      Text(s.t('login_remember')),
+                    ]),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
                       height: 54,
-                      decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: scheme.surfaceContainerHighest),
-                      child: Icon(
-                          _biometricMethod == BiometricMethod.face
-                              ? Icons.face_outlined
-                              : Icons.fingerprint,
-                          color: ArucadColors.primary,
-                          size: 28),
+                      child: FilledButton(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: ArucadColors.primary,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                              borderRadius:
+                                  BorderRadius.circular(ArucadRadius.compact)),
+                        ),
+                        onPressed: widget.loading ? null : _submitPassword,
+                        child: Text(s.t('login_submit'),
+                            style:
+                                const TextStyle(fontWeight: FontWeight.w800)),
+                      ),
                     ),
-                  ),
-                ],
-                const SizedBox(height: 20),
-                if (widget.loading)
-                  const Padding(
-                    padding: EdgeInsets.only(top: 8),
-                    child:
-                        CircularProgressIndicator(color: ArucadColors.primary),
-                  ),
-              ],
+                    if (widget.showMicrosoftSignIn) ...[
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 54,
+                        child: OutlinedButton.icon(
+                          onPressed: widget.loading
+                              ? null
+                              : widget.onSignInWithMicrosoft,
+                          icon: const Icon(Icons.window_outlined),
+                          label: Text(s.t('login_microsoft'),
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w800)),
+                        ),
+                      ),
+                    ],
+                    if (_biometricAvailable) ...[
+                      const SizedBox(height: 16),
+                      GestureDetector(
+                        onTap: widget.loading
+                            ? null
+                            : widget.onSignInWithBiometrics,
+                        child: Container(
+                          width: 54,
+                          height: 54,
+                          decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: scheme.surfaceContainerHighest),
+                          child: Icon(
+                              _biometricMethod == BiometricMethod.face
+                                  ? Icons.face_outlined
+                                  : Icons.fingerprint,
+                              color: ArucadColors.primary,
+                              size: 28),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 20),
+                    if (widget.loading)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 8),
+                        child: CircularProgressIndicator(
+                            color: ArucadColors.primary),
+                      ),
+                  ],
+                ),
+              ),
             ),
           ),
           if (widget.onOpenSettings != null)

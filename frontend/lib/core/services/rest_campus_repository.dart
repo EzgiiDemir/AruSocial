@@ -11,6 +11,7 @@ import 'package:arucad_campus_prototype/core/models/admin_stats.dart';
 import 'package:arucad_campus_prototype/core/models/audit_log_entry.dart';
 import 'package:arucad_campus_prototype/core/models/campus_directory.dart';
 import 'package:arucad_campus_prototype/core/models/campus_models.dart';
+import 'package:arucad_campus_prototype/core/models/campus_weather.dart';
 import 'package:arucad_campus_prototype/core/models/chat_message.dart';
 import 'package:arucad_campus_prototype/core/models/content_block.dart';
 import 'package:arucad_campus_prototype/core/models/content_revision.dart';
@@ -618,6 +619,21 @@ class RestCampusRepository implements CampusRepository {
     return items
         .map((item) => ShuttleRoute.fromJson(item as Map<String, dynamic>))
         .toList();
+  }
+
+  @override
+  Future<CampusWeather?> getWeather() async {
+    try {
+      final response = await client.get('/weather');
+      final data = response['data'] as Map<String, dynamic>?;
+      final weather = data?['weather'];
+      if (weather is! Map<String, dynamic>) return null;
+      return CampusWeather.fromJson(weather);
+    } catch (_) {
+      // Weather is decoration on top of the map, never a blocker — a
+      // provider outage hides the row rather than failing the screen.
+      return null;
+    }
   }
 
   @override

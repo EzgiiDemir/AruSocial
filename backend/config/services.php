@@ -105,6 +105,77 @@ return [
         'timeout_seconds' => (int) env('LOCAL_MODERATION_TIMEOUT_SECONDS', 15),
     ],
 
+    /*
+     * Central content moderation. OpenAI's dedicated moderation endpoint is
+     * the primary layer (free, text + image, multilingual); the local
+     * TextPolicyEngine runs alongside it for the things a general model is
+     * weak at — deliberate obfuscation, spam shapes and campus-specific
+     * policy. The key is server-side only and never reaches the app.
+     */
+    'moderation' => [
+        'openai_key' => env('OPENAI_API_KEY'),
+        'model' => env('MODERATION_MODEL', 'omni-moderation-latest'),
+        'endpoint' => env('MODERATION_ENDPOINT', 'https://api.openai.com/v1/moderations'),
+        'timeout_seconds' => (int) env('MODERATION_TIMEOUT_SECONDS', 12),
+
+        /*
+         * Fail closed. If the provider is unreachable we must not publish
+         * unchecked content, so submissions are held for human review
+         * instead of being silently let through.
+         */
+        'fail_open' => filter_var(env('MODERATION_FAIL_OPEN', 'false'), FILTER_VALIDATE_BOOLEAN),
+
+        /*
+         * Per-category score thresholds. A category is treated as a
+         * violation when OpenAI flags it, or when its score crosses the
+         * threshold below — the score check catches content the model is
+         * confident about but does not hard-flag.
+         */
+        'thresholds' => [
+            'sexual/minors' => (float) env('MODERATION_T_SEXUAL_MINORS', .05),
+            'harassment/threatening' => (float) env('MODERATION_T_HARASSMENT_THREAT', .30),
+            'hate/threatening' => (float) env('MODERATION_T_HATE_THREAT', .30),
+            'violence/graphic' => (float) env('MODERATION_T_VIOLENCE_GRAPHIC', .55),
+            'self-harm/instructions' => (float) env('MODERATION_T_SELF_HARM_INSTR', .30),
+            'self-harm/intent' => (float) env('MODERATION_T_SELF_HARM_INTENT', .40),
+            'sexual' => (float) env('MODERATION_T_SEXUAL', .60),
+            'hate' => (float) env('MODERATION_T_HATE', .50),
+            'harassment' => (float) env('MODERATION_T_HARASSMENT', .60),
+            'violence' => (float) env('MODERATION_T_VIOLENCE', .65),
+            'self-harm' => (float) env('MODERATION_T_SELF_HARM', .45),
+            'illicit' => (float) env('MODERATION_T_ILLICIT', .60),
+            'illicit/violent' => (float) env('MODERATION_T_ILLICIT_VIOLENT', .40),
+        ],
+
+        /*
+         * Strike ladder. Index = strike number, value = penalty. Kept in
+         * config so the rules can change without touching application code.
+         * `hours` of 0 means "warning only".
+         */
+        'penalties' => [
+            1 => ['action' => 'warning', 'hours' => 0],
+            2 => ['action' => 'warning', 'hours' => 0],
+            3 => ['action' => 'warning', 'hours' => 0],
+            4 => ['action' => 'ban', 'hours' => 24],
+            5 => ['action' => 'ban', 'hours' => 72],
+            6 => ['action' => 'ban', 'hours' => 168],
+        ],
+
+        /*
+         * Beyond the configured ladder the account keeps the longest
+         * configured ban rather than escalating on its own — a permanent
+         * ban stays an explicit administrator decision.
+         */
+        'repeat_last_penalty' => filter_var(env('MODERATION_REPEAT_LAST_PENALTY', 'true'), FILTER_VALIDATE_BOOLEAN),
+
+        /* Video: how many frames to sample across the clip. */
+        'video_frames' => (int) env('MODERATION_VIDEO_FRAMES', 5),
+        'ffmpeg_path' => env('FFMPEG_PATH', 'ffmpeg'),
+
+        /* Privacy: keep the offending text only long enough to appeal. */
+        'retain_excerpt_days' => (int) env('MODERATION_RETAIN_EXCERPT_DAYS', 30),
+    ],
+
     // Microsoft Entra (public client + PKCE). Empty = GET /auth/entra/config
     // reports configured:false and POST /auth/entra returns 501.
     'entra' => [

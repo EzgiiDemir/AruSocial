@@ -58,6 +58,7 @@ class _InAppNavigationScreenState extends State<InAppNavigationScreen> {
   bool _loading = true;
   bool _usedFallbackOrigin = false;
   StreamSubscription<Position>? _positionSub;
+  int _routeRequest = 0;
 
   GeoPoint get _destination => _overrideDestination ?? widget.destination;
   String get _destinationName => _overrideName ?? widget.destinationName;
@@ -159,28 +160,45 @@ class _InAppNavigationScreenState extends State<InAppNavigationScreen> {
       return;
     }
 
-    // Real fix: walking is the mode almost every student actually uses on
-    // a small campus, and the backend's OSRM/FOSSGIS provider is pedestrian
-    // geometry first — it was walking that stayed on the honest-fallback
-    // straight line while car/bus (rarer here) got the real path. All
-    // three modes now request the real route; a straight line only shows
-    // when the provider itself is unavailable (see the catch below).
-    RouteResult route = _estimateRoute(origin, _destination);
-    final repo = widget.repository;
-    if (repo != null) {
-      try {
-        final road = await repo.getWalkingRoute(
-          fromLat: origin.lat,
-          fromLng: origin.lng,
-          toLat: _destination.lat,
-          toLng: _destination.lng,
-        );
-        if (road != null && road.points.length >= 2) {
-          route = _routeFromRoad(road);
-        }
-      } catch (_) {}
-    }
+    // Draw something usable on the very first frame. The straight line
+    // already carries the two facts a student needs to start walking —
+    // which way, and roughly how far — so making them watch a spinner
+    // until a remote routing server answers buys nothing. The real
+    // geometry replaces this in place as soon as it lands.
+    final estimate = _estimateRoute(origin, _destination);
+    _show(origin, estimate, fit: true);
 
+    final repo = widget.repository;
+    if (repo == null) return;
+
+    // Tag the request so a slow reply for a route the user has already
+    // moved on from (mode switch, destination change) can't overwrite a
+    // newer one when it eventually arrives.
+    final token = ++_routeRequest;
+    try {
+      final road = await repo
+          .getWalkingRoute(
+            fromLat: origin.lat,
+            fromLng: origin.lng,
+            toLat: _destination.lat,
+            toLng: _destination.lng,
+          )
+          // The provider is a best-effort public service. Past a few
+          // seconds the straight line already on screen is the better
+          // answer than a still-spinning one.
+          .timeout(const Duration(seconds: 6));
+      if (!mounted || token != _routeRequest) return;
+      if (road != null && road.points.length >= 2) {
+        _show(origin, _routeFromRoad(road), fit: true);
+      }
+    } catch (_) {
+      // Keep the estimate that is already drawn.
+    }
+  }
+
+  /// Commit a route to the map. Used for both the instant estimate and the
+  /// real geometry that replaces it, so they cannot drift apart.
+  void _show(GeoPoint origin, RouteResult route, {bool fit = false}) {
     if (!mounted) return;
     setState(() {
       _origin = origin;
@@ -189,7 +207,7 @@ class _InAppNavigationScreenState extends State<InAppNavigationScreen> {
           route.points.length >= 2 ? route.points : [origin, _destination];
       _loading = false;
     });
-    if (route.points.length >= 2) {
+    if (fit && route.points.length >= 2) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _mapController.fitPoints(route.points, padding: 72);
       });
@@ -201,10 +219,42 @@ class _InAppNavigationScreenState extends State<InAppNavigationScreen> {
       _loading = true;
       _route = null;
     });
-    final origin = _origin ?? await _resolveOrigin();
-    if (!mounted) return;
-    await _applyRoute(origin);
+
+    // Start from the fix the app already has. Home and Explore track
+    // location live, so this is nearly always populated by the time
+    // anyone opens navigation, and it turns a multi-second GPS wait into
+    // an immediate first paint.
+    var origin = _origin ?? await const LocationService().lastKnownPosition().then(
+          (p) => p == null ? null : GeoPoint(p.latitude, p.longitude),
+        );
+
+    if (origin != null) {
+      unawaited(_applyRoute(origin));
+      // A stale-but-close starting point is fine to draw from, but the
+      // route is still refined once a current fix arrives.
+      if (!LocationService.lastKnownIsFresh) {
+        unawaited(_refineOrigin());
+      }
+    } else {
+      // Genuinely no location on record — this is the only path that has
+      // to wait, and it falls back to the campus entrance if it fails.
+      origin = await _resolveOrigin();
+      if (!mounted) return;
+      await _applyRoute(origin);
+    }
+
     _startLiveTracking();
+  }
+
+  /// Re-runs the route once a current fix replaces a stale cached one.
+  Future<void> _refineOrigin() async {
+    final position = await const LocationService().getCurrentPositionIfGranted();
+    if (!mounted || position == null) return;
+    final fresh = GeoPoint(position.latitude, position.longitude);
+    final drift = Geolocator.distanceBetween(
+        _origin?.lat ?? fresh.lat, _origin?.lng ?? fresh.lng, fresh.lat, fresh.lng);
+    // Only worth redrawing if the cached guess was actually off.
+    if (drift > 25) await _applyRoute(fresh);
   }
 
   Future<void> _changeMode(TravelMode mode) async {

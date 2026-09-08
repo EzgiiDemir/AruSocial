@@ -141,14 +141,14 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
     final newText = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Gönderiyi düzenle'),
+        title: Text(AppLocale.of(context).t('sp_edit_post')),
         content: TextField(controller: textC, maxLines: 5, autofocus: true),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text('Vazgeç')),
+              onPressed: () => Navigator.pop(ctx), child: Text(AppLocale.of(context).t('act_cancel'))),
           FilledButton(
               onPressed: () => Navigator.pop(ctx, textC.text.trim()),
-              child: const Text('Kaydet')),
+              child: Text(AppLocale.of(context).t('act_save'))),
         ],
       ),
     );
@@ -168,12 +168,12 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Gönderi silinsin mi?'),
-        content: const Text('Bu işlem geri alınamaz.'),
+        title: Text(AppLocale.of(context).t('sp_delete_post_q')),
+        content: Text(AppLocale.of(context).t('act_undoable')),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Vazgeç')),
+              child: Text(AppLocale.of(context).t('act_cancel'))),
           FilledButton(
               onPressed: () => Navigator.pop(ctx, true),
               child: const Text('Sil')),
@@ -192,12 +192,12 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
           .updatePost(post.id, visibility: PostVisibility.onlyMe);
       if (!mounted || !context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Gönderi arşive alındı.')));
+          SnackBar(content: Text(AppLocale.of(context).t('sp_archived'))));
       await _load();
     } catch (_) {
       if (!mounted || !context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Arşivlenemedi.')));
+          SnackBar(content: Text(AppLocale.of(context).t('sp_archive_failed'))));
     }
   }
 
@@ -207,12 +207,12 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
           .updatePost(post.id, visibility: PostVisibility.everyone);
       if (!mounted || !context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Gönderi arşivden kaldırıldı.')));
+          SnackBar(content: Text(AppLocale.of(context).t('sp_unarchived'))));
       await _load();
     } catch (_) {
       if (!mounted || !context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Arşivden kaldırılamadı.')));
+          SnackBar(content: Text(AppLocale.of(context).t('sp_unarchive_failed'))));
     }
   }
 
@@ -224,23 +224,23 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
           if (fromArchive)
             ListTile(
               leading: const Icon(Icons.unarchive_outlined),
-              title: const Text('Arşivden kaldır'),
+              title: Text(AppLocale.of(context).t('sp_unarchive')),
               onTap: () => Navigator.pop(ctx, 'unarchive'),
             )
           else
             ListTile(
-              leading: const Icon(Icons.archive_outlined),
-              title: const Text('Arşive al'),
+              leading: Icon(Icons.archive_outlined),
+              title: Text(AppLocale.of(context).t('sp_archive')),
               onTap: () => Navigator.pop(ctx, 'archive'),
             ),
           ListTile(
-            leading: const Icon(Icons.edit_outlined),
-            title: const Text('Düzenle'),
+            leading: Icon(Icons.edit_outlined),
+            title: Text(AppLocale.of(context).t('act_edit')),
             onTap: () => Navigator.pop(ctx, 'edit'),
           ),
           ListTile(
-            leading: const Icon(Icons.delete_outline, color: ArucadColors.danger),
-            title: const Text('Sil',
+            leading: Icon(Icons.delete_outline, color: ArucadColors.danger),
+            title: Text('Sil',
                 style: TextStyle(color: ArucadColors.danger)),
             onTap: () => Navigator.pop(ctx, 'delete'),
           ),
@@ -303,13 +303,13 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Fotoğrafı değiştir',
+            Text(AppLocale.of(context).t('sp_change_photo'),
                 style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
-            const SizedBox(height: 14),
+            SizedBox(height: 14),
             OutlinedButton.icon(
               onPressed: () => Navigator.of(ctx).pop('__pick__'),
-              icon: const Icon(Icons.add_a_photo_outlined),
-              label: const Text('Kameradan çek / Galeriden seç'),
+              icon: Icon(Icons.add_a_photo_outlined),
+              label: Text(AppLocale.of(context).t('sp_photo_source')),
             ),
           ],
         ),
@@ -361,46 +361,46 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Profili Düzenle',
+              Text(AppLocale.of(context).t('sp_edit_profile'),
                   style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
-              const SizedBox(height: 16),
+              SizedBox(height: 16),
               TextField(
                   controller: departmentC,
-                  decoration: const InputDecoration(labelText: 'Bölüm')),
-              const SizedBox(height: 10),
+                  decoration: InputDecoration(labelText: AppLocale.of(context).t('sp_department'))),
+              SizedBox(height: 10),
               TextField(
-                  controller: yearC, decoration: const InputDecoration(labelText: 'Sınıf')),
-              const SizedBox(height: 10),
+                  controller: yearC, decoration: InputDecoration(labelText: AppLocale.of(context).t('sp_year'))),
+              SizedBox(height: 10),
               TextField(
                   controller: universityC,
-                  decoration: const InputDecoration(labelText: 'Üniversite')),
-              const SizedBox(height: 10),
+                  decoration: InputDecoration(labelText: AppLocale.of(context).t('sp_university'))),
+              SizedBox(height: 10),
               TextField(
                 controller: clubsC,
                 maxLines: 3,
-                decoration: const InputDecoration(
-                    labelText: 'Kulüpler (her satıra bir tane)'),
+                decoration: InputDecoration(
+                    labelText: AppLocale.of(context).t('sp_clubs_hint')),
               ),
-              const SizedBox(height: 10),
+              SizedBox(height: 10),
               TextField(
                 controller: achievementsC,
                 maxLines: 3,
-                decoration: const InputDecoration(
-                    labelText: 'Başarılar (her satıra bir tane)'),
+                decoration: InputDecoration(
+                    labelText: AppLocale.of(context).t('sp_achievements_hint')),
               ),
-              const SizedBox(height: 10),
+              SizedBox(height: 10),
               TextField(
                 controller: projectsC,
                 maxLines: 3,
-                decoration: const InputDecoration(
-                    labelText: 'Projeler (her satıra bir tane)'),
+                decoration: InputDecoration(
+                    labelText: AppLocale.of(context).t('sp_projects_hint')),
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
                 child: FilledButton(
                   onPressed: () => Navigator.of(ctx).pop(true),
-                  child: const Text('Kaydet'),
+                  child: Text(AppLocale.of(context).t('act_save')),
                 ),
               ),
             ],
@@ -438,9 +438,9 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
       context: context,
       builder: (ctx) => SafeArea(
         child: _following.isEmpty
-            ? const Padding(
+            ? Padding(
                 padding: EdgeInsets.all(24),
-                child: Text('Henüz kimseyi takip etmiyorsun.',
+                child: Text(AppLocale.of(context).t('sp_following_empty'),
                     style: TextStyle(color: ArucadColors.muted)),
               )
             : ListView(
@@ -497,16 +497,16 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
                   final ok = await showDialog<bool>(
                     context: context,
                     builder: (ctx) => AlertDialog(
-                      title: const Text('Şikayet et'),
+                      title: Text(AppLocale.of(context).t('act_report')),
                       content: Text(
                           '$_displayName kullanıcısını şikayet etmek istiyor musun?'),
                       actions: [
                         TextButton(
                             onPressed: () => Navigator.pop(ctx, false),
-                            child: const Text('Vazgeç')),
+                            child: Text(AppLocale.of(context).t('act_cancel'))),
                         FilledButton(
                             onPressed: () => Navigator.pop(ctx, true),
-                            child: const Text('Şikayet et')),
+                            child: Text(AppLocale.of(context).t('act_report'))),
                       ],
                     ),
                   );
@@ -516,20 +516,23 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
                           .reportUser(_displayName, 'Kullanıcı şikayeti');
                     } catch (_) {
                       if (!context.mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                          content: Text('Şikayet gönderilemedi. Tekrar deneyin.')));
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                          content: Text(AppLocale.of(context).t('act_report_failed'))));
                       return;
                     }
                     if (!mounted || !context.mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                        content: Text(
-                            'Şikayet alındı. Moderasyon ekibi inceleyecek.')));
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                        content: Text(AppLocale.of(context).t('act_report_sent'))));
                   }
                 }
               },
-              itemBuilder: (_) => const [
-                PopupMenuItem(value: 'block', child: Text('Engelle / Engeli kaldır')),
-                PopupMenuItem(value: 'report', child: Text('Şikayet et')),
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                    value: 'block',
+                    child: Text(AppLocale.of(context).t('sp_block_toggle'))),
+                PopupMenuItem(
+                    value: 'report',
+                    child: Text(AppLocale.of(context).t('act_report'))),
               ],
             ),
         ],
@@ -560,11 +563,11 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
               const SizedBox(width: 20),
               Expanded(
                 child: Row(children: [
-                  _StatColumn(label: 'Gönderi', value: '$publicPostCount'),
-                  const SizedBox(width: 18),
-                  _StatColumn(label: 'Takipçi', value: '$_followerCount'),
+                  _StatColumn(label: AppLocale.of(context).t('sp_posts_count'), value: '$publicPostCount'),
+                  SizedBox(width: 18),
+                  _StatColumn(label: AppLocale.of(context).t('sp_followers'), value: '$_followerCount'),
                   if (isOwn) ...[
-                    const SizedBox(width: 18),
+                    SizedBox(width: 18),
                     GestureDetector(
                       onTap: _showFollowingList,
                       child: _StatColumn(label: 'Takip', value: '${_following.length}'),
@@ -575,7 +578,7 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
             ]),
             if (_locked) ...[
               const SizedBox(height: 14),
-              const Card(
+              Card(
                 color: ArucadColors.navy,
                 child: Padding(
                   padding: EdgeInsets.all(16),
@@ -583,8 +586,7 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
                     Icon(Icons.lock_outline, color: Colors.white),
                     SizedBox(width: 12),
                     Expanded(
-                      child: Text(
-                        'Bu profil gizli. İçeriği yalnızca takipçileri görebilir.',
+                      child: Text(AppLocale.of(context).t('sp_private'),
                         style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
                       ),
                     ),
@@ -597,15 +599,15 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
               Padding(
                 padding: const EdgeInsets.only(bottom: 10),
                 child: Text(_peer?.department ?? _viewedUser!.department!,
-                    style: const TextStyle(color: ArucadColors.muted, fontWeight: FontWeight.w600)),
+                    style: TextStyle(color: ArucadColors.muted, fontWeight: FontWeight.w600)),
               ),
             Row(children: [
               if (isOwn)
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: _editProfile,
-                    icon: const Icon(Icons.edit_outlined, size: 16),
-                    label: const Text('Profili Düzenle'),
+                    icon: Icon(Icons.edit_outlined, size: 16),
+                    label: Text(AppLocale.of(context).t('sp_edit_profile')),
                   ),
                 )
               else ...[
@@ -630,8 +632,8 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
                     onPressed: () => Navigator.of(context).push(MaterialPageRoute(
                         builder: (_) =>
                             ChatThreadScreen(repository: widget.repository, peer: _displayName))),
-                    icon: const Icon(Icons.chat_bubble_outline, size: 16),
-                    label: const Text('Mesaj'),
+                    icon: Icon(Icons.chat_bubble_outline, size: 16),
+                    label: Text('Mesaj'),
                   ),
                 ),
               ],
@@ -667,7 +669,7 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
               runSpacing: 8,
               children: [
                 SelectableChip(
-                  label: 'Gönderiler',
+                  label: AppLocale.of(context).t('sp_posts_tab'),
                   selected: _section == _ProfileSection.posts,
                   onSelected: (_) => setState(() {
                     _section = _ProfileSection.posts;
@@ -684,7 +686,7 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
                     }),
                   ),
                   SelectableChip(
-                    label: 'Arşivlerim',
+                    label: AppLocale.of(context).t('sp_archive_tab'),
                     selected: _section == _ProfileSection.archives,
                     onSelected: (_) => setState(() {
                       _section = _ProfileSection.archives;
@@ -707,10 +709,10 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
               const SizedBox.shrink()
             else if (_section == _ProfileSection.locations) ...[
               if (!isOwn || _checkIns.isEmpty)
-                const Padding(
+                Padding(
                   padding: EdgeInsets.symmetric(vertical: 24),
                   child: Center(
-                      child: Text('Henüz check-in yapılmadı.',
+                      child: Text(AppLocale.of(context).t('sp_no_checkins'),
                           style: TextStyle(color: ArucadColors.muted))),
                 )
               else
@@ -732,10 +734,10 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
                     .where((p) => _savedIds.contains(p.id))
                     .toList();
                 if (saved.isEmpty) {
-                  return const Padding(
+                  return Padding(
                     padding: EdgeInsets.symmetric(vertical: 24),
                     child: Center(
-                        child: Text('Henüz kaydedilen gönderi yok.',
+                        child: Text(AppLocale.of(context).t('sp_no_saved'),
                             style: TextStyle(color: ArucadColors.muted))),
                   );
                 }
@@ -879,16 +881,16 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
                                     },
                                     itemBuilder: (_) => [
                                       if (fromArchive)
-                                        const PopupMenuItem(
+                                        PopupMenuItem(
                                             value: 'unarchive',
-                                            child: Text('Arşivden kaldır'))
+                                            child: Text(AppLocale.of(context).t('sp_unarchive')))
                                       else
-                                        const PopupMenuItem(
+                                        PopupMenuItem(
                                             value: 'archive',
-                                            child: Text('Arşive al')),
-                                      const PopupMenuItem(
+                                            child: Text(AppLocale.of(context).t('sp_archive'))),
+                                      PopupMenuItem(
                                           value: 'edit',
-                                          child: Text('Düzenle')),
+                                          child: Text(AppLocale.of(context).t('act_edit'))),
                                       const PopupMenuItem(
                                           value: 'delete',
                                           child: Text('Sil',
@@ -973,7 +975,7 @@ class _StudentBioCard extends StatelessWidget {
             if (user.clubs.isNotEmpty) _BioLine(emoji: '🏛️', text: user.clubs.join(' · ')),
             if (user.achievements.isNotEmpty) ...[
               const SizedBox(height: 4),
-              Text('Başarılar',
+              Text(AppLocale.of(context).t('sp_achievements'),
                   style: TextStyle(
                       fontWeight: FontWeight.w800,
                       fontSize: 12.5,

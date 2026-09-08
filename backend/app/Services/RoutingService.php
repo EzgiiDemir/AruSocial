@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use Illuminate\Http\Client\Pool;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -57,39 +59,65 @@ class RoutingService
     private static function fetchWalkingRoute(float $fromLat, float $fromLng, float $toLat, float $toLng, string $configured): ?array
     {
         $verifySsl = (bool) config('services.routing.verify_ssl', true);
-        $lastError = null;
+        $attempts = self::endpointAttempts($configured);
+        if ($attempts === []) {
+            return null;
+        }
 
-        foreach (self::endpointAttempts($configured) as [$base, $profile]) {
-            $url = sprintf(
-                '%s/route/v1/%s/%.6F,%.6F;%.6F,%.6F',
-                $base,
-                $profile,
+        $query = http_build_query([
+            'overview' => 'full',
+            'geometries' => 'geojson',
+            'steps' => 'true',
+        ]);
+        $urls = array_map(
+            fn (array $attempt): string => sprintf(
+                '%s/route/v1/%s/%.6F,%.6F;%.6F,%.6F?%s',
+                $attempt[0],
+                $attempt[1],
                 $fromLng,
                 $fromLat,
                 $toLng,
                 $toLat,
-            );
+                $query,
+            ),
+            $attempts,
+        );
 
-            try {
-                $response = self::requestOsrm($url, $verifySsl);
-            } catch (\Throwable $e) {
-                $lastError = $e->getMessage();
+        // Every candidate host is asked at once instead of one after
+        // another — a slow/unreachable primary no longer makes the request
+        // wait its full timeout before the fallback host even gets to
+        // start. Http::pool() returns responses in the same order the
+        // requests were submitted, so the existing priority (pedestrian
+        // geometry first, then the configured host, then the public demo)
+        // is preserved exactly — only the wall-clock cost of a dead/slow
+        // attempt changes, from "sum of every attempt" to "the slowest one".
+        $responses = Http::pool(fn (Pool $pool) => array_map(
+            fn (string $url) => self::poolRequest($pool, $verifySsl)->get($url),
+            $urls,
+        ));
+
+        $lastError = null;
+        foreach ($attempts as $i => [$base, $profile]) {
+            $response = $responses[$i] ?? null;
+
+            if ($response instanceof \Throwable) {
+                $lastError = $response->getMessage();
                 Log::warning('routing.provider_exception', [
                     'base' => $base,
                     'profile' => $profile,
-                    'message' => $e->getMessage(),
+                    'message' => $lastError,
                 ]);
 
                 continue;
             }
 
-            if ($response === null || ! $response->successful()) {
-                $lastError = 'HTTP '.($response?->status() ?? 'null');
+            if (! $response instanceof Response || ! $response->successful()) {
+                $lastError = 'HTTP '.($response instanceof Response ? $response->status() : 'null');
                 Log::warning('routing.provider_http', [
                     'base' => $base,
                     'profile' => $profile,
-                    'status' => $response?->status(),
-                    'body' => substr((string) $response?->body(), 0, 240),
+                    'status' => $response instanceof Response ? $response->status() : null,
+                    'body' => $response instanceof Response ? substr($response->body(), 0, 240) : null,
                 ]);
 
                 continue;
@@ -154,20 +182,16 @@ class RoutingService
         return $out;
     }
 
-    private static function requestOsrm(string $url, bool $verifySsl): ?\Illuminate\Http\Client\Response
+    /**
+     * A configured-but-not-yet-dispatched request builder from the given
+     * pool. Every attempt shares the same short timeout budget — a real
+     * self-hosted/reachable OSRM answers in well under a second, and since
+     * every attempt now fires concurrently (see fetchWalkingRoute) this
+     * timeout is what actually bounds a dead/slow host's contribution to
+     * total wait time, not a sequential fallback chain.
+     */
+    private static function poolRequest(Pool $pool, bool $verifySsl): \Illuminate\Http\Client\PendingRequest
     {
-        $query = http_build_query([
-            'overview' => 'full',
-            'geometries' => 'geojson',
-            'steps' => 'true',
-        ]);
-
-        // Kept short deliberately: a real self-hosted/reachable OSRM
-        // answers in well under a second, and the public demo fallback
-        // chain below tries up to two hosts sequentially — a slow/dead
-        // primary must fail fast so the student isn't stuck waiting on
-        // the full old 6s+12s budget per attempt before the working
-        // fallback even starts.
         $options = [
             'verify' => $verifySsl,
             'force_ip_resolve' => 'v4',
@@ -184,7 +208,7 @@ class RoutingService
             }
         }
 
-        $pending = Http::timeout(6)
+        $pending = $pool->timeout(6)
             ->connectTimeout(3)
             ->withHeaders([
                 'User-Agent' => 'ARUCAD-Campus-Prototype/1.0 (campus routing)',
@@ -192,11 +216,7 @@ class RoutingService
             ])
             ->withOptions($options);
 
-        if (! $verifySsl) {
-            $pending = $pending->withoutVerifying();
-        }
-
-        return $pending->get($url.'?'.$query);
+        return $verifySsl ? $pending : $pending->withoutVerifying();
     }
 
     /**

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Api\Concerns\ApiResponds;
+use App\Http\Controllers\Api\Concerns\ModeratesContent;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreParticipationApplicationRequest;
 use App\Models\ClubMember;
@@ -18,7 +19,7 @@ use Illuminate\Support\Str;
 
 class ParticipationApplicationController extends Controller
 {
-    use ApiResponds;
+    use ApiResponds, ModeratesContent;
 
     public function mine(): JsonResponse
     {

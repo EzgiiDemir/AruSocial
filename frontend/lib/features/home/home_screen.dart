@@ -20,7 +20,6 @@ import 'package:arucad_campus_prototype/features/home/survey_popup.dart';
 import 'package:arucad_campus_prototype/features/map/in_app_navigation_screen.dart';
 import 'package:arucad_campus_prototype/features/place/place_detail_screen.dart';
 import 'package:arucad_campus_prototype/features/services/service_detail_screen.dart';
-import 'package:arucad_campus_prototype/features/social/notifications_screen.dart';
 import 'package:arucad_campus_prototype/features/social/post_detail_screen.dart';
 import 'package:arucad_campus_prototype/features/widgets/campus_widgets.dart';
 
@@ -71,7 +70,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   String? _loadError;
   int _visibleEvents = kPageSize;
   Position? _myPosition;
-  int _unreadNotifs = 0;
   ChatRealtimeService? _realtime;
   StreamSubscription<List<String>>? _campusChanges;
   StreamSubscription<Position>? _positionSub;
@@ -123,6 +121,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     });
     unawaited(_attachLiveLocation());
     _startRealtime();
+
+    // Surface an unanswered campus survey once Home has painted. Silent when
+    // there is nothing pending, so this costs nothing on a normal launch.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        unawaited(
+            maybeShowSurveyPopup(context, widget.repository, silent: true));
+      }
+    });
   }
 
   @override
@@ -218,9 +225,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         _loading = false;
         _loadError = null;
       });
-      if (mounted) {
-        unawaited(_refreshUnread());
-      }
     } catch (e) {
       if (!mounted) return;
       final message = e is ApiClientException ? e.message : '$e';
@@ -234,20 +238,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         _loadError = message;
       });
     }
-  }
-
-  Future<void> _refreshUnread() async {
-    try {
-      final inbox = await widget.repository.getInboxNotifications();
-      if (!mounted) return;
-      setState(() => _unreadNotifs = inbox.where((n) => !n.read).length);
-    } catch (_) {}
-  }
-
-  Future<void> _openNotifications() async {
-    await Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => NotificationsScreen(repository: widget.repository)));
-    if (mounted) unawaited(_refreshUnread());
   }
 
   Future<void> _changeYear(String? yearId) async {
@@ -425,12 +415,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   ),
                 ),
                 const SizedBox(width: 8),
+                // Notifications moved to the Explore and Social headers,
+                // where students actually go looking for them.
                 _ScoreChip(xp: widget.user.xp, onTap: widget.onQuests),
-                _NotificationBell(
-                  unread: _unreadNotifs,
-                  tooltip: strings.t('social_notifications'),
-                  onTap: _openNotifications,
-                ),
                 IconButton(
                   visualDensity: VisualDensity.compact,
                   padding: EdgeInsets.zero,
@@ -467,17 +454,25 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ],
               const SizedBox(height: ArucadSpacing.lg),
 
-              // NEARBY
+              // FEEDBACK
+              Text(strings.t('home_feedback'),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w900, fontSize: 18)),
+              const SizedBox(height: ArucadSpacing.sm),
               Card(
                 child: ListTile(
-                  leading: const Icon(Icons.poll_outlined),
-                  title: const Text('Kampüs anketleri'),
-                  subtitle: const Text('Görüşünü paylaş'),
+                  leading: const Icon(Icons.poll_outlined,
+                      color: ArucadColors.primary),
+                  title: Text(strings.t('home_feedback_title'),
+                      style: const TextStyle(fontWeight: FontWeight.w800)),
+                  subtitle: Text(strings.t('home_feedback_sub')),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => maybeShowSurveyPopup(context, widget.repository),
                 ),
               ),
-              const SizedBox(height: ArucadSpacing.sm),
+              const SizedBox(height: ArucadSpacing.lg),
+
+              // NEARBY
               Text(strings.t('home_nearby'),
                   style: const TextStyle(
                       fontWeight: FontWeight.w900, fontSize: 18)),
@@ -927,36 +922,6 @@ class _NearbyCard extends StatelessWidget {
             ]),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _NotificationBell extends StatelessWidget {
-  final int unread;
-  final String tooltip;
-  final VoidCallback onTap;
-
-  const _NotificationBell({
-    required this.unread,
-    required this.tooltip,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return IconButton(
-      visualDensity: VisualDensity.compact,
-      padding: EdgeInsets.zero,
-      constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-      tooltip: tooltip,
-      onPressed: onTap,
-      icon: Badge(
-        isLabelVisible: unread > 0,
-        smallSize: 8,
-        backgroundColor: ArucadColors.primary,
-        child: Icon(Icons.notifications_outlined,
-            color: Theme.of(context).colorScheme.onSurface),
       ),
     );
   }

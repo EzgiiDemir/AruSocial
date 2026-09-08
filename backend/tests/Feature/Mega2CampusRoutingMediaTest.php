@@ -187,7 +187,14 @@ class Mega2CampusRoutingMediaTest extends TestCase
         ])->assertStatus(400)->assertJsonPath('error.code', 'INVALID_COORDINATE');
     }
 
-    public function test_video_upload_is_approved_when_classifier_unset(): void
+    /**
+     * A video whose frames could not actually be inspected is held, not
+     * published. Frame extraction needs ffmpeg; when it is unavailable (as
+     * in CI, and on the fake 200-byte clip below) nothing about the video's
+     * content has been checked, so auto-approving it would be exactly the
+     * "publish first, moderate later" gap the policy forbids.
+     */
+    public function test_video_upload_is_held_for_review_when_frames_cannot_be_inspected(): void
     {
         Storage::fake('public');
         $this->actingAsRole('contentEditor');
@@ -198,13 +205,10 @@ class Mega2CampusRoutingMediaTest extends TestCase
                 ->mimeType('video/mp4'),
         ], ['Accept' => 'application/json'])->assertCreated()->json('data');
 
-        $this->assertSame('approved', $created['moderationStatus']);
+        $this->assertSame('pending', $created['moderationStatus']);
         $this->assertSame('video/mp4', $created['mimeType']);
         $this->assertDatabaseHas('media_items', [
-            'id' => $created['id'], 'moderation_status' => 'approved',
-        ]);
-        $this->assertDatabaseMissing('moderation_reports', [
-            'kind' => 'media', 'target_id' => $created['id'],
+            'id' => $created['id'], 'moderation_status' => 'pending',
         ]);
     }
 

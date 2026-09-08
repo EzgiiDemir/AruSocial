@@ -10,6 +10,7 @@ import '../models/admin_stats.dart';
 import '../models/audit_log_entry.dart';
 import '../models/campus_directory.dart';
 import '../models/campus_models.dart';
+import '../models/campus_weather.dart';
 import '../models/chat_message.dart';
 import '../models/content_block.dart';
 import '../models/content_revision.dart';
@@ -211,6 +212,11 @@ abstract class CampusRepository {
   /// const — REST mode is the source of truth; Mock mode has no backend and
   /// keeps returning that const as its offline seed.
   Future<List<ShuttleRoute>> getShuttleRoutes();
+
+  /// Current campus weather, or null when no reading is available — the UI
+  /// hides the row instead of showing a fabricated temperature. Mock mode
+  /// has no provider and always returns null.
+  Future<CampusWeather?> getWeather();
   Future<ShuttleRoute> upsertShuttleRoute(ShuttleRoute route);
   Future<void> deleteShuttleRoute(String id);
   /// Real, fully server-side vision-moderation check (docs/EKSIKLER.md

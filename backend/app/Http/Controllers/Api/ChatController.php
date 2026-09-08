@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Events\MessageCreated;
 use App\Http\Controllers\Api\Concerns\ApiResponds;
+use App\Http\Controllers\Api\Concerns\ModeratesContent;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\SendChatMessageRequest;
 use App\Models\ChatGroup;
@@ -29,7 +30,7 @@ use Illuminate\Support\Str;
 // the history source of truth; MessageCreated is realtime delivery only.
 class ChatController extends Controller
 {
-    use ApiResponds;
+    use ApiResponds, ModeratesContent;
 
     public function __construct(private ConversationService $conversations) {}
 
@@ -149,6 +150,10 @@ class ChatController extends Controller
         $name = trim((string) $request->input('name', ''));
         if ($name === '') {
             return $this->fail(400, 'VALIDATION', 'name is required.');
+        }
+        // A group name is shown to everyone invited, so it is public text.
+        if ($blocked = $this->moderationBlock($me, $name, 'group_name', 'chat.createGroup')) {
+            return $blocked;
         }
 
         $memberIds = collect($request->input('memberIds', $request->input('member_ids', [])))
@@ -310,8 +315,8 @@ class ChatController extends Controller
         if ($text === '') {
             return $this->fail(400, 'VALIDATION', 'text is required.');
         }
-        if ($blocked = ModerationService::checkText($me, $text)) {
-            return $this->fail(400, 'CONTENT_BLOCKED', $blocked);
+        if ($blocked = $this->moderationBlock($me, $text, 'group_message', 'chat.sendGroupMessage')) {
+            return $blocked;
         }
 
         $message = ChatGroupMessage::create([
@@ -366,8 +371,8 @@ class ChatController extends Controller
         }
 
         $text = (string) $request->input('text');
-        if ($blocked = ModerationService::checkText($me, $text)) {
-            return $this->fail(400, 'CONTENT_BLOCKED', $blocked);
+        if ($blocked = $this->moderationBlock($me, $text, 'direct_message', 'chat.send')) {
+            return $blocked;
         }
 
         $message = DB::transaction(function () use ($me, $target, $text) {

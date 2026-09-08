@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Api\Concerns\ApiResponds;
+use App\Http\Controllers\Api\Concerns\ModeratesContent;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\SetOnboardingStepRequest;
 use App\Http\Requests\UpdateProfileBioRequest;
@@ -17,7 +18,7 @@ use Illuminate\Http\JsonResponse;
 
 class ProfileController extends Controller
 {
-    use ApiResponds;
+    use ApiResponds, ModeratesContent;
 
     // Matches CampusUserDto.fromJson in lib/core/network/campus_dtos.dart —
     // see User::toApiArray(), shared with the login response.
@@ -39,9 +40,40 @@ class ProfileController extends Controller
         if ($request->exists('avatarUrl')) {
             $me->avatar_url = $request->input('avatarUrl');
         }
+
+        // A profile is public surface too: bios, club/achievement/project
+        // lists and the avatar are all visible to other students, so they
+        // go through the same gate as a post rather than being trusted.
+        $profileText = $this->profileFreeText($me);
+        if ($blocked = $this->moderationBlock(
+            $me, $profileText, 'profile', 'profile.updateBio',
+            $this->moderatableImages($request->input('avatarUrl')),
+        )) {
+            return $blocked;
+        }
+
         $me->save();
 
         return $this->ok($me->toApiArray());
+    }
+
+    /**
+     * Every free-text field a student controls on their profile, joined so
+     * one moderation call covers the whole submission.
+     */
+    private function profileFreeText(\App\Models\User $me): string
+    {
+        $parts = [$me->department, $me->year, $me->university];
+        foreach ([$me->clubs, $me->achievements, $me->projects] as $list) {
+            if (is_array($list)) {
+                $parts = array_merge($parts, $list);
+            }
+        }
+
+        return trim(implode("\n", array_filter(array_map(
+            fn ($v) => is_string($v) ? trim($v) : null,
+            $parts,
+        ))));
     }
 
     public function settings(): JsonResponse

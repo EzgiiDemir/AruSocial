@@ -1,21 +1,32 @@
 import 'package:flutter/material.dart';
 
+import 'package:arucad_campus_prototype/core/l10n/app_strings.dart';
 import 'package:arucad_campus_prototype/core/models/survey.dart';
 import 'package:arucad_campus_prototype/core/services/contracts.dart';
 import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
 
 /// Checks for a real, currently-active survey the student hasn't voted on
 /// yet, and shows it as a popup if one exists — the "hızlı anket" feature.
-/// A no-op (returns immediately) when there's nothing to show, so this is
-/// safe to call unconditionally on Home's first load.
-Future<void> maybeShowSurveyPopup(BuildContext context, CampusRepository repository) async {
+///
+/// [silent] separates the two callers, which want opposite things when
+/// there is nothing to show. Home calls this automatically on first load,
+/// where "no surveys right now" is the normal case and a snackbar about it
+/// would be noise on every single launch. Tapping the feedback card is a
+/// deliberate question, so there it does deserve an answer.
+Future<void> maybeShowSurveyPopup(
+  BuildContext context,
+  CampusRepository repository, {
+  bool silent = false,
+}) async {
   try {
     final surveys = await repository.getActiveSurveys();
     if (!context.mounted) return;
     final unvoted = surveys.where((s) => !s.hasVoted).toList();
     if (unvoted.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Şu an yanıtını bekleyen bir anket yok.')));
+      if (!silent) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(AppLocale.of(context).t('home_feedback_none'))));
+      }
       return;
     }
     await showModalBottomSheet<void>(
@@ -25,9 +36,9 @@ Future<void> maybeShowSurveyPopup(BuildContext context, CampusRepository reposit
       builder: (ctx) => _SurveySheet(repository: repository, survey: unvoted.first),
     );
   } catch (_) {
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Anketler yüklenemedi. Tekrar deneyin.')));
+    if (!context.mounted || silent) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppLocale.of(context).t('home_feedback_error'))));
   }
 }
 

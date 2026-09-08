@@ -20,7 +20,7 @@ Widget buildTourIframe(String url) {
         ..style.border = 'none'
         ..style.width = '100%'
         ..style.height = '100%'
-        ..allow = 'accelerometer; gyroscope; fullscreen'
+        ..allow = 'accelerometer; gyroscope; fullscreen; xr-spatial-tracking'
         ..allowFullscreen = true;
       return iframe;
     });

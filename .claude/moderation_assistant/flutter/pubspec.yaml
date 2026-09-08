@@ -1,0 +1,8 @@
+name: content_moderation_client
+description: Flutter client for the student social network moderation API.
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.2.2

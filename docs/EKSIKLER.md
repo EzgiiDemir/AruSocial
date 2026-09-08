@@ -11,7 +11,7 @@ Projenin **gerçek, güncel** durumu — tek doküman, tek yerden.
 
 **Kural aynı: sahte özellik yok.** Bir şey ✅ işaretliyse gerçekten
 çalışıyordur ve test edilmiştir. Bu turun sonunda (7 Eylül 2026)
-`php artisan test` **554** backend testiyle, `flutter test` **226**
+`php artisan test` **563** backend testiyle, `flutter test` **230**
 Flutter testiyle ve `flutter analyze` sıfır uyarıyla doğrulandı — bu
 dosyadaki daha eski "47"/"38" gibi sayılar artık geçersiz, aşağıdaki
 sayı güncel referans.

@@ -2,7 +2,11 @@
 
 namespace App\Services;
 
+use App\Models\ModerationReport;
 use App\Models\User;
+use App\Services\Moderation\ModerationVerdict;
+use App\Services\Moderation\TextPolicyEngine;
+use Illuminate\Support\Str;
 
 /**
  * Server-side text policy for public social surfaces (feed, stories, comments).
@@ -140,7 +144,56 @@ class ModerationService
             'meet kids alone privately', 'reşit değilim buluşalım',
             'секретная встреча с ребёнком',
         ],
+        // Political campaigning/party content — deliberately named parties,
+        // titles and institutions only (never bare words like "seçim" or
+        // "hükümet"), because a campus platform's own student-club/council
+        // elections are a normal, unrelated topic that those generic words
+        // would otherwise catch as false positives.
+        'POL' => [
+            'akp', 'chp', 'mhp', 'hdp', 'iyi parti', 'cumhurbaşkanı adayı',
+            'milletvekili adayı', 'genel seçimlerde oy',
+            'republican party', 'democratic party', 'presidential candidate',
+            'senate race', 'prime minister candidate',
+            'единая россия', 'государственная дума', 'выборы президента',
+        ],
     ];
+
+    /**
+     * Gap-tolerant phrase families layered on top of BLOCKED_TERMS: each
+     * entry is an ordered list of anchor words/phrases that must all appear,
+     * in order, within a bounded number of unrelated words of each other —
+     * catching a *family* of rephrasing ("seni yarın gerçekten öldürürüm")
+     * that an exact BLOCKED_TERMS string only catches verbatim. Anchors are
+     * plain TR/EN/RU text (never hand-written regex): each is folded through
+     * the same normalize() as every other term before assembly, so the same
+     * anti-obfuscation protection applies. Reserved for non-escalate
+     * categories only — a fuzzy match on a strike-and-possibly-ban decision
+     * (THR/CSA/EXT/SELF/MINOR) stays exact-phrase to keep false positives on
+     * a punitive action rare.
+     *
+     * @var array<string, list<list<string>>>
+     */
+    private const BLOCKED_PATTERN_FAMILIES = [
+        'PROF' => [
+            ['sen', 'aptalsın'], ['sen', 'salaksın'],
+        ],
+        'HAR' => [
+            ['hesabını', 'sileceğim'], ['everyone', 'hates you'],
+            ['все тебя', 'ненавидят'],
+        ],
+        'HATE' => [
+            ['bu ırktan', 'nefret'], ['kadınlar', 'aptal'],
+            ['immigrants', 'vermin'], ['engelliler', 'sadece yük'],
+        ],
+        'SPAM' => [
+            ['dm at', 'kazan'], ['hemen', 'tıkla', 'kazan'],
+            ['dm me', 'guaranteed profit'], ['click', 'free followers'],
+            ['криптосигнал', 'подпишись'],
+        ],
+    ];
+
+    /** Max unrelated words tolerated between two anchors of the same family. */
+    private const PATTERN_FAMILY_GAP = 6;
 
     /** Categories that use escalate/ audit prefix (S4/S5-class handling). */
     private const ESCALATE_CATEGORIES = [
@@ -152,29 +205,150 @@ class ModerationService
      * it's flagged, records a real strike against $user (banning them once
      * they cross the threshold) and returns the reason to show the caller.
      */
+    /**
+     * Categories the phrase/severity engine does not model. These stay on
+     * the deterministic term list: they are rare, unambiguous, and there is
+     * no "aimed at a comment rather than a person" nuance to weigh for a
+     * drug sale or a CSA request.
+     */
+    private const ENGINE_OWNED_CATEGORIES = [
+        'PROF', 'HAR', 'SEX', 'THR', 'VIO', 'HATE', 'POL',
+    ];
+
+    /** Contexts in which quoting a banned term is not using it. */
+    private const EXEMPT_CONTEXTS = [
+        'counterspeech', 'reporting_abuse', 'educational',
+        'fictional_description', 'self_directed', 'gameplay',
+    ];
+
+    /**
+     * Checks $text for blocked content. Returns null when it may be
+     * published, or the message to show the author when it may not.
+     *
+     * Two layers run here. TextPolicyEngine weighs severity, who is being
+     * addressed and the surrounding context, so an insult aimed at a
+     * comment warns while the same word aimed at a person is removed, and a
+     * slur quoted in order to report it is left alone. Anything the engine
+     * lets through is then checked against the deterministic term list for
+     * the categories it does not model (CSA, drugs, scams, and so on).
+     */
     public static function checkText(User $user, string $text): ?string
+    {
+        $verdict = self::evaluate($text);
+
+        if ($verdict->blocksPublication()) {
+            $category = $verdict->primaryLabel() ?? 'HAR';
+            $prefix = $verdict->isEscalation() ? 'escalate/' : '';
+            self::recordStrike($user, $prefix.'metin/'.$category.': '.$verdict->auditSummary());
+
+            return self::messageFor($category);
+        }
+
+        if ($verdict->needsReview()) {
+            self::queueForReview($user, $text, $verdict);
+        } elseif ($verdict->isWarning()) {
+            AuditLogger::log('system', 'moderation_warning', 'user', "{$user->name}: ".$verdict->auditSummary());
+        }
+
+        // Quoting a term to report or teach about it is not using it, so the
+        // deterministic list is skipped in exactly those contexts too.
+        if (in_array($verdict->context, self::EXEMPT_CONTEXTS, true)) {
+            return null;
+        }
+
+        return self::checkDeterministicTerms($user, $text);
+    }
+
+    /** The policy decision for $text, with no side effects. */
+    public static function evaluate(string $text): ModerationVerdict
+    {
+        return (new TextPolicyEngine())->evaluate($text);
+    }
+
+    private static function checkDeterministicTerms(User $user, string $text): ?string
     {
         $normalized = self::normalize($text);
         foreach (self::BLOCKED_TERMS as $category => $terms) {
+            if (in_array($category, self::ENGINE_OWNED_CATEGORIES, true)) {
+                continue;
+            }
             foreach ($terms as $term) {
                 if (! self::containsTerm($normalized, self::normalize($term))) {
                     continue;
                 }
-                $escalate = in_array($category, self::ESCALATE_CATEGORIES, true);
-                $prefix = $escalate ? 'escalate/' : '';
-                self::recordStrike($user, $prefix."metin/$category: \"$term\"");
 
-                if ($category === 'SELF') {
-                    return 'Bu içerik kendine zarar riski taşıyor ve yayınlanamaz. '
-                        .'Lütfen yalnız kalma; bir yakınına ulaş veya 112 / yerel kriz hattından destek al.';
-                }
-
-                return 'İçerik topluluk kurallarına aykırı olabilecek '
-                    .self::categoryLabel($category).' içeriyor. Lütfen düzenleyip tekrar dene.';
+                return self::block($user, $category, "\"$term\"");
             }
         }
 
         return null;
+    }
+
+    /**
+     * Borderline wording is published but put in front of a moderator —
+     * sarcasm, banter and an unnamed target are exactly the cases an
+     * automated rule should not be deciding on its own.
+     */
+    private static function queueForReview(User $user, string $text, ModerationVerdict $verdict): void
+    {
+        ModerationReport::create([
+            'id' => (string) Str::uuid(),
+            'kind' => 'text',
+            'target_id' => $user->id,
+            'target_label' => Str::limit(trim($text), 120),
+            'reason' => $verdict->auditSummary(),
+            'reported_at' => now(),
+            'action' => null,
+        ]);
+
+        AuditLogger::log('system', 'moderation_review_queued', 'user', "{$user->name}: ".$verdict->auditSummary());
+    }
+
+    private static function messageFor(string $category): string
+    {
+        if ($category === 'SELF') {
+            return 'Bu içerik kendine zarar riski taşıyor ve yayınlanamaz. '
+                .'Lütfen yalnız kalma; bir yakınına ulaş veya 112 / yerel kriz hattından destek al.';
+        }
+
+        return 'İçerik topluluk kurallarına aykırı olabilecek '
+            .self::categoryLabel($category).' içeriyor. Lütfen düzenleyip tekrar dene.';
+    }
+
+    private static function block(User $user, string $category, string $matchDescription): string
+    {
+        $escalate = in_array($category, self::ESCALATE_CATEGORIES, true);
+        $prefix = $escalate ? 'escalate/' : '';
+        self::recordStrike($user, $prefix."metin/$category: $matchDescription");
+
+        if ($category === 'SELF') {
+            return 'Bu içerik kendine zarar riski taşıyor ve yayınlanamaz. '
+                .'Lütfen yalnız kalma; bir yakınına ulaş veya 112 / yerel kriz hattından destek al.';
+        }
+
+        return 'İçerik topluluk kurallarına aykırı olabilecek '
+            .self::categoryLabel($category).' içeriyor. Lütfen düzenleyip tekrar dene.';
+    }
+
+    /**
+     * True if every anchor in $anchors appears in $normalizedText, in order,
+     * each within PATTERN_FAMILY_GAP words of the next. Anchors are
+     * normalize()'d before matching so the same anti-obfuscation folding
+     * that protects BLOCKED_TERMS applies here too.
+     */
+    private static function matchesPatternFamily(string $normalizedText, array $anchors): bool
+    {
+        $parts = array_map(
+            static fn (string $a): string => preg_quote(self::normalize($a), '/'),
+            $anchors,
+        );
+        if (in_array('', $parts, true)) {
+            return false;
+        }
+        $gap = '(?:\s+\S+){0,'.self::PATTERN_FAMILY_GAP.'}\s+';
+        $pattern = '/'.implode($gap, $parts).'/u';
+
+        return (bool) preg_match($pattern, $normalizedText);
     }
 
     /**
@@ -222,8 +396,14 @@ class ModerationService
         // Keep every Unicode letter: Cyrillic text must be evaluated rather
         // than being stripped before the policy rules see it.
         $value = preg_replace('/[^\p{L}\p{N}]+/u', ' ', $value) ?? $value;
+        $value = trim(preg_replace('/\s+/u', ' ', $value) ?? $value);
 
-        return trim(preg_replace('/\s+/u', ' ', $value) ?? $value);
+        // Letter stretched 3+ times for emphasis/evasion ("saaaalak",
+        // "fuuuuck") collapses to one occurrence. A normal double letter
+        // ("kill", "will", "hall") only ever repeats twice, so this never
+        // touches it — both BLOCKED_TERMS and input text go through this
+        // same fold, so an existing exact two-letter match is unaffected.
+        return preg_replace('/(.)\1{2,}/u', '$1', $value) ?? $value;
     }
 
     private static function containsTerm(string $text, string $term): bool
@@ -268,6 +448,7 @@ class ModerationService
             'IP' => 'telif ihlali',
             'ANIMAL' => 'hayvan istismarı',
             'MINOR' => 'çocuk güvenliği',
+            'POL' => 'siyasi içerik',
             'credible_threat' => 'tehdit',
             default => 'küfür veya saldırgan dil',
         };

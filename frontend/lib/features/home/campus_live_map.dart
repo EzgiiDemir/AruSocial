@@ -2,18 +2,17 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import 'package:arucad_campus_prototype/core/config/campus_sites.dart';
 import 'package:arucad_campus_prototype/core/config/place_catalog.dart';
-import 'package:arucad_campus_prototype/core/config/place_tour.dart';
 import 'package:arucad_campus_prototype/core/config/poi_config.dart';
 import 'package:arucad_campus_prototype/core/config/shuttle_config.dart';
+import 'package:arucad_campus_prototype/core/l10n/app_strings.dart';
 import 'package:arucad_campus_prototype/core/models/campus_models.dart';
+import 'package:arucad_campus_prototype/core/models/campus_weather.dart';
 import 'package:arucad_campus_prototype/core/models/geo_point.dart';
 import 'package:arucad_campus_prototype/core/services/contracts.dart';
 import 'package:arucad_campus_prototype/core/services/content_moderation.dart';
 import 'package:arucad_campus_prototype/core/services/chat_realtime_service.dart';
 import 'package:arucad_campus_prototype/core/services/location_service.dart';
-import 'package:arucad_campus_prototype/core/services/tour_launcher.dart';
 import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
 import 'package:arucad_campus_prototype/features/guide/ask_arucad_bubble.dart';
 import 'package:arucad_campus_prototype/features/guide/guide_sheet.dart';
@@ -22,11 +21,9 @@ import 'package:arucad_campus_prototype/features/map/heatmap_adapter.dart';
 import 'package:arucad_campus_prototype/features/map/in_app_navigation_screen.dart';
 import 'package:arucad_campus_prototype/features/map/map_pointer_guard.dart';
 import 'package:arucad_campus_prototype/features/map/maplibre_campus_map.dart';
-import 'package:arucad_campus_prototype/features/map/tour_360_screen.dart';
 import 'package:arucad_campus_prototype/features/place/place_detail_screen.dart';
+import 'package:arucad_campus_prototype/features/services/building_directory_screen.dart';
 import 'package:arucad_campus_prototype/features/widgets/campus_widgets.dart';
-
-enum _MapViewMode { map, tour360 }
 
 /// Konum görünürlüğü — Gizli (ghost) / Arkadaşlarım (friends) / Topluluğum
 /// (community) / Herkes (public), en kısıtlıdan en açığa doğru sıralı.
@@ -57,7 +54,7 @@ Future<void> showPlaceInfoSheet(
   required List<CampusEvent> events,
   required VoidCallback onNavigate,
   CampusRepository? repository,
-  VoidCallback? onTour,
+  VoidCallback? onOpenDirectory,
   VoidCallback? onDetails,
   VoidCallback? onRequestAppointment,
   CampusVisibility visibility = CampusVisibility.friends,
@@ -73,7 +70,7 @@ Future<void> showPlaceInfoSheet(
       visibility: visibility,
       repository: repository,
       onNavigate: onNavigate,
-      onTour: onTour,
+      onOpenDirectory: onOpenDirectory,
       onDetails: onDetails,
       onRequestAppointment: onRequestAppointment,
     ),
@@ -179,37 +176,12 @@ class _CampusLiveMapState extends State<CampusLiveMap> {
       HeatmapAdapter.pulseZones(widget.places);
   late CampusVisibility _visibility = widget.initialVisibility;
   final _mapController = CampusMapController();
-  _MapViewMode _viewMode = _MapViewMode.map;
-  CampusPlace? _selectedPlace;
-  CampusSite? _selectedSite;
-
-  @override
-  void initState() {
-    super.initState();
-    _syncFocusPlace();
-  }
 
   @override
   void didUpdateWidget(covariant CampusLiveMap oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.places != widget.places) {
       _pulseZones = HeatmapAdapter.pulseZones(widget.places);
-    }
-    if (oldWidget.focusPlaceId != widget.focusPlaceId ||
-        oldWidget.places != widget.places) {
-      _syncFocusPlace();
-    }
-  }
-
-  void _syncFocusPlace() {
-    final focusId = widget.focusPlaceId;
-    if (focusId == null) return;
-    for (final place in campusMapPlaces(widget.places)) {
-      if (place.id == focusId) {
-        _selectedPlace = place;
-        _selectedSite = nearestSite(place.lat, place.lng);
-        return;
-      }
     }
   }
 
@@ -229,58 +201,16 @@ class _CampusLiveMapState extends State<CampusLiveMap> {
   int get _totalOnline =>
       pois.fold<int>(0, (sum, p) => sum + campusOnlineCount(p.name));
 
-  CampusSite get _tourSite {
-    final selected = _selectedSite;
-    if (selected != null) return selected;
-    final place = _selectedPlace;
-    if (place != null) return nearestSite(place.lat, place.lng);
-    final user = widget.userLocation;
-    if (user != null) return nearestSite(user.lat, user.lng);
-    return campusSites.first;
-  }
-
-  String get _tourTitle {
-    final place = _selectedPlace;
-    if (place != null) return place.name;
-    return _tourSite.name;
-  }
-
-  Future<void> _openTourForPlace(CampusPlace? place, {CampusSite? site}) async {
-    // Real fix for "the 360 preview is slow / never opens": the mini
-    // in-map 360 panel (_MapTour360Panel, shown in tour360 view mode) stays
-    // mounted and its player keeps running underneath the full-screen
-    // Tour360Screen pushed on top of it — two full 3DVista players loading
-    // the same tour's scripts/media at once, fighting over bandwidth and
-    // the WebGL/WebView context. Switching away from tour360 mode disposes
-    // the mini panel's player before the full-screen one starts; switching
-    // back after it's dismissed restores the toggle exactly as the student
-    // left it.
-    final restoreMode = _viewMode;
-    if (_viewMode == _MapViewMode.tour360) {
-      setState(() => _viewMode = _MapViewMode.map);
-    }
-    try {
-      if (place != null) {
-        final tour = resolvePlaceTour(place);
-        widget.analyticsTracker.track(
-            'tour_opened', {'place': place.name, 'tourUrl': tour.url});
-        await open360Tour(
-          context,
-          tour.url,
-          tourTarget: tour.target,
-          title: place.name,
-        );
-        return;
-      }
-      final resolved = site ?? _tourSite;
-      widget.analyticsTracker.track('tour_opened',
-          {'place': resolved.name, 'tourUrl': resolved.tourUrl});
-      await open360Tour(context, resolved.tourUrl, title: resolved.name);
-    } finally {
-      if (mounted && restoreMode != _viewMode) {
-        setState(() => _viewMode = restoreMode);
-      }
-    }
+  void _openDirectory() {
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => BuildingDirectoryScreen(
+        repository: widget.repository,
+        mapProvider: widget.mapProvider,
+        analyticsTracker: widget.analyticsTracker,
+        onOpenGalatea: widget.onOpenGalatea,
+        initialVisibility: _visibility,
+      ),
+    ));
   }
 
   @override
@@ -317,69 +247,46 @@ class _CampusLiveMapState extends State<CampusLiveMap> {
       }
     }
 
+    // Campus Pulse is a live map, full stop. The 360 tour used to sit behind
+    // a toggle here and fought the map for the same WebGL context while an
+    // external player loaded; it now lives only in the building directory,
+    // where browsing a building's floors and rooms is the actual reason to
+    // open a tour.
     final mapBox = ClipRRect(
       borderRadius: BorderRadius.circular(26),
       child: Stack(children: [
         Positioned.fill(
-          child: _viewMode == _MapViewMode.map
-              ? CampusMapView(
-                  extentPoints: extentPoints,
-                  focusPoint: focusPoint,
-                  markers: labelMarkers,
-                  contextDots: contextDots,
-                  pulseZones: _pulseZones,
-                  userLocation: widget.userLocation,
-                  showUserLocation: true,
-                  controller: _mapController,
-                )
-              : _MapTour360Panel(
-                  title: _tourTitle,
-                  tourUrl: _selectedPlace != null
-                      ? resolvePlaceTour(_selectedPlace!).url
-                      : _tourSite.tourUrl,
-                  tourTarget: _selectedPlace != null
-                      ? resolvePlaceTour(_selectedPlace!).target
-                      : null,
-                  selectedSiteId: _tourSite.id,
-                  onOpenFullscreen: () => _openTourForPlace(
-                    _selectedPlace,
-                    site: _tourSite,
-                  ),
-                  onSelectSite: (site) => setState(() {
-                    _selectedSite = site;
-                    _selectedPlace = null;
-                  }),
-                ),
+          child: CampusMapView(
+            extentPoints: extentPoints,
+            focusPoint: focusPoint,
+            markers: labelMarkers,
+            contextDots: contextDots,
+            pulseZones: _pulseZones,
+            userLocation: widget.userLocation,
+            showUserLocation: true,
+            controller: _mapController,
+          ),
         ),
-        if (_viewMode == _MapViewMode.map)
-          Positioned(
-            left: 14,
-            top: 14,
-            child: _MapControlButton(
-              onlineCount: _totalOnline,
-              visibility: _visibility,
-              onVisibilityChanged: (v) => setState(() => _visibility = v),
-              onOpenShuttle: () =>
-                  showShuttleSheet(context, repository: widget.repository),
-              onOpenFullMap: isPreview ? () => _openFullMap() : null,
-            ),
+        Positioned(
+          left: 14,
+          top: 14,
+          child: _MapControlButton(
+            onlineCount: _totalOnline,
+            visibility: _visibility,
+            repository: widget.repository,
+            onVisibilityChanged: (v) => setState(() => _visibility = v),
+            onOpenShuttle: () =>
+                showShuttleSheet(context, repository: widget.repository),
+            onOpenFullMap: isPreview ? () => _openFullMap() : null,
           ),
-        if (_viewMode == _MapViewMode.map)
-          Positioned(
-            right: 14,
-            top: 14,
-            child: AskArucadBubble(
-                onTap: isPreview ? () => _openFullMap() : _openAskArucad),
-          ),
+        ),
         Positioned(
           right: 14,
-          bottom: widget.mapHeight != null ? 54 : 14,
-          child: _MapViewModeToggle(
-            mode: _viewMode,
-            onChanged: (mode) => setState(() => _viewMode = mode),
-          ),
+          top: 14,
+          child: AskArucadBubble(
+              onTap: isPreview ? () => _openFullMap() : _openAskArucad),
         ),
-        if (widget.mapHeight != null && _viewMode == _MapViewMode.map)
+        if (widget.mapHeight != null)
           const Positioned(
             left: 14,
             bottom: 14,
@@ -396,10 +303,6 @@ class _CampusLiveMapState extends State<CampusLiveMap> {
   void _openInfo(Poi poi, {GeoPoint? display}) {
     _mapController.centerOn(display ?? GeoPoint(poi.lat, poi.lng), zoom: 18.2);
     final place = _matchPlace(poi.name);
-    setState(() {
-      _selectedPlace = place;
-      _selectedSite = nearestSite(poi.lat, poi.lng);
-    });
     final events = eventsAtPlace(widget.events, place?.name ?? poi.name);
     showPlaceInfoSheet(
       context,
@@ -409,10 +312,11 @@ class _CampusLiveMapState extends State<CampusLiveMap> {
       visibility: _visibility,
       repository: widget.repository,
       onNavigate: () => _navigate(poi),
-      onTour: () {
+      // 360 tours are reached through the building directory now, not from
+      // the map sheet — one place to browse buildings, floors and rooms.
+      onOpenDirectory: () {
         Navigator.of(context).pop();
-        unawaited(
-            _openTourForPlace(place, site: nearestSite(poi.lat, poi.lng)));
+        _openDirectory();
       },
       onDetails: place == null ? null : () => _openDetails(place),
       onRequestAppointment: _openAskArucad,
@@ -499,180 +403,197 @@ class _MapPreviewLegend extends StatelessWidget {
           child: Row(mainAxisSize: MainAxisSize.min, children: [
             const Icon(Icons.layers_outlined, size: 15),
             const SizedBox(width: 5),
-            const Text('Bölgeler',
+            Text(AppLocale.of(context).t('clm_zones'),
                 style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
             const SizedBox(width: 9),
             _DensityDot(color: ArucadColors.campusGreen, label: 'Sakin'),
             const SizedBox(width: 6),
             _DensityDot(color: ArucadColors.yellow, label: 'Orta'),
             const SizedBox(width: 6),
-            _DensityDot(color: ArucadColors.danger, label: 'Yoğun'),
+            _DensityDot(color: ArucadColors.danger, label: AppLocale.of(context).t('clm_busy')),
           ]),
         ),
       );
 }
 
-class _MapViewModeToggle extends StatelessWidget {
-  final _MapViewMode mode;
-  final ValueChanged<_MapViewMode> onChanged;
+/// Everything the map knows right now, in one panel: live presence, today's
+/// weather over campus, and the next departure on every shuttle line with
+/// its stops. This replaced a sheet that only showed a single "next service"
+/// countdown and made the rest of the timetable a separate journey.
+class _MapInfoSheet extends StatefulWidget {
+  final int onlineCount;
+  final CampusVisibility visibility;
+  final CampusRepository repository;
+  final VoidCallback onOpenShuttle;
+  final VoidCallback onChangeVisibility;
 
-  const _MapViewModeToggle({required this.mode, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    final surface = Theme.of(context).colorScheme.surface;
-    return MapPointerGuard(
-      child: Material(
-        color: surface.withValues(alpha: .96),
-        elevation: 3,
-        shadowColor: Colors.black26,
-        borderRadius: BorderRadius.circular(14),
-        child: Padding(
-          padding: const EdgeInsets.all(3),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            _ModeChip(
-              label: 'Harita',
-              selected: mode == _MapViewMode.map,
-              onTap: () => onChanged(_MapViewMode.map),
-            ),
-            _ModeChip(
-              label: '360°',
-              selected: mode == _MapViewMode.tour360,
-              onTap: () => onChanged(_MapViewMode.tour360),
-            ),
-          ]),
-        ),
-      ),
-    );
-  }
-}
-
-class _ModeChip extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _ModeChip({
-    required this.label,
-    required this.selected,
-    required this.onTap,
+  const _MapInfoSheet({
+    required this.onlineCount,
+    required this.visibility,
+    required this.repository,
+    required this.onOpenShuttle,
+    required this.onChangeVisibility,
   });
 
   @override
+  State<_MapInfoSheet> createState() => _MapInfoSheetState();
+}
+
+class _MapInfoSheetState extends State<_MapInfoSheet> {
+  CampusWeather? _weather;
+  List<ShuttleRoute> _routes = shuttleRoutes;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_load());
+  }
+
+  Future<void> _load() async {
+    final weather = await widget.repository.getWeather();
+    List<ShuttleRoute>? routes;
+    try {
+      routes = await widget.repository.getShuttleRoutes();
+    } catch (_) {
+      // The bundled timetable is a fine fallback — it is the same schedule
+      // the backend seeds from.
+    }
+    if (!mounted) return;
+    setState(() {
+      _weather = weather;
+      if (routes != null && routes.isNotEmpty) _routes = routes;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(11),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 160),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: selected ? ArucadColors.primary : Colors.transparent,
-          borderRadius: BorderRadius.circular(11),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w800,
-            color: selected ? Colors.white : ArucadColors.ink,
+    final now = DateTime.now();
+    return SafeArea(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * .78),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Harita Bilgileri',
+                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
+              const SizedBox(height: 14),
+              Row(children: [
+                const Icon(Icons.circle, size: 10, color: ArucadColors.success),
+                const SizedBox(width: 10),
+                Text('${widget.onlineCount} çevrimiçi',
+                    style: const TextStyle(fontWeight: FontWeight.w700)),
+              ]),
+              if (_weather case final weather?) ...[
+                const SizedBox(height: 12),
+                Row(children: [
+                  Icon(_weatherIcon(weather),
+                      size: 20, color: ArucadColors.primary),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      '${weather.temperatureLabel} · ${weather.summary}'
+                      ' · ${weather.feelsLikeLabel} · ${weather.windLabel}',
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ]),
+              ],
+              const Divider(height: 28),
+              Row(children: [
+                const Expanded(
+                  child: Text('Servis Saatleri',
+                      style:
+                          TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
+                ),
+                TextButton(
+                    onPressed: widget.onOpenShuttle,
+                    child: Text(AppLocale.of(context).t('clm_all'))),
+              ]),
+              const SizedBox(height: 4),
+              for (final route in _routes)
+                _ShuttleLineRow(route: route, now: now),
+              const Divider(height: 28),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading:
+                    Icon(widget.visibility.icon, color: ArucadColors.primary),
+                title: Text(AppLocale.of(context).t('clm_visibility')),
+                subtitle: Text(widget.visibility.label),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: widget.onChangeVisibility,
+              ),
+            ],
           ),
         ),
       ),
     );
   }
+
+  IconData _weatherIcon(CampusWeather weather) {
+    if (weather.code == 0) {
+      return weather.isDay ? Icons.wb_sunny_outlined : Icons.nightlight_outlined;
+    }
+    if (weather.code <= 3) return Icons.cloud_outlined;
+    if (weather.code <= 48) return Icons.foggy;
+    if (weather.code <= 67) return Icons.water_drop_outlined;
+    if (weather.code <= 86) return Icons.ac_unit;
+    return Icons.thunderstorm_outlined;
+  }
 }
 
-class _MapTour360Panel extends StatelessWidget {
-  final String title;
-  final String tourUrl;
-  final String? tourTarget;
-  final String selectedSiteId;
-  final VoidCallback onOpenFullscreen;
-  final ValueChanged<CampusSite> onSelectSite;
+/// One shuttle line: its colour, next departure countdown, and the stops it
+/// actually calls at — the detail students were previously sent to another
+/// screen to find.
+class _ShuttleLineRow extends StatelessWidget {
+  final ShuttleRoute route;
+  final DateTime now;
 
-  const _MapTour360Panel({
-    required this.title,
-    required this.tourUrl,
-    required this.selectedSiteId,
-    required this.onOpenFullscreen,
-    required this.onSelectSite,
-    this.tourTarget,
-  });
+  const _ShuttleLineRow({required this.route, required this.now});
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final resolved = composeTourUrl(tourUrl, tourTarget);
-    return ColoredBox(
-      color: scheme.surface,
-      child: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
-              child: Column(
-                children: [
-                  Text(
-                    title,
-                    textAlign: TextAlign.center,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w900, fontSize: 16),
-                  ),
-                  const SizedBox(height: 8),
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        for (final site in campusSites) ...[
-                          Padding(
-                            padding: const EdgeInsets.only(right: 6),
-                            child: FilterChip(
-                              label: Text(site.name.split(' ').first),
-                              selected: site.id == selectedSiteId,
-                              selectedColor:
-                                  ArucadColors.primary.withValues(alpha: .16),
-                              checkmarkColor: ArucadColors.primary,
-                              onSelected: (_) => onSelectSite(site),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: Tour360View(url: resolved, expand: true),
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-              child: FilledButton.icon(
-                onPressed: onOpenFullscreen,
-                icon: const Icon(Icons.fullscreen),
-                label: const Text('Tam ekran 360°'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: ArucadColors.primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  textStyle: const TextStyle(
-                      fontWeight: FontWeight.w800, fontSize: 14),
-                ),
-              ),
-            ),
-          ],
+    final next = nextDeparture(route.departures, now);
+    final back = route.returns == null
+        ? null
+        : nextDeparture(route.returns!, now);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(
+          width: 10,
+          height: 10,
+          margin: const EdgeInsets.only(top: 5, right: 10),
+          decoration:
+              BoxDecoration(color: route.color, shape: BoxShape.circle),
         ),
-      ),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(route.name,
+                style: const TextStyle(
+                    fontWeight: FontWeight.w800, fontSize: 13.5)),
+            const SizedBox(height: 2),
+            Text(
+              back == null
+                  ? 'Sıradaki ${next.label} · ${formatCountdown(next.until)}'
+                  : 'Gidiş ${next.label} · Dönüş ${back.label}',
+              style: const TextStyle(
+                  color: ArucadColors.muted, fontSize: 11.5),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              route.stops.join(' → '),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: ArucadColors.muted, fontSize: 11),
+            ),
+          ]),
+        ),
+      ]),
     );
   }
 }
@@ -705,12 +626,14 @@ class _MapControlButton extends StatelessWidget {
   final ValueChanged<CampusVisibility> onVisibilityChanged;
   final VoidCallback onOpenShuttle;
   final VoidCallback? onOpenFullMap;
+  final CampusRepository repository;
 
   const _MapControlButton({
     required this.onlineCount,
     required this.visibility,
     required this.onVisibilityChanged,
     required this.onOpenShuttle,
+    required this.repository,
     this.onOpenFullMap,
   });
 
@@ -746,49 +669,21 @@ class _MapControlButton extends StatelessWidget {
       );
 
   void _openSheet(BuildContext context) {
-    final soonest = soonestDeparture();
     showModalBottomSheet<void>(
       context: context,
-      builder: (sheetContext) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
-        child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Harita Bilgileri',
-                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
-              const SizedBox(height: 16),
-              Row(children: [
-                const Icon(Icons.circle, size: 10, color: ArucadColors.success),
-                const SizedBox(width: 10),
-                Text('$onlineCount çevrimiçi',
-                    style: const TextStyle(fontWeight: FontWeight.w700)),
-              ]),
-              const Divider(height: 30),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.directions_bus_filled_outlined,
-                    color: ArucadColors.primary),
-                title: const Text('Servis Saatleri'),
-                subtitle: Text('En yakın: ${formatCountdown(soonest.until)}'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  onOpenShuttle();
-                },
-              ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: Icon(visibility.icon, color: ArucadColors.primary),
-                title: const Text('Görünürlük'),
-                subtitle: Text(visibility.label),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  _openVisibilityPicker(context);
-                },
-              ),
-            ]),
+      isScrollControlled: true,
+      builder: (sheetContext) => _MapInfoSheet(
+        onlineCount: onlineCount,
+        visibility: visibility,
+        repository: repository,
+        onOpenShuttle: () {
+          Navigator.pop(sheetContext);
+          onOpenShuttle();
+        },
+        onChangeVisibility: () {
+          Navigator.pop(sheetContext);
+          _openVisibilityPicker(context);
+        },
       ),
     );
   }
@@ -826,7 +721,7 @@ class PlaceInfoSheet extends StatefulWidget {
   final CampusVisibility visibility;
   final VoidCallback onNavigate;
   final CampusRepository? repository;
-  final VoidCallback? onTour;
+  final VoidCallback? onOpenDirectory;
   final VoidCallback? onDetails;
   final VoidCallback? onRequestAppointment;
 
@@ -838,7 +733,7 @@ class PlaceInfoSheet extends StatefulWidget {
     required this.visibility,
     required this.onNavigate,
     this.repository,
-    this.onTour,
+    this.onOpenDirectory,
     required this.onDetails,
     this.onRequestAppointment,
   });
@@ -988,14 +883,14 @@ class _PlaceInfoSheetState extends State<PlaceInfoSheet> {
                     ),
                 ],
                 const SizedBox(height: 16),
-                const Text('Az önce',
+                Text(AppLocale.of(context).t('clm_just_now'),
                     style:
                         TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
                 const SizedBox(height: 8),
                 if (checkins.isEmpty)
-                  const Padding(
+                  Padding(
                     padding: EdgeInsets.only(bottom: 6),
-                    child: Text('Henüz check-in yok',
+                    child: Text(AppLocale.of(context).t('clm_no_checkins'),
                         style: TextStyle(
                             fontSize: 13, color: ArucadColors.muted)),
                   )
@@ -1022,7 +917,7 @@ class _PlaceInfoSheetState extends State<PlaceInfoSheet> {
                       const Icon(Icons.layers_outlined,
                           size: 17, color: ArucadColors.primary),
                       const SizedBox(width: 6),
-                      const Text('Kat Planı',
+                      Text(AppLocale.of(context).t('clm_floor_plan'),
                           style: TextStyle(
                               fontWeight: FontWeight.w800, fontSize: 13)),
                       Icon(
@@ -1050,14 +945,14 @@ class _PlaceInfoSheetState extends State<PlaceInfoSheet> {
                 ],
                 if (isWorkshop) ...[
                   const SizedBox(height: 14),
-                  const Text('Atölye Durumu',
+                  Text(AppLocale.of(context).t('clm_workshop_status'),
                       style:
                           TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
                   const SizedBox(height: 8),
                   if (_workshop == null || _workshop!.equipment.isEmpty)
-                    const Padding(
+                    Padding(
                       padding: EdgeInsets.only(bottom: 6),
-                      child: Text('Ekipman bilgisi henüz eklenmedi',
+                      child: Text(AppLocale.of(context).t('clm_no_equipment'),
                           style: TextStyle(
                               fontSize: 13, color: ArucadColors.muted)),
                     )
@@ -1093,14 +988,14 @@ class _PlaceInfoSheetState extends State<PlaceInfoSheet> {
                       label: const Text('Ask ARUCAD\'a Sor'),
                     ),
                   const SizedBox(height: 6),
-                  const Text('İş Birliği Panosu',
+                  Text(AppLocale.of(context).t('clm_collab_board'),
                       style:
                           TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
                   const SizedBox(height: 8),
                   if (_workshop == null || _workshop!.posts.isEmpty)
-                    const Padding(
+                    Padding(
                       padding: EdgeInsets.only(bottom: 6),
-                      child: Text('Henüz ilan yok',
+                      child: Text(AppLocale.of(context).t('clm_no_listings'),
                           style: TextStyle(
                               fontSize: 13, color: ArucadColors.muted)),
                     )
@@ -1122,9 +1017,9 @@ class _PlaceInfoSheetState extends State<PlaceInfoSheet> {
                         child: TextField(
                           controller: _collaborationController,
                           enabled: !_postingCollaboration,
-                          decoration: const InputDecoration(
+                          decoration: InputDecoration(
                             isDense: true,
-                            hintText: 'Malzeme takası, model arama...',
+                            hintText: AppLocale.of(context).t('clm_collab_hint'),
                           ),
                           onSubmitted: (_) => _postCollaboration(),
                         ),
@@ -1157,15 +1052,15 @@ class _PlaceInfoSheetState extends State<PlaceInfoSheet> {
                     child: FilledButton.icon(
                       onPressed: widget.onNavigate,
                       icon: const Icon(Icons.directions_walk),
-                      label: const Text('Navigasyonu Başlat'),
+                      label: Text(AppLocale.of(context).t('clm_start_nav')),
                     ),
                   ),
-                  if (widget.onTour != null) ...[
+                  if (widget.onOpenDirectory != null) ...[
                     const SizedBox(width: 10),
                     OutlinedButton.icon(
-                      onPressed: widget.onTour,
-                      icon: const Icon(Icons.threed_rotation, size: 18),
-                      label: const Text('360°'),
+                      onPressed: widget.onOpenDirectory,
+                      icon: const Icon(Icons.apartment_outlined, size: 18),
+                      label: const Text('Binalar'),
                     ),
                   ],
                   if (widget.onDetails != null) ...[
@@ -1240,6 +1135,7 @@ class CampusMapFullScreen extends StatefulWidget {
 class _CampusMapFullScreenState extends State<CampusMapFullScreen> {
   late List<CampusPlace> _places = widget.places;
   late List<CampusEvent> _events = widget.events;
+  late String? _focusPlaceId = widget.focusPlaceId;
   ChatRealtimeService? _realtime;
   StreamSubscription<List<String>>? _campusChanges;
   bool _refreshing = false;
@@ -1251,6 +1147,70 @@ class _CampusMapFullScreenState extends State<CampusMapFullScreen> {
     _userLocation = widget.userLocation;
     unawaited(_startRealtime());
     unawaited(_resolveUserLocation());
+  }
+
+  // Someone who doesn't know a building's name can still find it — a
+  // student typing "kütüphane" or "atölye" jumps straight to it instead of
+  // having to recognize a pin among 20+ on the map.
+  Future<void> _openSearch() async {
+    var query = '';
+    final selected = await showModalBottomSheet<CampusPlace>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        return StatefulBuilder(builder: (sheetContext, setSheetState) {
+          final matches = query.trim().isEmpty
+              ? _places
+              : _places
+                  .where((p) =>
+                      p.name.toLowerCase().contains(query.toLowerCase()))
+                  .toList();
+          return SafeArea(
+            child: Padding(
+              padding: EdgeInsets.only(
+                  bottom: MediaQuery.of(sheetContext).viewInsets.bottom),
+              child: SizedBox(
+                height: MediaQuery.of(sheetContext).size.height * .75,
+                child: Column(children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                    child: TextField(
+                      autofocus: true,
+                      textInputAction: TextInputAction.search,
+                      onChanged: (v) => setSheetState(() => query = v),
+                      decoration: InputDecoration(
+                        hintText: AppLocale.of(context).t('clm_search_hint'),
+                        prefixIcon: Icon(Icons.search),
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: matches.isEmpty
+                        ? Center(child: Text(AppLocale.of(context).t('clm_no_results')))
+                        : ListView.builder(
+                            itemCount: matches.length,
+                            itemBuilder: (context, i) => ListTile(
+                              leading: const Icon(Icons.location_on_outlined),
+                              title: Text(matches[i].name),
+                              subtitle: matches[i].category.isEmpty
+                                  ? null
+                                  : Text(matches[i].category),
+                              onTap: () =>
+                                  Navigator.of(sheetContext).pop(matches[i]),
+                            ),
+                          ),
+                  ),
+                ]),
+              ),
+            ),
+          );
+        });
+      },
+    );
+    if (selected != null && mounted) {
+      setState(() => _focusPlaceId = selected.id);
+    }
   }
 
   Future<void> _resolveUserLocation() async {
@@ -1314,7 +1274,16 @@ class _CampusMapFullScreenState extends State<CampusMapFullScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: const Text('ARUCAD Social Map')),
+        appBar: AppBar(
+          title: const Text('ARUCAD Social Map'),
+          actions: [
+            IconButton(
+              tooltip: 'Yer ara',
+              icon: const Icon(Icons.search),
+              onPressed: _openSearch,
+            ),
+          ],
+        ),
         body: Padding(
           padding: const EdgeInsets.all(12),
           child: SizedBox.expand(
@@ -1327,7 +1296,7 @@ class _CampusMapFullScreenState extends State<CampusMapFullScreen> {
               onOpenGalatea: widget.onOpenGalatea,
               mapHeight: null,
               initialVisibility: widget.initialVisibility,
-              focusPlaceId: widget.focusPlaceId,
+              focusPlaceId: _focusPlaceId,
               userLocation: _userLocation,
             ),
           ),

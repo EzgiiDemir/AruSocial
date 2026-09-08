@@ -231,7 +231,7 @@ class _SocialScreenState extends State<SocialScreen> {
         backgroundColor: ArucadColors.primary,
         foregroundColor: Colors.white,
         onPressed: () => _compose(context),
-        icon: const Icon(Icons.add),
+        icon: Icon(Icons.add),
         label: Text(strings.t('social_share')),
       ),
       body: Center(
@@ -240,43 +240,49 @@ class _SocialScreenState extends State<SocialScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Padding(
-                padding: EdgeInsets.fromLTRB(
-                    20, widget.titleInShell ? 4 : 18, 20, 0),
-                child: Row(children: [
-                  if (!widget.titleInShell)
+              // Real fix for "the heart icon sits lower than the ☰/title":
+              // this used to render its own second Row directly below
+              // SocialShell's ☰+title row — two separately-padded rows
+              // stacked in a Column can never share one visual baseline no
+              // matter how closely their paddings are matched, since one is
+              // always physically below the other. When titleInShell is
+              // true, SocialShell now renders the notifications action
+              // itself, in the SAME row as ☰+title, so it's skipped here
+              // entirely rather than drawn a second time one row lower.
+              if (!widget.titleInShell)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+                  child: Row(children: [
                     Expanded(
                       child: Text(strings.t('social_title'),
                           style: Theme.of(context)
                               .textTheme
                               .headlineSmall
                               ?.copyWith(fontWeight: FontWeight.w900)),
-                    )
-                  else
-                    const Spacer(),
-                  IconButton(
-                    tooltip: strings.t('social_notifications'),
-                    icon: const Icon(Icons.favorite_border),
-                    onPressed: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                            builder: (_) => NotificationsScreen(
-                                repository: widget.repository))),
-                  ),
-                ]),
-              ),
+                    ),
+                    IconButton(
+                      tooltip: strings.t('social_notifications'),
+                      icon: const Icon(Icons.favorite_border),
+                      onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                              builder: (_) => NotificationsScreen(
+                                  repository: widget.repository))),
+                    ),
+                  ]),
+                ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
                 child: TextField(
                   controller: _searchController,
                   onChanged: (value) => setState(() => _query = value),
                   decoration: InputDecoration(
-                    hintText: 'Öğrenci, ders, konu veya #hashtag ara...',
+                    hintText: AppLocale.of(context).t('sf_search_hint'),
                     prefixIcon: const Icon(Icons.search,
                         size: 19, color: ArucadColors.muted),
                     suffixIcon: _query.isEmpty
                         ? null
                         : IconButton(
-                            tooltip: 'Aramayı temizle',
+                            tooltip: AppLocale.of(context).t('sf_clear_search'),
                             icon: const Icon(Icons.close, size: 18),
                             onPressed: () {
                               _searchController.clear();
@@ -470,7 +476,7 @@ class _SocialScreenState extends State<SocialScreen> {
       if (!mounted) return;
       setState(() => _posts = before);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Beğeni kaydedilemedi.')),
+        SnackBar(content: Text(AppLocale.of(context).t('sf_like_failed'))),
       );
     }
   }
@@ -520,7 +526,7 @@ class _SocialScreenState extends State<SocialScreen> {
     } catch (_) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Mekân açılamadı.')));
+          SnackBar(content: Text(AppLocale.of(context).t('sf_place_failed'))));
     }
   }
 
@@ -682,18 +688,18 @@ class _SocialScreenState extends State<SocialScreen> {
               children: [
                 Text(
                     '${strings.t('social_comments_label')} (${comments.length})',
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontWeight: FontWeight.w900, fontSize: 16)),
                 const SizedBox(height: 10),
                 if (comments.isEmpty)
                   Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    padding: EdgeInsets.symmetric(vertical: 10),
                     child: Text(strings.t('social_no_comments_yet'),
                         style: const TextStyle(color: ArucadColors.muted)),
                   )
                 else
                   ConstrainedBox(
-                    constraints: const BoxConstraints(maxHeight: 280),
+                    constraints: BoxConstraints(maxHeight: 280),
                     child: ListView.separated(
                       shrinkWrap: true,
                       itemCount: comments.length,
@@ -833,14 +839,14 @@ class _SocialScreenState extends State<SocialScreen> {
     final newText = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Gönderiyi düzenle'),
+        title: Text(AppLocale.of(context).t('sp_edit_post')),
         content: TextField(controller: textC, maxLines: 5, autofocus: true),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text('Vazgeç')),
+              onPressed: () => Navigator.pop(ctx), child: Text(AppLocale.of(context).t('act_cancel'))),
           FilledButton(
               onPressed: () => Navigator.pop(ctx, textC.text.trim()),
-              child: const Text('Kaydet')),
+              child: Text(AppLocale.of(context).t('act_save'))),
         ],
       ),
     );
@@ -862,12 +868,12 @@ class _SocialScreenState extends State<SocialScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Gönderi silinsin mi?'),
-        content: const Text('Bu işlem geri alınamaz.'),
+        title: Text(AppLocale.of(context).t('sp_delete_post_q')),
+        content: Text(AppLocale.of(context).t('act_undoable')),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Vazgeç')),
+              child: Text(AppLocale.of(context).t('act_cancel'))),
           FilledButton(
               onPressed: () => Navigator.pop(ctx, true),
               child: const Text('Sil')),
@@ -996,7 +1002,7 @@ class _StoryBubble extends StatelessWidget {
               Container(
                 width: 60,
                 height: 60,
-                padding: const EdgeInsets.all(2.5),
+                padding: EdgeInsets.all(2.5),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(
@@ -1089,13 +1095,13 @@ class _StoryViewerScreenState extends State<_StoryViewerScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('Görenler (${viewers.length})',
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontWeight: FontWeight.w900, fontSize: 16)),
               const SizedBox(height: 12),
               if (viewers.isEmpty)
-                const Padding(
+                Padding(
                   padding: EdgeInsets.symmetric(vertical: 12),
-                  child: Text('Henüz kimse görmedi.'),
+                  child: Text(AppLocale.of(context).t('sf_no_viewers')),
                 )
               else
                 Flexible(
@@ -1270,7 +1276,7 @@ class _StoryViewerScreenState extends State<_StoryViewerScreen> {
           child: Row(children: [
             if (_isOwnCurrent && widget.repository != null)
               IconButton(
-                tooltip: 'Görenler',
+                tooltip: AppLocale.of(context).t('sf_viewers'),
                 onPressed: _showViewers,
                 icon: const Icon(Icons.visibility_outlined, color: Colors.white),
               ),
@@ -1297,7 +1303,7 @@ class _StoryViewerScreenState extends State<_StoryViewerScreen> {
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Vazgeç')),
+              child: Text(AppLocale.of(context).t('act_cancel'))),
           FilledButton(
               onPressed: () => Navigator.pop(ctx, true),
               child: const Text('Sil')),
@@ -1415,14 +1421,14 @@ class _PostCard extends StatelessWidget {
                           size: 14, color: ArucadColors.primary),
                     ],
                     if (post.official) ...[
-                      const SizedBox(width: 6),
+                      SizedBox(width: 6),
                       Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 7, vertical: 2),
                         decoration: BoxDecoration(
                             color: ArucadColors.primary.withValues(alpha: .12),
                             borderRadius: BorderRadius.circular(999)),
-                        child: Text('RESMİ',
+                        child: Text(AppLocale.of(context).t('sf_official'),
                             style: ArucadTextStyles.display(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w900,
@@ -1430,13 +1436,13 @@ class _PostCard extends StatelessWidget {
                       ),
                     ],
                     if (post.visibility == PostVisibility.friends) ...[
-                      const SizedBox(width: 6),
-                      const Icon(Icons.people_outline,
+                      SizedBox(width: 6),
+                      Icon(Icons.people_outline,
                           size: 14, color: ArucadColors.muted),
                     ],
                     if (post.visibility == PostVisibility.onlyMe) ...[
-                      const SizedBox(width: 6),
-                      const Icon(Icons.lock_outline,
+                      SizedBox(width: 6),
+                      Icon(Icons.lock_outline,
                           size: 14, color: ArucadColors.muted),
                     ],
                   ]),
@@ -1492,8 +1498,8 @@ class _PostCard extends StatelessWidget {
                                     color: ArucadColors.danger))),
                       ],
                       if (isOwn) ...[
-                        const PopupMenuItem(
-                            value: 'edit', child: Text('Düzenle')),
+                        PopupMenuItem(
+                            value: 'edit', child: Text(AppLocale.of(context).t('act_edit'))),
                         const PopupMenuItem(
                             value: 'delete',
                             child: Text('Sil',

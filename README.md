@@ -83,9 +83,9 @@ anything. See `docs/EKSIKLER.md` for the precise, current line between
 ## Feature list
 
 ### Sign-in & onboarding
-- Email/student-number + password against a directory (`MockAuthProvider`
-  by default; real Microsoft Entra once configured — see
-  `docs/EXTERNAL_ACCOUNTS.md` §1).
+- Email/student-number + password against the Laravel session API by default;
+  Microsoft Entra takes over once configured (offline mock is debug-only) —
+  see `docs/EXTERNAL_ACCOUNTS.md` §1.
 - Optional biometric sign-in (`local_auth`) — real OS prompt, no effect on
   web.
 - Real device location permission requested at sign-in.
@@ -150,12 +150,11 @@ switches immediately, everywhere.
 ## Known limitations
 
 The single most important thing to read before demoing: **`docs/EKSIKLER.md`**.
-Short version — no real multi-user backend for social features yet
-(single demo account), no real push/SMTP (need external accounts, see
-`docs/EXTERNAL_ACCOUNTS.md`), several admin sections (Clubs/Sports/
-Services/Food/Directory/Pages/Media/Roles) still write to on-device
-storage instead of the real backend, and production hardening (auth,
-rate limiting, CORS, monitoring, CI) hasn't started.
+Short version — the student, trainer and admin surfaces now use the real
+multi-user API, with server-side authorization and persisted CMS writes.
+The remaining release blockers are operational: ARUCAD-controlled HTTPS/DNS,
+PostgreSQL hosting, Entra/Firebase/SMTP credentials, an OSRM host and signed
+store builds. See `docs/EXTERNAL_ACCOUNTS.md` and `docs/DEPLOYMENT.md`.
 
 ## Mock content note
 

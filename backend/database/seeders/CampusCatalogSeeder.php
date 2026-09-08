@@ -6,6 +6,7 @@ use App\Models\Club;
 use App\Models\Event;
 use App\Models\Place;
 use App\Models\ServiceItem;
+use App\Models\ShuttleRoute;
 use App\Models\Sport;
 use App\Models\StaffProfile;
 use App\Support\CampusTaxonomy;
@@ -420,45 +421,93 @@ class CampusCatalogSeeder extends Seeder
             ]);
         }
 
+        // ARUCAD's five published shuttle lines, exactly as posted on the
+        // campus noticeboards. This is a fixed timetable, not a live GPS
+        // feed, so "next departure" is computed from the clock.
+        $shuttles = [
+            ['shuttle-nicosia', 'ARUCAD – Lefkoşa – ARUCAD', 'primary', 1, [
+                'ARUCAD Kyrenia Kampüsü', 'Boğaz', 'Gönyeli Kavşağı', 'Lefkoşa Fuarı', 'Honda',
+                'Jet Gaz', 'Macro', 'Terminal', 'Girne Kapısı', 'Merit Hotel', 'Hastane',
+                'Gönyeli Kavşağı', 'Boğaz', 'ARUCAD Kyrenia Kampüsü',
+            ], ['07:00', '11:00', '13:00', '16:00', '18:00', '20:00'], null],
+            ['shuttle-alsancak', 'ARUCAD – Alsancak – ARUCAD', 'danger', 2, [
+                'ARUCAD Kyrenia Kampüsü', 'British Cemetery', 'Fountain Roundabout', 'Nusmar Market',
+                'Bakır Apart', 'Uzun Petrol', 'Sharaf', 'Starling', 'Merit Hotel Işıkları',
+                'Dima Supermarket', 'Kervansaray', 'China Bazaar', 'Edremit (Karaoğlanoğlu)',
+                'Macro (Karaoğlanoğlu)', 'Kaşgar', 'Barış Park', 'Girne Belediyesi',
+                'ARUCAD Kyrenia Kampüsü',
+            ], ['08:00', '10:00', '12:00', '14:00', '16:00', '19:00'], null],
+            ['shuttle-catalkoy', 'ARUCAD – Çatalköy – ARUCAD', 'campusGreen', 3, [
+                'ARUCAD Kyrenia Kampüsü', 'Mahkemeler', 'Atölyeler Binası', 'Kibet', 'Giralı Fırın',
+                'Metropol Market', 'Hankor Motor', 'Barkot Market', 'Çin Pazarı', 'Dima Supermarket',
+                'Çoban Trading', 'Şah Market', 'Supreme Supermarket', 'Tempo Super Market',
+            ], ['08:00', '10:00', '12:00', '14:00', '16:00', '18:00'], null],
+            ['shuttle-bandabuliya', 'ARUCAD – Bandabuliya – ARUCAD', 'warning', 4, [
+                'ARUCAD Kyrenia Kampüsü', 'Bandabuliya',
+            ], ['07:30', '10:00', '15:00'], ['09:00', '13:00', '18:00']],
+            ['shuttle-iris', 'ARUCAD – Atölye Binası (Iris) – ARUCAD', 'yellow', 5, [
+                'ARUCAD Kyrenia Kampüsü', 'Mahkemeler', 'Akçiçek Hastanesi',
+                'ARUCAD Atölye Binası (Iris)',
+            ], ['08:00', '10:00', '12:00', '14:00', '16:00', '18:00'], null],
+        ];
+        foreach ($shuttles as [$id, $name, $colorKey, $order, $stops, $departures, $returns]) {
+            ShuttleRoute::updateOrCreate(['id' => $id], [
+                'name' => $name,
+                'color_key' => $colorKey,
+                'stops' => $stops,
+                'departures' => $departures,
+                'returns' => $returns,
+                'sort_order' => $order,
+            ]);
+        }
+
+        // ARUCAD's published sports teams. Kyrenia Municipality's tennis
+        // courts are available to students on request, so tennis stays in
+        // the list as a facility even though it has no standing team.
         $sports = [
-            ['sport-basketball', 'Basketbol', 'Spor Salonu'],
-            ['sport-3x3', '3×3 Basketbol', 'Açık Saha'],
-            ['sport-tennis', 'Tenis', 'Tenis Kortu'],
-            ['sport-futsal', 'Futsal', 'Spor Salonu'],
-            ['sport-football', 'Futbol', 'Açık Saha'],
-            ['sport-table-tennis', 'Masa Tenisi', 'Spor Salonu'],
-            ['sport-bowling', 'Bowling', 'Kampüs Dışı Etkinlik'],
-            ['sport-dart', 'Dart', 'Sosyal Alan'],
-            ['sport-billiards', 'Bilardo', 'Sosyal Alan'],
+            ['sport-basketball', 'ARUCAD Basketbol Takımı (Erkek)', 'Spor Salonu'],
+            ['sport-3x3', 'ARUCAD 3×3 Basketbol Takımı (Erkek ve Kadın)', 'Açık Saha'],
+            ['sport-table-tennis', 'ARUCAD Masa Tenisi (Erkek ve Kadın)', 'Spor Salonu'],
+            ['sport-futsal', 'ARUCAD Futsal Takımı (Erkek)', 'Spor Salonu'],
+            ['sport-football', 'ARUCAD Futbol Takımı (Erkek)', 'Açık Saha'],
+            ['sport-anka-table-tennis', 'ARUCAD ANKA Masa Tenisi Kulübü', 'Spor Salonu'],
+            ['sport-bowling', 'ARUCAD Bowling', 'Kampüs Dışı Etkinlik'],
+            ['sport-dart', 'ARUCAD Dart', 'Sosyal Alan'],
+            ['sport-billiards', 'ARUCAD Bilardo', 'Sosyal Alan'],
+            ['sport-tennis', 'Tenis (Girne Belediyesi Kortları)', 'Tenis Kortu'],
         ];
         foreach ($sports as [$id, $name, $facility]) {
             Sport::updateOrCreate(['id' => $id], [
                 'name' => $name,
                 'facility' => $facility,
-                'contact' => 'spor@arucad.edu.tr',
+                'contact' => 'sports@arucad.edu.tr / 1006',
                 'responsible_staff_id' => 'staff-sports',
             ]);
         }
 
+        // ARUCAD's 19 active student clubs, under their official Turkish
+        // names as published by the university. Ids stay stable so existing
+        // memberships and event links survive the rename.
         $clubs = [
-            ['club-architecture', 'Architecture Club', 'Design', 'Mimari geziler, atölyeler ve öğrenci proje eleştirileri.'],
-            ['club-art', 'Art Club', 'Art', 'Karma teknik atölyeler ve öğrenci sergileri.'],
-            ['club-blender', 'Blender Modelling & Design Club', 'Digital', '3D modelleme ve dijital tasarım pratiği.'],
-            ['club-bouldering', 'Bouldering Club', 'Sports', 'Kaya tırmanışı meraklıları için düzenli çıkışlar.'],
-            ['club-charity', 'Charity Club', 'Community', 'Sosyal sorumluluk ve bağış projeleri.'],
-            ['club-cinema', 'Cinema Club', 'Film', 'Film gösterimleri ve tartışma geceleri.'],
-            ['club-comic', 'Comic Book & Anime Club', 'Culture', 'Çizgi roman ve anime kültürü etkinlikleri.'],
-            ['club-dance', 'Dance Club', 'Performance', 'Farklı dans stillerinde açık provalar.'],
-            ['club-drama', 'Drama Club', 'Performance', 'Oyunculuk atölyeleri ve sahne prodüksiyonları.'],
-            ['club-esports', 'E-Sports & Game Design Club', 'Digital', 'Turnuvalar ve oyun tasarımı üzerine buluşmalar.'],
-            ['club-fashion', 'Fashion Club', 'Design', 'Moda tasarımı ve stil projeleri.'],
-            ['club-graffiti', 'Graffiti Club', 'Art', 'Sokak sanatı teknikleri ve ortak duvar projeleri.'],
-            ['club-hiphop', 'Hip-Hop Club', 'Performance', 'Hip-hop dans ve müzik kültürü.'],
-            ['club-martial-arts', 'Martial Arts Club', 'Sports', 'Dövüş sanatları eğitimi ve pratik seansları.'],
-            ['club-music', 'Music Club', 'Performance', 'Prova, jam session ve küçük performanslar.'],
-            ['club-nature-sports', 'Nature Sports Club', 'Sports', 'Doğa yürüyüşü ve outdoor aktiviteler.'],
-            ['club-photography', 'Photography Club', 'Art', 'Fotoğraf yürüyüşleri ve teknik atölyeler.'],
-            ['club-quality', 'Quality Club', 'Community', 'Kampüs kalite ve erişilebilirlik projelerine gönüllü katkı.'],
+            ['club-blender', 'Blender Modelleme ve Tasarım Kulübü', 'Dijital', '3D modelleme ve dijital tasarım pratiği.'],
+            ['club-comic', 'Çizgi Roman ve Anime Kulübü', 'Kültür', 'Çizgi roman ve anime kültürü etkinlikleri.'],
+            ['club-dance', 'Dans Kulübü', 'Sahne', 'Farklı dans stillerinde açık provalar.'],
+            ['club-nature-sports', 'Doğa Sporları Kulübü', 'Spor', 'Doğa yürüyüşü ve outdoor aktiviteler.'],
+            ['club-martial-arts', 'Dövüş Sanatları Kulübü', 'Spor', 'Dövüş sanatları eğitimi ve pratik seansları.'],
+            ['club-esports', 'E-Spor ve Oyun Tasarımı Kulübü', 'Dijital', 'Turnuvalar ve oyun tasarımı üzerine buluşmalar.'],
+            ['club-persian', 'Fars Kulübü', 'Kültür', 'Fars dili ve kültürü üzerine paylaşım buluşmaları.'],
+            ['club-photography', 'Fotoğraf Kulübü', 'Sanat', 'Fotoğraf yürüyüşleri ve teknik atölyeler.'],
+            ['club-graffiti', 'Grafiti Kulübü', 'Sanat', 'Sokak sanatı teknikleri ve ortak duvar projeleri.'],
+            ['club-hiphop', 'Hip-Hop Kulübü', 'Sahne', 'Hip-hop dans ve müzik kültürü.'],
+            ['club-quality', 'Kalite Kulübü', 'Topluluk', 'Kampüs kalite ve erişilebilirlik projelerine gönüllü katkı.'],
+            ['club-architecture', 'Mimarlık Kulübü', 'Tasarım', 'Mimari geziler, atölyeler ve öğrenci proje eleştirileri.'],
+            ['club-fashion', 'Moda Kulübü', 'Tasarım', 'Moda tasarımı ve stil projeleri.'],
+            ['club-music', 'Müzik Kulübü', 'Sahne', 'Prova, jam session ve küçük performanslar.'],
+            ['club-art', 'Sanat Kulübü', 'Sanat', 'Karma teknik atölyeler ve öğrenci sergileri.'],
+            ['club-cinema', 'Sinema Kulübü', 'Film', 'Film gösterimleri ve tartışma geceleri.'],
+            ['club-charity', 'Sosyal Yardımlaşma Kulübü', 'Topluluk', 'Sosyal sorumluluk ve bağış projeleri.'],
+            ['club-bouldering', 'Tırmanış Kulübü', 'Spor', 'Kaya tırmanışı meraklıları için düzenli çıkışlar.'],
+            ['club-drama', 'Tiyatro Kulübü', 'Sahne', 'Oyunculuk atölyeleri ve sahne prodüksiyonları.'],
         ];
         foreach ($clubs as [$id, $name, $category, $description]) {
             Club::updateOrCreate(['id' => $id], [

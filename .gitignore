@@ -41,3 +41,8 @@ frontend/ios/Runner/GoogleService-Info.plist
 frontend/lib/firebase_options.dart
 backend/.env
 
+
+# Dart/Flutter tool scratch dirs created when APPDATA/LOCALAPPDATA are
+# redirected into the repo on this machine — build output, never source.
+.dart_appdata/
+.dart_localappdata/

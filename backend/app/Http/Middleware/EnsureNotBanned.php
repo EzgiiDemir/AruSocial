@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\Moderation\PenaltyLadder;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -30,17 +31,31 @@ class EnsureNotBanned
         // User::first(). Null only if this middleware ever runs outside
         // `auth:sanctum`, in which case there's no ban to enforce.
         $user = $request->user();
-        if ($user !== null && $user->banned_at !== null) {
-            return response()->json([
-                'data' => null,
-                'meta' => ['request_id' => 'req-'.Str::uuid()],
-                'error' => [
-                    'code' => 'ACCOUNT_BANNED',
-                    'message' => 'Bu hesap topluluk kurallarını ihlal nedeniyle askıya alındı.',
-                ],
-            ], 403);
+        if ($user === null) {
+            return $next($request);
         }
 
-        return $next($request);
+        // Permanent ban (admin decision) and timed ban (strike ladder) are
+        // both enforced here. PenaltyLadder clears an expired timed ban as a
+        // side effect of this check, so access comes back on its own using
+        // server time — never the device clock.
+        if (! (new PenaltyLadder())->isCurrentlyBanned($user)) {
+            return $next($request);
+        }
+
+        $until = $user->banned_at !== null ? null : $user->banned_until;
+
+        return response()->json([
+            'data' => null,
+            'meta' => ['request_id' => 'req-'.Str::uuid()],
+            'error' => [
+                'code' => 'ACCOUNT_BANNED',
+                'message' => $until !== null
+                    ? 'Hesabın geçici olarak askıya alındı. Tekrar erişebileceğin zaman: '
+                        .$until->timezone(config('app.timezone'))->format('d.m.Y H:i').'.'
+                    : 'Bu hesap topluluk kurallarını ihlal nedeniyle askıya alındı.',
+                'bannedUntil' => $until?->toIso8601String(),
+            ],
+        ], 403);
     }
 }

@@ -445,7 +445,9 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
     }
     expect(find.byType(BrandMark), findsOneWidget);
-    expect(find.byIcon(Icons.notifications_outlined), findsOneWidget);
+    // Notifications deliberately no longer live on Home — they moved to the
+    // Explore and Social headers, where students go looking for them.
+    expect(find.byIcon(Icons.notifications_outlined), findsNothing);
     expect(find.byIcon(Icons.logout), findsOneWidget);
     expect(find.text('EN'), findsNothing);
     expect(find.text('RU'), findsNothing);

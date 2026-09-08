@@ -515,6 +515,7 @@ Activity Log.
 | POST | `/api/v1/trainer/applications/{id}/reject` | `{ reviewNote }` | scoped reject; 422 `REVIEW_NOTE_REQUIRED` if blank |
 | POST | `/api/v1/trainer/applications/{id}/revise` | `{ reviewNote }` | scoped revision request; 422 `REVIEW_NOTE_REQUIRED` if blank |
 | GET | `/api/v1/trainer/roster` | — | active `StaffProfile[]` in this trainer's own department only |
+| GET | `/api/v1/weather` | — | `{ weather: { temperatureC, feelsLikeC, windKph, code, summary, isDay } \| null }` — live Open-Meteo reading for the Kyrenia campus, cached 15 min server-side; `null` when the provider is unreachable (client hides the row rather than inventing a value) |
 
 ### Applications (two-stage Preview → Detail → Review)
 
@@ -715,6 +716,9 @@ GET /api/v1/admin/consultations
 GET /api/v1/admin/email-logs
 GET /api/v1/admin/events/pending
 GET /api/v1/admin/events/{eventId}/participants
+GET /api/v1/admin/moderation/events
+GET /api/v1/admin/moderation/policy
+GET /api/v1/admin/moderation/users
 GET /api/v1/admin/moderation/posts
 GET /api/v1/admin/moderation/queue
 GET /api/v1/admin/onboarding-steps
@@ -806,6 +810,7 @@ GET /api/v1/trainer/applications
 GET /api/v1/trainer/events
 GET /api/v1/trainer/events/{eventId}/participants
 GET /api/v1/trainer/roster
+GET /api/v1/weather
 POST /api/v1/admin/academic-years
 POST /api/v1/admin/academic-years/{id}/delete
 POST /api/v1/admin/achievements
@@ -841,6 +846,8 @@ POST /api/v1/admin/food-venues
 POST /api/v1/admin/food-venues/{id}/delete
 POST /api/v1/admin/food-venues/{venueId}/menus
 POST /api/v1/admin/food-venues/{venueId}/menus/{date}/delete
+POST /api/v1/admin/moderation/events/{id}/remove-strike
+POST /api/v1/admin/moderation/users/{userId}/ban
 POST /api/v1/admin/moderation/posts/{id}/approve
 POST /api/v1/admin/moderation/posts/{id}/reject
 POST /api/v1/admin/moderation/queue/{id}/resolve

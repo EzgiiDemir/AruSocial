@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\Admin\EmailController as AdminEmailController;
 use App\Http\Controllers\Api\Admin\EventController as AdminEventController;
 use App\Http\Controllers\Api\Admin\EventPosterDraftController;
 use App\Http\Controllers\Api\Admin\FeedModerationController;
+use App\Http\Controllers\Api\Admin\ModerationEventsController;
 use App\Http\Controllers\Api\Admin\ModerationQueueController;
 use App\Http\Controllers\Api\Admin\ReportController as AdminReportController;
 use App\Http\Controllers\Api\Admin\WordpressVersionController;
@@ -48,6 +49,7 @@ use App\Http\Controllers\Api\ServiceController;
 use App\Http\Controllers\Api\OnboardingStepController;
 use App\Http\Controllers\Api\TourProxyController;
 use App\Http\Controllers\Api\ShuttleController;
+use App\Http\Controllers\Api\WeatherController;
 use App\Http\Controllers\Api\SocialGraphController;
 use App\Http\Controllers\Api\SportController;
 use App\Http\Controllers\Api\StaffController;
@@ -187,6 +189,7 @@ Route::prefix('v1')->middleware(['throttle:api', 'auth:sanctum', 'not-banned', '
     Route::get('/services/{id}', [ServiceController::class, 'show']);
     Route::get('/food-venues', [FoodVenueController::class, 'index']);
     Route::get('/shuttle-routes', [ShuttleController::class, 'index']);
+    Route::get('/weather', [WeatherController::class, 'current']);
     Route::get('/directory/buildings', [DirectoryController::class, 'buildings']);
     Route::get('/directory/buildings/{building}/floors', [DirectoryController::class, 'floors']);
     Route::get('/directory/buildings/{building}/floors/{floor}/rooms', [DirectoryController::class, 'rooms']);
@@ -307,6 +310,14 @@ Route::prefix('v1')->middleware(['throttle:api', 'auth:sanctum', 'not-banned', '
         Route::get('/admin/moderation/posts', [FeedModerationController::class, 'index']);
         Route::post('/admin/moderation/posts/{id}/approve', [FeedModerationController::class, 'approve']);
         Route::post('/admin/moderation/posts/{id}/reject', [FeedModerationController::class, 'reject']);
+
+        // Automated-decision audit trail, offender standing, and the manual
+        // overrides an admin needs when the system gets one wrong.
+        Route::get('/admin/moderation/events', [ModerationEventsController::class, 'index']);
+        Route::get('/admin/moderation/users', [ModerationEventsController::class, 'users']);
+        Route::get('/admin/moderation/policy', [ModerationEventsController::class, 'policy']);
+        Route::post('/admin/moderation/events/{id}/remove-strike', [ModerationEventsController::class, 'removeStrike']);
+        Route::post('/admin/moderation/users/{userId}/ban', [ModerationEventsController::class, 'setBan']);
     });
 
     Route::middleware('permission:stats.view')

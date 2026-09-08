@@ -1,6 +1,7 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
+import 'package:arucad_campus_prototype/core/l10n/app_strings.dart';
 import 'package:arucad_campus_prototype/core/config/campus_life_config.dart';
 import 'package:arucad_campus_prototype/core/models/achievement_career.dart';
 import 'package:arucad_campus_prototype/core/network/api_client.dart';
@@ -111,7 +112,7 @@ class _CareerHubScreenState extends State<CareerHubScreen> {
                               ? FontWeight.w800
                               : FontWeight.w500)),
                   trailing: _kindFilter == f.kind
-                      ? const Icon(Icons.check, color: ArucadColors.primary)
+                      ? Icon(Icons.check, color: ArucadColors.primary)
                       : null,
                   onTap: () => Navigator.pop(ctx, f.kind ?? ''),
                 ),
@@ -182,7 +183,7 @@ class _CareerHubScreenState extends State<CareerHubScreen> {
                 TextField(
                     controller: expertiseC,
                     decoration:
-                        const InputDecoration(labelText: 'Uzmanlık alanı')),
+                        InputDecoration(labelText: AppLocale.of(context).t('cr_expertise'))),
                 const SizedBox(height: 10),
                 Align(
                   alignment: Alignment.centerLeft,
@@ -225,7 +226,7 @@ class _CareerHubScreenState extends State<CareerHubScreen> {
                   if (profile?.hasCv == true) ...[
                     const SizedBox(width: 8),
                     IconButton(
-                      tooltip: 'CV görüntüle',
+                      tooltip: AppLocale.of(context).t('cr_view_cv'),
                       onPressed: saving
                           ? null
                           : () async {
@@ -266,14 +267,14 @@ class _CareerHubScreenState extends State<CareerHubScreen> {
                 ]),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: const Text('Staj arıyorum'),
+                  title: Text(AppLocale.of(context).t('cr_seeking_internship')),
                   value: lookingForInternships,
                   onChanged: (v) =>
                       setDialogState(() => lookingForInternships = v),
                 ),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: const Text('İş arıyorum'),
+                  title: Text(AppLocale.of(context).t('cr_seeking_job')),
                   value: lookingForJobs,
                   onChanged: (v) => setDialogState(() => lookingForJobs = v),
                 ),
@@ -283,13 +284,13 @@ class _CareerHubScreenState extends State<CareerHubScreen> {
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Vazgeç')),
+                child: Text(AppLocale.of(context).t('act_cancel'))),
             FilledButton(
                 style: FilledButton.styleFrom(
                     backgroundColor: ArucadColors.primary,
                     foregroundColor: Colors.white),
                 onPressed: () => Navigator.pop(ctx, true),
-                child: const Text('Kaydet')),
+                child: Text(AppLocale.of(context).t('act_save'))),
           ],
         ),
       ),
@@ -325,7 +326,7 @@ class _CareerHubScreenState extends State<CareerHubScreen> {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
                 children: [
-                  Text('ARUCAD Kariyer ve Mezun Ofisi',
+                  Text(AppLocale.of(context).t('cr_office'),
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
                             fontWeight: FontWeight.w900,
                           )),
@@ -333,7 +334,7 @@ class _CareerHubScreenState extends State<CareerHubScreen> {
                   Text(
                       service?.description ??
                           'İş/staj fırsatları, kariyer etkinlikleri ve bireysel danışmanlık.',
-                      style: const TextStyle(
+                      style: TextStyle(
                           color: ArucadColors.muted, fontSize: 13)),
                   const SizedBox(height: 16),
                   Card(
@@ -375,7 +376,7 @@ class _CareerHubScreenState extends State<CareerHubScreen> {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  const Text('Fırsatlar',
+                  Text(AppLocale.of(context).t('cr_opportunities'),
                       style:
                           TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
                   const SizedBox(height: 10),
@@ -390,7 +391,7 @@ class _CareerHubScreenState extends State<CareerHubScreen> {
                             _resetVisible();
                           }),
                           decoration: InputDecoration(
-                            hintText: 'Fırsat ara',
+                            hintText: AppLocale.of(context).t('cr_search_opportunity'),
                             prefixIcon: const Icon(Icons.search_rounded),
                             filled: true,
                             fillColor: ArucadColors.mist,
@@ -412,7 +413,7 @@ class _CareerHubScreenState extends State<CareerHubScreen> {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 4),
+                      SizedBox(width: 4),
                       IconButton(
                         tooltip: 'Filtrele',
                         onPressed: _openKindFilter,
@@ -447,9 +448,9 @@ class _CareerHubScreenState extends State<CareerHubScreen> {
                   ],
                   const SizedBox(height: 12),
                   if (filtered.isEmpty)
-                    const Padding(
+                    Padding(
                       padding: EdgeInsets.symmetric(vertical: 16),
-                      child: Text('Bu kategoride şu an ilan yok.',
+                      child: Text(AppLocale.of(context).t('cr_no_listings'),
                           style: TextStyle(color: ArucadColors.muted)),
                     )
                   else ...[
@@ -480,12 +481,12 @@ class _CareerHubScreenState extends State<CareerHubScreen> {
                     ),
                   ],
                   const SizedBox(height: 24),
-                  const Text('Bireysel Danışmanlık',
+                  Text(AppLocale.of(context).t('cr_consulting'),
                       style:
                           TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
                   const SizedBox(height: 10),
                   if (_consultations.isEmpty)
-                    const Text('Şu an açık danışmanlık yok.',
+                    Text(AppLocale.of(context).t('cr_no_consulting'),
                         style: TextStyle(color: ArucadColors.muted))
                   else
                     for (var i = 0; i < _consultations.length; i++)
@@ -518,7 +519,7 @@ class _CareerHubScreenState extends State<CareerHubScreen> {
                                   repository: widget.repository,
                                   applicationTargetType: 'help'))),
                       icon: const Icon(Icons.info_outline),
-                      label: const Text('Hizmet Detayları'),
+                      label: Text(AppLocale.of(context).t('cr_service_details')),
                     ),
                 ],
               ),
@@ -658,7 +659,7 @@ class _ConsultationCard extends StatelessWidget {
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12)),
                 ),
-                child: const Text('Başvur',
+                child: Text(AppLocale.of(context).t('act_apply'),
                     style: TextStyle(fontWeight: FontWeight.w800)),
               ),
             ],

@@ -148,19 +148,38 @@ class BrandMark extends StatelessWidget {
     // Real fix: the app's own product identity is "ARUVERSE" (see
     // AppConfig.appName), not the ARUCAD institutional wordmark — the Home
     // header had drifted onto the wrong asset. Follows the app's theme
-    // brightness since a dedicated dark-mode emblem exists.
+    // brightness since a dedicated dark-mode emblem exists. The wordmark
+    // next to the emblem was missing entirely — the icon alone doesn't
+    // name the product.
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Align(
       alignment: Alignment.centerLeft,
       child: FittedBox(
         fit: BoxFit.scaleDown,
         alignment: Alignment.centerLeft,
-        child: Image.asset(
-          isDark
-              ? 'assets/images/aruverse_emblem_dark.png'
-              : 'assets/images/aruverse_emblem.png',
-          height: height,
-          filterQuality: FilterQuality.high,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Image.asset(
+              isDark
+                  ? 'assets/images/aruverse_emblem_dark.png'
+                  : 'assets/images/aruverse_emblem.png',
+              height: height,
+              filterQuality: FilterQuality.high,
+            ),
+            SizedBox(width: height * 0.28),
+            Text(
+              'ARUVERSE',
+              style: TextStyle(
+                fontSize: height * 0.62,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.6,
+                height: 1,
+                color: isDark ? Colors.white : ArucadColors.ink,
+              ),
+            ),
+          ],
         ),
       ),
     );

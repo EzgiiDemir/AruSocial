@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Api\Concerns\ApiResponds;
+use App\Http\Controllers\Api\Concerns\ModeratesContent;
 use App\Http\Controllers\Controller;
 use App\Models\Story;
 use App\Models\StoryView;
@@ -16,7 +17,7 @@ use Illuminate\Http\Request;
 
 class StoryController extends Controller
 {
-    use ApiResponds;
+    use ApiResponds, ModeratesContent;
 
     private function storyToJson(Story $s, int $viewerId, array $viewedIds): array
     {
@@ -75,12 +76,17 @@ class StoryController extends Controller
     {
         $me = $this->currentUser();
         $text = $request->input('text');
-        if ($text !== null && ($blocked = ModerationService::checkText($me, $text))) {
-            return $this->fail(400, 'CONTENT_BLOCKED', $blocked);
-        }
         $attachment = SocialMediaAttachment::resolve($request->input('imageUrl'), $me);
         if ($attachment['code'] !== null) {
             return $this->fail(422, $attachment['code'], $attachment['message']);
+        }
+        // Story image and caption are checked together before the story row
+        // is written — a story that is live for even a moment has been seen.
+        if ($blocked = $this->moderationBlock(
+            $me, $text, 'story', 'story.store',
+            $this->moderatableImages($attachment['url'] ?? null),
+        )) {
+            return $blocked;
         }
         $story = Story::create([
             'id' => $this->newId('story'),

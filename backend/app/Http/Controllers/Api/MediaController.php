@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Api\Concerns\ApiResponds;
+use App\Http\Controllers\Api\Concerns\ModeratesContent;
 use App\Http\Controllers\Controller;
 use App\Events\CampusDataChanged;
 use App\Http\Requests\PaginatedListRequest;
@@ -24,7 +25,7 @@ use Illuminate\Support\Facades\Storage;
 // magic-byte-clean uploads are approved so social photos are not blocked.
 class MediaController extends Controller
 {
-    use ApiResponds;
+    use ApiResponds, ModeratesContent;
 
     private const MAX_IMAGE_BYTES = 8 * 1024 * 1024; // 8MB
     private const MAX_VIDEO_BYTES = 64 * 1024 * 1024; // 64MB
@@ -92,6 +93,16 @@ class MediaController extends Controller
             }
         }
 
+        // Primary layer: OpenAI's moderation model actually looks at the
+        // picture. Images go straight in; videos are sampled into frames
+        // first, so prohibited content buried mid-clip is still caught.
+        if ($submitter !== null) {
+            $decision = $this->inspectUploadWithProvider($file, $mime, $isVideo, $submitter);
+            if ($decision !== null) {
+                return $decision;
+            }
+        }
+
         // A configured ARUCAD-owned semantic model may make a high-confidence
         // decision for both image and video files. It is intentionally not a
         // remote API. If the model is configured but unavailable, the upload
@@ -121,6 +132,52 @@ class MediaController extends Controller
         }
 
         return [null, 'pending'];
+    }
+
+    /**
+     * Runs the upload through the central moderation gateway.
+     *
+     * Returns a `[response, status]` pair when the upload must not proceed
+     * as-is, or null to let the existing local-classifier path decide.
+     * Videos are reduced to sampled frames first; if ffmpeg is unavailable
+     * the video is held for human review rather than published unchecked.
+     *
+     * @return array{0: \Illuminate\Http\JsonResponse|null, 1: string|null}|null
+     */
+    private function inspectUploadWithProvider($file, string $mime, bool $isVideo, $submitter): ?array
+    {
+        $moderator = app(\App\Services\Moderation\ContentModerator::class);
+
+        if ($isVideo) {
+            $extraction = (new \App\Services\Moderation\VideoModerator())
+                ->extractFrames($file->getRealPath());
+
+            if (! $extraction['available']) {
+                // No frames means nothing was actually inspected. Holding
+                // for review is the only honest outcome.
+                return [null, 'pending'];
+            }
+
+            $outcome = $moderator->check(
+                $submitter, null, 'video', 'media.upload', $extraction['frames'],
+            );
+        } else {
+            $dataUri = 'data:'.$mime.';base64,'
+                .base64_encode((string) file_get_contents($file->getRealPath()));
+            $outcome = $moderator->check(
+                $submitter, null, 'image', 'media.upload', [$dataUri],
+            );
+        }
+
+        return match ($outcome->status) {
+            \App\Services\Moderation\ModerationOutcome::REJECTED,
+            \App\Services\Moderation\ModerationOutcome::BANNED => [
+                $this->moderationError($outcome), null,
+            ],
+            // Provider outage: hold rather than publish unchecked.
+            \App\Services\Moderation\ModerationOutcome::UNAVAILABLE => [null, 'pending'],
+            default => null,
+        };
     }
 
     private function storeUpload($file, ?int $userId, string $uploadedBy, string $moderationStatus): MediaItem

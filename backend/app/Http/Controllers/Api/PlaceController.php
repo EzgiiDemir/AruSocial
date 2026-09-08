@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Api\Concerns\ApiResponds;
+use App\Http\Controllers\Api\Concerns\ModeratesContent;
 use App\Http\Controllers\Controller;
 use App\Events\CampusDataChanged;
 use App\Http\Requests\SetPlaceCoverRequest;
@@ -23,7 +24,7 @@ use Illuminate\Http\Request;
 
 class PlaceController extends Controller
 {
-    use ApiResponds;
+    use ApiResponds, ModeratesContent;
 
     private function placeToJson(Place $p, PlacePresence $presence): array
     {
@@ -136,8 +137,8 @@ class PlaceController extends Controller
         $rating = max(1, min(5, (int) $request->input('rating', 1)));
         $comment = (string) $request->input('comment', '');
         $me = $this->currentUser();
-        if ($comment !== '' && ($blocked = ModerationService::checkText($me, $comment))) {
-            return $this->fail(400, 'CONTENT_BLOCKED', $blocked);
+        if ($comment !== '' && ($blocked = $this->moderationBlock($me, $comment, 'review', 'place.review'))) {
+            return $blocked;
         }
 
         $review = Review::create([
@@ -316,8 +317,8 @@ class PlaceController extends Controller
             return $this->fail(400, 'VALIDATION', 'text is required.');
         }
         $me = $this->currentUser();
-        if ($blocked = ModerationService::checkText($me, $text)) {
-            return $this->fail(400, 'CONTENT_BLOCKED', $blocked);
+        if ($blocked = $this->moderationBlock($me, $text, 'workshop_post', 'place.addWorkshopPost')) {
+            return $blocked;
         }
 
         $post = CollaborationPost::create([

@@ -75,7 +75,6 @@ class _DashboardTabState extends State<_DashboardTab> {
                       value: '${s.userSummary.realAccountCount}',
                       sub: '${s.userSummary.activeAccounts} aktif',
                       icon: Icons.people_outline,
-                      accentColor: ArucadColors.blue,
                       onTap: () => widget.onNavigate(_AdminSection.users)),
                   _StatCard(
                       label: 'Bekleyen başvurular',
@@ -94,13 +93,11 @@ class _DashboardTabState extends State<_DashboardTab> {
                       label: 'Check-in',
                       value: '${s.checkins.total}',
                       icon: Icons.pin_drop_outlined,
-                      accentColor: ArucadColors.blue,
                       onTap: null),
                   _StatCard(
                       label: 'Etkinlikler',
                       value: '${s.events.total}',
                       icon: Icons.event_outlined,
-                      accentColor: ArucadColors.yellow,
                       onTap: () => widget.onNavigate(_AdminSection.events)),
                   _StatCard(
                       label: 'Moderasyon',
@@ -119,7 +116,6 @@ class _DashboardTabState extends State<_DashboardTab> {
                       value: '${s.notifications.unread}',
                       sub: '${s.notifications.total} toplam',
                       icon: Icons.notifications_outlined,
-                      accentColor: ArucadColors.campusGreen,
                       onTap: null),
                 ],
               ),
@@ -227,19 +223,16 @@ class _DashboardTabState extends State<_DashboardTab> {
                       label: 'Posts',
                       value: '${s.social.feedPosts}',
                       icon: Icons.dynamic_feed_outlined,
-                      accentColor: ArucadColors.blue,
                       onTap: null),
                   _StatCard(
                       label: 'Comments',
                       value: '${s.social.comments}',
                       icon: Icons.chat_bubble_outline,
-                      accentColor: ArucadColors.campusGreen,
                       onTap: null),
                   _StatCard(
                       label: 'Likes',
                       value: '${s.social.likes}',
                       icon: Icons.favorite_outline,
-                      accentColor: ArucadColors.slate,
                       onTap: null),
                   _StatCard(
                       label: 'Reviews',
@@ -248,7 +241,6 @@ class _DashboardTabState extends State<_DashboardTab> {
                           ? '⭐ ${s.social.averageRating.toStringAsFixed(1)}'
                           : null,
                       icon: Icons.star_outline,
-                      accentColor: ArucadColors.yellow,
                       onTap: null),
                 ],
               ),
@@ -480,7 +472,6 @@ class _StatCard extends StatelessWidget {
   final IconData icon;
   final bool highlight;
   final VoidCallback? onTap;
-  final Color? accentColor;
 
   const _StatCard({
     required this.label,
@@ -489,16 +480,17 @@ class _StatCard extends StatelessWidget {
     required this.icon,
     this.highlight = false,
     required this.onTap,
-    this.accentColor,
   });
 
   @override
   Widget build(BuildContext context) {
-    final accent = accentColor ?? categoryAccent(label);
+    // Filament-style dashboard: one calm accent, not a hash-cycled rainbow
+    // per card. `highlight` stays the only colored state, for a genuine
+    // pending/unresolved/failed signal.
     return Card(
       color: highlight
           ? ArucadColors.warning.withValues(alpha: .1)
-          : accent.withValues(alpha: .06),
+          : ArucadColors.primary.withValues(alpha: .06),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
         onTap: onTap,
@@ -510,7 +502,8 @@ class _StatCard extends StatelessWidget {
             mainAxisSize: MainAxisSize.max,
             children: [
               Icon(icon,
-                  color: highlight ? ArucadColors.warning : accent, size: 18),
+                  color: highlight ? ArucadColors.warning : ArucadColors.primary,
+                  size: 18),
               const SizedBox(height: 6),
               FittedBox(
                 fit: BoxFit.scaleDown,

@@ -35,6 +35,7 @@ const _categoryLabels = <String, String>{
   'IP': 'telif ihlali',
   'ANIMAL': 'hayvan istismarı',
   'MINOR': 'çocuk güvenliği',
+  'POL': 'siyasi içerik',
 };
 
 const _blockedTerms = <String, List<String>>{
@@ -265,6 +266,27 @@ const _blockedTerms = <String, List<String>>{
     'reşit değilim buluşalım',
     'секретная встреча с ребёнком',
   ],
+  // Political campaigning/party content — named parties/titles only, never
+  // bare words like "seçim"/"hükümet", since campus club/council elections
+  // are a normal, unrelated topic on this platform (see ModerationService).
+  'POL': [
+    'akp',
+    'chp',
+    'mhp',
+    'hdp',
+    'iyi parti',
+    'cumhurbaşkanı adayı',
+    'milletvekili adayı',
+    'genel seçimlerde oy',
+    'republican party',
+    'democratic party',
+    'presidential candidate',
+    'senate race',
+    'prime minister candidate',
+    'единая россия',
+    'государственная дума',
+    'выборы президента',
+  ],
 };
 
 class ModerationResult {
@@ -337,7 +359,12 @@ String _normalize(String value) {
   lookalikes.forEach((from, to) => out = out.replaceAll(from, to));
   // Preserve letters (incl. Cyrillic) while turning punctuation/emoji into spaces.
   out = out.replaceAll(RegExp(r'[^\p{L}\p{N}]+', unicode: true), ' ');
-  return out.replaceAll(RegExp(r'\s+'), ' ').trim();
+  out = out.replaceAll(RegExp(r'\s+'), ' ').trim();
+  // Letter stretched 3+ times for emphasis/evasion ("saaaalak") collapses to
+  // one occurrence. A normal double letter ("kill", "will") only ever
+  // repeats twice, so this never touches it (mirrors ModerationService).
+  return out.replaceAllMapped(
+      RegExp(r'(.)\1{2,}', unicode: true), (m) => m.group(1)!);
 }
 
 /// Throws if [text] fails the check — the convenient form for repository

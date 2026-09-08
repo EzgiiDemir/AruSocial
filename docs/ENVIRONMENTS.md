@@ -16,7 +16,7 @@ operator’s dart-define / Firebase files (Flutter public values only).
 | Sentry | off | staging DSN (P3-6) | production DSN (P3-6) |
 | CORS origins (P3-7) | `localhost:8090` + any loopback port | staging web origin(s) only | production web origin(s) only, never `*` |
 | Trusted proxy (P3-7) | none | `TRUSTED_PROXIES` if behind one | `TRUSTED_PROXIES` if behind one |
-| Flutter | mock unless `USE_REST_API=true` | REST + public API URL | REST + public API URL |
+| Flutter | REST by default; mock only with explicit `USE_REST_API=false` debug build | REST + public API URL | REST + public API URL |
 
 Source of truth:
 
@@ -78,7 +78,7 @@ origins. Outside `local`/`testing`, no loopback pattern is registered at
 all — staging answers only its own web origin(s), production only its own.
 `EnvironmentGuard` refuses to boot staging/production if this is empty or
 contains a literal `*`; there is no silent "allow everything" fallback.
-`allowed_methods` covers the current 214-route `/api/v1/*` method set (`GET`, `HEAD`, `POST`,
+`allowed_methods` covers the current 244-route `/api/v1/*` method set (`GET`, `HEAD`, `POST`,
 `DELETE`, `OPTIONS` — no route uses `PUT`/`PATCH`); `allowed_headers` is
 just what `ApiClient` sends (`Authorization`, `Content-Type`, `Accept`) plus
 `X-Requested-With`. `request_id` is already in the JSON body
@@ -114,8 +114,11 @@ its `REVERB_HOST`/scheme continue to come from the table above.
 ## Flutter dart-define
 
 ```bash
-# Local mock (default debug) — USE_REST_API unset/false
+# Local REST (default debug; this machine's Laravel on :4000)
 flutter run
+
+# Explicit offline fixture; never permitted in a release build
+flutter run --dart-define=USE_REST_API=false
 
 # Local REST (this machine’s Laravel on :4000)
 flutter run --dart-define=USE_REST_API=true \
@@ -148,8 +151,9 @@ flutter build apk --dart-define=USE_REST_API=true \
   --dart-define=SENTRY_DSN=
 ```
 
-Release builds **must** set `USE_REST_API` (true or false). Unset + release
-throws at startup so a store APK cannot ship as mock by omission.
+Release builds always use REST. `USE_REST_API=false` is rejected, and a
+public non-loopback `API_BASE_URL` is mandatory so a store build cannot ship
+as mock or point at a developer machine.
 
 Use the matching `google-services.json` / `GoogleService-Info.plist` /
 `firebase_options.dart` per environment; those files stay gitignored.

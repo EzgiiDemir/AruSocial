@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:arucad_campus_prototype/core/l10n/app_strings.dart';
 import 'package:arucad_campus_prototype/core/services/contracts.dart';
 import 'package:arucad_campus_prototype/features/social/chat_screen.dart';
+import 'package:arucad_campus_prototype/features/social/notifications_screen.dart';
 import 'package:arucad_campus_prototype/features/social/people_screen.dart';
 import 'package:arucad_campus_prototype/features/social/social_profile_screen.dart';
 import 'package:arucad_campus_prototype/features/social/social_screen.dart';
@@ -186,6 +187,20 @@ class _SocialShellState extends State<SocialShell> {
                             ?.copyWith(fontWeight: FontWeight.w900),
                       ),
                     ),
+                    // The feed tab's notifications action lives here, in
+                    // the same Row as ☰+title, rather than in a second row
+                    // SocialScreen used to draw below this one — see the
+                    // real-fix comment in social_screen.dart for why that
+                    // could never actually line up.
+                    if (_index == 0)
+                      _MenuButton(
+                        icon: Icons.favorite_border,
+                        tooltip: AppLocale.of(context).t('social_notifications'),
+                        onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                                builder: (_) => NotificationsScreen(
+                                    repository: widget.repository))),
+                      ),
                   ],
                 ),
               ),
@@ -233,16 +248,25 @@ class _NavDrawer extends StatelessWidget {
   }
 }
 
-/// The ☰ entry point for the drawer — plain icon, no chip/circle chrome.
+/// A header-row icon button — plain icon, no chip/circle chrome. Used for
+/// both the ☰ drawer entry point and the feed tab's notifications action,
+/// so both share the exact same 40×40 box in the same Row (see the
+/// real-fix comment above where this is used for notifications).
 class _MenuButton extends StatelessWidget {
   final VoidCallback onTap;
-  const _MenuButton({required this.onTap});
+  final IconData icon;
+  final String tooltip;
+  const _MenuButton({
+    required this.onTap,
+    this.icon = Icons.menu,
+    this.tooltip = 'Menü',
+  });
 
   @override
   Widget build(BuildContext context) {
     return IconButton(
       onPressed: onTap,
-      tooltip: 'Menü',
+      tooltip: tooltip,
       padding: EdgeInsets.zero,
       constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
       style: IconButton.styleFrom(
@@ -252,7 +276,7 @@ class _MenuButton extends StatelessWidget {
         hoverColor: Colors.transparent,
         splashFactory: NoSplash.splashFactory,
       ),
-      icon: const Icon(Icons.menu, size: 26),
+      icon: Icon(icon, size: 26),
     );
   }
 }

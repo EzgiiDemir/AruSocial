@@ -72,12 +72,14 @@ class TestAccountsSeeder extends Seeder
             ['role' => 'trainer', 'assigned_by' => 'TestAccountsSeeder', 'assigned_at' => now()],
         );
 
-        // Architecture department head — linked to the real Gmail trainer
-        // so application mail and Trainer Panel publish under that inbox.
+        // Architecture department head — linked to the documented campus
+        // trainer login. The profile keeps the Gmail inbox as its delivery
+        // address so local SMTP smoke tests can still reach a real mailbox;
+        // authentication identity and notification destination are separate.
         $staff = StaffProfile::find('staff-arch-head');
         if ($staff !== null) {
             $staff->update([
-                'user_id' => $gmailTrainer->id,
+                'user_id' => $trainer->id,
                 'email' => $gmailTrainer->email,
                 'is_department_head' => true,
                 'active' => true,
@@ -87,9 +89,9 @@ class TestAccountsSeeder extends Seeder
         $this->command?->info('Test accounts ready (password for all: '.self::PASSWORD.'):');
         $this->command?->info("  {$student->email}");
         $this->command?->info("  {$admin->email}");
-        $this->command?->info("  {$trainer->email}");
+        $this->command?->info("  {$trainer->email} (Trainer Panel / department head)");
         $this->command?->info("  {$gmailStudent->email} (Gmail student)");
-        $this->command?->info("  {$gmailTrainer->email} (Gmail trainer / department head)".(
+        $this->command?->info("  {$gmailTrainer->email} (Gmail delivery smoke account)".(
             $staff === null ? ' (WARNING: staff-arch-head not found — run CampusCatalogSeeder first)' : ''
         ));
     }

@@ -86,30 +86,77 @@ class LocationService {
     return LocationAccessStatus.granted;
   }
 
+  /// The most recent fix any part of the app has seen, and when it arrived.
+  ///
+  /// Home and Explore already track location live, so by the time someone
+  /// taps "navigate" the app almost always knows where they are. Asking the
+  /// GPS for a *fresh* high-accuracy fix at that moment can still cost
+  /// several seconds — the screen would sit on a spinner re-learning
+  /// something it was already told. Sharing the last fix here lets a caller
+  /// start from it immediately and refine afterwards.
+  static Position? _lastKnown;
+  static DateTime? _lastKnownAt;
+
+  /// Beyond this the cached fix is treated as a starting hint rather than
+  /// the truth: still worth drawing immediately, but a fresh fix is fetched
+  /// alongside it.
+  static const lastKnownFreshFor = Duration(minutes: 2);
+
+  static Position? get lastKnown => _lastKnown;
+
+  static bool get lastKnownIsFresh =>
+      _lastKnown != null &&
+      _lastKnownAt != null &&
+      DateTime.now().difference(_lastKnownAt!) < lastKnownFreshFor;
+
+  static Position? _remember(Position? position) {
+    if (position != null) {
+      _lastKnown = position;
+      _lastKnownAt = DateTime.now();
+    }
+    return position;
+  }
+
   /// Null when permission isn't granted — callers already all treated a
   /// denial as "this one feature just doesn't show," never as an error.
   Future<Position?> getCurrentPosition({LocationSettings? settings}) async {
     final status = await checkAndRequestPermission();
     if (!status.isGranted) return null;
-    return Geolocator.getCurrentPosition(
+    return _remember(await Geolocator.getCurrentPosition(
       locationSettings:
           settings ?? const LocationSettings(accuracy: LocationAccuracy.medium),
-    );
+    ));
   }
 
   /// One-shot fix without prompting — for Home/Explore after app-level grant.
   Future<Position?> getCurrentPositionIfGranted(
       {LocationSettings? settings}) async {
     if (!await hasGranted()) return null;
-    return Geolocator.getCurrentPosition(
+    return _remember(await Geolocator.getCurrentPosition(
       locationSettings:
           settings ?? const LocationSettings(accuracy: LocationAccuracy.medium),
-    );
+    ));
+  }
+
+  /// A position to start drawing with *now*, without waiting on the GPS.
+  ///
+  /// Tries, in order: the fix the app already has, then the OS-level last
+  /// known position (free — the platform hands over a cached value without
+  /// powering up the radio). Returns null only when the app has genuinely
+  /// never had a location, which is the one case worth waiting for.
+  Future<Position?> lastKnownPosition() async {
+    if (_lastKnown != null) return _lastKnown;
+    if (!await hasGranted()) return null;
+    try {
+      return _remember(await Geolocator.getLastKnownPosition());
+    } catch (_) {
+      return null;
+    }
   }
 
   Stream<Position> positionStream({LocationSettings? settings}) =>
       Geolocator.getPositionStream(
         locationSettings:
             settings ?? const LocationSettings(accuracy: LocationAccuracy.high),
-      );
+      ).map((position) => _remember(position)!);
 }

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:arucad_campus_prototype/core/l10n/app_strings.dart';
 import 'package:arucad_campus_prototype/core/config/place_tour.dart';
 
 import 'package:flutter/material.dart';
@@ -81,9 +82,8 @@ class _BuildingDirectoryScreenState extends State<BuildingDirectoryScreen> {
     final mapProvider = widget.mapProvider;
     final analytics = widget.analyticsTracker;
     if (mapProvider == null || analytics == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text(
-              'Harita için Ana Sayfa veya Keşfet → Kampüs Haritası’nı kullan.')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(AppLocale.of(context).t('bd_use_map'))));
       return;
     }
     openCampusMapHub(

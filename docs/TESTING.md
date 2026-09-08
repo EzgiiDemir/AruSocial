@@ -63,11 +63,14 @@ doğruluyor — şablon değil, gerçek bir duman testi (smoke test).
 ```bash
 cd frontend
 
-# Web (varsayılan Mock veri, backend gerekmez)
-flutter run -d web-server --web-port=8090 --web-hostname=0.0.0.0 --release
+# Web (varsayılan gerçek REST; backend :4000 üzerinde çalışmalı)
+flutter run -d web-server --web-port=8090 --web-hostname=0.0.0.0
 
-# Android emülatör/cihaz (varsayılan Mock veri)
-flutter run --release
+# Android emülatör (varsayılan gerçek REST; host için 10.0.2.2 kullanılır)
+flutter run
+
+# Açıkça çevrimdışı fixture gerekirse (yalnız debug)
+flutter run --dart-define=USE_REST_API=false
 ```
 
 Tarayıcıda `http://localhost:8090` — normal öğrenci uygulaması `/`,
@@ -97,8 +100,9 @@ SQLite must not be overridden by the cached file config. Cache again
 before the next `serve` / `verify_rest_backend` run.
 
 Ortam dart-define / `.env` örnekleri: `docs/ENVIRONMENTS.md`. Debug
-`flutter run` mock kalır. Staging/prod release `USE_REST_API=true` +
-`API_BASE_URL` ister.
+`flutter run` varsayılan olarak gerçek REST'e bağlanır; mock yalnız açıkça
+`USE_REST_API=false` verilirse çalışır. Staging/prod release gerçek ve genel
+bir `API_BASE_URL` ister.
 
 `backend/server.php` is artisan serve's local router: it answers Chrome's
 `GET /` and `/json/version` probes without booting Laravel (those probes
@@ -185,8 +189,8 @@ dart run tool/verify_rest_backend.dart https://api.senin-sunucun.com/api/v1
 
 ## 6. Frontend'i gerçek backend'e bağlayarak test etmek
 
-Varsayılan olarak Flutter hâlâ `MockCampusRepository` kullanır (backend
-gerekmez). Gerçek backend'i kullanarak test etmek için:
+Flutter debug varsayılanı gerçek `RestCampusRepository`'dir. Backend'i
+çalıştırıp web/Android emülatörde test etmek için:
 
 ```bash
 cd frontend

@@ -15,6 +15,7 @@ import '../models/admin_page.dart';
 import '../models/admin_stats.dart';
 import '../models/campus_directory.dart';
 import '../models/campus_models.dart';
+import '../models/campus_weather.dart';
 import '../models/chat_message.dart';
 import '../models/staff_application.dart';
 import '../models/content_block.dart';
@@ -1008,6 +1009,13 @@ class MockCampusRepository implements CampusRepository {
   @override
   Future<List<ShuttleRoute>> getShuttleRoutes() async {
     return List.unmodifiable(_shuttleRoutes ?? shuttleRoutes);
+  }
+
+  @override
+  Future<CampusWeather?> getWeather() async {
+    // Mock mode has no weather provider, and inventing a temperature would
+    // be worse than the UI simply not showing one.
+    return null;
   }
 
   @override

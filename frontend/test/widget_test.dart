@@ -59,6 +59,29 @@ void main() {
     expect(find.text('Port'), findsNothing);
   });
 
+  testWidgets('login form stays readable on a desktop viewport',
+      (tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    SharedPreferences.setMockInitialValues(
+        {'settings.privacy_notice.acknowledged': true});
+
+    await tester.pumpWidget(ArucadCampusApp(
+      config: AppConfig.demo(),
+      repository: MockCampusRepository(),
+      authProvider: MockAuthProvider(),
+      mapProvider: const UrlLauncherMapProvider(),
+      analyticsTracker: MockAnalyticsTracker(),
+    ));
+    await tester.pumpAndSettle();
+
+    final identifier = find.byType(TextField).first;
+    expect(tester.getSize(identifier).width, lessThanOrEqualTo(464));
+    expect(tester.getCenter(identifier).dx, closeTo(720, 1));
+  });
+
   test('no-route-to-host is explained instead of a raw SocketException', () {
     final message = describeNetworkFailure(
       'ClientException with SocketException: No route to host (OS Error: No route to host, errno = 113), address = 192.168.161.247, port = 56552',

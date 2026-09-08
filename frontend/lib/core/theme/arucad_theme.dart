@@ -353,6 +353,14 @@ class ArucadTheme {
             color: ink,
             fontSize: 13),
         secondarySelectedColor: ArucadColors.primary,
+        // The label that goes *on* secondarySelectedColor. Without this it
+        // inherited the black `labelStyle` above and rendered black-on-navy,
+        // which is unreadable — the selected tab looked blank.
+        secondaryLabelStyle: const TextStyle(
+            fontFamily: ArucadFonts.montserrat,
+            fontWeight: FontWeight.w700,
+            color: Colors.white,
+            fontSize: 13),
         checkmarkColor: ArucadColors.primary,
         side: BorderSide.none,
         shape: const StadiumBorder(),

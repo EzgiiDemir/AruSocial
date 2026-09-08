@@ -30,7 +30,13 @@ class ApiContractInventoryTest extends TestCase
         $offset = strpos($markdown, '## Route inventory (canonical,');
         $this->assertNotFalse($offset);
         $this->assertSame(1, preg_match('/```\R(.*)\R```/s', substr($markdown, $offset), $match));
-        $fromDoc = array_values(array_filter(explode("\n", $match[1]), fn ($line) => $line !== ''));
+        // The contract is edited on both Windows and Unix.  Normalise the
+        // fenced inventory before comparing it so CRLF does not become part
+        // of every documented route name on Windows checkouts.
+        $fromDoc = array_values(array_filter(
+            preg_split('/\R/', trim($match[1])) ?: [],
+            fn ($line) => $line !== '',
+        ));
         sort($fromDoc);
 
         $this->assertSame(
@@ -38,6 +44,6 @@ class ApiContractInventoryTest extends TestCase
             $fromDoc,
             'docs/API_CONTRACT.md inventory drifted from php artisan route:list --path=api',
         );
-        $this->assertCount(244, $fromLaravel);
+        $this->assertCount(250, $fromLaravel);
     }
 }

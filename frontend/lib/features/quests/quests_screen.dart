@@ -243,7 +243,7 @@ class _QuestsScreenState extends State<QuestsScreen> {
                       ListTile(
                         leading: const Icon(Icons.explore_outlined, color: ArucadColors.primary),
                         title: Text('${place.name} henüz gitmedin'),
-                        subtitle: const Text('Check-in yaparsan +30 XP kazanırsın'),
+                        subtitle: Text(AppLocale.of(context).t('qs_checkin_reward')),
                         trailing: const Icon(Icons.chevron_right),
                         onTap: widget.mapProvider == null || widget.analyticsTracker == null
                             ? null
@@ -270,7 +270,7 @@ class _QuestsScreenState extends State<QuestsScreen> {
               TextField(
                 controller: _searchController,
                 decoration: InputDecoration(
-                  hintText: 'İsim ara...',
+                  hintText: AppLocale.of(context).t('ch_search_name'),
                   prefixIcon: const Icon(Icons.search),
                   filled: true,
                   fillColor: ArucadColors.paper,
@@ -320,9 +320,9 @@ class _QuestsScreenState extends State<QuestsScreen> {
                 return Column(children: [
                   Card(
                     child: filtered.isEmpty
-                        ? const Padding(
+                        ? Padding(
                             padding: EdgeInsets.all(18),
-                            child: Text('Eşleşen kimse yok',
+                            child: Text(AppLocale.of(context).t('ch_no_match'),
                                 style: TextStyle(color: ArucadColors.muted)),
                           )
                         : Column(children: [
@@ -395,7 +395,7 @@ class _CampusJourneyCard extends StatelessWidget {
               style: TextStyle(color: ArucadColors.muted, fontSize: 12)),
           const SizedBox(height: 16),
           if (total == 0)
-            const Text('Bu yıl henüz kayıtlı bir aktivite yok.',
+            Text(AppLocale.of(context).t('qs_no_activity_year'),
                 style: TextStyle(color: ArucadColors.muted))
           else
             for (final entry in counts.entries)

@@ -419,7 +419,6 @@ class _TrainerDashboardTabState extends State<_TrainerDashboardTab> {
                       label: strings.t('trainer_dash_my_events'),
                       value: '${data.events.length}',
                       icon: Icons.event_outlined,
-                      accentColor: categoryAccent('Etkinlikler'),
                       onTap: () => widget.onNavigate(_TrainerSection.events)),
                   _StatCard(
                       label: strings.t('trainer_dash_pending_apps'),
@@ -431,13 +430,11 @@ class _TrainerDashboardTabState extends State<_TrainerDashboardTab> {
                       label: strings.t('trainer_dash_team'),
                       value: '${data.roster.length}',
                       icon: Icons.groups_outlined,
-                      accentColor: categoryAccent('Ekip'),
                       onTap: () => widget.onNavigate(_TrainerSection.roster)),
                   _StatCard(
                       label: strings.t('trainer_dash_upcoming'),
                       value: '${upcoming.length}',
                       icon: Icons.upcoming_outlined,
-                      accentColor: categoryAccent('Yaklaşan'),
                       onTap: () => widget.onNavigate(_TrainerSection.events)),
                 ],
               ),
@@ -504,7 +501,6 @@ class _StatCard extends StatelessWidget {
   final IconData icon;
   final bool highlight;
   final VoidCallback onTap;
-  final Color? accentColor;
 
   const _StatCard({
     required this.label,
@@ -512,14 +508,17 @@ class _StatCard extends StatelessWidget {
     required this.icon,
     this.highlight = false,
     required this.onTap,
-    this.accentColor,
   });
 
   @override
   Widget build(BuildContext context) {
-    final accent = accentColor ?? categoryAccent(label);
+    // Filament-style dashboard: one calm accent, not a hash-cycled rainbow
+    // per card. `highlight` stays the only colored state, for a genuine
+    // pending/unresolved/failed signal.
     return Card(
-      color: highlight ? ArucadColors.warning.withValues(alpha: .1) : accent.withValues(alpha: .06),
+      color: highlight
+          ? ArucadColors.warning.withValues(alpha: .1)
+          : ArucadColors.primary.withValues(alpha: .06),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
         onTap: onTap,
@@ -530,7 +529,9 @@ class _StatCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             mainAxisSize: MainAxisSize.max,
             children: [
-              Icon(icon, color: highlight ? ArucadColors.warning : accent, size: 18),
+              Icon(icon,
+                  color: highlight ? ArucadColors.warning : ArucadColors.primary,
+                  size: 18),
               const SizedBox(height: 6),
               FittedBox(
                 fit: BoxFit.scaleDown,

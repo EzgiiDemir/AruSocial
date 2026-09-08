@@ -5,6 +5,10 @@ version: 0.1.0+1
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
+  # Keep framework sources, engine artifacts and native-asset hooks on the
+  # same release. Older SDKs can otherwise reuse .dart_tool from a newer
+  # checkout and fail with opaque dart:ui/kernel-format errors.
+  flutter: '>=3.47.0 <3.48.0'
 
 dependencies:
   flutter:

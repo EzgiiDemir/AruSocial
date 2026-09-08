@@ -69,7 +69,7 @@ class _ChatGroupScreenState extends State<ChatGroupScreen> {
         } catch (_) {
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('İşlem başarısız.')));
+              SnackBar(content: Text(AppLocale.of(context).t('cg_action_failed'))));
         }
       case 'archive':
         try {
@@ -83,20 +83,20 @@ class _ChatGroupScreenState extends State<ChatGroupScreen> {
         } catch (_) {
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('İşlem başarısız.')));
+              SnackBar(content: Text(AppLocale.of(context).t('cg_action_failed'))));
         }
       case 'leave':
         final ok = await showDialog<bool>(
           context: context,
           builder: (ctx) => AlertDialog(
-            title: const Text('Gruptan çıkılsın mı?'),
+            title: Text(AppLocale.of(context).t('cg_leave_q')),
             actions: [
               TextButton(
                   onPressed: () => Navigator.pop(ctx, false),
-                  child: const Text('Vazgeç')),
+                  child: Text(AppLocale.of(context).t('act_cancel'))),
               FilledButton(
                   onPressed: () => Navigator.pop(ctx, true),
-                  child: const Text('Çık')),
+                  child: Text(AppLocale.of(context).t('cg_leave'))),
             ],
           ),
         );
@@ -105,21 +105,20 @@ class _ChatGroupScreenState extends State<ChatGroupScreen> {
           await widget.repository.leaveChatGroup(id);
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Gruptan çıkıldı.')));
+              SnackBar(content: Text(AppLocale.of(context).t('cg_left'))));
           Navigator.of(context).pop();
         } catch (_) {
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Gruptan çıkılamadı.')));
+              SnackBar(content: Text(AppLocale.of(context).t('cg_leave_failed'))));
         }
       case 'report':
         try {
           await widget.repository
               .reportChatGroup(id, 'Grup şikayeti');
           if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text(
-                  'Şikayet alındı. Moderasyon ekibi inceleyecek.')));
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text(AppLocale.of(context).t('act_report_sent'))));
         } catch (_) {
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
@@ -204,10 +203,10 @@ class _ChatGroupScreenState extends State<ChatGroupScreen> {
               PopupMenuItem(
                   value: 'archive',
                   child: Text(_archived ? 'Arşivden çıkar' : 'Arşive al')),
-              const PopupMenuItem(
-                  value: 'leave', child: Text('Gruptan çık')),
-              const PopupMenuItem(
-                  value: 'report', child: Text('Şikayet et')),
+              PopupMenuItem(
+                  value: 'leave', child: Text(AppLocale.of(context).t('cg_leave_group'))),
+              PopupMenuItem(
+                  value: 'report', child: Text(AppLocale.of(context).t('act_report'))),
             ],
           ),
         ],

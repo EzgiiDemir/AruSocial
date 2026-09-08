@@ -161,15 +161,15 @@ class _ChatThreadsScreenState extends State<ChatThreadsScreen>
                     Padding(
                       padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
                       child: Text(AppLocale.of(ctx).t('chat_pick_person'),
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontWeight: FontWeight.w900, fontSize: 16)),
                     ),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                       child: TextField(
                         autofocus: true,
-                        decoration: const InputDecoration(
-                          hintText: 'İsim ara...',
+                        decoration: InputDecoration(
+                          hintText: AppLocale.of(context).t('ch_search_name'),
                           filled: true,
                           fillColor: Colors.white,
                           prefixIcon: Icon(Icons.search),
@@ -179,8 +179,8 @@ class _ChatThreadsScreenState extends State<ChatThreadsScreen>
                     ),
                     Expanded(
                       child: filtered.isEmpty
-                          ? const Center(
-                              child: Text('Eşleşen kimse yok',
+                          ? Center(
+                              child: Text(AppLocale.of(context).t('ch_no_match'),
                                   style: TextStyle(color: ArucadColors.muted)),
                             )
                           : ListView.builder(
@@ -226,7 +226,7 @@ class _ChatThreadsScreenState extends State<ChatThreadsScreen>
                   p.toLowerCase().contains(memberQuery.toLowerCase()))
               .toList();
           return AlertDialog(
-            title: const Text('Grup kur'),
+            title: Text('Grup kur'),
             content: SizedBox(
               width: 360,
               child: Column(
@@ -235,12 +235,12 @@ class _ChatThreadsScreenState extends State<ChatThreadsScreen>
                   TextField(
                       controller: nameC,
                       decoration:
-                          const InputDecoration(labelText: 'Grup adı')),
-                  const SizedBox(height: 12),
+                          InputDecoration(labelText: AppLocale.of(context).t('ch_group_name'))),
+                  SizedBox(height: 12),
                   TextField(
                     controller: searchC,
-                    decoration: const InputDecoration(
-                      hintText: 'İsim ara...',
+                    decoration: InputDecoration(
+                      hintText: AppLocale.of(context).t('ch_search_name'),
                       filled: true,
                       fillColor: Colors.white,
                       prefixIcon: Icon(Icons.search, size: 20),
@@ -249,12 +249,12 @@ class _ChatThreadsScreenState extends State<ChatThreadsScreen>
                     onChanged: (v) =>
                         setDialog(() => memberQuery = v.trim()),
                   ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: 8),
                   Flexible(
                     child: filtered.isEmpty
-                        ? const Padding(
+                        ? Padding(
                             padding: EdgeInsets.symmetric(vertical: 16),
-                            child: Text('Eşleşen kimse yok',
+                            child: Text(AppLocale.of(context).t('ch_no_match'),
                                 style: TextStyle(color: ArucadColors.muted)),
                           )
                         : ListView(
@@ -284,10 +284,10 @@ class _ChatThreadsScreenState extends State<ChatThreadsScreen>
             actions: [
               TextButton(
                   onPressed: () => Navigator.pop(ctx, false),
-                  child: const Text('Vazgeç')),
+                  child: Text(AppLocale.of(context).t('act_cancel'))),
               FilledButton(
                   onPressed: () => Navigator.pop(ctx, true),
-                  child: const Text('Oluştur')),
+                  child: Text(AppLocale.of(context).t('act_create'))),
             ],
           );
         },
@@ -312,8 +312,8 @@ class _ChatThreadsScreenState extends State<ChatThreadsScreen>
       // Real failure, not a silently-created local-only group that would
       // look identical to a real one but never sync to the other members.
       if (!mounted || !context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Grup oluşturulamadı. Sunucuya ulaşılamadı.')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(AppLocale.of(context).t('ch_group_failed'))));
     }
   }
 
@@ -362,13 +362,13 @@ class _ChatThreadsScreenState extends State<ChatThreadsScreen>
             height: 56,
             child: ListView(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
+              padding: EdgeInsets.symmetric(horizontal: 12),
               children: [
                 for (final g in _groups)
                   Padding(
-                    padding: const EdgeInsets.only(right: 8),
+                    padding: EdgeInsets.only(right: 8),
                     child: ActionChip(
-                      avatar: const Icon(Icons.groups_outlined, size: 18),
+                      avatar: Icon(Icons.groups_outlined, size: 18),
                       label: Text(g.name),
                       onPressed: () async {
                         await Navigator.of(context).push(MaterialPageRoute(
@@ -386,7 +386,7 @@ class _ChatThreadsScreenState extends State<ChatThreadsScreen>
             future: _threadsFuture,
             builder: (context, snap) {
               if (!snap.hasData) {
-                return const Center(child: CircularProgressIndicator());
+                return Center(child: CircularProgressIndicator());
               }
               final threads = snap.data!.where((t) {
                 final archived = t.archived || _archived.contains(t.name);
@@ -395,7 +395,7 @@ class _ChatThreadsScreenState extends State<ChatThreadsScreen>
               if (threads.isEmpty) {
                 return Center(
                   child: Padding(
-                    padding: const EdgeInsets.all(24),
+                    padding: EdgeInsets.all(24),
                     child: Column(mainAxisSize: MainAxisSize.min, children: [
                       Icon(Icons.forum_outlined,
                           size: 40, color: scheme.onSurfaceVariant),
@@ -419,7 +419,7 @@ class _ChatThreadsScreenState extends State<ChatThreadsScreen>
               }
               return ListView.separated(
                 itemCount: threads.length,
-                separatorBuilder: (_, __) => const Divider(height: 1),
+                separatorBuilder: (_, __) => Divider(height: 1),
                 itemBuilder: (context, i) {
                   final peer = threads[i];
                   final muted = peer.muted || _muted.contains(peer.name);
@@ -431,10 +431,10 @@ class _ChatThreadsScreenState extends State<ChatThreadsScreen>
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(fontWeight: FontWeight.w700)),
                     subtitle: muted
-                        ? const Text('Sessize alındı',
+                        ? Text(AppLocale.of(context).t('ch_muted'),
                             style: TextStyle(fontSize: 12))
                         : null,
-                    trailing: const Icon(Icons.chevron_right),
+                    trailing: Icon(Icons.chevron_right),
                     onTap: () async {
                       await Navigator.of(context).push(MaterialPageRoute(
                           builder: (_) => ChatThreadScreen(
@@ -633,7 +633,7 @@ class _ChatThreadScreenState extends State<ChatThreadScreen>
           child: Row(mainAxisSize: MainAxisSize.min, children: [
             CampusAvatar(
                 name: widget.peer, avatarUrl: widget.peerAvatarUrl, radius: 16),
-            const SizedBox(width: 10),
+            SizedBox(width: 10),
             Flexible(child: Text(widget.peer, overflow: TextOverflow.ellipsis)),
           ]),
         ),
@@ -654,9 +654,9 @@ class _ChatThreadScreenState extends State<ChatThreadScreen>
                   };
                 } catch (_) {
                   if (mounted && context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                         content:
-                            Text('Sunucuya ulaşılamadı. Tekrar dene.')));
+                            Text(AppLocale.of(context).t('act_server_unreachable'))));
                   }
                   return null;
                 }
@@ -690,8 +690,8 @@ class _ChatThreadScreenState extends State<ChatThreadScreen>
                 case 'block':
                   await widget.repository.toggleBlock(widget.peer);
                   if (mounted && context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                        content: Text('Engel durumu güncellendi')));
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                        content: Text(AppLocale.of(context).t('sp_block_toggled'))));
                     Navigator.of(context).pop();
                   }
                 case 'report':
@@ -700,24 +700,32 @@ class _ChatThreadScreenState extends State<ChatThreadScreen>
                         .reportUser(widget.peer, 'Kullanıcı şikayeti');
                   } catch (_) {
                     if (!context.mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                        content: Text('Şikayet gönderilemedi. Tekrar deneyin.')));
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                        content: Text(AppLocale.of(context).t('act_report_failed'))));
                     return;
                   }
                   if (mounted && context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                        content: Text(
-                            'Şikayet alındı. Moderasyon ekibi inceleyecek.')));
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                        content: Text(AppLocale.of(context).t('act_report_sent'))));
                   }
               }
             },
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 'mute', child: Text('Sessize al / Aç')),
-              PopupMenuItem(value: 'archive', child: Text('Arşive al / Çıkar')),
+            itemBuilder: (context) => [
               PopupMenuItem(
-                  value: 'restrict', child: Text('Kısıtla / Kaldır')),
-              PopupMenuItem(value: 'block', child: Text('Engelle')),
-              PopupMenuItem(value: 'report', child: Text('Şikayet et')),
+                  value: 'mute',
+                  child: Text(AppLocale.of(context).t('ch_mute_toggle'))),
+              PopupMenuItem(
+                  value: 'archive',
+                  child: Text(AppLocale.of(context).t('ch_archive_toggle'))),
+              PopupMenuItem(
+                  value: 'restrict',
+                  child: Text(AppLocale.of(context).t('ch_restrict_toggle'))),
+              PopupMenuItem(
+                  value: 'block',
+                  child: Text(AppLocale.of(context).t('sp_block_toggle'))),
+              PopupMenuItem(
+                  value: 'report',
+                  child: Text(AppLocale.of(context).t('act_report'))),
             ],
           ),
           IconButton(onPressed: _load, icon: const Icon(Icons.refresh)),

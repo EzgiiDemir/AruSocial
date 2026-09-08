@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>ARUVERSE · Cihaz Simülatörü</title>
+<style>
+  /*
+   * Lives in web/ so Flutter serves it from the same origin as the app.
+   * That is the whole reason the diagnostics panel can work: same-origin
+   * means this page can read the iframe's console, errors and network
+   * traffic. Served from anywhere else the browser would block all of it
+   * and the panel would sit empty.
+   */
+  :root {
+    --bg: #0e1116; --panel: #161b22; --line: #262d38;
+    --ink: #e6edf3; --muted: #8b949e;
+    --blue: #4c8dff; --red: #f85149; --amber: #d29922; --green: #3fb950;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 13px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: grid; grid-template-columns: 210px 1fr 420px; height: 100vh;
+  }
+  aside, section { overflow: auto; }
+  aside { border-right: 1px solid var(--line); background: var(--panel); }
+  .side-title {
+    padding: 14px 14px 8px; font-size: 11px; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .device {
+    padding: 9px 14px; cursor: pointer; border-left: 3px solid transparent;
+    display: flex; justify-content: space-between; gap: 8px; align-items: baseline;
+  }
+  .device:hover { background: #1c2230; }
+  .device.on { background: #1c2230; border-left-color: var(--blue); }
+  .device b { font-weight: 600; }
+  .device span { color: var(--muted); font-size: 11px; white-space: nowrap; }
+
+  main {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 12px; padding: 16px; overflow: auto;
+  }
+  .frame {
+    background: #000; border-radius: 44px; padding: 12px;
+    box-shadow: 0 0 0 2px #2b3240, 0 24px 60px rgba(0,0,0,.6);
+    position: relative; flex: none;
+  }
+  .notch {
+    position: absolute; top: 22px; left: 50%; transform: translateX(-50%);
+    width: 100px; height: 26px; background: #000; border-radius: 14px; z-index: 2;
+  }
+  iframe { border: 0; border-radius: 34px; background: #fff; display: block; }
+  .bar { display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: 12px; }
+  button {
+    background: #21262d; color: var(--ink); border: 1px solid var(--line);
+    border-radius: 6px; padding: 5px 10px; cursor: pointer; font-size: 12px;
+  }
+  button:hover { background: #2b323d; }
+  button.on { border-color: var(--blue); color: var(--blue); }
+
+  section { border-left: 1px solid var(--line); background: var(--panel); display: flex; flex-direction: column; }
+  .head {
+    padding: 12px 14px; border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .head strong { font-size: 13px; }
+  .filters { display: flex; gap: 5px; flex-wrap: wrap; padding: 0 14px 10px; }
+  .chip {
+    font-size: 11px; padding: 3px 8px; border-radius: 999px;
+    border: 1px solid var(--line); cursor: pointer; color: var(--muted);
+  }
+  .chip.on { color: var(--ink); border-color: var(--blue); background: #16233a; }
+  .chip i { font-style: normal; opacity: .7; }
+
+  .log { flex: 1; overflow: auto; }
+  .row { border-bottom: 1px solid var(--line); padding: 9px 14px; cursor: pointer; }
+  .row:hover { background: #1b2029; }
+  .row .top { display: flex; gap: 8px; align-items: baseline; }
+  .tag {
+    font-size: 10px; padding: 1px 6px; border-radius: 4px; flex: none;
+    text-transform: uppercase; letter-spacing: .04em; font-weight: 700;
+  }
+  .t-moderation { background: #3d1f2b; color: #ff9db1; }
+  .t-network    { background: #3a2a12; color: #ffcb6b; }
+  .t-layout     { background: #2a2140; color: #c3a6ff; }
+  .t-asset      { background: #12303a; color: #7fd3e8; }
+  .t-runtime    { background: #3d1c1c; color: #ff9c94; }
+  .t-ok         { background: #16301f; color: #7ee2a0; }
+  .row .msg { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row .when { color: var(--muted); font-size: 11px; flex: none; }
+  .row pre {
+    display: none; margin: 8px 0 0; padding: 8px; background: #0d1117;
+    border: 1px solid var(--line); border-radius: 6px; white-space: pre-wrap;
+    word-break: break-word; font-size: 11.5px; color: #c9d1d9; max-height: 320px; overflow: auto;
+  }
+  .row.open pre { display: block; }
+  .empty { padding: 40px 20px; text-align: center; color: var(--muted); }
+  .count { margin-left: auto; color: var(--muted); font-size: 11px; }
+</style>
+</head>
+<body>
+
+<aside>
+  <div class="side-title">Cihaz</div>
+  <div id="devices"></div>
+  <div class="side-title" style="margin-top:8px">Görünüm</div>
+  <div style="padding:0 14px 16px">
+    <button id="rotate">Yatay / Dikey</button>
+  </div>
+</aside>
+
+<main>
+  <div class="bar">
+    <button id="reload">Yenile</button>
+    <button id="auto" class="on">Otomatik yenile: açık</button>
+    <span id="dims"></span>
+  </div>
+  <div class="frame" id="frame">
+    <div class="notch"></div>
+    <iframe id="app" src="/" allow="geolocation *; camera *; microphone *"></iframe>
+  </div>
+</main>
+
+<section>
+  <div class="head">
+    <strong>Sorunlar</strong>
+    <span class="count" id="count">0 kayıt</span>
+    <button id="clear">Temizle</button>
+  </div>
+  <div class="filters" id="filters"></div>
+  <div class="log" id="log"><div class="empty">Henüz sorun yok.<br>Uygulamada gezin; hatalar burada anlık görünür.</div></div>
+</section>
+
+<script>
+/* ---------------------------------------------------------------- devices */
+/* Logical CSS viewport sizes, which is what the layout actually reacts to —
+   not physical pixels, which would make every modern phone look enormous. */
+const DEVICES = [
+  ['iPhone 16 Pro Max', 440, 956],
+  ['iPhone 16 Pro',     402, 874],
+  ['iPhone 16',         393, 852],
+  ['iPhone 15 Pro',     393, 852],
+  ['iPhone SE (2022)',  375, 667],
+  ['Pixel 9 Pro XL',    448, 992],
+  ['Pixel 9',           412, 915],
+  ['Pixel 8',           412, 915],
+  ['Galaxy S24 Ultra',  412, 915],
+  ['Galaxy S24',        360, 780],
+  ['Galaxy A54',        360, 800],
+  ['iPad mini',         744, 1133],
+  ['iPad Pro 11"',      834, 1194],
+];
+
+let current = 2, landscape = false;
+const app = document.getElementById('app');
+const frame = document.getElementById('frame');
+
+function renderDevices() {
+  document.getElementById('devices').innerHTML = DEVICES.map((d, i) =>
+    `<div class="device ${i === current ? 'on' : ''}" data-i="${i}">
+       <b>${d[0]}</b><span>${d[1]}×${d[2]}</span>
+     </div>`).join('');
+}
+
+function applyDevice() {
+  const [name, w, h] = DEVICES[current];
+  const W = landscape ? h : w, H = landscape ? w : h;
+  app.style.width = W + 'px';
+  app.style.height = H + 'px';
+  // Tall devices would run off a laptop screen, so the whole frame is
+  // scaled down rather than clipped — the app still lays out at the real
+  // logical size, which is the point of the exercise.
+  const max = window.innerHeight - 130;
+  const scale = Math.min(1, max / (H + 24));
+  frame.style.transform = `scale(${scale})`;
+  frame.style.transformOrigin = 'top center';
+  document.querySelector('.notch').style.display = landscape ? 'none' : 'block';
+  document.getElementById('dims').textContent =
+    `${name} · ${W}×${H} · ${Math.round(scale * 100)}%`;
+  renderDevices();
+}
+
+document.getElementById('devices').addEventListener('click', (e) => {
+  const el = e.target.closest('.device');
+  if (!el) return;
+  current = +el.dataset.i;
+  applyDevice();
+});
+document.getElementById('rotate').onclick = () => { landscape = !landscape; applyDevice(); };
+document.getElementById('reload').onclick = () => { app.src = app.src; };
+window.addEventListener('resize', applyDevice);
+
+/* ------------------------------------------------------------ diagnostics */
+const KINDS = {
+  moderation: 'Moderasyon',
+  network:    'Ağ / API',
+  layout:     'Yerleşim',
+  asset:      'Varlık',
+  runtime:    'Çalışma zamanı',
+  ok:         'Başarılı',
+};
+/* 'ok' is on by default too: without it the panel shows "no records" even
+   after it has connected, which reads as broken rather than quiet. */
+const active = new Set(['moderation', 'network', 'layout', 'asset', 'runtime', 'ok']);
+let entries = [];
+
+function renderFilters() {
+  document.getElementById('filters').innerHTML = Object.entries(KINDS).map(([k, label]) => {
+    const n = entries.filter((e) => e.kind === k).length;
+    return `<div class="chip ${active.has(k) ? 'on' : ''}" data-k="${k}">${label} <i>${n}</i></div>`;
+  }).join('');
+}
+document.getElementById('filters').addEventListener('click', (e) => {
+  const el = e.target.closest('.chip');
+  if (!el) return;
+  const k = el.dataset.k;
+  active.has(k) ? active.delete(k) : active.add(k);
+  render();
+});
+
+function render() {
+  const shown = entries.filter((e) => active.has(e.kind));
+  const log = document.getElementById('log');
+  document.getElementById('count').textContent = `${entries.length} kayıt`;
+  renderFilters();
+
+  if (!shown.length) {
+    log.innerHTML = '<div class="empty">Bu filtrede kayıt yok.</div>';
+    return;
+  }
+  log.innerHTML = shown.map((e, i) =>
+    `<div class="row" data-i="${i}">
+       <div class="top">
+         <span class="tag t-${e.kind}">${KINDS[e.kind]}</span>
+         <span class="msg">${esc(e.title)}</span>
+         <span class="when">${e.at}</span>
+       </div>
+       <pre>${esc(e.detail)}</pre>
+     </div>`).join('');
+  [...log.querySelectorAll('.row')].forEach((row) => {
+    row.onclick = () => row.classList.toggle('open');
+  });
+}
+
+function esc(s) {
+  return String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+}
+
+function add(kind, title, detail) {
+  entries.unshift({
+    kind, title, detail,
+    at: new Date().toLocaleTimeString('tr-TR'),
+  });
+  // Bounded so a repeating error cannot grow the page until it freezes.
+  if (entries.length > 400) entries.length = 400;
+  render();
+}
+
+document.getElementById('clear').onclick = () => { entries = []; render(); };
+
+/* Classifies a console line or an exception. The categories are the ones
+   that actually come up in this app, so a report says something more useful
+   than "an error happened". */
+function classify(text) {
+  const t = String(text);
+  if (/CONTENT_BLOCKED|ACCOUNT_SUSPENDED|ACCOUNT_BANNED|MODERATION_UNAVAILABLE|INVALID_FILE_CONTENTS|FILE_TOO_LARGE|VIDEO_TOO_LONG|IMAGE_TOO_LARGE/i.test(t))
+    return 'moderation';
+  if (/overflowed|RenderFlex|constraints|Incorrect use of Parent|unbounded/i.test(t))
+    return 'layout';
+  if (/Failed to load resource|404|could not be loaded|failed to fetch|asset/i.test(t))
+    return 'asset';
+  if (/EXCEPTION CAUGHT|Assertion failed|deactivated widget|DartError|Uncaught|TypeError/i.test(t))
+    return 'runtime';
+  return 'runtime';
+}
+
+/* ------------------------------------------------- hooks inside the iframe */
+let hooked = null;
+
+function hook() {
+  const win = app.contentWindow;
+  if (!win || win === hooked) return;
+  let doc;
+  try { doc = win.document; } catch { return; }   // not same-origin yet
+  if (!doc) return;
+  hooked = win;
+
+  add('ok', 'Simülatör bağlandı', 'Konsol, hata ve ağ trafiği izleniyor.');
+
+  // console.error / warn — where Flutter web reports framework exceptions,
+  // overflow warnings and missing assets.
+  ['error', 'warn'].forEach((level) => {
+    const original = win.console[level];
+    win.console[level] = function (...args) {
+      const text = args.map((a) => {
+        if (a instanceof Error) return a.stack || a.message;
+        if (typeof a === 'object') { try { return JSON.stringify(a); } catch { return String(a); } }
+        return String(a);
+      }).join(' ');
+      // Flutter's own noisy lines are not worth a row each.
+      if (!/Image already exists on map|Analytics event/i.test(text)) {
+        add(classify(text), firstLine(text), text);
+      }
+      return original.apply(this, args);
+    };
+  });
+
+  win.addEventListener('error', (e) => {
+    add('runtime', e.message || 'Yakalanmamış hata',
+      `${e.message}\n${e.filename}:${e.lineno}:${e.colno}\n\n${e.error?.stack || ''}`);
+  });
+  win.addEventListener('unhandledrejection', (e) => {
+    const r = e.reason;
+    add(classify(r?.message || r), firstLine(r?.message || String(r)),
+      `${r?.message || r}\n\n${r?.stack || ''}`);
+  });
+
+  hookNetwork(win);
+}
+
+function firstLine(s) {
+  const line = String(s).split('\n').find((l) => l.trim()) || String(s);
+  return line.length > 120 ? line.slice(0, 117) + '…' : line;
+}
+
+/* Every API call, with the response body when it fails. This is the part
+   that answers "I posted something, what went wrong" — the moderation
+   envelope carries the reason, and without reading the body you only ever
+   see a bare 400. */
+function hookNetwork(win) {
+  const nativeFetch = win.fetch;
+  win.fetch = async function (input, init) {
+    const url = typeof input === 'string' ? input : input?.url ?? '';
+    const method = (init?.method || (typeof input === 'object' && input?.method) || 'GET').toUpperCase();
+    const started = performance.now();
+    try {
+      const res = await nativeFetch.apply(this, arguments);
+      report(method, url, res, started, init);
+      return res;
+    } catch (err) {
+      add('network', `${method} ${short(url)} — bağlantı kurulamadı`,
+        `${err}\n\nSunucu çalışmıyor olabilir, ya da IP/port yanlış.`);
+      throw err;
+    }
+  };
+
+  const open = win.XMLHttpRequest.prototype.open;
+  const send = win.XMLHttpRequest.prototype.send;
+  win.XMLHttpRequest.prototype.open = function (m, u) {
+    this.__m = m; this.__u = u; this.__t = performance.now();
+    return open.apply(this, arguments);
+  };
+  win.XMLHttpRequest.prototype.send = function () {
+    this.addEventListener('loadend', () => {
+      if (!isApi(this.__u)) return;
+      const ms = Math.round(performance.now() - this.__t);
+      if (this.status >= 400 || this.status === 0) {
+        describe(this.__m, this.__u, this.status, this.responseText, ms);
+      }
+    });
+    return send.apply(this, arguments);
+  };
+}
+
+const isApi = (u) => /\/api\/v\d/.test(String(u));
+const short = (u) => String(u).replace(/^https?:\/\/[^/]+/, '');
+
+async function report(method, url, res, started, init) {
+  if (!isApi(url)) return;
+  const ms = Math.round(performance.now() - started);
+  if (res.ok) return;
+  let body = '';
+  try { body = await res.clone().text(); } catch {}
+  describe(method, url, res.status, body, ms, init);
+}
+
+function describe(method, url, status, body, ms, init) {
+  let parsed = null;
+  try { parsed = JSON.parse(body); } catch {}
+  const err = parsed?.error;
+  const code = err?.code || `HTTP ${status}`;
+  const message = err?.message || body?.slice(0, 300) || '(gövde yok)';
+
+  const kind = /CONTENT_BLOCKED|ACCOUNT_SUSPENDED|ACCOUNT_BANNED|MODERATION_UNAVAILABLE|INVALID_FILE_CONTENTS|FILE_TOO_LARGE|VIDEO_TOO_LONG|IMAGE_TOO_LARGE/i.test(code)
+    ? 'moderation' : 'network';
+
+  const lines = [
+    `${method} ${short(url)}`,
+    `Durum: ${status}${ms != null ? ` · ${ms} ms` : ''}`,
+    `Kod:   ${code}`,
+    '',
+    message,
+  ];
+
+  // The extra fields the moderation envelope carries are exactly what you
+  // need to understand a rejection: which strike this was, and until when.
+  if (err?.strike) lines.push('', `Uyarı: ${err.strike}/3`);
+  if (err?.penalty) lines.push(`Ceza: ${err.penalty}`);
+  if (err?.bannedUntil) lines.push(`Askı bitişi: ${err.bannedUntil}`);
+  if (init?.body && typeof init.body === 'string' && init.body.length < 600) {
+    lines.push('', 'Gönderilen:', init.body);
+  }
+  if (parsed?.meta?.request_id) lines.push('', `request_id: ${parsed.meta.request_id}`);
+
+  add(kind, `${code} · ${method} ${short(url)}`, lines.join('\n'));
+}
+
+/* Flutter's dev server reloads the iframe on save; re-hooking on every load
+   is what keeps the panel working across hot restarts without touching the
+   browser. */
+app.addEventListener('load', () => { hooked = null; hook(); });
+setInterval(hook, 400);
+
+/* Auto-reload polls the dev server's build id. Flutter's own hot restart
+   already updates the iframe, so this is the fallback for a full rebuild. */
+let auto = true, lastTag = null;
+document.getElementById('auto').onclick = function () {
+  auto = !auto;
+  this.textContent = `Otomatik yenile: ${auto ? 'açık' : 'kapalı'}`;
+  this.classList.toggle('on', auto);
+};
+setInterval(async () => {
+  if (!auto) return;
+  try {
+    const res = await fetch('/main.dart.js', { method: 'HEAD', cache: 'no-store' });
+    const tag = res.headers.get('etag') || res.headers.get('last-modified');
+    if (tag && lastTag && tag !== lastTag) {
+      add('ok', 'Yeni derleme algılandı', 'Uygulama yeniden yükleniyor.');
+      app.src = app.src;
+    }
+    lastTag = tag;
+  } catch {}
+}, 2000);
+
+applyDevice();
+render();
+</script>
+</body>
+</html>

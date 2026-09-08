@@ -209,14 +209,25 @@ class MediaController extends Controller
             );
         }
 
+        $status = \App\Services\Moderation\ModerationOutcome::class;
+
+        // Written as an allowlist, not a blocklist.
+        //
+        // This used to end in `default => null`, which continued to a path
+        // whose own fallback approves the upload. So any outcome nobody had
+        // thought to enumerate was published — and one of them was REVIEW,
+        // the state an *uninspected* image is held in. Uploading the same
+        // photo twice therefore beat the gate outright: the first attempt
+        // recorded a REVIEW event, the second replayed it from the
+        // idempotency cache, fell through the default, and was approved.
+        //
+        // Only outcomes that positively mean "a model looked at this and
+        // was content" may continue. Everything else is held, including
+        // anything added to the enum later.
         return match ($outcome->status) {
-            \App\Services\Moderation\ModerationOutcome::REJECTED,
-            \App\Services\Moderation\ModerationOutcome::BANNED => [
-                $this->moderationError($outcome), null,
-            ],
-            // Provider outage: hold rather than publish unchecked.
-            \App\Services\Moderation\ModerationOutcome::UNAVAILABLE => [null, 'pending'],
-            default => null,
+            $status::REJECTED, $status::BANNED => [$this->moderationError($outcome), null],
+            $status::ALLOWED, $status::WARNED => null,
+            default => [null, 'pending'],
         };
     }
 

@@ -83,11 +83,16 @@ class _SurveySheetState extends State<_SurveySheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Expanded, because the title grows with the reader's font-size
+            // setting: at a large accessibility scale this row ran past the
+            // sheet and struck through the edge of the screen.
             Row(children: [
               const Icon(Icons.poll_outlined, color: ArucadColors.primary),
               const SizedBox(width: 8),
-              const Text('Hızlı Anket',
-                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+              const Expanded(
+                child: Text('Hızlı Anket',
+                    style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+              ),
             ]),
             const SizedBox(height: 12),
             Text(survey.question, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),

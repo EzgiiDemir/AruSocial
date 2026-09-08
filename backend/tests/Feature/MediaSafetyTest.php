@@ -69,6 +69,66 @@ class MediaSafetyTest extends TestCase
         );
     }
 
+    /**
+     * Uploading the same photo twice used to beat the gate entirely.
+     *
+     * The first attempt was held and recorded a REVIEW event. The second
+     * hit the idempotency cache, which replayed that event as "reviewed",
+     * and the controller's `default => null` treated anything it had not
+     * enumerated as fine — so the fall-through approved it. An image nothing
+     * had ever looked at reached the timeline on the second try.
+     *
+     * Two fixes meet here: the cache no longer manufactures permission for
+     * media, and the controller enumerates what may publish instead of what
+     * may not.
+     */
+    public function test_re_uploading_the_same_image_does_not_get_it_approved(): void
+    {
+        Storage::fake('public');
+        $this->actingAsUser();
+        config(['services.moderation.openai_key' => '']);   // nothing can inspect it
+
+        $statuses = [];
+        for ($i = 0; $i < 4; $i++) {
+            $statuses[] = $this->post('/api/v1/media/mine', [
+                'file' => $this->fakeJpeg('same.jpg'),
+            ], ['Accept' => 'application/json'])->assertCreated()->json('data.moderationStatus');
+        }
+
+        $this->assertSame(['pending', 'pending', 'pending', 'pending'], $statuses,
+            'Repeating an upload must not launder it into an approval.');
+        $this->assertSame(0, MediaItem::where('moderation_status', 'approved')->count());
+    }
+
+    /**
+     * The controller must fail closed on a status it does not recognise.
+     * The bug above existed because an unenumerated outcome fell through to
+     * a path that approves, so this pins the direction of that default.
+     */
+    public function test_an_unrecognised_outcome_holds_rather_than_publishes(): void
+    {
+        Storage::fake('public');
+        $this->actingAsUser();
+        config(['services.moderation.openai_key' => 'sk-test-key']);
+
+        // Flagged only for self-harm, which routes to SUPPORT — publishable
+        // for text, but never a reason to publish an unexamined picture.
+        Http::fake(['api.openai.com/*' => Http::response([
+            'model' => 'omni-moderation-latest',
+            'results' => [[
+                'flagged' => true,
+                'categories' => ['self-harm' => true],
+                'category_scores' => ['self-harm' => 0.99],
+            ]],
+        ])]);
+
+        $status = $this->post('/api/v1/media/mine', [
+            'file' => $this->fakeJpeg('shot.jpg'),
+        ], ['Accept' => 'application/json'])->assertCreated()->json('data.moderationStatus');
+
+        $this->assertNotSame('approved', $status);
+    }
+
     public function test_prohibited_imagery_is_rejected_and_never_stored_as_approved(): void
     {
         Storage::fake('public');

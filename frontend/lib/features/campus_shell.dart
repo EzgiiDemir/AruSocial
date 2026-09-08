@@ -283,24 +283,66 @@ class _RootNavigationBar extends StatelessWidget {
     return first.length <= 10 ? first : '${first.substring(0, 9)}…';
   }
 
+  /// Measures the long label and swaps to the short one when it will not
+  /// fit, instead of guessing from screen width alone — the deciding factor
+  /// is the rendered width, which depends on the language and the reader's
+  /// font-size setting as much as on the device.
+  String _askLabel(BuildContext context, AppStrings strings, double perTab) {
+    final full = strings.t('nav_ask');
+    final painter = TextPainter(
+      text: TextSpan(text: full, style: const TextStyle(fontSize: 11)),
+      textDirection: TextDirection.ltr,
+      textScaler: MediaQuery.textScalerOf(context)
+          .clamp(minScaleFactor: 1.0, maxScaleFactor: 1.3),
+    )..layout();
+
+    // 8px of breathing room, so it swaps just before it actually collides.
+    return painter.width <= perTab - 8 ? full : strings.t('nav_ask_short');
+  }
+
   @override
   Widget build(BuildContext context) {
     final surface = Theme.of(context).colorScheme.surface;
     final onSurface = Theme.of(context).colorScheme.onSurface;
-    return NavigationBarTheme(
+
+    // Five labels have to share the screen width, and the longest of them
+    // ("Arucad'a Sor") is what decides whether the bar looks right. Two
+    // things break it on a real phone that a default-settings simulator
+    // never shows:
+    //
+    //  - a 360px device gives each tab ~72px, and
+    //  - the system font-size setting scales every label, without limit.
+    //
+    // So the size is derived from the width actually available, and the
+    // user's text scale is applied but capped. Capping is the honest
+    // trade-off here: a nav label that grows without bound pushes the icon
+    // out of the bar entirely, which helps nobody — the rest of the app
+    // still honours the setting in full.
+    final width = MediaQuery.sizeOf(context).width;
+    final perTab = width / 5;
+    final base = perTab < 68 ? 9.0 : (perTab < 78 ? 10.0 : 11.0);
+
+    final scaler = MediaQuery.textScalerOf(context).clamp(
+      minScaleFactor: 1.0,
+      maxScaleFactor: 1.3,
+    );
+
+    return MediaQuery(
+      data: MediaQuery.of(context).copyWith(textScaler: scaler),
+      child: NavigationBarTheme(
       data: NavigationBarThemeData(
         backgroundColor: surface,
         indicatorColor: ArucadColors.primary.withValues(alpha: .12),
         iconTheme: WidgetStateProperty.resolveWith(
           (states) => IconThemeData(
-            size: 22,
+            size: perTab < 68 ? 20 : 22,
             color: states.contains(WidgetState.selected)
                 ? ArucadColors.primary
                 : onSurface,
           ),
         ),
         labelTextStyle: WidgetStateProperty.resolveWith((states) => TextStyle(
-              fontSize: states.contains(WidgetState.selected) ? 11 : 10.5,
+              fontSize: states.contains(WidgetState.selected) ? base : base - 0.5,
               fontWeight: states.contains(WidgetState.selected)
                   ? FontWeight.w800
                   : FontWeight.w600,
@@ -351,7 +393,14 @@ class _RootNavigationBar extends StatelessWidget {
                   icon: ArucadLineIconKind.ask,
                   color: ArucadColors.primary,
                   semanticLabel: strings.t('nav_ask')),
-              label: strings.t('nav_ask')),
+              // "Arucad'a Sor" is the longest label by some margin and is
+              // what makes the bar overflow first. Rather than shrink every
+              // label until they are all hard to read, this one falls back
+              // to its short form once the space per tab (after the user's
+              // font-size setting) can no longer hold it. The full wording
+              // stays as the semantic label, so a screen reader still says
+              // "Arucad'a Sor".
+              label: _askLabel(context, strings, perTab)),
           NavigationDestination(
               icon: ArucadLineIcon(
                   icon: ArucadLineIconKind.profile,
@@ -367,6 +416,7 @@ class _RootNavigationBar extends StatelessWidget {
               // bar never shows an empty item.
               label: _accountLabel),
         ],
+      ),
       ),
     );
   }

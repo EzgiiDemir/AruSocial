@@ -55,12 +55,24 @@ class ContentModerator
         $hash = $this->submissionHash($user, $text, $contentType, $imageUrls);
 
         // A double-tapped submit button must not cost two strikes.
+        //
+        // The cache exists to avoid punishing a resubmission twice, so it
+        // replays a decision. It must not manufacture permission: an earlier
+        // event recorded because nothing had inspected the media is not
+        // evidence that the media is fine, and replaying it as "reviewed"
+        // let the same photo through on a second attempt. Media therefore
+        // only short-circuits on an outcome that actually blocks; anything
+        // else is re-checked, which is also the only way a retry can ever
+        // succeed once the provider comes back.
         $existing = ModerationEvent::where('submission_hash', $hash)
             ->where('user_id', $user->id)
             ->where('created_at', '>=', Carbon::now()->subMinutes(10))
             ->first();
         if ($existing !== null) {
-            return ModerationOutcome::fromRepeat($existing);
+            $replay = ModerationOutcome::fromRepeat($existing);
+            if ($imageUrls === [] || ! $replay->isPublishable()) {
+                return $replay;
+            }
         }
 
         $local = $text !== null && trim($text) !== ''

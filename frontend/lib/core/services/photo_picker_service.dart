@@ -1,7 +1,10 @@
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+
+import 'package:arucad_campus_prototype/core/services/web_camera.dart';
 
 class PickedPostMedia {
   final Uint8List bytes;
@@ -40,6 +43,16 @@ class PhotoPickerService {
           ListTile(
             leading: const Icon(Icons.photo_camera_outlined),
             title: const Text('Kameradan çek'),
+            // Browsers only expose a camera over HTTPS or on localhost.
+            // Reaching a dev server at http://192.168.x.x has neither, so
+            // the reason is stated here rather than after a tap that could
+            // only ever fail.
+            subtitle: kIsWeb && !webContextIsSecure
+                ? const Text(
+                    'Bu bağlantıda kullanılamaz — https:// veya localhost gerekli',
+                    style: TextStyle(fontSize: 11.5))
+                : null,
+            enabled: !kIsWeb || webContextIsSecure,
             onTap: () => Navigator.of(ctx).pop('camera'),
           ),
           ListTile(
@@ -70,6 +83,21 @@ class PhotoPickerService {
             : 'clip.mp4';
         return PickedPostMedia(bytes: bytes, fileName: name, isVideo: true);
       }
+      // On the web, `image_picker`'s camera source is a file input with a
+      // `capture` hint. A desktop browser ignores it outright, so this used
+      // to open a file dialog rather than the webcam. getUserMedia is the
+      // only thing that actually opens a camera in a browser.
+      if (choice == 'camera' && kIsWeb && webCameraAvailable) {
+        // The sheet has closed by now, so the context is checked before it
+        // is used to open the capture dialog.
+        if (!context.mounted) return null;
+        final shot = await captureFromWebCamera(context);
+        if (shot == null) return null;
+
+        return PickedPostMedia(
+            bytes: shot, fileName: 'photo.jpg', isVideo: false);
+      }
+
       final source =
           choice == 'camera' ? ImageSource.camera : ImageSource.gallery;
       final file = await _picker.pickImage(

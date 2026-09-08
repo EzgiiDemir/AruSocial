@@ -3,7 +3,19 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
-    <uses-permission android:name="android.permission.CAMERA"/>
+    <!--
+      CAMERA is deliberately NOT declared.
+
+      image_picker does not need it: it hands off to the system camera app,
+      which holds its own permission. But Android enforces any permission an
+      app declares, so declaring it here meant the OS demanded a grant that
+      nothing in this app ever requested — and "Kameradan çek" failed
+      silently on every device. This is the remedy image_picker's own
+      documentation gives.
+
+      If a future feature embeds a live preview (a QR scanner, say), it must
+      both declare CAMERA and request it at runtime.
+    -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"/>
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
@@ -64,8 +76,13 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <!-- Android 11+ hides other apps unless they are queried for, so
+             without these the picker cannot even find a camera app. -->
         <intent>
             <action android:name="android.media.action.IMAGE_CAPTURE"/>
+        </intent>
+        <intent>
+            <action android:name="android.media.action.VIDEO_CAPTURE"/>
         </intent>
         <intent>
             <action android:name="android.intent.action.PICK"/>

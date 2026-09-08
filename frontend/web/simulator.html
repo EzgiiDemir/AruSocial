@@ -38,8 +38,36 @@
   .device span { color: var(--muted); font-size: 11px; white-space: nowrap; }
 
   main {
-    display: flex; flex-direction: column; align-items: center;
-    justify-content: center; gap: 12px; padding: 16px; overflow: auto;
+    display: flex; flex-direction: column; gap: 10px;
+    padding: 12px; overflow: hidden; min-width: 0;
+  }
+  /* The stage owns the leftover height, so the frame can be centred and
+     measured against a real box instead of the whole window. */
+  #stage {
+    flex: 1; min-height: 0; display: flex;
+    align-items: center; justify-content: center;
+  }
+
+  /* Responsive: on a narrow window the side panels stop being columns and
+     the phone keeps the space. Below that they stack, so the tool still
+     works on a laptop screen or half a monitor. */
+  @media (max-width: 1280px) {
+    body { grid-template-columns: 170px 1fr 340px; }
+  }
+  @media (max-width: 1000px) {
+    body { grid-template-columns: 150px 1fr; grid-template-rows: 1fr 260px; }
+    section { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--line); }
+  }
+  @media (max-width: 700px) {
+    body { grid-template-columns: 1fr; grid-template-rows: auto 1fr 240px; }
+    aside {
+      border-right: 0; border-bottom: 1px solid var(--line);
+      display: flex; overflow-x: auto; align-items: center;
+    }
+    aside .side-title, aside #rotate { display: none; }
+    .device { border-left: 0; border-bottom: 3px solid transparent; white-space: nowrap; }
+    .device.on { border-left: 0; border-bottom-color: var(--blue); }
+    .device span { display: none; }
   }
   .frame {
     background: #000; border-radius: 44px; padding: 12px;
@@ -116,9 +144,11 @@
     <button id="auto" class="on">Otomatik yenile: açık</button>
     <span id="dims"></span>
   </div>
-  <div class="frame" id="frame">
-    <div class="notch"></div>
-    <iframe id="app" src="/" allow="geolocation *; camera *; microphone *"></iframe>
+  <div id="stage">
+    <div class="frame" id="frame">
+      <div class="notch"></div>
+      <iframe id="app" src="/" allow="geolocation *; camera *; microphone *"></iframe>
+    </div>
   </div>
 </main>
 
@@ -166,18 +196,25 @@ function renderDevices() {
 function applyDevice() {
   const [name, w, h] = DEVICES[current];
   const W = landscape ? h : w, H = landscape ? w : h;
+
+  // The iframe is always the device's exact logical size, so the app lays
+  // out against real numbers. Only the presentation is scaled, and only
+  // when the frame would not otherwise fit — a 1:1 view is never shrunk
+  // for no reason, and the scale is stated so nothing is misread as a
+  // layout difference.
   app.style.width = W + 'px';
   app.style.height = H + 'px';
-  // Tall devices would run off a laptop screen, so the whole frame is
-  // scaled down rather than clipped — the app still lays out at the real
-  // logical size, which is the point of the exercise.
-  const max = window.innerHeight - 130;
-  const scale = Math.min(1, max / (H + 24));
+
+  const stage = document.getElementById('stage');
+  const availH = stage.clientHeight - 24;
+  const availW = stage.clientWidth - 24;
+  const scale = Math.min(1, availH / (H + 24), availW / (W + 24));
+
   frame.style.transform = `scale(${scale})`;
-  frame.style.transformOrigin = 'top center';
+  frame.style.transformOrigin = 'center center';
   document.querySelector('.notch').style.display = landscape ? 'none' : 'block';
   document.getElementById('dims').textContent =
-    `${name} · ${W}×${H} · ${Math.round(scale * 100)}%`;
+    `${name} · ${W}×${H} · ${scale === 1 ? '1:1' : Math.round(scale * 100) + '%'}`;
   renderDevices();
 }
 
@@ -276,141 +313,177 @@ function classify(text) {
 }
 
 /* ------------------------------------------------- hooks inside the iframe */
-let hooked = null;
+/*
+ * The probe is injected as a <script> into the iframe so its code is
+ * *authored in the iframe's own realm*, and reports back by postMessage.
+ *
+ * The obvious approach — reaching in from here and assigning
+ * `iframe.contentWindow.fetch = function () {...}` — breaks the map. That
+ * wrapper is a parent-realm function, so the values flowing through it are
+ * parent-realm objects, and MapLibre serialises the style to its web worker
+ * with a check equivalent to `obj.constructor === Object`. Across realms
+ * that is false, so it threw "can't serialize object of unregistered class
+ * Object" and no layer ever reached the worker: tiles rendered blank while
+ * the errors piled up. Same-origin makes the reach-in *possible*; it does
+ * not make the objects interchangeable.
+ *
+ * Injected source therefore has to be self-contained — it cannot close over
+ * anything in this file.
+ */
+const PROBE = String.raw`
+(function () {
+  if (window.__simProbe) return;
+  window.__simProbe = true;
 
-function hook() {
-  const win = app.contentWindow;
-  if (!win || win === hooked) return;
-  let doc;
-  try { doc = win.document; } catch { return; }   // not same-origin yet
-  if (!doc) return;
-  hooked = win;
+  var post = function (kind, title, detail) {
+    try {
+      parent.postMessage({ __sim: 1, kind: kind, title: title, detail: detail }, '*');
+    } catch (e) {}
+  };
+  var isApi = function (u) { return /\/api\/v\d/.test(String(u)); };
+  var short = function (u) { return String(u).replace(/^https?:\/\/[^/]+/, ''); };
 
-  add('ok', 'Simülatör bağlandı', 'Konsol, hata ve ağ trafiği izleniyor.');
-
-  // console.error / warn — where Flutter web reports framework exceptions,
-  // overflow warnings and missing assets.
-  ['error', 'warn'].forEach((level) => {
-    const original = win.console[level];
-    win.console[level] = function (...args) {
-      const text = args.map((a) => {
+  ['error', 'warn'].forEach(function (level) {
+    var original = console[level];
+    console[level] = function () {
+      var args = [].slice.call(arguments);
+      var text = args.map(function (a) {
         if (a instanceof Error) return a.stack || a.message;
-        if (typeof a === 'object') { try { return JSON.stringify(a); } catch { return String(a); } }
+        if (a && typeof a === 'object') { try { return JSON.stringify(a); } catch (e) { return String(a); } }
         return String(a);
       }).join(' ');
-      // Flutter's own noisy lines are not worth a row each.
-      if (!/Image already exists on map|Analytics event/i.test(text)) {
-        add(classify(text), firstLine(text), text);
+      if (!/Image already exists on map|Analytics event/.test(text)) {
+        post('console', text.split('\n')[0].slice(0, 160), text.slice(0, 4000));
       }
       return original.apply(this, args);
     };
   });
 
-  win.addEventListener('error', (e) => {
-    add('runtime', e.message || 'Yakalanmamış hata',
-      `${e.message}\n${e.filename}:${e.lineno}:${e.colno}\n\n${e.error?.stack || ''}`);
+  window.addEventListener('error', function (e) {
+    post('runtime', e.message || 'Yakalanmamis hata',
+      (e.message || '') + '\n' + e.filename + ':' + e.lineno + ':' + e.colno +
+      '\n\n' + ((e.error && e.error.stack) || ''));
   });
-  win.addEventListener('unhandledrejection', (e) => {
-    const r = e.reason;
-    add(classify(r?.message || r), firstLine(r?.message || String(r)),
-      `${r?.message || r}\n\n${r?.stack || ''}`);
+  window.addEventListener('unhandledrejection', function (e) {
+    var r = e.reason || {};
+    post('runtime', String(r.message || r).slice(0, 160),
+      String(r.message || r) + '\n\n' + (r.stack || ''));
   });
 
-  hookNetwork(win);
-}
-
-function firstLine(s) {
-  const line = String(s).split('\n').find((l) => l.trim()) || String(s);
-  return line.length > 120 ? line.slice(0, 117) + '…' : line;
-}
-
-/* Every API call, with the response body when it fails. This is the part
-   that answers "I posted something, what went wrong" — the moderation
-   envelope carries the reason, and without reading the body you only ever
-   see a bare 400. */
-function hookNetwork(win) {
-  const nativeFetch = win.fetch;
-  win.fetch = async function (input, init) {
-    const url = typeof input === 'string' ? input : input?.url ?? '';
-    const method = (init?.method || (typeof input === 'object' && input?.method) || 'GET').toUpperCase();
-    const started = performance.now();
-    try {
-      const res = await nativeFetch.apply(this, arguments);
-      report(method, url, res, started, init);
+  // Only API traffic is inspected, and only when it fails — a tile request
+  // must pass through completely untouched.
+  var nativeFetch = window.fetch;
+  window.fetch = function (input, init) {
+    var url = typeof input === 'string' ? input : (input && input.url) || '';
+    var method = ((init && init.method) || (input && input.method) || 'GET').toUpperCase();
+    var t0 = performance.now();
+    var p = nativeFetch.apply(this, arguments);
+    if (!isApi(url)) return p;
+    return p.then(function (res) {
+      if (!res.ok) {
+        var ms = Math.round(performance.now() - t0);
+        res.clone().text().then(function (body) {
+          post('api', method + ' ' + short(url), JSON.stringify({
+            method: method, url: short(url), status: res.status, ms: ms,
+            body: body, sent: init && typeof init.body === 'string' ? init.body : null,
+          }));
+        }).catch(function () {});
+      }
       return res;
-    } catch (err) {
-      add('network', `${method} ${short(url)} — bağlantı kurulamadı`,
-        `${err}\n\nSunucu çalışmıyor olabilir, ya da IP/port yanlış.`);
+    }, function (err) {
+      post('neterr', method + ' ' + short(url), String(err));
       throw err;
-    }
+    });
   };
 
-  const open = win.XMLHttpRequest.prototype.open;
-  const send = win.XMLHttpRequest.prototype.send;
-  win.XMLHttpRequest.prototype.open = function (m, u) {
+  var open = XMLHttpRequest.prototype.open;
+  var send = XMLHttpRequest.prototype.send;
+  XMLHttpRequest.prototype.open = function (m, u) {
     this.__m = m; this.__u = u; this.__t = performance.now();
     return open.apply(this, arguments);
   };
-  win.XMLHttpRequest.prototype.send = function () {
-    this.addEventListener('loadend', () => {
-      if (!isApi(this.__u)) return;
-      const ms = Math.round(performance.now() - this.__t);
-      if (this.status >= 400 || this.status === 0) {
-        describe(this.__m, this.__u, this.status, this.responseText, ms);
-      }
-    });
+  XMLHttpRequest.prototype.send = function () {
+    var xhr = this;
+    if (isApi(xhr.__u)) {
+      xhr.addEventListener('loadend', function () {
+        if (xhr.status >= 200 && xhr.status < 400) return;
+        var body = '';
+        // responseText throws when responseType is arraybuffer/blob, which
+        // is what Dart's HTTP client uses — so it is read defensively.
+        try { body = xhr.responseText || ''; } catch (e) {}
+        post('api', xhr.__m + ' ' + short(xhr.__u), JSON.stringify({
+          method: xhr.__m, url: short(xhr.__u), status: xhr.status,
+          ms: Math.round(performance.now() - xhr.__t), body: body, sent: null,
+        }));
+      });
+    }
     return send.apply(this, arguments);
   };
+
+  post('ready', 'Simülatör bağlandı', 'Konsol, hata ve ağ trafiği izleniyor.');
+})();
+`;
+
+let injectedInto = null;
+
+function inject() {
+  const win = app.contentWindow;
+  if (!win) return;
+  let doc;
+  try { doc = win.document; } catch { return; }        // not same-origin yet
+  if (!doc || !doc.head || win === injectedInto) return;
+  if (win.__simProbe) { injectedInto = win; return; }
+
+  const s = doc.createElement('script');
+  s.textContent = PROBE;
+  doc.head.appendChild(s);
+  injectedInto = win;
 }
 
-const isApi = (u) => /\/api\/v\d/.test(String(u));
-const short = (u) => String(u).replace(/^https?:\/\/[^/]+/, '');
+/* Re-injected on every load so the panel survives a rebuild reload. Polled
+   quickly at first so the probe is in place before the app starts talking. */
+app.addEventListener('load', () => { injectedInto = null; inject(); });
+setInterval(inject, 150);
 
-async function report(method, url, res, started, init) {
-  if (!isApi(url)) return;
-  const ms = Math.round(performance.now() - started);
-  if (res.ok) return;
-  let body = '';
-  try { body = await res.clone().text(); } catch {}
-  describe(method, url, res.status, body, ms, init);
-}
+const MODERATION_CODES =
+  /CONTENT_BLOCKED|ACCOUNT_SUSPENDED|ACCOUNT_BANNED|MODERATION_UNAVAILABLE|INVALID_FILE_CONTENTS|FILE_TOO_LARGE|VIDEO_TOO_LONG|IMAGE_TOO_LARGE/i;
 
-function describe(method, url, status, body, ms, init) {
-  let parsed = null;
-  try { parsed = JSON.parse(body); } catch {}
-  const err = parsed?.error;
-  const code = err?.code || `HTTP ${status}`;
-  const message = err?.message || body?.slice(0, 300) || '(gövde yok)';
+window.addEventListener('message', (e) => {
+  const m = e.data;
+  if (!m || m.__sim !== 1) return;
 
-  const kind = /CONTENT_BLOCKED|ACCOUNT_SUSPENDED|ACCOUNT_BANNED|MODERATION_UNAVAILABLE|INVALID_FILE_CONTENTS|FILE_TOO_LARGE|VIDEO_TOO_LONG|IMAGE_TOO_LARGE/i.test(code)
-    ? 'moderation' : 'network';
-
-  const lines = [
-    `${method} ${short(url)}`,
-    `Durum: ${status}${ms != null ? ` · ${ms} ms` : ''}`,
-    `Kod:   ${code}`,
-    '',
-    message,
-  ];
-
-  // The extra fields the moderation envelope carries are exactly what you
-  // need to understand a rejection: which strike this was, and until when.
-  if (err?.strike) lines.push('', `Uyarı: ${err.strike}/3`);
-  if (err?.penalty) lines.push(`Ceza: ${err.penalty}`);
-  if (err?.bannedUntil) lines.push(`Askı bitişi: ${err.bannedUntil}`);
-  if (init?.body && typeof init.body === 'string' && init.body.length < 600) {
-    lines.push('', 'Gönderilen:', init.body);
+  if (m.kind === 'ready')   return add('ok', m.title, m.detail);
+  if (m.kind === 'console') return add(classify(m.detail), m.title, m.detail);
+  if (m.kind === 'runtime') return add(classify(m.detail), m.title, m.detail);
+  if (m.kind === 'neterr') {
+    return add('network', `${m.title} — bağlantı kurulamadı`,
+      `${m.detail}\n\nSunucu çalışmıyor olabilir, ya da IP/port yanlış.`);
   }
-  if (parsed?.meta?.request_id) lines.push('', `request_id: ${parsed.meta.request_id}`);
+  if (m.kind === 'api') {
+    let d; try { d = JSON.parse(m.detail); } catch { return; }
+    let parsed = null; try { parsed = JSON.parse(d.body); } catch {}
+    const err = parsed?.error;
+    const code = err?.code || `HTTP ${d.status}`;
 
-  add(kind, `${code} · ${method} ${short(url)}`, lines.join('\n'));
-}
+    const lines = [
+      `${d.method} ${d.url}`,
+      `Durum: ${d.status} · ${d.ms} ms`,
+      `Kod:   ${code}`,
+      '',
+      err?.message || (d.body || '').slice(0, 400) || '(gövde yok)',
+    ];
+    // The fields the moderation envelope carries are exactly what explains
+    // a rejection: which warning this was, and any ban expiry.
+    if (err?.strike) lines.push('', `Uyarı: ${err.strike}/3`);
+    if (err?.penalty) lines.push(`Ceza: ${err.penalty}`);
+    if (err?.bannedUntil) lines.push(`Askı bitişi: ${err.bannedUntil}`);
+    if (d.sent && d.sent.length < 600) lines.push('', 'Gönderilen:', d.sent);
+    if (parsed?.meta?.request_id) lines.push('', `request_id: ${parsed.meta.request_id}`);
 
-/* Flutter's dev server reloads the iframe on save; re-hooking on every load
-   is what keeps the panel working across hot restarts without touching the
-   browser. */
-app.addEventListener('load', () => { hooked = null; hook(); });
-setInterval(hook, 400);
+    add(MODERATION_CODES.test(code) ? 'moderation' : 'network',
+      `${code} · ${d.method} ${d.url}`, lines.join('\n'));
+  }
+});
 
 /* Auto-reload polls the dev server's build id. Flutter's own hot restart
    already updates the iframe, so this is the fallback for a full rebuild. */

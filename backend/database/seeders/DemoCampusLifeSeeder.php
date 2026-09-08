@@ -164,7 +164,9 @@ class DemoCampusLifeSeeder extends Seeder
                 'draft' => false,
                 'audience' => 'Tümü',
                 'organizer' => 'ARUCAD',
-                'workflow_status' => 'approved',
+                // 'published' is what Event::publiclyListed() requires;
+                // 'approved' would leave demo events invisible to students.
+                'workflow_status' => 'published',
             ]);
         }
     }

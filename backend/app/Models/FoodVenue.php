@@ -10,7 +10,7 @@ class FoodVenue extends Model
     protected $keyType = 'string';
     public $timestamps = false;
 
-    protected $fillable = ['id', 'name', 'hours', 'menu_file_url'];
+    protected $fillable = ['id', 'name', 'hours', 'menu_text', 'menu_file_url'];
 
     public function dailyMenus()
     {

@@ -393,18 +393,21 @@ class DailyMenu {
 /// the venue name filled in (no invented hours or menu items) until an
 /// admin actually enters them, same honesty rule as `DirectoryEntry`.
 ///
-/// [menuFileUrl] is a direct link to the official uploaded monthly menu
-/// (e.g. a PDF/image an admin hosts) that a student can open or download —
-/// a real, honest alternative to [dailyMenus] for venues where the admin
-/// would rather post the source file than re-type it into the calendar.
-/// There's no AI parsing of that file in this build: turning an uploaded
-/// menu file into structured [dailyMenus] automatically would need a real
-/// backend, which this prototype doesn't have yet.
+/// [menuText] is the menu written out directly by catering staff — the
+/// common case, and the one a student can read without leaving the app.
+///
+/// [menuFileUrl] is a direct link to an uploaded monthly menu (e.g. a PDF an
+/// admin hosts) for venues that would rather publish the source file. It
+/// stays supported but is no longer the only way to describe a menu: making
+/// a link the only option meant staff with three lines of text had nowhere
+/// to put them. There's no parsing of that file into [dailyMenus] — that
+/// would need real document processing, which this build does not do.
 class CampusFoodVenue {
   final String id;
   final String name;
   final String? hours;
   final List<DailyMenu> dailyMenus;
+  final String? menuText;
   final String? menuFileUrl;
 
   const CampusFoodVenue({
@@ -412,6 +415,7 @@ class CampusFoodVenue {
     required this.name,
     this.hours,
     this.dailyMenus = const [],
+    this.menuText,
     this.menuFileUrl,
   });
 
@@ -432,6 +436,7 @@ class CampusFoodVenue {
                 ?.map((e) => DailyMenu.fromJson(e as Map<String, dynamic>))
                 .toList() ??
             const [],
+        menuText: json['menuText'] as String?,
         menuFileUrl: json['menuFileUrl'] as String?,
       );
 
@@ -440,6 +445,7 @@ class CampusFoodVenue {
         'name': name,
         if (hours != null) 'hours': hours,
         if (dailyMenus.isNotEmpty) 'dailyMenus': dailyMenus.map((m) => m.toJson()).toList(),
+        if (menuText != null) 'menuText': menuText,
         if (menuFileUrl != null) 'menuFileUrl': menuFileUrl,
       };
 }

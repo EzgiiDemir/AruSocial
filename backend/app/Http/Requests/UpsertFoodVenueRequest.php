@@ -13,15 +13,15 @@ class UpsertFoodVenueRequest extends FormRequest
 
     public function rules(): array
     {
-        return array (
-  'id' => 
-  array (
-    0 => 'required',
-  ),
-  'name' => 
-  array (
-    0 => 'required',
-  ),
-);
+        return [
+            'id' => ['required'],
+            'name' => ['required'],
+            'hours' => ['nullable', 'string', 'max:255'],
+            // The menu is usually a few typed lines. A linked file stays
+            // supported for venues that publish a PDF, but is no longer
+            // the only way to describe what is being served.
+            'menuText' => ['nullable', 'string', 'max:5000'],
+            'menuFileUrl' => ['nullable', 'url', 'max:2048'],
+        ];
     }
 }

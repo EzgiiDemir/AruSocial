@@ -261,6 +261,13 @@ class _ExploreFoodVenueTileState extends State<ExploreFoodVenueTile> {
                       color: ArucadColors.muted, fontSize: 11.5)),
             ],
           ],
+          // Typed menu text renders in place — a student should not have to
+          // open a document to find out what is being served today.
+          if ((venue.menuText ?? '').trim().isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(venue.menuText!.trim(),
+                style: const TextStyle(fontSize: 12.5, height: 1.45)),
+          ],
           if (venue.menuFileUrl != null) ...[
             const SizedBox(height: 8),
             OutlinedButton.icon(

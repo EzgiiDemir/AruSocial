@@ -6,6 +6,7 @@ import 'package:arucad_campus_prototype/core/config/place_catalog.dart';
 import 'package:arucad_campus_prototype/core/models/campus_models.dart';
 import 'package:arucad_campus_prototype/core/models/geo_point.dart';
 import 'package:arucad_campus_prototype/core/network/api_client.dart';
+import 'package:arucad_campus_prototype/core/services/directions_result.dart';
 import 'package:arucad_campus_prototype/core/services/ask_arucad_store.dart';
 import 'package:arucad_campus_prototype/core/services/contracts.dart';
 import 'package:arucad_campus_prototype/core/services/groq_ai_service.dart';
@@ -296,15 +297,18 @@ class _AskArucadScreenState extends State<AskArucadScreen> {
             sport: sport, repository: widget.repository)));
   }
 
-  void _startNavigation(CampusPlace place) {
-    widget.analyticsTracker.track('route_started', {'place': place.name});
+  void _startNavigation(CampusPlace place,
+      [TravelMode mode = TravelMode.walking]) {
+    widget.analyticsTracker
+        .track('route_started', {'place': place.name, 'mode': mode.name});
     Navigator.of(context).push(MaterialPageRoute(
         builder: (_) => InAppNavigationScreen(
             destinationName: place.name,
             destination: GeoPoint(place.lat, place.lng),
             repository: widget.repository,
             mapProvider: widget.mapProvider,
-            analyticsTracker: widget.analyticsTracker)));
+            analyticsTracker: widget.analyticsTracker,
+            initialMode: mode)));
   }
 
   void _openServiceDetails(CampusService service) {
@@ -331,7 +335,7 @@ class _AskArucadScreenState extends State<AskArucadScreen> {
       place: place,
       events: _ctx.eventsAt(place.name),
       repository: widget.repository,
-      onNavigate: () => _startNavigation(place),
+      onNavigate: (mode) => _startNavigation(place, mode),
       onDetails: () {
         Navigator.of(context).pop();
         Navigator.of(context).push(MaterialPageRoute(

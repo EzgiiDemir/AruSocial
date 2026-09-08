@@ -969,8 +969,11 @@ class RestCampusRepository implements CampusRepository {
     await client.post('/admin/food-venues', body: {
       'id': venue.id,
       'name': venue.name,
-      if (venue.hours != null) 'hours': venue.hours,
-      if (venue.menuFileUrl != null) 'menuFileUrl': venue.menuFileUrl,
+      // Sent even when null so clearing a field actually clears it — an
+      // omitted key would leave the previous value in place.
+      'hours': venue.hours,
+      'menuText': venue.menuText,
+      'menuFileUrl': venue.menuFileUrl,
     });
   }
 

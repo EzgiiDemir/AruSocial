@@ -11,6 +11,7 @@ import 'package:arucad_campus_prototype/core/models/campus_weather.dart';
 import 'package:arucad_campus_prototype/core/models/geo_point.dart';
 import 'package:arucad_campus_prototype/core/services/contracts.dart';
 import 'package:arucad_campus_prototype/core/services/content_moderation.dart';
+import 'package:arucad_campus_prototype/core/services/directions_result.dart';
 import 'package:arucad_campus_prototype/core/services/chat_realtime_service.dart';
 import 'package:arucad_campus_prototype/core/services/location_service.dart';
 import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
@@ -52,7 +53,7 @@ Future<void> showPlaceInfoSheet(
   required Poi poi,
   required CampusPlace? place,
   required List<CampusEvent> events,
-  required VoidCallback onNavigate,
+  required void Function(TravelMode) onNavigate,
   CampusRepository? repository,
   VoidCallback? onOpenDirectory,
   VoidCallback? onDetails,
@@ -311,7 +312,7 @@ class _CampusLiveMapState extends State<CampusLiveMap> {
       events: events,
       visibility: _visibility,
       repository: widget.repository,
-      onNavigate: () => _navigate(poi),
+      onNavigate: (mode) => _navigate(poi, mode),
       // 360 tours are reached through the building directory now, not from
       // the map sheet — one place to browse buildings, floors and rooms.
       onOpenDirectory: () {
@@ -367,16 +368,18 @@ class _CampusLiveMapState extends State<CampusLiveMap> {
             analyticsTracker: widget.analyticsTracker)));
   }
 
-  void _navigate(Poi poi) {
+  void _navigate(Poi poi, [TravelMode mode = TravelMode.walking]) {
     Navigator.of(context).pop();
-    widget.analyticsTracker.track('route_started', {'place': poi.name});
+    widget.analyticsTracker
+        .track('route_started', {'place': poi.name, 'mode': mode.name});
     Navigator.of(context).push(MaterialPageRoute(
         builder: (_) => InAppNavigationScreen(
             destinationName: poi.name,
             destination: GeoPoint(poi.lat, poi.lng),
             repository: widget.repository,
             mapProvider: widget.mapProvider,
-            analyticsTracker: widget.analyticsTracker)));
+            analyticsTracker: widget.analyticsTracker,
+            initialMode: mode)));
   }
 }
 
@@ -719,7 +722,7 @@ class PlaceInfoSheet extends StatefulWidget {
   final CampusPlace? place;
   final List<CampusEvent> events;
   final CampusVisibility visibility;
-  final VoidCallback onNavigate;
+  final void Function(TravelMode) onNavigate;
   final CampusRepository? repository;
   final VoidCallback? onOpenDirectory;
   final VoidCallback? onDetails;
@@ -1047,14 +1050,41 @@ class _PlaceInfoSheetState extends State<PlaceInfoSheet> {
                     style: const TextStyle(
                         fontSize: 11, color: ArucadColors.muted)),
                 const SizedBox(height: 12),
+                // How to get there is asked here, not after the route has
+                // already been drawn: a student heading for the shuttle
+                // should not have to open a walking route first and then
+                // switch. Each mode is one tap from the pin.
+                Text(AppLocale.of(context).t('clm_how_to_get_there'),
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w800, fontSize: 12.5)),
+                const SizedBox(height: 8),
                 Row(children: [
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: widget.onNavigate,
-                      icon: const Icon(Icons.directions_walk),
-                      label: Text(AppLocale.of(context).t('clm_start_nav')),
+                  for (final mode in TravelMode.values) ...[
+                    Expanded(
+                      child: Padding(
+                        padding: EdgeInsets.only(
+                            right: mode == TravelMode.values.last ? 0 : 8),
+                        child: mode == TravelMode.walking
+                            ? FilledButton.icon(
+                                onPressed: () => widget.onNavigate(mode),
+                                icon: Icon(mode.icon, size: 18),
+                                label: Text(
+                                    mode.labelFor(AppLocale.of(context).t),
+                                    style: const TextStyle(fontSize: 12)),
+                              )
+                            : OutlinedButton.icon(
+                                onPressed: () => widget.onNavigate(mode),
+                                icon: Icon(mode.icon, size: 18),
+                                label: Text(
+                                    mode.labelFor(AppLocale.of(context).t),
+                                    style: const TextStyle(fontSize: 12)),
+                              ),
+                      ),
                     ),
-                  ),
+                  ],
+                ]),
+                const SizedBox(height: 10),
+                Row(children: [
                   if (widget.onOpenDirectory != null) ...[
                     const SizedBox(width: 10),
                     OutlinedButton.icon(

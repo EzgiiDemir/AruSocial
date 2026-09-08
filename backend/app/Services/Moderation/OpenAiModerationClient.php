@@ -24,6 +24,36 @@ class OpenAiModerationClient
     }
 
     /**
+     * True when the provider is refusing *this account*, rather than being
+     * temporarily broken.
+     *
+     * 401/403 are unambiguous. 429 needs the body: a real rate limit is
+     * `rate_limit_error` and passes once traffic drops, but a project with
+     * no billing or exhausted quota answers 429 with `invalid_request_error`
+     * / `insufficient_quota` forever. Both look identical by status code
+     * alone, and getting it wrong in the "transient" direction means the
+     * app stays down permanently waiting for a retry that cannot succeed.
+     *
+     * @param  mixed  $body  Decoded JSON error envelope, if any.
+     */
+    private function isAccountRefusal(int $status, mixed $body): bool
+    {
+        if (in_array($status, [401, 403], true)) {
+            return true;
+        }
+        if ($status !== 429) {
+            return false;
+        }
+
+        $type = (string) data_get($body, 'error.type', '');
+        $code = (string) data_get($body, 'error.code', '');
+
+        return $type === 'invalid_request_error'
+            || $code === 'insufficient_quota'
+            || $code === 'billing_hard_limit_reached';
+    }
+
+    /**
      * Moderates text and/or images in a single call.
      *
      * @param  list<string>  $imageUrls  Data URIs or public URLs.
@@ -68,6 +98,24 @@ class OpenAiModerationClient
                 'status' => $response->status(),
                 'body' => mb_substr((string) $response->body(), 0, 300),
             ]);
+
+            // An account-level refusal is a deployment mistake, not an
+            // outage. Holding every post until it is fixed brings the whole
+            // app down — nobody can post, chat, review or edit a profile —
+            // and no amount of waiting helps, because the next request is
+            // refused identically. Treat it like "no key configured" so the
+            // local engine keeps enforcing while somebody fixes the account.
+            // Genuine transient failures still fail closed, because those
+            // really do resolve on their own.
+            if ($this->isAccountRefusal($response->status(), $response->json())) {
+                Log::error('moderation.provider_credentials_rejected', [
+                    'status' => $response->status(),
+                    'hint' => 'Check OPENAI_API_KEY and the project\'s billing/quota. '
+                        .'Running on the local engine alone until then.',
+                ]);
+
+                return ProviderResult::unavailable('not_configured');
+            }
 
             return ProviderResult::unavailable('http_'.$response->status());
         }

@@ -23,6 +23,7 @@ class FoodVenueController extends Controller
             'id' => $v->id,
             'name' => $v->name,
             'hours' => $v->hours,
+            'menuText' => $v->menu_text,
             'menuFileUrl' => $v->menu_file_url,
             'dailyMenus' => $v->dailyMenus->map(fn ($m) => [
                 'date' => $m->menu_date?->toDateString(),
@@ -47,6 +48,7 @@ class FoodVenueController extends Controller
         $venue = FoodVenue::updateOrCreate(['id' => $id], [
             'name' => $name,
             'hours' => $request->input('hours'),
+            'menu_text' => $request->input('menuText'),
             'menu_file_url' => $request->input('menuFileUrl'),
         ]);
         AuditLogger::logAsCurrentUser($isNew ? 'create' : 'update', 'food_venue', $name);

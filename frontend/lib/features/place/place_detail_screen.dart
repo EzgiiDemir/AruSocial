@@ -67,6 +67,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
   final List<Uint8List> _localPhotos = [];
   int _visibleReviews = kPageSize;
   String? _coverPhoto;
+  bool _checkingIn = false;
 
   CampusPlace get place => widget.place;
   CampusRepository get repository => widget.repository;
@@ -234,9 +235,19 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
           Row(children: [
             Expanded(
                 child: FilledButton.icon(
-                    onPressed: () => _checkIn(context),
-                    icon: const Icon(Icons.verified_outlined),
-                    label: Text(strings.t('place_checkin')))),
+                    // Disabled while a check-in is in flight: locating and
+                    // confirming takes a moment, and with no feedback the
+                    // button reads as broken and gets tapped repeatedly —
+                    // which is also how duplicate check-ins happen.
+                    onPressed: _checkingIn ? null : () => _checkIn(context),
+                    icon: _checkingIn
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.verified_outlined),
+                    label: Text(strings.t(
+                        _checkingIn ? 'place_checkin_busy' : 'place_checkin')))),
             SizedBox(width: 10),
             Expanded(
                 child: OutlinedButton.icon(
@@ -424,6 +435,16 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
   }
 
   Future<void> _checkIn(BuildContext context) async {
+    if (_checkingIn) return;
+    setState(() => _checkingIn = true);
+    try {
+      await _runCheckIn(context);
+    } finally {
+      if (mounted) setState(() => _checkingIn = false);
+    }
+  }
+
+  Future<void> _runCheckIn(BuildContext context) async {
     final position = await _requirePosition(context);
     if (position == null || !context.mounted) return;
     if (!CampusGeofence.contains(position.latitude, position.longitude)) {
@@ -536,22 +557,31 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
         }
         return null;
       }
-      // Real fix for "check-in is slow": `.high` accuracy makes the OS wait
-      // for the best possible GPS fix, which can take many seconds
-      // (especially indoors/cold GPS). The check-in radius is ~150m and the
-      // backend re-validates distance itself regardless of what the client
-      // sends — `.medium` resolves in a fraction of the time and is still
-      // comfortably precise enough for that radius.
-      final position = await location.getCurrentPosition(
-          settings: const LocationSettings(accuracy: LocationAccuracy.medium));
+      // Speed: `.high` accuracy makes the OS wait for the best possible GPS
+      // fix, which can take many seconds indoors or on a cold start. The
+      // check-in radius is ~150m and the backend re-validates distance
+      // itself, so `.medium` is plenty and resolves far faster.
+      //
+      // Faster still: a student on campus has almost certainly been located
+      // already (Home and the map track it), so a recent fix is reused
+      // rather than asking the GPS again. Anything older than that is not
+      // trustworthy for a 150m radius decision, so it falls back to a real
+      // fix rather than checking someone in from yesterday's position.
+      final position = LocationService.lastKnownIsFresh
+          ? LocationService.lastKnown
+          : await location.getCurrentPosition(
+              settings: const LocationSettings(accuracy: LocationAccuracy.medium));
       if (position == null) return null;
+
       final meters = Geolocator.distanceBetween(
           position.latitude, position.longitude, place.lat, place.lng);
       if (meters > _checkInRadiusMeters) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-              content: Text(
-                  'Bu mekâna çok uzaksın (~${meters.round()} m). Check-in için ${ _checkInRadiusMeters.round()} m içinde olmalısın.')));
+              content: Text(AppLocale.of(context)
+                  .t('pd_too_far')
+                  .replaceAll('{d}', '${meters.round()}')
+                  .replaceAll('{r}', '${_checkInRadiusMeters.round()}'))));
         }
         return null;
       }

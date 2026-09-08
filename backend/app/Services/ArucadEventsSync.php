@@ -140,7 +140,14 @@ class ArucadEventsSync
             'audience' => 'Tümü',
             'organizer' => $event['organizer'] ?: 'ARUCAD',
             'description' => $description,
-            'workflow_status' => 'approved',
+            // Must be 'published', not 'approved': Event::publiclyListed()
+            // — the scope every student-facing query goes through — matches
+            // only 'published'. Synced events sat in the database as
+            // 'approved' and were invisible in the app, with nothing in the
+            // admin queue to publish them either, because they never entered
+            // the review flow. They are already public on arucad.edu.tr, so
+            // mirroring them as published is also the correct state.
+            'workflow_status' => 'published',
         ]);
 
         return true;

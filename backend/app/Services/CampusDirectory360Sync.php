@@ -128,9 +128,9 @@ class CampusDirectory360Sync
                     ?? ($tourByBuilding[$this->key($name)] ?? null);
                 $tourTarget = is_string($navigation['tourTarget'] ?? null) ? $navigation['tourTarget'] : null;
                 $coordinates = $this->coordinates($building['coordinates'] ?? $building['location'] ?? null);
-                $place = $this->placeForDirectoryBuilding($name);
-                if ($place === null && $coordinates !== null) {
-                    $place = Place::create([
+                $places = $this->placesForDirectoryBuilding($name);
+                if ($places === [] && $coordinates !== null) {
+                    Place::create([
                         'id' => '360-building-'.strtolower((string) ($building['id'] ?? md5($name))),
                         'name' => $name,
                         'category' => 'Campus building',
@@ -150,7 +150,7 @@ class CampusDirectory360Sync
 
                     continue;
                 }
-                if ($place === null) {
+                if ($places === []) {
                     continue;
                 }
                 $changes = [];
@@ -170,8 +170,10 @@ class CampusDirectory360Sync
                 if ($changes === []) {
                     continue;
                 }
-                $place->update($changes);
-                $placesUpdated++;
+                foreach ($places as $place) {
+                    $place->update($changes);
+                    $placesUpdated++;
+                }
             }
 
             // Second pass: any curated Place whose name matches a directory
@@ -308,7 +310,46 @@ class CampusDirectory360Sync
         ];
     }
 
-    private function placeForDirectoryBuilding(string $name): ?Place
+    /**
+     * Curated Place → the directory building whose tour it should borrow.
+     *
+     * Some catalogue pins are public-facing names for a space inside a
+     * building the directory knows under a different label ("Art Rooms" are
+     * the studios in AGE OF BRONZE; the Rodin gallery sits in RODIN). Left
+     * unmatched they fall back to the campus entrance panorama, which is
+     * the wrong room — the whole complaint. Mapping them explicitly is
+     * honest: it is a real editorial decision about which space each pin
+     * means, not a guess the fuzzy matcher can safely make.
+     *
+     * @return array<string, string>
+     */
+    private function placeToBuildingFallback(): array
+    {
+        return [
+            'arucad art space' => 'age of bronze',
+            'art rooms' => 'age of bronze',
+            'arucad workshops' => 'iris',
+            'arucad workshop' => 'iris',
+            'carpentry studio' => 'iris',
+            'arkin rodin collection gallery' => 'rodin',
+            'ana kampus girisi' => 'rodin',
+            'arucad dormitory' => 'arucad dormitory',
+        ];
+    }
+
+    /**
+     * Every Place that corresponds to this directory building.
+     *
+     * Returns a list rather than the first hit: the catalogue genuinely has
+     * more than one row for the same real building (a curated pin plus a
+     * legacy `place-*` seed, e.g. two "Carpentry Studio" rows). Binding the
+     * tour to only the first left the duplicate pointing at the generic
+     * campus entrance, which is exactly the "360 opens the wrong place"
+     * symptom — and which of the two a student tapped was pure luck.
+     *
+     * @return list<Place>
+     */
+    private function placesForDirectoryBuilding(string $name): array
     {
         // The 360 source uses official building labels; curated Places keep
         // a few longer/public-facing names. Explicit aliases are preferred
@@ -317,32 +358,33 @@ class CampusDirectory360Sync
         $key = $this->key($name);
         $target = $aliases[$key] ?? $key;
 
-        $exact = Place::query()->whereRaw('lower(name) = ?', [$target])->first();
-        if ($exact !== null) {
+        $exact = Place::query()
+            ->whereRaw('lower(name) = ?', [$target])
+            ->orWhereRaw('lower(name) = ?', [$key])
+            ->get()
+            ->all();
+        if ($exact !== []) {
             return $exact;
-        }
-        if ($target !== $key) {
-            $exact = Place::query()->whereRaw('lower(name) = ?', [$key])->first();
-            if ($exact !== null) {
-                return $exact;
-            }
         }
 
         // Fuzzy: place name contains the building key (or vice versa).
+        $matches = [];
         foreach (Place::query()->get() as $place) {
             $placeKey = $this->key($place->name);
             if ($placeKey === '' || $key === '') {
                 continue;
             }
             if (str_contains($placeKey, $key) || str_contains($key, $placeKey)) {
-                return $place;
+                $matches[] = $place;
+
+                continue;
             }
             if ($target !== $key && (str_contains($placeKey, $target) || str_contains($target, $placeKey))) {
-                return $place;
+                $matches[] = $place;
             }
         }
 
-        return null;
+        return $matches;
     }
 
     /**
@@ -364,6 +406,12 @@ class CampusDirectory360Sync
             }
         }
 
+        // Editorial mapping for pins the directory does not name directly.
+        $fallbackBuilding = $this->placeToBuildingFallback()[$placeKey] ?? null;
+        if ($fallbackBuilding !== null && isset($tourByBuilding[$fallbackBuilding])) {
+            return $tourByBuilding[$fallbackBuilding];
+        }
+
         foreach ($tourByBuilding as $buildingKey => $tourUrl) {
             $aliasTarget = $aliases[$buildingKey] ?? $buildingKey;
             if ($buildingKey !== '' && (str_contains($placeKey, $buildingKey) || str_contains($buildingKey, $placeKey))) {
@@ -378,14 +426,32 @@ class CampusDirectory360Sync
         return null;
     }
 
-    /** Empty or legacy /tour?campusId= stubs should be replaced by real vista URLs. */
+    /**
+     * Whether a Place's current tour link should be replaced.
+     *
+     * Empty and legacy `/tour?campusId=` stubs obviously qualify. So does a
+     * bare tour URL with no deep link: `…/Main/index.htm` opens the campus
+     * entrance panorama no matter which pin was tapped, so "360 tour" on the
+     * student office showed the front gate. A URL that already carries a
+     * `media-name` / `media-index` deep link is left alone — it is aimed at
+     * a specific panorama and is the best answer we have.
+     */
     private function tourUrlNeedsUpdate(?string $current): bool
     {
         if ($current === null || trim($current) === '') {
             return true;
         }
+        if (str_contains($current, '/tour?campusId=')) {
+            return true;
+        }
 
-        return str_contains($current, '/tour?campusId=');
+        return ! $this->isDeepLink($current);
+    }
+
+    /** A tour URL aimed at one panorama rather than a tour's default view. */
+    private function isDeepLink(string $url): bool
+    {
+        return str_contains($url, 'media-name=') || str_contains($url, 'media-index=');
     }
 
     /** @return array{lat: float, lng: float}|null */

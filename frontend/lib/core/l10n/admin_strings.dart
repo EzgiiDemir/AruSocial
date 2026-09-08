@@ -263,6 +263,8 @@ class AdminStrings {
     'admin_venue_edit': {AdminLanguage.tr: 'Yemek Noktasını Düzenle', AdminLanguage.en: 'Edit Food Venue'},
     'admin_venue_hours': {AdminLanguage.tr: 'Genel Çalışma Saatleri', AdminLanguage.en: 'General Business Hours'},
     'admin_venue_hours_hint': {AdminLanguage.tr: 'Hafta içi 08:00–17:00', AdminLanguage.en: 'Weekdays 8:00 AM–5:00 PM'},
+    'admin_venue_menu_text': {AdminLanguage.tr: 'Menü (buraya yazın)', AdminLanguage.en: 'Menu (type it here)'},
+    'admin_venue_menu_text_hint': {AdminLanguage.tr: 'Örn.\nÇorba: Mercimek\nAna yemek: Tavuk sote\nTatlı: Sütlaç', AdminLanguage.en: 'e.g.\nSoup: Lentil\nMain: Chicken sauté\nDessert: Rice pudding'},
     'admin_venue_menu_file': {AdminLanguage.tr: 'Aylık Menü Dosyası Linki (opsiyonel)', AdminLanguage.en: 'Monthly Menu File Link (optional)'},
     'admin_venue_menu_file_hint': {AdminLanguage.tr: 'https://... .pdf', AdminLanguage.en: 'https://... .pdf'},
     'admin_venue_note': {

@@ -166,6 +166,7 @@ class AppStrings {
 
     // Place detail
     'place_checkin': {AppLanguage.tr: 'Check-in', AppLanguage.en: 'Check-in', AppLanguage.ru: 'Отметиться'},
+    'place_checkin_busy': {AppLanguage.tr: 'Konum alınıyor…', AppLanguage.en: 'Locating…', AppLanguage.ru: 'Определяем…'},
     'place_navigate': {AppLanguage.tr: 'Yol Tarifi', AppLanguage.en: 'Navigate', AppLanguage.ru: 'Маршрут'},
     'place_tour': {AppLanguage.tr: '360° Keşfet', AppLanguage.en: '360° Explore', AppLanguage.ru: '360° тур'},
     'place_tour_tap': {AppLanguage.tr: '360° turu görüntülemek için dokun', AppLanguage.en: 'Tap to open the 360° tour', AppLanguage.ru: 'Нажмите, чтобы открыть 360°'},
@@ -572,6 +573,7 @@ class AppStrings {
     'clm_no_listings': {AppLanguage.tr: 'Henüz ilan yok', AppLanguage.en: 'No listings yet', AppLanguage.ru: 'Объявлений пока нет'},
     'clm_collab_hint': {AppLanguage.tr: 'Malzeme takası, model arama...', AppLanguage.en: 'Material swaps, looking for a model...', AppLanguage.ru: 'Обмен материалами, поиск модели...'},
     'clm_start_nav': {AppLanguage.tr: 'Navigasyonu Başlat', AppLanguage.en: 'Start navigation', AppLanguage.ru: 'Начать навигацию'},
+    'clm_how_to_get_there': {AppLanguage.tr: 'Nasıl gitmek istersin?', AppLanguage.en: 'How do you want to get there?', AppLanguage.ru: 'Как вы хотите добраться?'},
     'clm_search_hint': {AppLanguage.tr: 'Bir yer ara (bina, atölye, kütüphane...)', AppLanguage.en: 'Search a place (building, workshop, library...)', AppLanguage.ru: 'Поиск места (здание, мастерская, библиотека...)'},
     'clm_no_results': {AppLanguage.tr: 'Sonuç bulunamadı', AppLanguage.en: 'No results found', AppLanguage.ru: 'Ничего не найдено'},
 

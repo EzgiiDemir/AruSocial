@@ -40,6 +40,7 @@ class _FoodTabState extends State<_FoodTab> {
     final strings = AdminLocale.of(context);
     final nameC = TextEditingController(text: existing?.name);
     final hoursC = TextEditingController(text: existing?.hours);
+    final menuTextC = TextEditingController(text: existing?.menuText);
     final fileUrlC = TextEditingController(text: existing?.menuFileUrl);
 
     final saved = await showDialog<bool>(
@@ -52,6 +53,17 @@ class _FoodTabState extends State<_FoodTab> {
               controller: hoursC,
               decoration: InputDecoration(
                   labelText: strings.t('admin_venue_hours'), hintText: strings.t('admin_venue_hours_hint'))),
+          // The menu as typed text comes first: it is what staff actually
+          // have to hand, and a student can read it without leaving the app.
+          TextField(
+              controller: menuTextC,
+              decoration: InputDecoration(
+                  labelText: strings.t('admin_venue_menu_text'),
+                  hintText: strings.t('admin_venue_menu_text_hint'),
+                  alignLabelWithHint: true),
+              minLines: 3,
+              maxLines: 8,
+              keyboardType: TextInputType.multiline),
           TextField(
               controller: fileUrlC,
               decoration: InputDecoration(
@@ -78,6 +90,7 @@ class _FoodTabState extends State<_FoodTab> {
       name: nameC.text.trim(),
       hours: hoursC.text.trim().isEmpty ? null : hoursC.text.trim(),
       dailyMenus: existing?.dailyMenus ?? const [],
+      menuText: menuTextC.text.trim().isEmpty ? null : menuTextC.text.trim(),
       menuFileUrl: fileUrlC.text.trim().isEmpty ? null : fileUrlC.text.trim(),
     ));
     await AuditLogStore.logIfMock(widget.repository,

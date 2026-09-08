@@ -33,6 +33,12 @@ class InAppNavigationScreen extends StatefulWidget {
   final MapProvider? mapProvider;
   final AnalyticsTracker? analyticsTracker;
 
+  /// How the student said they were travelling when they started the route.
+  /// Walking is the default on a campus this size, but the choice is made
+  /// on the map before this screen opens, so it has to arrive with it —
+  /// otherwise picking "bus" would still open a walking route first.
+  final TravelMode initialMode;
+
   const InAppNavigationScreen({
     super.key,
     required this.destinationName,
@@ -40,6 +46,7 @@ class InAppNavigationScreen extends StatefulWidget {
     this.repository,
     this.mapProvider,
     this.analyticsTracker,
+    this.initialMode = TravelMode.walking,
   });
 
   @override
@@ -54,7 +61,7 @@ class _InAppNavigationScreenState extends State<InAppNavigationScreen> {
   GeoPoint? _overrideDestination;
   String? _overrideName;
   RouteResult? _route;
-  TravelMode _mode = TravelMode.walking;
+  late TravelMode _mode = widget.initialMode;
   bool _loading = true;
   bool _usedFallbackOrigin = false;
   StreamSubscription<Position>? _positionSub;

@@ -1329,6 +1329,7 @@ class MockCampusRepository implements CampusRepository {
       name: venue.name,
       hours: venue.hours,
       dailyMenus: next,
+      menuText: venue.menuText,
       menuFileUrl: venue.menuFileUrl,
     ));
   }
@@ -1346,6 +1347,7 @@ class MockCampusRepository implements CampusRepository {
           if (m.date.year != date.year || m.date.month != date.month || m.date.day != date.day)
             m,
       ],
+      menuText: venue.menuText,
       menuFileUrl: venue.menuFileUrl,
     ));
   }

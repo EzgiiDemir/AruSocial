@@ -86,6 +86,78 @@ class OpenAiModerationTest extends TestCase
         $this->assertSame(0, \App\Models\FeedPost::count(), 'Unchecked content must not be published.');
     }
 
+    /**
+     * A revoked or mistyped key is a deployment mistake, not an outage.
+     *
+     * Failing closed on it takes the entire product down — no posts, no
+     * chat, no reviews, no profile edits — and waiting cannot fix it,
+     * because the next request is refused identically. This happened in
+     * production: a rotated key left every write returning 503. The local
+     * engine keeps enforcing meanwhile, which is the whole point of having
+     * one.
+     */
+    public function test_rejected_credentials_degrade_to_the_local_engine_rather_than_blocking_everyone(): void
+    {
+        $this->actingAsUser();
+        config(['services.moderation.openai_key' => 'sk-revoked-key']);
+        Http::fake(['api.openai.com/*' => Http::response([
+            'error' => ['message' => 'Your API key has been invalidated.', 'code' => 'token_invalidated'],
+        ], 401)]);
+
+        $this->postJson('/api/v1/feed', ['text' => 'Tamamen normal bir gönderi.'])
+            ->assertSuccessful();
+
+        $this->assertSame(1, \App\Models\FeedPost::count());
+    }
+
+    /**
+     * A 429 is only transient when it is a real rate limit. A project with
+     * no billing answers 429 with `invalid_request_error` on every single
+     * request, so retrying is hopeless and blocking on it is indefinite.
+     */
+    public function test_a_quota_exhausted_429_degrades_to_the_local_engine(): void
+    {
+        $this->actingAsUser();
+        config(['services.moderation.openai_key' => 'sk-no-billing']);
+        Http::fake(['api.openai.com/*' => Http::response([
+            'error' => ['message' => 'Too Many Requests', 'type' => 'invalid_request_error'],
+        ], 429)]);
+
+        $this->postJson('/api/v1/feed', ['text' => 'Sabah dersi iptal olmuş.'])->assertSuccessful();
+
+        $this->assertSame(1, \App\Models\FeedPost::count());
+    }
+
+    /** The counterpart: a genuine rate limit does pass, so it still holds. */
+    public function test_a_real_rate_limit_429_still_holds_content(): void
+    {
+        $this->actingAsUser();
+        config(['services.moderation.openai_key' => 'sk-test-key']);
+        Http::fake(['api.openai.com/*' => Http::response([
+            'error' => ['message' => 'Rate limit reached', 'type' => 'rate_limit_error'],
+        ], 429)]);
+
+        $this->postJson('/api/v1/feed', ['text' => 'Tamamen normal bir gönderi.'])
+            ->assertStatus(503)
+            ->assertJsonPath('error.code', 'MODERATION_UNAVAILABLE');
+
+        $this->assertSame(0, \App\Models\FeedPost::count());
+    }
+
+    public function test_abuse_is_still_refused_when_credentials_are_rejected(): void
+    {
+        $user = $this->actingAsUser();
+        config(['services.moderation.openai_key' => 'sk-revoked-key']);
+        Http::fake(['api.openai.com/*' => Http::response(['error' => ['code' => 'token_invalidated']], 401)]);
+
+        $this->postJson('/api/v1/feed', ['text' => '@ahmet sen tam bir aptalsın.'])
+            ->assertStatus(400)
+            ->assertJsonPath('error.code', 'CONTENT_BLOCKED');
+
+        $this->assertSame(0, \App\Models\FeedPost::count());
+        $this->assertSame(1, (int) $user->fresh()->strikes);
+    }
+
     public function test_an_outage_does_not_cost_the_user_a_strike(): void
     {
         $user = $this->actingAsUser();

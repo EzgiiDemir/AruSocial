@@ -9,6 +9,7 @@ import 'package:arucad_campus_prototype/core/models/campus_models.dart';
 import 'package:arucad_campus_prototype/core/models/geo_point.dart';
 import 'package:arucad_campus_prototype/core/config/poi_config.dart';
 import 'package:arucad_campus_prototype/core/services/contracts.dart';
+import 'package:arucad_campus_prototype/core/services/directions_result.dart';
 import 'package:arucad_campus_prototype/core/services/mock_campus_repository.dart';
 import 'package:arucad_campus_prototype/features/home/campus_live_map.dart';
 import 'package:arucad_campus_prototype/features/home/home_screen.dart';
@@ -136,6 +137,7 @@ void main() {
   testWidgets('PlaceInfoSheet shows about text and can start navigation',
       (tester) async {
     var started = false;
+    TravelMode? startedWith;
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(
         body: PlaceInfoSheet(
@@ -154,18 +156,32 @@ void main() {
           ),
           events: const [],
           visibility: CampusVisibility.friends,
-          onNavigate: () => started = true,
+          onNavigate: (mode) {
+            started = true;
+            startedWith = mode;
+          },
           onDetails: () {},
         ),
       ),
     ));
 
     expect(find.textContaining('Auguste Rodin'), findsOneWidget);
-    expect(find.text('Navigasyonu Başlat'), findsOneWidget);
     expect(find.text('Detay'), findsOneWidget);
-    await tester.ensureVisible(find.text('Navigasyonu Başlat'));
-    await tester.tap(find.text('Navigasyonu Başlat'));
+
+    // The sheet now asks how you are travelling instead of assuming you are
+    // walking: picking the mode here means someone heading for the shuttle
+    // does not have to open a walking route first and then switch.
+    expect(find.text('Nasıl gitmek istersin?'), findsOneWidget);
+    for (final label in ['Yürüyerek', 'Araba', 'Otobüs']) {
+      expect(find.text(label), findsOneWidget,
+          reason: '$label should be offered straight from the map pin.');
+    }
+
+    await tester.ensureVisible(find.text('Otobüs'));
+    await tester.tap(find.text('Otobüs'));
     expect(started, isTrue);
+    expect(startedWith, TravelMode.transit,
+        reason: 'The chosen mode must reach the navigation screen.');
   });
 
   testWidgets(
@@ -183,7 +199,7 @@ void main() {
           place: _place(id: 'rodin', name: 'Rodin'),
           events: const [],
           visibility: CampusVisibility.friends,
-          onNavigate: () {},
+          onNavigate: (_) {},
           onDetails: () {},
         ),
       ),
@@ -226,7 +242,7 @@ void main() {
           place: withEntries,
           events: const [],
           visibility: CampusVisibility.friends,
-          onNavigate: () {},
+          onNavigate: (_) {},
           onDetails: () {},
         ),
       ),
@@ -258,7 +274,7 @@ void main() {
           repository: repository,
           events: const [],
           visibility: CampusVisibility.friends,
-          onNavigate: () {},
+          onNavigate: (_) {},
           onDetails: () {},
         ),
       ),
@@ -289,7 +305,7 @@ void main() {
           repository: repository,
           events: const [],
           visibility: CampusVisibility.friends,
-          onNavigate: () {},
+          onNavigate: (_) {},
           onDetails: () {},
         ),
       ),

@@ -451,6 +451,10 @@ abstract class CampusRepository {
     String applicationId, {
     Map<String, dynamic>? formPayload,
   });
+
+  /// The student withdraws their own application while it is still open.
+  /// Refused once a decision exists — see the backend for why.
+  Future<ParticipationApplication> cancelApplication(String applicationId);
   Future<List<ParticipationApplication>> getAdminApplications({String? status, String? targetType});
   Future<ParticipationApplication> approveApplication(String id, {String? reviewNote});
   Future<ParticipationApplication> rejectApplication(String id, {String? reviewNote});

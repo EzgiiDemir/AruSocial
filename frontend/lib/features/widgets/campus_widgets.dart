@@ -497,7 +497,11 @@ class _EventCardState extends State<EventCard> {
   Widget build(BuildContext context) {
     final event = widget.event;
     final accent = widget.accentColor ?? categoryAccent(event.category);
-    final onFill = onAccent(accent);
+    // The time badge and the join button are solid fills, so they use the
+    // darkened variant that white text can sit on. `accent` itself stays
+    // the original hue for outlines and text-on-white.
+    final fill = accentFill(accent);
+    final onFill = onAccent(fill);
     return Card(
       color: ArucadColors.paper,
       elevation: 0,
@@ -513,7 +517,7 @@ class _EventCardState extends State<EventCard> {
               width: 52,
               height: 52,
               decoration: BoxDecoration(
-                  color: accent, borderRadius: BorderRadius.circular(14)),
+                  color: fill, borderRadius: BorderRadius.circular(14)),
               child: Center(
                   child: Text(event.time,
                       textAlign: TextAlign.center,
@@ -551,7 +555,7 @@ class _EventCardState extends State<EventCard> {
                   )
                 : FilledButton(
                     style: FilledButton.styleFrom(
-                        backgroundColor: accent,
+                        backgroundColor: fill,
                         foregroundColor: onFill,
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16))),

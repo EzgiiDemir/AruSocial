@@ -217,6 +217,7 @@ Route::prefix('v1')->middleware(['throttle:api', 'auth:sanctum', 'not-banned', '
     Route::get('/me/applications', [ParticipationApplicationController::class, 'mine']);
     Route::get('/me/applications/{id}/history', [ParticipationApplicationController::class, 'history']);
     Route::post('/me/applications/{id}/detail', [ParticipationApplicationController::class, 'submitDetail']);
+    Route::post('/me/applications/{id}/cancel', [ParticipationApplicationController::class, 'cancel']);
     Route::post('/applications', [ParticipationApplicationController::class, 'store']);
     Route::get('/application-questions', [ApplicationQuestionController::class, 'index']);
     Route::get('/staff/{staffId}/slots', [AppointmentController::class, 'slots']);

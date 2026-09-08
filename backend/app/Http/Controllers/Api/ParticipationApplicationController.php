@@ -143,6 +143,42 @@ class ParticipationApplicationController extends Controller
         return $this->ok($app->fresh(['responsibleStaff', 'user', 'emailLogs'])->toApiArray(true));
     }
 
+    /**
+     * The student withdraws their own application.
+     *
+     * Only allowed while it is still in flight. Once a decision has been
+     * made, cancelling would erase the outcome — an approval the student
+     * later wants to leave is a different action (leaving the club), and a
+     * rejection is a record that should not be removable by the person it
+     * concerns. Both are refused here rather than silently rewritten.
+     */
+    public function cancel(string $id): JsonResponse
+    {
+        $me = $this->currentUser();
+        $app = ParticipationApplication::where('id', $id)->where('user_id', $me->id)->first();
+        if (! $app) {
+            return $this->fail(404, 'APPLICATION_NOT_FOUND', 'Başvuru bulunamadı.');
+        }
+
+        $final = [
+            ParticipationApplication::STATUS_APPROVED,
+            ParticipationApplication::STATUS_REJECTED,
+            ParticipationApplication::STATUS_CANCELLED,
+        ];
+        if (in_array($app->status, $final, true)) {
+            return $this->fail(409, 'INVALID_STATE',
+                'Sonuçlanmış bir başvuru iptal edilemez.');
+        }
+
+        $from = $app->status;
+        $app->update(['status' => ParticipationApplication::STATUS_CANCELLED]);
+        ParticipationApplicationService::logStatusEvent(
+            $app, $from, $app->status, 'Öğrenci başvurusunu iptal etti.', $me,
+        );
+
+        return $this->ok($app->fresh(['responsibleStaff', 'user', 'emailLogs'])->toApiArray(true));
+    }
+
     public function adminIndex(Request $request): JsonResponse
     {
         $query = ParticipationApplication::with(['responsibleStaff', 'user', 'emailLogs'])

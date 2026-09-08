@@ -24,14 +24,34 @@ import 'package:arucad_campus_prototype/features/widgets/language_toggle.dart';
 /// long scroll.
 enum SettingsSection { info, activity, system }
 
-const _presetAvatars = [
-  'https://api.dicebear.com/7.x/notionists/png?seed=Aslan&size=200',
-  'https://api.dicebear.com/7.x/notionists/png?seed=Deniz&size=200',
-  'https://api.dicebear.com/7.x/notionists/png?seed=Kiraz&size=200',
-  'https://api.dicebear.com/7.x/notionists/png?seed=Meltem&size=200',
-  'https://api.dicebear.com/7.x/notionists/png?seed=Poyraz&size=200',
-  'https://api.dicebear.com/7.x/notionists/png?seed=Yildiz&size=200',
+/// Preset avatars, in alternating feminine/masculine pairs.
+///
+/// The old set of six skewed masculine, which quietly tells half the campus
+/// that the defaults were not drawn for them. Seeds are Turkish names in
+/// alternating pairs so the grid reads as balanced at a glance, and each
+/// carries its own background colour so the row is not six variations of
+/// beige — picking an avatar should feel like a choice, not a formality.
+///
+/// DiceBear renders deterministically from the seed, so a given name always
+/// produces the same face and these stay stable across rebuilds.
+const _avatarPalette = [
+  'b6e3f4', 'ffd5dc', 'c0aede', 'ffdfbf', 'd1f4d0', 'ffe7a3',
 ];
+
+const _avatarSeeds = [
+  // Feminine / masculine alternating, so neither dominates the grid.
+  'Zeynep', 'Aslan', 'Elif', 'Poyraz', 'Meltem', 'Kaan',
+  'Kiraz', 'Deniz', 'Nehir', 'Bora', 'Yildiz', 'Efe',
+  'Derin', 'Alp', 'Ada', 'Cinar', 'Melis', 'Toprak',
+];
+
+List<String> get _presetAvatars => [
+      for (var i = 0; i < _avatarSeeds.length; i++)
+        'https://api.dicebear.com/7.x/notionists/png'
+            '?seed=${_avatarSeeds[i]}'
+            '&size=200'
+            '&backgroundColor=${_avatarPalette[i % _avatarPalette.length]}',
+    ];
 
 class ProfileScreen extends StatefulWidget {
   final CampusUser user;
@@ -51,6 +71,10 @@ class ProfileScreen extends StatefulWidget {
   final ValueChanged<bool> onPrivateProfile;
   final SettingsSection initialSection;
 
+  /// Signing out from the settings sidebar. Routed through the shell so it
+  /// runs the same confirmation and session teardown as every other exit.
+  final VoidCallback onLogout;
+
   const ProfileScreen({
     super.key,
     required this.user,
@@ -69,6 +93,7 @@ class ProfileScreen extends StatefulWidget {
     required this.onPersonalization,
     required this.onPrivateProfile,
     this.initialSection = SettingsSection.info,
+    required this.onLogout,
   });
 
   @override
@@ -118,7 +143,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final choice = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
-      builder: (ctx) => Padding(
+      // Scrollable: the preset grid is three rows on a phone, and on a
+      // short screen the bottom row would otherwise be unreachable.
+      builder: (ctx) => SafeArea(
+        child: SingleChildScrollView(
+          child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 30),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -155,6 +184,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ],
             ),
           ],
+        ),
+          ),
         ),
       ),
     );
@@ -233,6 +264,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         selected: _section,
         onSelect: _selectSection,
         strings: strings,
+        onLogout: widget.onLogout,
       ),
       body: Center(
         child: ConstrainedBox(
@@ -599,8 +631,13 @@ class _SettingsDrawer extends StatelessWidget {
   final SettingsSection selected;
   final ValueChanged<SettingsSection> onSelect;
   final AppStrings strings;
-  const _SettingsDrawer(
-      {required this.selected, required this.onSelect, required this.strings});
+  final VoidCallback onLogout;
+  const _SettingsDrawer({
+    required this.selected,
+    required this.onSelect,
+    required this.strings,
+    required this.onLogout,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -628,29 +665,46 @@ class _SettingsDrawer extends StatelessWidget {
     return Drawer(
       backgroundColor: scheme.surfaceContainerHighest,
       child: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          children: [
-            for (final (section, icon, selectedIcon, label) in items)
-              ListTile(
-                leading: Icon(section == selected ? selectedIcon : icon,
-                    color: section == selected
-                        ? ArucadColors.primary
-                        : scheme.onSurfaceVariant),
-                title: Text(label,
-                    style: TextStyle(
+        child: Column(children: [
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              children: [
+                for (final (section, icon, selectedIcon, label) in items)
+                  ListTile(
+                    leading: Icon(section == selected ? selectedIcon : icon,
                         color: section == selected
                             ? ArucadColors.primary
-                            : scheme.onSurface,
-                        fontWeight: section == selected
-                            ? FontWeight.w700
-                            : FontWeight.w500)),
-                selected: section == selected,
-                selectedTileColor: ArucadColors.primary.withValues(alpha: .1),
-                onTap: () => onSelect(section),
-              ),
-          ],
-        ),
+                            : scheme.onSurfaceVariant),
+                    title: Text(label,
+                        style: TextStyle(
+                            color: section == selected
+                                ? ArucadColors.primary
+                                : scheme.onSurface,
+                            fontWeight: section == selected
+                                ? FontWeight.w700
+                                : FontWeight.w500)),
+                    selected: section == selected,
+                    selectedTileColor:
+                        ArucadColors.primary.withValues(alpha: .1),
+                    onTap: () => onSelect(section),
+                  ),
+              ],
+            ),
+          ),
+          // Pinned to the bottom, separated from the sections above: it is
+          // not another place to navigate to, and putting it in the same
+          // list is how people tap it by accident.
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.logout_rounded, color: ArucadColors.red),
+            title: Text(strings.t('common_logout'),
+                style: const TextStyle(
+                    color: ArucadColors.red, fontWeight: FontWeight.w700)),
+            onTap: onLogout,
+          ),
+          const SizedBox(height: 8),
+        ]),
       ),
     );
   }

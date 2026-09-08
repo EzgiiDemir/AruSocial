@@ -1395,6 +1395,16 @@ class RestCampusRepository implements CampusRepository {
   }
 
   @override
+  Future<ParticipationApplication> cancelApplication(
+      String applicationId) async {
+    final response =
+        await client.post('/me/applications/$applicationId/cancel');
+
+    return ParticipationApplication.fromJson(
+        response['data'] as Map<String, dynamic>);
+  }
+
+  @override
   Future<List<ParticipationApplication>> getAdminApplications(
       {String? status, String? targetType}) async {
     final qp = <String, String>{

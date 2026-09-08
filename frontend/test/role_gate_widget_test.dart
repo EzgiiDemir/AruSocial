@@ -74,7 +74,8 @@ void main() {
   testWidgets('superAdmin settings show both management tiles', (tester) async {
     await tester.pumpWidget(MaterialApp(
       home: ProfileScreen(
-        user: _student,
+                onLogout: () {},
+user: _student,
         repository: MockCampusRepository(),
         mapProvider: _NoopMap(),
         analyticsTracker: _NoopAnalytics(),
@@ -101,7 +102,8 @@ void main() {
   testWidgets('student settings hide admin and trainer tiles', (tester) async {
     await tester.pumpWidget(MaterialApp(
       home: ProfileScreen(
-        user: _student,
+                onLogout: () {},
+user: _student,
         repository: MockCampusRepository(),
         mapProvider: _NoopMap(),
         analyticsTracker: _NoopAnalytics(),

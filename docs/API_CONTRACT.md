@@ -557,6 +557,7 @@ otherwise). `POST /applications`, `GET /me/applications`, `GET
 | GET | `/api/v1/me/applications` | — | this user's own applications, newest first; includes `detailFormUrl` while the Detail form is still fillable |
 | GET | `/api/v1/me/applications/{id}/history` | — | full status-change audit trail for one of the user's own applications; 404 if not theirs |
 | POST | `/api/v1/me/applications/{id}/detail` | `{ formPayload }` | Stage 2 from inside the app — same outcome as the emailed token form (`under_review`); 404 if not theirs; 409 `INVALID_STATE`; 422 `DETAIL_ANSWERS_INCOMPLETE` |
+| POST | `/api/v1/me/applications/{id}/cancel` | — | Student withdraws their own in-flight application; 404 if not theirs; 409 `INVALID_STATE` once approved/rejected/cancelled |
 | GET | `/api/v1/application-questions` | `?targetType=`, `?stage=preview\|detail` | active `ApplicationQuestion[]` for that category/stage, ordered — what the client renders as the Preview form (the Detail form is rendered server-side, see below) |
 | GET | `/api/v1/admin/applications` | `?status=`, `?targetType=` | `detail_form_pending`/`detail_form_submitted`/`under_review`/`revision_required` by default (queue + waiting-on-detail), or filtered; newest first, limit 200 |
 | POST | `/api/v1/admin/applications/{id}/approve` | `{ reviewNote? }` | `status: "approved"`; applies target side-effects (e.g. club membership) and notifies the student; 404 `APPLICATION_NOT_FOUND`; 409 `INVALID_STATE` unless `detail_form_submitted`/`under_review` |
@@ -912,6 +913,7 @@ POST /api/v1/feed/{id}/like
 POST /api/v1/feed/{id}/pin
 POST /api/v1/feed/{id}/report
 POST /api/v1/feed/{id}/unpin
+POST /api/v1/me/applications/{id}/cancel
 POST /api/v1/me/applications/{id}/detail
 POST /api/v1/me/career-profile
 POST /api/v1/me/career-profile/cv

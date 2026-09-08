@@ -65,14 +65,51 @@ enum ArucadThemePreference {
   }
 }
 
-/// Text/icon color that stays readable on a brand fill. Yellow/warning is
-/// always paired with black content regardless of its exact luminance —
-/// white-on-yellow is illegible and must never happen.
-Color onAccent(Color color) {
-  if (color == ArucadColors.yellow || color == ArucadColors.warning) {
-    return ArucadColors.ink;
+/// WCAG contrast ratio between two colours (1:1 identical, 21:1 max).
+double contrastRatio(Color a, Color b) {
+  final la = a.computeLuminance();
+  final lb = b.computeLuminance();
+  final hi = la > lb ? la : lb;
+  final lo = la > lb ? lb : la;
+
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+/// A solid fill that white text can actually sit on.
+///
+/// The brand yellow, green and orange are all too light for white text —
+/// white on the yellow measures 2.81:1, well under the 4.5:1 minimum and
+/// worse than black. That is why badges ended up with black labels, which
+/// reads as muddy on a saturated fill.
+///
+/// Rather than choosing between an illegible white and a muddy black, the
+/// fill itself is darkened until white passes. Badges and buttons then look
+/// consistent — always white on colour — and are measurably readable. Hue
+/// is preserved, so a yellow chip is still recognisably yellow.
+Color accentFill(Color color) {
+  var fill = color;
+  final hsl = HSLColor.fromColor(color);
+
+  // Step lightness down until white text clears AA. Bounded so a colour
+  // that can never satisfy it does not loop to black.
+  for (var i = 0; i < 24; i++) {
+    if (contrastRatio(fill, Colors.white) >= 4.5) return fill;
+    final next = hsl.lightness - (i + 1) * 0.02;
+    if (next <= 0.12) break;
+    fill = hsl.withLightness(next).toColor();
   }
-  return color.computeLuminance() > 0.55 ? ArucadColors.ink : Colors.white;
+
+  return fill;
+}
+
+/// Text/icon colour for a fill produced by [accentFill].
+///
+/// Still measured rather than assumed: a caller passing a raw light colour
+/// gets black, because silently returning white would be unreadable.
+Color onAccent(Color color) {
+  return contrastRatio(color, Colors.white) >= 4.5
+      ? Colors.white
+      : ArucadColors.ink;
 }
 
 /// Score level → color, levels 1 through 5+.

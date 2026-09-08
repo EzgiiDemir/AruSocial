@@ -183,6 +183,7 @@ class _CampusShellState extends State<CampusShell> {
                 4,
                 ProfileScreen(
                   user: widget.user,
+                  onLogout: _confirmLogout,
                   repository: widget.repository,
                   mapProvider: widget.mapProvider,
                   analyticsTracker: widget.analyticsTracker,
@@ -223,6 +224,7 @@ class _CampusShellState extends State<CampusShell> {
           selectedIndex: _index,
           onDestinationSelected: _openTab,
           strings: strings,
+          userName: widget.user.name,
         ),
       ),
     );
@@ -254,11 +256,32 @@ class _RootNavigationBar extends StatelessWidget {
   final ValueChanged<int> onDestinationSelected;
   final AppStrings strings;
 
+  /// The signed-in student's display name, used to label the account tab.
+  final String userName;
+
   const _RootNavigationBar({
     required this.selectedIndex,
     required this.onDestinationSelected,
     required this.strings,
+    required this.userName,
   });
+
+  /// First name for the account tab, trimmed to fit a nav label.
+  ///
+  /// The tab carries the student's own name rather than "Ayarlar" — it is
+  /// their account, and a name is what makes it read as theirs. A bottom-bar
+  /// item has very little room, so a long name is shortened rather than
+  /// ellipsised into something unreadable, and an unloaded name falls back
+  /// to the translated label so the bar never shows an empty item.
+  String get _accountLabel {
+    final full = userName.trim();
+    if (full.isEmpty) return strings.t('nav_profile');
+
+    final space = full.indexOf(' ');
+    final first = space < 0 ? full : full.substring(0, space);
+
+    return first.length <= 10 ? first : '${first.substring(0, 9)}…';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -337,7 +360,12 @@ class _RootNavigationBar extends StatelessWidget {
                   icon: ArucadLineIconKind.profile,
                   color: ArucadColors.primary,
                   semanticLabel: strings.t('nav_profile')),
-              label: strings.t('nav_profile')),
+              // The tab carries the signed-in student's own first name
+              // rather than "Ayarlar" — it is their account, and a name is
+              // what makes the tab read as theirs. Falls back to the
+              // translated label when the name is not loaded yet, so the
+              // bar never shows an empty item.
+              label: _accountLabel),
         ],
       ),
     );

@@ -1561,6 +1561,30 @@ class MockCampusRepository implements CampusRepository {
   }
 
   @override
+  Future<ParticipationApplication> cancelApplication(String applicationId) async {
+    final i = _applications.indexWhere((a) => a.id == applicationId);
+    final old = _applications[i];
+    final next = ParticipationApplication(
+      id: old.id,
+      userId: old.userId,
+      studentName: old.studentName,
+      studentDepartment: old.studentDepartment,
+      targetType: old.targetType,
+      targetId: old.targetId,
+      status: ParticipationApplication.statusCancelled,
+      responsibleStaffId: old.responsibleStaffId,
+      responsibleStaffName: old.responsibleStaffName,
+      formPayload: old.formPayload,
+      detailPayload: old.detailPayload,
+      submittedAt: old.submittedAt,
+      targetLabel: old.targetLabel,
+    );
+    _applications[i] = next;
+
+    return next;
+  }
+
+  @override
   Future<List<ApplicationQuestion>> getApplicationQuestions(String targetType, String stage) async {
     // Mock mode's own small representative set — real question
     // management lives server-side (ApplicationQuestion, admin-editable);

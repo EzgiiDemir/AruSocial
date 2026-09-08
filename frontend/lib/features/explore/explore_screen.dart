@@ -380,15 +380,6 @@ class _ExploreScreenState extends State<ExploreScreen> {
               // reach the answer to what you just typed.
               if (_query.isNotEmpty) ..._searchSlivers(strings),
               if (_query.isEmpty) ...[
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
-                  child: Text(
-                      '$_placesCount ${strings.t('explore_places_suffix')}',
-                      style: const TextStyle(
-                          color: ArucadColors.muted, fontSize: 12)),
-                ),
-              ),
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
                 sliver: SliverGrid(

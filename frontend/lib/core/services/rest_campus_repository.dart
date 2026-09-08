@@ -92,9 +92,15 @@ class RestCampusRepository implements CampusRepository {
       {required String fileName}) async {
     final item = await uploadMyMedia(bytes, fileName: fileName);
     if (item.moderationStatus != 'approved') {
+      // The distinction matters to the person reading it: "rejected" is
+      // something they did, "pending" is something the system owes them.
+      // Saying only "not approved" for both leaves someone whose photo is
+      // simply queued thinking they broke a rule.
       throw ContentModerationException(item.moderationStatus == 'rejected'
-          ? 'Bu medya yayın için onaylanmadı.'
-          : 'Medya inceleme kuyruğunda. Onaylanmadan sosyal paylaşımda görünmez.');
+          ? 'Bu görsel topluluk kurallarına aykırı olduğu için paylaşılamadı.'
+          : 'Görselin incelemeye alındı ve henüz yayınlanmadı. Onaylandığında '
+              'paylaşabilirsin — istersen gönderini şimdilik görselsiz '
+              'paylaşabilirsin.');
     }
     final url = item.url;
     if (url == null || url.isEmpty) {

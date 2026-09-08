@@ -589,6 +589,7 @@ class _DemoSessionState extends State<_DemoSession>
         authProvider: widget.authProvider,
         language: language,
         onLanguageChanged: widget.onLanguageChanged,
+        apiBaseUrl: widget.config.apiBaseUrl,
       ),
     ));
   }

@@ -35,7 +35,20 @@ void main() {
     expect(find.byType(MaterialApp), findsOneWidget);
   });
 
-  testWidgets('login settings never exposes API host or port controls',
+  /// Reversed deliberately.
+  ///
+  /// This previously asserted the opposite — that host/port must never be
+  /// editable, so a student could not point their app at a LAN address.
+  /// That reasoning holds for a store build, but it also made the app
+  /// unusable in the situation it is actually used in: a phone reaching a
+  /// laptop running the backend on the same WiFi, where the compiled-in
+  /// address is either a loopback the phone cannot route to or an IP that
+  /// changed since the build. Without this the only way to change servers
+  /// was to rebuild the APK.
+  ///
+  /// The override is saved on the device and applied at launch; the
+  /// compiled-in address remains the default when nothing is saved.
+  testWidgets('login settings lets the server address be set and saved',
       (tester) async {
     SharedPreferences.setMockInitialValues(
         {'settings.privacy_notice.acknowledged': true});
@@ -54,9 +67,21 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
-    expect(find.text('Sunucu (Laravel)'), findsNothing);
-    expect(find.text('Bilgisayar IP / host'), findsNothing);
-    expect(find.text('Port'), findsNothing);
+    expect(find.text('Sunucu bağlantısı'), findsOneWidget);
+    expect(find.text('Sunucu IP adresi'), findsOneWidget);
+    expect(find.text('Port'), findsOneWidget);
+
+    await tester.enterText(find.widgetWithText(TextField, 'Sunucu IP adresi'),
+        '10.43.47.142');
+    await tester.enterText(find.widgetWithText(TextField, 'Port'), '4000');
+    await tester.tap(find.text('Kaydet'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    // Persisted, so it survives the restart the message asks for.
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('settings.runtime.apiHost'), '10.43.47.142');
+    expect(prefs.getInt('settings.runtime.apiPort'), 4000);
   });
 
   testWidgets('login form stays readable on a desktop viewport',

@@ -317,7 +317,13 @@ class _BuildingDirectoryScreenState extends State<BuildingDirectoryScreen> {
                   return const Text('Bina bulunamadı.',
                       style: TextStyle(color: ArucadColors.muted));
                 }
+                // stretch, not the default centre: a Card sizes to its
+                // child, so a building with only the "Katlar ve odalar"
+                // button rendered as a narrow card floating in the middle
+                // of the list while its neighbours ran full width. The
+                // rows are the same object; they should be the same shape.
                 return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     for (final b in buildings)
                       Card(

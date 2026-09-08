@@ -76,15 +76,37 @@ class GreetingCard extends StatelessWidget {
     };
   }
 
-  /// Darker overlay at night and in bad weather so white text stays legible
-  /// against whatever the photo is doing behind it.
+  /// The photo is a single fixed image of the ARUCAD courtyard, so the time
+  /// of day and the weather are expressed by tinting it rather than by
+  /// swapping in six separate photographs nobody has taken.
+  ///
+  /// The tint also does real work: white text has to stay legible over a
+  /// bright sunlit courtyard, so the overlay is heavier where the photo is
+  /// lightest. Night gets a deep blue, dusk a warm amber, rain a desaturated
+  /// grey-blue.
   List<Color> _scrim(DateTime at) {
-    final night = at.hour >= 22 || at.hour < 5;
-    final dim = night || (weather != null && weather!.code >= 51);
+    final hour = at.hour;
+    final code = weather?.code ?? 0;
+    final raining = code >= 51 && code <= 82;
+    final storm = code >= 95;
 
-    return dim
-        ? [const Color(0xCC0A1330), const Color(0x660A1330)]
-        : [const Color(0x990A1330), const Color(0x33000000)];
+    if (hour >= 22 || hour < 5) {
+      return [const Color(0xE60A1330), const Color(0x990A1330)];
+    }
+    if (storm || raining) {
+      return [const Color(0xCC1F2A3A), const Color(0x8A1F2A3A)];
+    }
+    if (hour >= 18) {
+      // Sunset: warm at the top, deepening towards the text.
+      return [const Color(0xCC3A2352), const Color(0x8A12203F)];
+    }
+    if (code >= 1 && code <= 48) {
+      // Cloud or fog — the photo is flatter, so it needs less help.
+      return [const Color(0xB3122040), const Color(0x59122040)];
+    }
+
+    // Clear day: the brightest the photo ever is, so the heaviest scrim.
+    return [const Color(0xBF0A1330), const Color(0x660A1330)];
   }
 
   @override
@@ -99,11 +121,10 @@ class GreetingCard extends StatelessWidget {
       child: Stack(children: [
         Positioned.fill(
           child: Image.asset(
-            'assets/images/campus-courtyard.jpg',
+            'assets/images/arkin-yaratici-sanatlar-ve-tasarim-universitesi.jpg',
             fit: BoxFit.cover,
-            // Drop the courtyard photo in at that path and it appears here.
-            // Until then the card falls back to a brand gradient rather
-            // than a broken-image box, so it looks deliberate either way.
+            // Falls back to a brand gradient rather than a broken-image box,
+            // so a missing asset still looks deliberate.
             errorBuilder: (_, __, ___) => const DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(

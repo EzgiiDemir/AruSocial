@@ -65,6 +65,22 @@ enum ArucadThemePreference {
   }
 }
 
+/// Button overlay that ignores hover but keeps pressed feedback.
+///
+/// Material 3 buttons paint their own overlay, so `ThemeData.hoverColor`
+/// never reaches them — without this the buttons would still tint under a
+/// desktop cursor after the rest of the app stopped doing so. Returning
+/// null for hovered leaves the button untouched; pressed still responds,
+/// because that is confirmation of a real tap rather than decoration.
+final WidgetStateProperty<Color?> _noHoverOverlay =
+    WidgetStateProperty.resolveWith((states) {
+  if (states.contains(WidgetState.pressed)) {
+    return ArucadColors.ink.withValues(alpha: .10);
+  }
+
+  return null;
+});
+
 /// WCAG contrast ratio between two colours (1:1 identical, 21:1 max).
 double contrastRatio(Color a, Color b) {
   final la = a.computeLuminance();
@@ -275,6 +291,20 @@ class ArucadTheme {
       brightness: brightness,
       colorScheme: scheme,
       scaffoldBackgroundColor: canvas,
+
+      // No hover tint anywhere.
+      //
+      // This is a phone app that also runs on the web. Material's hover
+      // overlay is drawn for any pointer, so on desktop every card and
+      // button under the cursor washed over with a grey film — including
+      // cards that are not even tappable. Removing it here rather than at
+      // each widget means a new screen inherits the same behaviour instead
+      // of reintroducing the effect by default.
+      //
+      // Focus and pressed states are deliberately left alone: those are
+      // feedback for an action the person actually took, and keyboard focus
+      // is an accessibility requirement, not decoration.
+      hoverColor: Colors.transparent,
       iconTheme: IconThemeData(color: ink),
       primaryIconTheme: const IconThemeData(color: Colors.white),
       textTheme: ArucadTextStyles.textTheme(ink).copyWith(
@@ -352,7 +382,7 @@ class ArucadTheme {
           shape: buttonShape,
           padding: buttonPadding,
           textStyle: buttonTextStyle,
-        ),
+        ).copyWith(overlayColor: _noHoverOverlay),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
@@ -361,7 +391,7 @@ class ArucadTheme {
           shape: buttonShape,
           padding: buttonPadding,
           textStyle: buttonTextStyle,
-        ),
+        ).copyWith(overlayColor: _noHoverOverlay),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
@@ -372,13 +402,13 @@ class ArucadTheme {
           shape: buttonShape,
           padding: buttonPadding,
           textStyle: buttonTextStyle,
-        ),
+        ).copyWith(overlayColor: _noHoverOverlay),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: isDark ? const Color(0xFF9AA7FF) : ArucadColors.primary,
           textStyle: buttonTextStyle,
-        ),
+        ).copyWith(overlayColor: _noHoverOverlay),
       ),
       chipTheme: ChipThemeData(
         backgroundColor: mist,

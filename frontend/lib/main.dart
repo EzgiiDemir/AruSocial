@@ -6,6 +6,7 @@ import 'package:sentry_flutter/sentry_flutter.dart';
 
 import 'app/app.dart';
 import 'app/config/app_config.dart';
+import 'core/auth/app_settings_store.dart';
 import 'app/config_error_app.dart';
 import 'core/auth/entra_auth_provider.dart';
 import 'core/auth/rest_auth_provider.dart';
@@ -111,15 +112,41 @@ Future<void> _mountApp({
   // themselves (the redirect scheme is still fixed at Android build time,
   // see android/app/build.gradle.kts). Until then this is empty and the app
   // keeps using the mock directory, exactly as before.
-  // API configuration is compiled into the build. It is never edited on the
-  // login screen, so a student cannot end up pointing their app at a LAN IP.
-  final config = AppConfig.fromEnvironment();
+  // API configuration is compiled into the build, and that stays the
+  // default. A saved host/port from the login screen's settings can point
+  // this build at a different server — how a phone reaches a laptop running
+  // the backend on the same WiFi, where the compiled-in address is either a
+  // loopback the phone cannot route to or an IP that changed since the
+  // build. The override is stored on the device and survives restarts, so
+  // it is entered once rather than every launch.
+  final config = await _withSavedApiOverride(AppConfig.fromEnvironment());
   await _mountAppWithConfig(
     config: config,
     startInAdminMode: startInAdminMode,
     startInTrainerMode: startInTrainerMode,
     portal: portal,
   );
+}
+
+/// Applies a host/port the student saved on the login screen.
+///
+/// Returns the config unchanged when nothing is saved, so a normal install
+/// still uses whatever the build was configured with.
+Future<AppConfig> _withSavedApiOverride(AppConfig config) async {
+  try {
+    final host = (await AppSettingsStore.runtimeApiHost()).trim();
+    if (host.isEmpty) return config;
+    final port = await AppSettingsStore.runtimeApiPort();
+
+    return config.copyWith(
+      useRestApi: true,
+      apiBaseUrl: AppConfig.buildLocalApiBaseUrl(host, port: port),
+    );
+  } catch (_) {
+    // A device that cannot read its own preferences should still start on
+    // the compiled-in configuration rather than refusing to launch.
+    return config;
+  }
 }
 
 Future<void> _mountAppWithConfig({

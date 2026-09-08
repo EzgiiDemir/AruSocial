@@ -16,7 +16,44 @@ import 'contracts.dart';
 /// reaches this app. Throws [ContentModerationException] if the backend
 /// rejects the image.
 class ImageModerationService {
-  static Future<void> assertImageAllowed(Uint8List bytes, CampusRepository repository) {
-    return repository.checkImageModeration(bytes);
+  static Future<void> assertImageAllowed(
+      Uint8List bytes, CampusRepository repository) {
+    return repository.checkImageModeration(bytes, mimeType: sniffMime(bytes));
+  }
+
+  /// The image's real format, read from its header.
+  ///
+  /// This used to be left at the `image/jpeg` default, so a PNG — which is
+  /// what a screenshot or a web file picker usually produces — was checked
+  /// against the JPEG signature and refused as invalid. The server sniffs
+  /// independently and does not trust this value; sending the truth just
+  /// keeps the two ends telling the same story.
+  static String sniffMime(Uint8List b) {
+    bool startsWith(List<int> sig) {
+      if (b.length < sig.length) return false;
+      for (var i = 0; i < sig.length; i++) {
+        if (b[i] != sig[i]) return false;
+      }
+
+      return true;
+    }
+
+    if (startsWith([0xFF, 0xD8, 0xFF])) return 'image/jpeg';
+    if (startsWith([0x89, 0x50, 0x4E, 0x47])) return 'image/png';
+    if (startsWith([0x47, 0x49, 0x46, 0x38])) return 'image/gif';
+    if (b.length >= 12 &&
+        startsWith([0x52, 0x49, 0x46, 0x46]) &&
+        String.fromCharCodes(b.sublist(8, 12)) == 'WEBP') {
+      return 'image/webp';
+    }
+    // HEIC/HEIF from an iPhone: ISO base media container, brand at byte 8.
+    if (b.length >= 12 && String.fromCharCodes(b.sublist(4, 8)) == 'ftyp') {
+      const heic = {'heic', 'heix', 'hevc', 'heim', 'heis', 'mif1', 'msf1'};
+      if (heic.contains(String.fromCharCodes(b.sublist(8, 12)))) {
+        return 'image/heic';
+      }
+    }
+
+    return 'application/octet-stream';
   }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Services\ImageModerationService;
 use Illuminate\Http\UploadedFile;
 
 /**
@@ -10,20 +11,18 @@ use Illuminate\Http\UploadedFile;
  */
 class UploadMagic
 {
+    /**
+     * The header decides, not the declared type.
+     *
+     * Matching on `$file->getMimeType()` meant the answer depended on two
+     * things agreeing, and when they disagreed a perfectly good photo was
+     * rejected — a PNG announced as JPEG failed the JPEG signature and came
+     * back as "invalid image data". It also missed HEIC entirely, which is
+     * what an iPhone produces by default.
+     */
     public static function isImage(UploadedFile $file): bool
     {
-        $bytes = self::head($file);
-        $mime = (string) $file->getMimeType();
-
-        return match (true) {
-            str_contains($mime, 'jpeg'), str_contains($mime, 'jpg') => str_starts_with($bytes, "\xFF\xD8\xFF"),
-            str_contains($mime, 'png') => str_starts_with($bytes, "\x89PNG\r\n\x1A\n"),
-            str_contains($mime, 'gif') => str_starts_with($bytes, 'GIF8'),
-            str_contains($mime, 'webp') => strlen($bytes) >= 12
-                && str_starts_with($bytes, 'RIFF')
-                && substr($bytes, 8, 4) === 'WEBP',
-            default => false,
-        };
+        return ImageModerationService::sniffFormat(self::head($file)) !== null;
     }
 
     /** Validate the container signature before accepting a video upload. */

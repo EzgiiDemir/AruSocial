@@ -173,28 +173,31 @@ class GreetingCard extends StatelessWidget {
               ),
               const SizedBox(height: 18),
               if (weather != null)
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: .18),
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(
-                        color: Colors.white.withValues(alpha: .35)),
-                  ),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(iconFor(weather, at), size: 17, color: Colors.white),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Girne · ${weather!.summary} · '
-                      '${weather!.temperatureC.round()}°C',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w700,
-                      ),
+                Align(
+                  alignment: Alignment.bottomRight,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: .18),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                          color: Colors.white.withValues(alpha: .35)),
                     ),
-                  ]),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(iconFor(weather, at), size: 17, color: Colors.white),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Girne · ${weather!.summary} · '
+                        '${weather!.temperatureC.round()}°C',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ]),
+                  ),
                 ),
             ],
           ),

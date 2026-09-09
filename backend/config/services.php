@@ -134,7 +134,13 @@ return [
      * policy. The key is server-side only and never reaches the app.
      */
     'moderation' => [
-        'openai_key' => env('OPENAI_API_KEY'),
+        // OPENAI_MODERATION_API_KEY is accepted as a fallback because the
+        // example file documented that name for a while: an install that
+        // copied it set a key the config never read, and the only symptom
+        // was images quietly sitting in the review queue forever. Reading
+        // both means an existing deployment keeps working; the canonical
+        // name wins when both are present.
+        'openai_key' => env('OPENAI_API_KEY') ?: env('OPENAI_MODERATION_API_KEY'),
         'model' => env('MODERATION_MODEL', 'omni-moderation-latest'),
         'endpoint' => env('MODERATION_ENDPOINT', 'https://api.openai.com/v1/moderations'),
         'timeout_seconds' => (int) env('MODERATION_TIMEOUT_SECONDS', 12),

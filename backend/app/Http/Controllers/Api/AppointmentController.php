@@ -117,6 +117,17 @@ class AppointmentController extends Controller
         $subject = trim((string) $request->input('subject'));
         $notes = $request->input('notes');
 
+        // A booking is addressed to a named member of staff who will read
+        // it, which makes it a private message with a calendar entry
+        // attached — not metadata. Subject and notes are judged together so
+        // an insult split across the two fields is still caught.
+        $freeText = trim($subject."\n".(string) $notes);
+        if ($blocked = $this->moderationBlock(
+            $this->currentUser(), $freeText, 'appointment', 'appointment.book',
+        )) {
+            return $blocked;
+        }
+
         $staff = StaffProfile::where('id', $staffId)->where('active', true)->first();
         if (! $staff) {
             return $this->fail(404, 'STAFF_NOT_FOUND', 'Staff not found.');

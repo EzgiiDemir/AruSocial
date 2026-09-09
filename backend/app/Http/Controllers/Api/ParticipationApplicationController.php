@@ -88,6 +88,13 @@ class ParticipationApplicationController extends Controller
         // applies at the Detail stage, which is a real form.
         $previewPayload = $request->input('formPayload', []);
 
+        // Form answers are free text that reaches a named staff member.
+        if ($blocked = $this->moderationBlock(
+            $me, $this->answersAsText($previewPayload), 'application', 'application.store',
+        )) {
+            return $blocked;
+        }
+
         $staffId = ParticipationApplicationService::resolveResponsibleStaffId(
             $type,
             $targetId,
@@ -138,9 +145,40 @@ class ParticipationApplicationController extends Controller
             return $this->fail(422, 'DETAIL_ANSWERS_INCOMPLETE', 'Zorunlu sorular eksik: '.implode(', ', $missing));
         }
 
+        if ($blocked = $this->moderationBlock(
+            $me, $this->answersAsText($payload), 'application', 'application.detail',
+        )) {
+            return $blocked;
+        }
+
         ParticipationApplicationService::submitDetailForm($app, $payload, $me);
 
         return $this->ok($app->fresh(['responsibleStaff', 'user', 'emailLogs'])->toApiArray(true));
+    }
+
+    /**
+     * Flattens a form payload into one block of text to judge.
+     *
+     * The answers are moderated together rather than field by field: an
+     * insult split across two questions reads as harmless in isolation, and
+     * a single check is also one moderation event instead of a dozen.
+     * Nested arrays (multi-select answers) are walked, and non-strings are
+     * skipped — a checkbox is not something to moderate.
+     */
+    private function answersAsText(mixed $payload): string
+    {
+        if (! is_array($payload)) {
+            return is_string($payload) ? trim($payload) : '';
+        }
+
+        $parts = [];
+        array_walk_recursive($payload, function ($value) use (&$parts) {
+            if (is_string($value) && trim($value) !== '') {
+                $parts[] = trim($value);
+            }
+        });
+
+        return implode("\n", $parts);
     }
 
     /**

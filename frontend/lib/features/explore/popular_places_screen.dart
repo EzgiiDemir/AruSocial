@@ -6,12 +6,11 @@ import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
 import 'package:arucad_campus_prototype/features/place/place_detail_screen.dart';
 import 'package:arucad_campus_prototype/features/widgets/campus_widgets.dart';
 
-/// Where people actually are right now, ranked by real recent check-ins.
+/// Every campus place ranked by its persistent, all-time public check-ins.
 ///
 /// This answers a different question from "what is nearest": students open
-/// it to find somewhere already busy — a studio with people in it beats an
-/// empty room twenty metres closer. The top five get the podium treatment;
-/// the rest continue as a plain ranked list.
+/// Live density still uses recent activity elsewhere; this historical list
+/// deliberately does not forget check-ins when time passes or users sign out.
 class PopularPlacesScreen extends StatefulWidget {
   final CampusRepository repository;
   final MapProvider mapProvider;
@@ -31,7 +30,6 @@ class PopularPlacesScreen extends StatefulWidget {
 class _PopularPlacesScreenState extends State<PopularPlacesScreen> {
   bool _loading = true;
   List<CampusPlace> _ranked = const [];
-  List<CampusEvent> _events = const [];
 
   @override
   void initState() {
@@ -41,21 +39,18 @@ class _PopularPlacesScreenState extends State<PopularPlacesScreen> {
 
   Future<void> _load() async {
     List<CampusPlace> places = const [];
-    List<CampusEvent> events = const [];
     try {
       places = await widget.repository.getPlaces();
     } catch (_) {}
-    try {
-      events = await widget.repository.getEvents();
-    } catch (_) {}
 
-    final ranked = [...places]
-      ..sort((a, b) => b.recentCheckins.compareTo(a.recentCheckins));
+    final ranked = [...places]..sort((a, b) {
+        final byCheckins = b.totalCheckins.compareTo(a.totalCheckins);
+        return byCheckins != 0 ? byCheckins : a.name.compareTo(b.name);
+      });
 
     if (!mounted) return;
     setState(() {
-      _ranked = ranked.where((p) => p.recentCheckins > 0).toList();
-      _events = events;
+      _ranked = ranked;
       _loading = false;
     });
   }
@@ -73,9 +68,6 @@ class _PopularPlacesScreenState extends State<PopularPlacesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final top = _ranked.take(5).toList();
-    final rest = _ranked.skip(5).toList();
-
     return Scaffold(
       appBar: AppBar(title: const Text('En Popüler Yerler')),
       body: _loading
@@ -104,35 +96,21 @@ class _PopularPlacesScreenState extends State<PopularPlacesScreen> {
                       padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
                       children: [
                         const Text(
-                          'Şu an en çok check-in yapılan yerler',
+                          'Tüm zamanlarda en çok check-in yapılan yerler',
                           style: TextStyle(
                               color: ArucadColors.muted, fontSize: 12.5),
                         ),
                         const SizedBox(height: 14),
-                        for (var i = 0; i < top.length; i++)
+                        for (var i = 0; i < _ranked.length; i++)
                           Padding(
                             padding: EdgeInsets.only(top: i == 0 ? 0 : 10),
                             child: _PopularPlaceCard(
                               rank: i + 1,
-                              place: top[i],
-                              busiest: _ranked.first.recentCheckins,
-                              onTap: () => _open(top[i]),
+                              place: _ranked[i],
+                              busiest: _ranked.first.totalCheckins,
+                              onTap: () => _open(_ranked[i]),
                             ),
                           ),
-                        if (rest.isNotEmpty) ...[
-                          const SizedBox(height: 22),
-                          const Text('Diğer yerler',
-                              style: TextStyle(
-                                  fontWeight: FontWeight.w900, fontSize: 15)),
-                          const SizedBox(height: 8),
-                          for (final place in rest)
-                            PlaceCard(
-                              place: place,
-                              events: _events,
-                              checkInCount: place.recentCheckins,
-                              onOpen: () => _open(place),
-                            ),
-                        ],
                       ],
                     ),
             ),
@@ -166,7 +144,8 @@ class _PopularPlaceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (densityColor, densityLabel) = campusDensityInfo(place);
-    final share = busiest <= 0 ? 0.0 : (place.recentCheckins / busiest).clamp(0.0, 1.0);
+    final share =
+        busiest <= 0 ? 0.0 : (place.totalCheckins / busiest).clamp(0.0, 1.0);
 
     return Material(
       color: ArucadColors.paper,
@@ -224,7 +203,7 @@ class _PopularPlaceCard extends StatelessWidget {
             ),
             const SizedBox(width: 12),
             Column(children: [
-              Text('${place.recentCheckins}',
+              Text('${place.totalCheckins}',
                   style: const TextStyle(
                       fontWeight: FontWeight.w900, fontSize: 18)),
               const Text('check-in',

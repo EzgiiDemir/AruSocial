@@ -487,15 +487,30 @@ final class PolicyLexicon
             'kind' => 'self_harm',
             'labels' => ['SELF'],
             'severity' => 'S4',
+            // Stems, not full conjugations. Turkish inflects the verb at
+            // the end ("kendimi öldüreceğim", "kendimi öldürmek istiyorum",
+            // "kendimi öldürürüm"), so listing finished sentences misses
+            // most of the ways someone actually says it — "kendimi öldürmek
+            // istiyorum", one of the commonest phrasings, went straight
+            // through. Matching the stem covers the whole family.
             'phrases' => [
-                'intihar edecegim', 'intihar etmek istiyorum', 'kendimi oldurecegim',
-                'kendimi olduren', 'canima kiyacagim', 'artik yasamak istemiyorum',
-                'yasamak istemiyorum', 'kendime zarar veriyorum', 'bileklerimi kestim',
+                // Both stems: Turkish softens the final consonant before a
+                // vowel, so the verb is "intihar et-mek" but "intihar
+                // ed-eceğim". One stem catches half the conjugations.
+                'intihar et', 'intihar ed', 'intihara', 'intihar dusun',
+                'kendimi oldur', 'kendimi asa', 'canima kiy',
+                'artik yasamak istemiyorum', 'yasamak istemiyorum',
+                'yasamak istemiyor', 'olmek istiyorum', 'olsem daha iyi',
+                'kendime zarar ver', 'bileklerimi kes', 'bilek kes',
+                'hayatima son ver', 'yasamanin anlami yok',
                 'kill myself', 'killing myself', 'end my life', 'ending my life',
-                'want to die', 'dont want to live', 'do not want to live',
+                'end it all', 'want to die', 'wanna die',
+                'dont want to live', 'do not want to live', 'better off dead',
                 'self harm', 'cut myself', 'cutting myself', 'suicidal',
+                'take my own life',
                 'покончить с собой', 'покончу с собой', 'убить себя',
                 'не хочу жить', 'режу себя', 'причиняю себе вред',
+                'хочу умереть', 'свести счёты с жизнью',
             ],
         ],
         [
@@ -585,6 +600,140 @@ final class PolicyLexicon
                 'here is his number', 'here is her number', 'here is their number',
                 'here is his address', 'here is her address', 'this is their address',
                 'вот его номер', 'вот её номер', 'вот его адрес', 'вот их адрес',
+            ],
+        ],
+        [
+            // An adult steering a minor towards private contact. The most
+            // serious thing on this list, so it escalates rather than
+            // merely blocking — a moderator needs to see it, not a counter.
+            'kind' => 'minor_safety',
+            'labels' => ['MINOR', 'SEX'],
+            'severity' => 'S4',
+            'phrases' => [
+                '13 yasindaki', '14 yasindaki', '15 yasindaki', '16 yasindaki',
+                'lise ogrencisi kiz', 'lise ogrencisi erkek', 'kucuk kiz ariyorum',
+                'yasin kac tatlim', 'ailene soyleme', 'aileme soyleme sakin',
+                'gizli tutalim seninle',
+                '13 year old', '14 year old', '15 year old', 'underage',
+                'dont tell your parents', 'do not tell your parents',
+                'our little secret', 'young girl looking',
+                'несовершеннолет', 'не говори родителям',
+            ],
+        ],
+        [
+            'kind' => 'terrorism',
+            'labels' => ['TERROR', 'VIO'],
+            'severity' => 'S4',
+            'phrases' => [
+                'isid icin', 'isid e katil', 'deas icin', 'orgute katil',
+                'cihada gidiyorum', 'bombali eylem', 'bomba koyacagim',
+                'kampuse bomba', 'okula bomba', 'patlayici yerlestir',
+                'joining isis', 'fight for isis', 'jihad against',
+                'plant a bomb', 'blow up the', 'suicide bombing',
+                'вступить в игил', 'заложу бомбу', 'взорву',
+            ],
+        ],
+        [
+            // Telling someone how to make a weapon, not merely mentioning
+            // one — the instruction is the harm.
+            'kind' => 'criminal_instructions',
+            'labels' => ['CRIME', 'VIO'],
+            'severity' => 'S4',
+            'phrases' => [
+                'bomba nasil yapilir', 'patlayici nasil yapilir',
+                'molotof nasil yapilir', 'silah nasil yapilir',
+                'zehir nasil yapilir', 'kilit nasil kirilir',
+                'how to make a bomb', 'how to build a bomb',
+                'how to make explosives', 'how to make napalm',
+                'how to pick a lock', 'untraceable poison',
+                'как сделать бомбу', 'как сделать взрывчатку',
+            ],
+        ],
+        [
+            // Credential theft aimed at students: the campus portal is the
+            // obvious target and the request is always the same shape.
+            'kind' => 'cybercrime',
+            'labels' => ['CRIME', 'SCAM'],
+            'severity' => 'S3',
+            'phrases' => [
+                'sifreni bana yolla', 'sifreni bana gonder', 'sifreni yaz bana',
+                'sifreni paylas', 'hesabini bana ver', 'obs sifreni',
+                'portal sifreni', 'kullanici adi ve sifreni',
+                'dogrulama kodunu gonder', 'sms kodunu bana', 'otp kodunu gonder',
+                'linke tikla ve sifreni', 'hesabini calarim', 'hesap hackle',
+                'send me your password', 'give me your password',
+                'send me the verification code', 'send the otp',
+                'enter your password here', 'hack the account', 'steal the account',
+                'пришли мне пароль', 'отправь код подтверждения',
+            ],
+        ],
+        [
+            // Claiming to be staff while asking for money or credentials.
+            // The claim alone is not the offence — the combination is.
+            'kind' => 'impersonation',
+            'labels' => ['SCAM'],
+            'severity' => 'S3',
+            // The second anchor is the demand, not the subject.
+            //
+            // Anchoring on the noun caught the warning as well as the scam:
+            // "öğrenci işleri asla şifre istemez" — the exact advice a
+            // university needs to be able to send — matched "öğrenci
+            // işleri" near "şifre" and was refused. Requiring the imperative
+            // ("şifreni gönder", "para yatır") separates a demand from a
+            // caution without trying to parse negation.
+            'phrases' => [
+                'ben rektor~para yatir', 'ben rektor~havale', 'ben rektor~gonder',
+                'ben dekan~para yatir', 'ben dekan~gonder',
+                'ben ogretim gorevlisi~para yatir',
+                'universite yonetimi~havale yap', 'universite yonetimi~para yatir',
+                'ogrenci isleri~sifreni gonder', 'ogrenci isleri~sifreni yaz',
+                'rektorluk adina~gonder', 'idare adina~para yatir',
+                'i am the rector~send money', 'i am the dean~transfer',
+                'university administration~send payment',
+            ],
+        ],
+        [
+            // Deliberately narrow, and REVIEW rather than REMOVE: deciding
+            // what is true is not a job for a word list, and over-blocking
+            // here silences ordinary argument. Only well-known health
+            // claims with a real-world cost are listed, and a human makes
+            // the final call.
+            'kind' => 'misinformation',
+            'labels' => ['MISINFO'],
+            'severity' => 'S2',
+            'phrases' => [
+                'asilar cip iceriyor', 'asi cip', 'asi otizm yapar',
+                'asi olmayin', 'covid yalan', 'virus yok oyle bir sey',
+                '5g virus yayiyor', 'dunya duz',
+                'vaccines contain chips', 'vaccines cause autism',
+                'covid is a hoax', '5g spreads', 'the earth is flat',
+                'вакцины чипы', 'ковид обман',
+            ],
+        ],
+        [
+            'kind' => 'piracy',
+            'labels' => ['COPY'],
+            'severity' => 'S2',
+            'phrases' => [
+                'crackini satiyorum', 'crack satiyorum', 'korsan pdf satiyorum',
+                'ders kitaplarinin pdf', 'kitap pdf satiyorum', 'lisans keygen',
+                'kirik surum satiyorum', 'bedava netflix hesabi satiyorum',
+                'selling cracked', 'cracked version for sale', 'pirated pdf',
+                'keygen for sale', 'selling textbook pdfs',
+                'продам взломанную', 'пиратская версия',
+            ],
+        ],
+        [
+            'kind' => 'animal_abuse',
+            'labels' => ['VIO'],
+            'severity' => 'S3',
+            'phrases' => [
+                'kedileri zehirle', 'kopekleri zehirle', 'hayvanlari zehirle',
+                'kediyi olduren', 'kopegi olduren', 'kediyi tekmele',
+                'hayvana iskence', 'kedi olduru', 'kopek olduru',
+                'poison the cats', 'poison the dogs', 'kill the strays',
+                'torture animals', 'kick the dog',
+                'отравлю кошек', 'убью собаку',
             ],
         ],
         [

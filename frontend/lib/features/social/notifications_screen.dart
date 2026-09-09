@@ -39,8 +39,16 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   @override
   void initState() {
     super.initState();
-    widget.repository.markAllNotificationsRead();
-    _refresh();
+    _initialize();
+  }
+
+  Future<void> _initialize() async {
+    try {
+      await widget.repository.markAllNotificationsRead();
+    } catch (_) {
+      // Loading remains useful even if read-state synchronization is offline.
+    }
+    await _refresh();
   }
 
   @override
@@ -52,9 +60,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   List<_NotificationItem> get _items {
     final q = _query.trim().toLowerCase();
     bool matches(String a, String b) =>
-        q.isEmpty ||
-        a.toLowerCase().contains(q) ||
-        b.toLowerCase().contains(q);
+        q.isEmpty || a.toLowerCase().contains(q) || b.toLowerCase().contains(q);
 
     final items = <_NotificationItem>[
       for (final n in _inbox)
@@ -168,9 +174,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   Future<void> _openInbox(InboxNotification n) async {
     final dataActor = n.data?['actorName']?.toString();
-    final actor = (dataActor != null && dataActor.isNotEmpty)
-        ? dataActor
-        : n.actorName;
+    final actor =
+        (dataActor != null && dataActor.isNotEmpty) ? dataActor : n.actorName;
     final postId = n.data?['postId']?.toString();
     if (postId != null && postId.isNotEmpty) {
       FeedPost? post;
@@ -197,8 +202,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
     if (n.kind == 'message' && actor != null) {
       await Navigator.of(context).push(MaterialPageRoute(
-          builder: (_) => ChatThreadScreen(
-              repository: widget.repository, peer: actor)));
+          builder: (_) =>
+              ChatThreadScreen(repository: widget.repository, peer: actor)));
       return;
     }
     if (n.kind == 'like' || n.kind == 'comment') {
@@ -212,8 +217,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
     if (n.kind.contains('application')) {
       await Navigator.of(context).push(MaterialPageRoute(
-          builder: (_) =>
-              MyApplicationsScreen(repository: widget.repository)));
+          builder: (_) => MyApplicationsScreen(repository: widget.repository)));
       return;
     }
     if (actor != null && actor.isNotEmpty) {
@@ -235,7 +239,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     if (a.kind == ActivityKind.like || a.kind == ActivityKind.comment) {
       // Best effort: open first matching own post text
       for (final p in _feed) {
-        if (a.title.toLowerCase().contains(p.text.toLowerCase().split(' ').first) ||
+        if (a.title
+                .toLowerCase()
+                .contains(p.text.toLowerCase().split(' ').first) ||
             p.text.toLowerCase().contains(a.subtitle.toLowerCase())) {
           await Navigator.of(context).push(MaterialPageRoute(
               builder: (_) =>
@@ -249,15 +255,31 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   Future<void> _accept(FollowRequestPeer peer) async {
-    await widget.repository.acceptFollowRequest(peer.name);
-    if (!mounted) return;
-    setState(() => _requests = _requests.where((r) => r.id != peer.id).toList());
+    try {
+      await widget.repository.acceptFollowRequest(peer.name);
+      if (!mounted) return;
+      setState(
+          () => _requests = _requests.where((r) => r.id != peer.id).toList());
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Takip isteği kabul edilemedi.')),
+      );
+    }
   }
 
   Future<void> _decline(FollowRequestPeer peer) async {
-    await widget.repository.declineFollowRequest(peer.name);
-    if (!mounted) return;
-    setState(() => _requests = _requests.where((r) => r.id != peer.id).toList());
+    try {
+      await widget.repository.declineFollowRequest(peer.name);
+      if (!mounted) return;
+      setState(
+          () => _requests = _requests.where((r) => r.id != peer.id).toList());
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Takip isteği reddedilemedi.')),
+      );
+    }
   }
 
   @override
@@ -268,8 +290,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final page = items.take(shown).toList();
 
     return Scaffold(
-      appBar:
-          AppBar(title: Text(strings.t('notif_title')), leading: const CampusBackButton()),
+      appBar: AppBar(
+          title: Text(strings.t('notif_title')),
+          leading: const CampusBackButton()),
       body: Column(children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
@@ -315,15 +338,16 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                           ListTile(
                             leading: CircleAvatar(
                               backgroundColor: ArucadColors.mist,
-                              backgroundImage:
-                                  (r.avatarUrl != null && r.avatarUrl!.isNotEmpty)
-                                      ? NetworkImage(r.avatarUrl!)
-                                      : null,
-                              child: (r.avatarUrl == null || r.avatarUrl!.isEmpty)
-                                  ? Text(r.name.isEmpty
-                                      ? '?'
-                                      : r.name.substring(0, 1))
+                              backgroundImage: (r.avatarUrl != null &&
+                                      r.avatarUrl!.isNotEmpty)
+                                  ? NetworkImage(r.avatarUrl!)
                                   : null,
+                              child:
+                                  (r.avatarUrl == null || r.avatarUrl!.isEmpty)
+                                      ? Text(r.name.isEmpty
+                                          ? '?'
+                                          : r.name.substring(0, 1))
+                                      : null,
                             ),
                             title: Text(r.name,
                                 style: const TextStyle(
@@ -381,8 +405,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                             .colorScheme
                                             .onSurface)),
                             subtitle: Text(item.subtitle,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis),
+                                maxLines: 2, overflow: TextOverflow.ellipsis),
                             trailing: Text(item.meta,
                                 style: const TextStyle(
                                     color: ArucadColors.muted, fontSize: 11)),

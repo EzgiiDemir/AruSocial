@@ -15,6 +15,15 @@ class ApiClient {
   /// (`INVALID_CREDENTIALS`) and must not trip this.
   static void Function(String code)? onSessionInvalid;
 
+  /// A moderation result that let the content through but still has
+  /// something to tell the author — `warned`, `review`, or `support`.
+  ///
+  /// Global for the same reason as [onSessionInvalid]: it arrives on an
+  /// ordinary success response from any endpoint, and expecting every call
+  /// site to remember to look for it is how the self-harm support message
+  /// went unseen in the first place.
+  static void Function(String status, String message)? onModerationNotice;
+
   static const _timeout = Duration(seconds: 20);
 
   /// `php artisan serve` on Windows is a single process (it cannot fork
@@ -203,6 +212,16 @@ class ApiClient {
     if (body is! Map<String, dynamic>) {
       throw ApiClientException('Unexpected response body format');
     }
+
+    final notice = (body['meta'] as Map<String, dynamic>?)?['moderation'];
+    if (notice is Map<String, dynamic>) {
+      final status = notice['status'] as String?;
+      final message = notice['message'] as String?;
+      if (status != null && message != null && message.isNotEmpty) {
+        onModerationNotice?.call(status, message);
+      }
+    }
+
     return body;
   }
 }

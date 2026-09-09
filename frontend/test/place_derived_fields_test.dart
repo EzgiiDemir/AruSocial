@@ -20,6 +20,7 @@ Map<String, dynamic> _placeJson({
   double rating = 0,
   String? coverUrl,
   int recentCheckins = 0,
+  int totalCheckins = 0,
 }) =>
     {
       'id': 'atelier',
@@ -37,6 +38,7 @@ Map<String, dynamic> _placeJson({
       'rating': rating,
       'coverUrl': coverUrl,
       'recentCheckins': recentCheckins,
+      'totalCheckins': totalCheckins,
     };
 
 void main() {
@@ -78,6 +80,7 @@ void main() {
                 rating: 4.5,
                 coverUrl: 'https://cdn.example/a.jpg',
                 recentCheckins: 8,
+                totalCheckins: 42,
               ),
             ])),
             200,
@@ -89,6 +92,7 @@ void main() {
       final places = await repo.getPlaces();
       expect(places.single.coverUrl, 'https://cdn.example/a.jpg');
       expect(places.single.recentCheckins, 8);
+      expect(places.single.totalCheckins, 42);
       expect(places.single.density, 'busy');
       expect(places.single.rating, 4.5);
     });

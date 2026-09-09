@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Api\Concerns\ApiResponds;
+use App\Http\Controllers\Api\Concerns\ModeratesContent;
 use App\Http\Controllers\Controller;
 use App\Events\CampusDataChanged;
 use App\Http\Requests\UpsertAdminEventRequest;
@@ -23,7 +24,7 @@ use Illuminate\Http\Request;
 
 class EventController extends Controller
 {
-    use ApiResponds;
+    use ApiResponds, ModeratesContent;
 
     private function eventToJson(Event $e): array
     {
@@ -58,6 +59,24 @@ class EventController extends Controller
     {
         $id = $request->input('id');
         $title = $request->input('title');
+
+        // Staff content is checked too. It reaches every student on campus
+        // at once, which makes a compromised or careless staff account the
+        // highest-reach path in the app — "authorised" describes who may
+        // publish, not that what they publish needs no checking.
+        //
+        // The engine was measured against real announcements first: notices
+        // about suicide prevention, weapons policy, drug awareness and
+        // phishing all pass (see PolicyCoverageTest), so this does not stop
+        // the university saying difficult things.
+        $announcement = trim(
+            (string) $title."\n".(string) $request->input('description', ''),
+        );
+        if ($blocked = $this->moderationBlock(
+            $this->currentUser(), $announcement, 'event', 'admin.event.upsert',
+        )) {
+            return $blocked;
+        }
 
         $placeId = $request->input('placeId');
         $eventDate = $request->input('eventDate');

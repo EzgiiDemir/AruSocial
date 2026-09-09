@@ -107,6 +107,19 @@ class CareerController extends Controller
         $profile = CareerProfile::firstOrNew(['user_id' => $me->id]);
 
         $occupation = $request->input('occupation', $request->input('headline'));
+
+        // Both fields are shown to other students on the career board, so
+        // they are public profile text and moderated as such — the same
+        // rule the social bio already follows.
+        $freeText = trim(
+            (string) $occupation."\n".(string) $request->input('expertise', ''),
+        );
+        if ($blocked = $this->moderationBlock(
+            $me, $freeText, 'profile', 'career.updateProfile',
+        )) {
+            return $blocked;
+        }
+
         if ($request->exists('occupation') || $request->exists('headline')) {
             $profile->headline = $occupation;
         }

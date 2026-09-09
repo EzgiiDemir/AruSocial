@@ -199,9 +199,16 @@ final class TextPolicyEngine
             // These phrases only *are* threats because they name the person
             // ("your face", "your address", "тебя найдём"), so the target is
             // built into the match rather than needing a separate pronoun.
-            'threat', 'threat_locator', 'weapon', 'sextortion' => $verdict(
+            // Escalation, not just removal: these need a human to look at
+            // the account, not a counter to tick over.
+            'threat', 'threat_locator', 'weapon', 'sextortion',
+            'minor_safety', 'terrorism', 'criminal_instructions' => $verdict(
                 ModerationVerdict::REMOVE_ESCALATE, 'S4',
             ),
+
+            // Deciding what is true is not a word list's job, so this goes
+            // to a moderator rather than being refused outright.
+            'misinformation' => $verdict(ModerationVerdict::REVIEW, 'S2'),
 
             // A student in crisis is not a rule-breaker. REVIEW publishes
             // nothing punitive and records no strike; the caller turns this
@@ -214,7 +221,8 @@ final class TextPolicyEngine
             'hate_group', 'wish_harm', 'blackmail', 'family_attack', 'sexual_harassment',
             'dehumanization', 'worthlessness', 'exclusion', 'appearance_attack',
             'ability_attack', 'dismissal', 'direct_insult', 'political',
-            'academic_dishonesty', 'scam_fraud', 'drug_sale', 'doxxing' => $verdict(
+            'academic_dishonesty', 'scam_fraud', 'drug_sale', 'doxxing',
+            'cybercrime', 'impersonation', 'piracy', 'animal_abuse' => $verdict(
                 ModerationVerdict::REMOVE, $hit['severity'],
             ),
             'intelligence_jab', 'taunt', 'content_profanity',
@@ -359,7 +367,12 @@ final class TextPolicyEngine
         }
 
         $parts = array_map(fn (string $anchor): string => preg_quote($anchor, '/'), $anchors);
-        $gap = '(?:\s+\S+){0,'.self::PHRASE_GAP_WORDS.'}\s+';
+
+        // `\S*` lets an anchor be a stem rather than a whole word. Turkish
+        // inflects at the end — "ben rektör" is written "ben rektörüm" —
+        // and requiring whitespace straight after the anchor meant the
+        // suffix broke the match: "ben rektörüm … para" found nothing.
+        $gap = '\S*(?:\s+\S+){0,'.self::PHRASE_GAP_WORDS.'}\s+';
 
         return (bool) preg_match('/'.implode($gap, $parts).'/u', $n->canonical);
     }

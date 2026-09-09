@@ -77,8 +77,15 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   }
 
   Future<void> _toggleSave() async {
-    final nowSaved = await widget.repository.toggleSavedPost(_post.id);
-    if (mounted) setState(() => _saved = nowSaved);
+    try {
+      final nowSaved = await widget.repository.toggleSavedPost(_post.id);
+      if (mounted) setState(() => _saved = nowSaved);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Kaydetme işlemi tamamlanamadı.')),
+      );
+    }
   }
 
   Future<void> _addComment() async {
@@ -128,8 +135,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       final place = placeMatchingLocationTag(places, tag);
       if (!context.mounted) return;
       if (place == null) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('"$tag" için eşleşen mekân bulunamadı.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('"$tag" için eşleşen mekân bulunamadı.')));
         return;
       }
       await Navigator.of(context).push(MaterialPageRoute(
@@ -162,156 +169,160 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       body: ColoredBox(
         color: Colors.white,
         child: Column(children: [
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-            children: [
-              GestureDetector(
-                onTap: post.official ? null : () => _openAuthorProfile(context),
-                child: Row(children: [
-                  CampusAvatar(
-                    name: post.name,
-                    avatarUrl: post.authorAvatarUrl,
-                    radius: 18,
-                    official: post.official,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(post.name,
-                              style:
-                                  const TextStyle(fontWeight: FontWeight.w900)),
-                          Text(
-                              formatRelativeTime(
-                                  post.createdAt ?? DateTime.now()),
-                              style: const TextStyle(
-                                  color: ArucadColors.muted, fontSize: 12)),
-                        ]),
-                  ),
-                ]),
-              ),
-              const SizedBox(height: 14),
-              if (post.text.isNotEmpty)
-                Text(post.displayText,
-                    style: const TextStyle(fontSize: 16, height: 1.4)),
-              if (post.imageBytes != null || post.imageUrl != null) ...[
-                const SizedBox(height: 12),
-                FeedPostMedia(
-                  maxWidth: 252,
-                  borderRadius: 16,
-                  imageUrl: post.imageUrl,
-                  imageBytes: post.imageBytes,
-                  mimeType: post.mediaMimeType,
-                ),
-              ],
-              if (post.locationTag != null || post.courseTag != null) ...[
-                const SizedBox(height: 10),
-                Wrap(spacing: 8, runSpacing: 8, children: [
-                  if (post.locationTag != null)
-                    _TagChip(
-                      icon: Icons.place_outlined,
-                      label: post.locationTag!,
-                      onTap: () =>
-                          _openLocationTag(context, post.locationTag!),
-                    ),
-                  if (post.courseTag != null)
-                    _TagChip(
-                        icon: Icons.menu_book_outlined, label: post.courseTag!),
-                ]),
-              ],
-              if (post.hashtags.isNotEmpty) ...[
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 6,
-                  children: [
-                    for (final tag in post.hashtags)
-                      Text('#$tag',
-                          style: const TextStyle(
-                              color: ArucadColors.blue,
-                              fontWeight: FontWeight.w700)),
-                  ],
-                ),
-              ],
-              const SizedBox(height: 16),
-              Row(children: [
-                InkWell(
-                  onTap: _like,
-                  borderRadius: BorderRadius.circular(999),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+              children: [
+                GestureDetector(
+                  onTap:
+                      post.official ? null : () => _openAuthorProfile(context),
                   child: Row(children: [
-                    Icon(
-                        post.likedByMe ? Icons.favorite : Icons.favorite_border,
-                        size: 22,
-                        color: post.likedByMe ? ArucadColors.danger : null),
-                    const SizedBox(width: 6),
-                    Text('${post.likes}'),
+                    CampusAvatar(
+                      name: post.name,
+                      avatarUrl: post.authorAvatarUrl,
+                      radius: 18,
+                      official: post.official,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(post.name,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w900)),
+                            Text(
+                                formatRelativeTime(
+                                    post.createdAt ?? DateTime.now()),
+                                style: const TextStyle(
+                                    color: ArucadColors.muted, fontSize: 12)),
+                          ]),
+                    ),
                   ]),
                 ),
-                const SizedBox(width: 22),
+                const SizedBox(height: 14),
+                if (post.text.isNotEmpty)
+                  Text(post.displayText,
+                      style: const TextStyle(fontSize: 16, height: 1.4)),
+                if (post.imageBytes != null || post.imageUrl != null) ...[
+                  const SizedBox(height: 12),
+                  FeedPostMedia(
+                    maxWidth: 252,
+                    borderRadius: 16,
+                    imageUrl: post.imageUrl,
+                    imageBytes: post.imageBytes,
+                    mimeType: post.mediaMimeType,
+                  ),
+                ],
+                if (post.locationTag != null || post.courseTag != null) ...[
+                  const SizedBox(height: 10),
+                  Wrap(spacing: 8, runSpacing: 8, children: [
+                    if (post.locationTag != null)
+                      _TagChip(
+                        icon: Icons.place_outlined,
+                        label: post.locationTag!,
+                        onTap: () =>
+                            _openLocationTag(context, post.locationTag!),
+                      ),
+                    if (post.courseTag != null)
+                      _TagChip(
+                          icon: Icons.menu_book_outlined,
+                          label: post.courseTag!),
+                  ]),
+                ],
+                if (post.hashtags.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 6,
+                    children: [
+                      for (final tag in post.hashtags)
+                        Text('#$tag',
+                            style: const TextStyle(
+                                color: ArucadColors.blue,
+                                fontWeight: FontWeight.w700)),
+                    ],
+                  ),
+                ],
+                const SizedBox(height: 16),
                 Row(children: [
-                  const Icon(Icons.mode_comment_outlined, size: 20),
-                  const SizedBox(width: 6),
-                  Text('${post.comments.length}'),
+                  InkWell(
+                    onTap: _like,
+                    borderRadius: BorderRadius.circular(999),
+                    child: Row(children: [
+                      Icon(
+                          post.likedByMe
+                              ? Icons.favorite
+                              : Icons.favorite_border,
+                          size: 22,
+                          color: post.likedByMe ? ArucadColors.danger : null),
+                      const SizedBox(width: 6),
+                      Text('${post.likes}'),
+                    ]),
+                  ),
+                  const SizedBox(width: 22),
+                  Row(children: [
+                    const Icon(Icons.mode_comment_outlined, size: 20),
+                    const SizedBox(width: 6),
+                    Text('${post.comments.length}'),
+                  ]),
+                  const Spacer(),
+                  InkWell(
+                    onTap: _toggleSave,
+                    borderRadius: BorderRadius.circular(999),
+                    child: Icon(_saved ? Icons.bookmark : Icons.bookmark_border,
+                        size: 22, color: _saved ? ArucadColors.blue : null),
+                  ),
                 ]),
-                const Spacer(),
-                InkWell(
-                  onTap: _toggleSave,
-                  borderRadius: BorderRadius.circular(999),
-                  child: Icon(_saved ? Icons.bookmark : Icons.bookmark_border,
-                      size: 22, color: _saved ? ArucadColors.blue : null),
+                const Divider(height: 32),
+                Text(
+                    '${strings.t('social_comments_label')} (${post.comments.length})',
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w900, fontSize: 15)),
+                const SizedBox(height: 10),
+                if (post.comments.isEmpty)
+                  Text(strings.t('social_no_comments_yet'),
+                      style: const TextStyle(color: ArucadColors.muted))
+                else
+                  for (final c in post.comments)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 14),
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(c.author,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w800)),
+                            const SizedBox(height: 2),
+                            Text(c.text),
+                            const SizedBox(height: 2),
+                            Text(c.meta,
+                                style: const TextStyle(
+                                    color: ArucadColors.muted, fontSize: 11)),
+                          ]),
+                    ),
+              ],
+            ),
+          ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+              child: Row(children: [
+                Expanded(
+                  child: TextField(
+                    controller: _commentController,
+                    decoration: InputDecoration(
+                        hintText: strings.t('social_write_comment')),
+                    onSubmitted: (_) => _addComment(),
+                  ),
+                ),
+                IconButton(
+                  onPressed: _addComment,
+                  icon: const Icon(Icons.send, color: ArucadColors.blue),
                 ),
               ]),
-              const Divider(height: 32),
-              Text(
-                  '${strings.t('social_comments_label')} (${post.comments.length})',
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w900, fontSize: 15)),
-              const SizedBox(height: 10),
-              if (post.comments.isEmpty)
-                Text(strings.t('social_no_comments_yet'),
-                    style: const TextStyle(color: ArucadColors.muted))
-              else
-                for (final c in post.comments)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 14),
-                    child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(c.author,
-                              style:
-                                  const TextStyle(fontWeight: FontWeight.w800)),
-                          const SizedBox(height: 2),
-                          Text(c.text),
-                          const SizedBox(height: 2),
-                          Text(c.meta,
-                              style: const TextStyle(
-                                  color: ArucadColors.muted, fontSize: 11)),
-                        ]),
-                  ),
-            ],
+            ),
           ),
-        ),
-        SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-            child: Row(children: [
-              Expanded(
-                child: TextField(
-                  controller: _commentController,
-                  decoration: InputDecoration(
-                      hintText: strings.t('social_write_comment')),
-                  onSubmitted: (_) => _addComment(),
-                ),
-              ),
-              IconButton(
-                onPressed: _addComment,
-                icon: const Icon(Icons.send, color: ArucadColors.blue),
-              ),
-            ]),
-          ),
-        ),
-      ]),
+        ]),
       ),
     );
   }

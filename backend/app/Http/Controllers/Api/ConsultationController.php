@@ -53,6 +53,16 @@ class ConsultationController extends Controller
             return $this->fail(409, 'APPLICATION_EXISTS', 'You already applied to this consultation.');
         }
 
+        // Reaches a counsellor as free text, so it is moderated like any
+        // other message. Self-harm wording here routes to support rather
+        // than a strike, which matters more on this endpoint than most.
+        $notes = (string) $request->input('notes', '');
+        if ($blocked = $this->moderationBlock(
+            $me, $notes, 'consultation', 'consultation.apply',
+        )) {
+            return $blocked;
+        }
+
         $app = ConsultationApplication::create([
             'id' => 'consapp-'.Str::uuid(),
             'user_id' => $me->id,

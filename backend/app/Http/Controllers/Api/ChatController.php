@@ -278,6 +278,13 @@ class ChatController extends Controller
             return $this->fail(400, 'VALIDATION', 'reason is required.');
         }
 
+        // A report is free text a moderator will read. Reporting is exactly
+        // the channel someone reaches for to abuse the person they are
+        // reporting, so the reason is moderated like any other message.
+        if ($blocked = $this->moderationBlock($me, $reason, 'report', 'chat.reportGroup')) {
+            return $blocked;
+        }
+
         ModerationReport::create([
             'id' => $this->newId('report'),
             'kind' => 'chat_group',

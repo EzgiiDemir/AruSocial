@@ -30,67 +30,24 @@ class ComposeStoryResult {
   });
 }
 
-/// Full swatch set — background palette and text color share these.
+/// ARUCAD brand swatches — background palette and text color share these.
 const _colorSwatches = <Color>[
-  Color(0xFFFFFFFF),
-  Color(0xFFF5F5F5),
-  Color(0xFF111111),
-  Color(0xFF1A1A2E),
-  Color(0xFF2D3436),
-  ArucadColors.yellow,
-  ArucadColors.orange,
+  ArucadColors.paper,
+  ArucadColors.canvas,
+  ArucadColors.ink,
+  ArucadColors.primary,
   ArucadColors.red,
-  ArucadColors.blue,
+  ArucadColors.yellow,
   ArucadColors.campusGreen,
-  ArucadColors.lavender,
-  Color(0xFFE91E63),
-  Color(0xFF9C27B0),
-  Color(0xFF673AB7),
-  Color(0xFF3F51B5),
-  Color(0xFF03A9F4),
-  Color(0xFF00BCD4),
-  Color(0xFF009688),
-  Color(0xFF4CAF50),
-  Color(0xFF8BC34A),
-  Color(0xFFCDDC39),
-  Color(0xFFFFEB3B),
-  Color(0xFFFFC107),
-  Color(0xFFFF9800),
-  Color(0xFFFF5722),
-  Color(0xFF795548),
-  Color(0xFF607D8B),
-  Color(0xFFB71C1C),
-  Color(0xFF0D47A1),
-  Color(0xFF1B5E20),
-  Color(0xFF4A148C),
-  Color(0xFFFCE4EC),
-  Color(0xFFE3F2FD),
-  Color(0xFFE8F5E9),
-  Color(0xFFFFF8E1),
-  Color(0xFFF3E5F5),
 ];
 
 const _gradientPresets = <List<Color>>[
-  [Color(0xFF667EEA), Color(0xFF764BA2)],
-  [Color(0xFFF093FB), Color(0xFFF5576C)],
-  [Color(0xFF4FACFE), Color(0xFF00F2FE)],
-  [Color(0xFF43E97B), Color(0xFF38F9D7)],
-  [Color(0xFFFA709A), Color(0xFFFEE140)],
-  [Color(0xFF30CFD0), Color(0xFF330867)],
-  [Color(0xFF000F9F), Color(0xFFEA0029)],
-  [Color(0xFF111111), Color(0xFF5B6472)],
-  [Color(0xFFFF512F), Color(0xFFDD2476)],
-  [Color(0xFF2193B0), Color(0xFF6DD5ED)],
-  [Color(0xFFCC2B5E), Color(0xFF753A88)],
-  [Color(0xFFEE9CA7), Color(0xFFFFDDE1)],
-  [Color(0xFF11998E), Color(0xFF38EF7D)],
-  [Color(0xFFFC5C7D), Color(0xFF6A82FB)],
-  [Color(0xFFC6FFDD), Color(0xFFFBD786), Color(0xFFF7797D)],
-  [Color(0xFF0F2027), Color(0xFF203A43), Color(0xFF2C5364)],
-  [Color(0xFFFFE259), Color(0xFFFFA751)],
-  [Color(0xFF8E2DE2), Color(0xFF4A00E0)],
-  [Color(0xFF00B09B), Color(0xFF96C93D)],
-  [Color(0xFFE52D27), Color(0xFFB31217)],
+  [ArucadColors.primary, ArucadColors.red],
+  [ArucadColors.primary, ArucadColors.campusGreen],
+  [ArucadColors.primary, ArucadColors.yellow],
+  [ArucadColors.red, ArucadColors.yellow],
+  [ArucadColors.campusGreen, ArucadColors.yellow],
+  [ArucadColors.ink, ArucadColors.primary],
 ];
 
 const _fontOptions = <(String, String)>[
@@ -139,7 +96,7 @@ class _ComposeStorySheetState extends State<_ComposeStorySheet> {
   PostVisibility _visibility = PostVisibility.everyone;
 
   bool _useGradient = false;
-  Color _solidColor = _colorSwatches[8];
+  Color _solidColor = ArucadColors.primary;
   List<Color> _gradientColors = List.of(_gradientPresets.first);
 
   Color _textColor = Colors.white;
@@ -183,8 +140,7 @@ class _ComposeStorySheetState extends State<_ComposeStorySheet> {
     }
   }
 
-  Color get _activeSolid =>
-      _useGradient ? _gradientColors.first : _solidColor;
+  Color get _activeSolid => _useGradient ? _gradientColors.first : _solidColor;
 
   Map<String, dynamic> _buildStyle() {
     return {
@@ -305,8 +261,8 @@ class _ComposeStorySheetState extends State<_ComposeStorySheet> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(strings.t('social_new_story'),
-                style: const TextStyle(
-                    fontWeight: FontWeight.w900, fontSize: 18)),
+                style:
+                    const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
             const SizedBox(height: 14),
             if (isPhoto) ...[
               FramedMediaPreview(
@@ -383,7 +339,8 @@ class _ComposeStorySheetState extends State<_ComposeStorySheet> {
                       avatar: const Icon(Icons.place_outlined, size: 16),
                       label: Text(_locationController.text.trim(),
                           maxLines: 1, overflow: TextOverflow.ellipsis),
-                      onDeleted: () => setState(() => _locationController.clear()),
+                      onDeleted: () =>
+                          setState(() => _locationController.clear()),
                     ),
                   for (final name in _taggedPeople)
                     InputChip(
@@ -448,7 +405,8 @@ class _ComposeStorySheetState extends State<_ComposeStorySheet> {
                   _StoryTool.place => _PlacePanel(
                       controller: _locationController,
                       onDetect: _resolveLocation,
-                      onClear: () => setState(() => _locationController.clear()),
+                      onClear: () =>
+                          setState(() => _locationController.clear()),
                       onChanged: (_) => setState(() {}),
                     ),
                 },
@@ -456,8 +414,8 @@ class _ComposeStorySheetState extends State<_ComposeStorySheet> {
             ],
             const SizedBox(height: 14),
             Text(strings.t('social_visibility'),
-                style: const TextStyle(
-                    fontWeight: FontWeight.w700, fontSize: 12)),
+                style:
+                    const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
             const SizedBox(height: 6),
             AudienceChips(
               value: _visibility,
@@ -566,8 +524,8 @@ class _ColorGrid extends StatelessWidget {
             onTap: () => onPick(color),
             child: _SwatchCircle(
               color: color,
-              selected: selected != null &&
-                  selected!.toARGB32() == color.toARGB32(),
+              selected:
+                  selected != null && selected!.toARGB32() == color.toARGB32(),
             ),
           ),
       ],
@@ -802,9 +760,8 @@ class _SwatchCircle extends StatelessWidget {
       child: selected
           ? Icon(Icons.check,
               size: 14,
-              color: color.computeLuminance() > 0.55
-                  ? Colors.black
-                  : Colors.white)
+              color:
+                  color.computeLuminance() > 0.55 ? Colors.black : Colors.white)
           : null,
     );
   }
@@ -828,21 +785,32 @@ TextStyle storyTextStyleFromMap(Map<String, dynamic>? style) {
     'serif' => ('Georgia', const ['serif', 'Times New Roman', 'Times']),
     'mono' => ('Courier New', const ['monospace', 'Courier']),
     'sans' => ('Roboto', const ['Arial', 'Helvetica', 'sans-serif']),
-    'display' => ('Impact', const ['Haettenschweiler', 'Arial Black', 'sans-serif']),
+    'display' => (
+        'Impact',
+        const ['Haettenschweiler', 'Arial Black', 'sans-serif']
+      ),
     'condensed' => (
         'Arial Narrow',
         const ['Roboto Condensed', 'Helvetica Condensed', 'sans-serif']
       ),
     'rounded' => (
         'Nunito',
-        const ['Segoe UI', 'SF Pro Rounded', 'Arial Rounded MT Bold', 'sans-serif']
+        const [
+          'Segoe UI',
+          'SF Pro Rounded',
+          'Arial Rounded MT Bold',
+          'sans-serif'
+        ]
       ),
     'hand' => (
         'Segoe Print',
         const ['Comic Sans MS', 'Bradley Hand', 'cursive']
       ),
     'slab' => ('Rockwell', const ['Roboto Slab', 'Courier New', 'serif']),
-    'classic' => ('Palatino Linotype', const ['Palatino', 'Book Antiqua', 'serif']),
+    'classic' => (
+        'Palatino Linotype',
+        const ['Palatino', 'Book Antiqua', 'serif']
+      ),
     'modern' => ('Futura', const ['Century Gothic', 'Avenir', 'sans-serif']),
     _ => ('Montserrat', null),
   };

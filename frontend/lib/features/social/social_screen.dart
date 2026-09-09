@@ -24,7 +24,12 @@ import 'package:arucad_campus_prototype/features/widgets/campus_network_image.da
 import 'package:arucad_campus_prototype/features/widgets/campus_avatar.dart';
 import 'package:arucad_campus_prototype/features/widgets/campus_widgets.dart';
 import 'package:arucad_campus_prototype/features/widgets/feed_post_media.dart';
+
 const _apiPageSize = 20;
+const _socialBlue = ArucadColors.primary;
+const _socialBackground = ArucadColors.canvas;
+const _socialBorder = ArucadColors.border;
+const _socialSecondary = ArucadColors.muted;
 
 enum _FeedFilter { forYou, following, official, campus, courses, events }
 
@@ -225,11 +230,13 @@ class _SocialScreenState extends State<SocialScreen> {
     final strings = AppLocale.of(context);
 
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: _socialBackground,
       floatingActionButton: FloatingActionButton.extended(
         heroTag: 'social-home-compose-fab',
-        backgroundColor: ArucadColors.primary,
+        backgroundColor: _socialBlue,
         foregroundColor: Colors.white,
+        elevation: 8,
+        shape: const StadiumBorder(),
         onPressed: () => _compose(context),
         icon: Icon(Icons.add),
         label: Text(strings.t('social_share')),
@@ -262,7 +269,7 @@ class _SocialScreenState extends State<SocialScreen> {
                     ),
                     IconButton(
                       tooltip: strings.t('social_notifications'),
-                      icon: const Icon(Icons.favorite_border),
+                      icon: const Icon(Icons.notifications_none_rounded),
                       onPressed: () => Navigator.of(context).push(
                           MaterialPageRoute(
                               builder: (_) => NotificationsScreen(
@@ -271,41 +278,35 @@ class _SocialScreenState extends State<SocialScreen> {
                   ]),
                 ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-                child: TextField(
-                  controller: _searchController,
-                  onChanged: (value) => setState(() => _query = value),
-                  decoration: InputDecoration(
-                    hintText: AppLocale.of(context).t('sf_search_hint'),
-                    prefixIcon: const Icon(Icons.search,
-                        size: 19, color: ArucadColors.muted),
-                    suffixIcon: _query.isEmpty
-                        ? null
-                        : IconButton(
-                            tooltip: AppLocale.of(context).t('sf_clear_search'),
-                            icon: const Icon(Icons.close, size: 18),
-                            onPressed: () {
-                              _searchController.clear();
-                              setState(() => _query = '');
-                            },
-                          ),
-                    isDense: true,
-                    filled: true,
-                    fillColor: ArucadColors.paper,
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 12),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(ArucadRadius.pill),
-                      borderSide: BorderSide.none,
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(ArucadRadius.pill),
-                      borderSide: BorderSide.none,
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(ArucadRadius.pill),
-                      borderSide: const BorderSide(
-                          color: ArucadColors.ink, width: 1.2),
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
+                child: SizedBox(
+                  height: 52,
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: (value) => setState(() => _query = value),
+                    decoration: InputDecoration(
+                      hintText: AppLocale.of(context).t('sf_search_hint'),
+                      hintStyle: const TextStyle(color: _socialSecondary),
+                      prefixIcon: const Icon(Icons.search_rounded,
+                          size: 23, color: _socialSecondary),
+                      suffixIcon: _query.isEmpty
+                          ? null
+                          : IconButton(
+                              tooltip:
+                                  AppLocale.of(context).t('sf_clear_search'),
+                              icon: const Icon(Icons.close, size: 18),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() => _query = '');
+                              },
+                            ),
+                      filled: true,
+                      fillColor: ArucadColors.paper,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                      border: _searchBorder(),
+                      enabledBorder: _searchBorder(),
+                      focusedBorder:
+                          _searchBorder(color: _socialBlue, width: 1.4),
                     ),
                   ),
                 ),
@@ -317,6 +318,15 @@ class _SocialScreenState extends State<SocialScreen> {
       ),
     );
   }
+
+  OutlineInputBorder _searchBorder({
+    Color color = _socialBorder,
+    double width = 1,
+  }) =>
+      OutlineInputBorder(
+        borderRadius: BorderRadius.circular(999),
+        borderSide: BorderSide(color: color, width: width),
+      );
 
   Widget _buildFeed(BuildContext context) {
     final strings = AppLocale.of(context);
@@ -335,7 +345,7 @@ class _SocialScreenState extends State<SocialScreen> {
           return false;
         },
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 90),
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 96),
           children: [
             if (!_loading)
               _StoriesBar(
@@ -343,32 +353,16 @@ class _SocialScreenState extends State<SocialScreen> {
                 viewedIds: _viewedStories,
                 onAddStory: () => _addStory(context),
                 onOpenStory: (index) => _openStory(context, index),
+                onOpenTrends: () =>
+                    setState(() => _filter = _FeedFilter.campus),
               ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
             if (!_loading)
-              SizedBox(
-                height: 34,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  children: [
-                    for (final entry in {
-                      _FeedFilter.forYou: 'Akış',
-                      _FeedFilter.following: 'Takip Ettiklerim',
-                    }.entries)
-                      Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: SelectableChip(
-                          label: entry.value,
-                          selected: _filter == entry.key,
-                          onSelected: (_) => setState(() {
-                            _filter = entry.key;
-                          }),
-                        ),
-                      ),
-                  ],
-                ),
+              _FeedControls(
+                selected: _filter,
+                onSelected: (value) => setState(() => _filter = value),
               ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 14),
             if (_loading)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 30),
@@ -408,8 +402,8 @@ class _SocialScreenState extends State<SocialScreen> {
                         _openProfile(context, filtered[i].name),
                     onLocationTag: filtered[i].locationTag == null
                         ? null
-                        : () => _openLocationTag(
-                            context, filtered[i].locationTag!),
+                        : () =>
+                            _openLocationTag(context, filtered[i].locationTag!),
                     showPeerActions:
                         !filtered[i].official && filtered[i].name != _myName,
                     isOwn: !filtered[i].official && filtered[i].name == _myName,
@@ -482,15 +476,22 @@ class _SocialScreenState extends State<SocialScreen> {
   }
 
   Future<void> _toggleSave(String postId) async {
-    final nowSaved = await widget.repository.toggleSavedPost(postId);
-    if (!mounted) return;
-    setState(() {
-      if (nowSaved) {
-        _saved.add(postId);
-      } else {
-        _saved.remove(postId);
-      }
-    });
+    try {
+      final nowSaved = await widget.repository.toggleSavedPost(postId);
+      if (!mounted) return;
+      setState(() {
+        if (nowSaved) {
+          _saved.add(postId);
+        } else {
+          _saved.remove(postId);
+        }
+      });
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Kaydetme işlemi tamamlanamadı.')),
+      );
+    }
   }
 
   Future<void> _openDetail(BuildContext context, FeedPost post) async {
@@ -511,8 +512,8 @@ class _SocialScreenState extends State<SocialScreen> {
       final place = placeMatchingLocationTag(places, tag);
       if (!context.mounted) return;
       if (place == null) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('"$tag" için eşleşen mekân bulunamadı.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('"$tag" için eşleşen mekân bulunamadı.')));
         return;
       }
       await Navigator.of(context).push(MaterialPageRoute(
@@ -565,6 +566,9 @@ class _SocialScreenState extends State<SocialScreen> {
           _following.remove(name);
         }
       });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Takip işlemi tamamlanamadı.')),
+      );
     }
   }
 
@@ -604,6 +608,9 @@ class _SocialScreenState extends State<SocialScreen> {
           _following.remove(name);
         }
       });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Engelleme işlemi tamamlanamadı.')),
+      );
     }
   }
 
@@ -624,16 +631,22 @@ class _SocialScreenState extends State<SocialScreen> {
               try {
                 await widget.repository.markStoryViewed(story.id);
               } catch (_) {
-                // Best-effort: worst case the story shows unseen again on
-                // the next load, it is never reported as something else.
+                if (!mounted) return;
+                setState(() => _viewedStories = {
+                      ..._viewedStories.where((id) => id != story.id),
+                    });
+                ScaffoldMessenger.of(this.context).showSnackBar(
+                  const SnackBar(
+                      content: Text('Hikâye görüntülenmesi kaydedilemedi.')),
+                );
               }
             }),
         fullscreenDialog: true));
   }
 
   Future<void> _addStory(BuildContext context) async {
-    final result = await showComposeStorySheet(context,
-        repository: widget.repository);
+    final result =
+        await showComposeStorySheet(context, repository: widget.repository);
     if (result == null) return;
     final text = result.text?.trim();
     if ((text == null || text.isEmpty) && result.imageBytes == null) return;
@@ -645,9 +658,8 @@ class _SocialScreenState extends State<SocialScreen> {
       await widget.repository.addStory(
         text: result.imageBytes == null ? text : null,
         imageBytes: result.imageBytes,
-        backgroundColorValue: result.imageBytes == null
-            ? result.backgroundColorValue
-            : null,
+        backgroundColorValue:
+            result.imageBytes == null ? result.backgroundColorValue : null,
         style: result.imageBytes == null ? result.style : null,
         visibility: result.visibility,
       );
@@ -655,6 +667,12 @@ class _SocialScreenState extends State<SocialScreen> {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(e.reason)));
+      return;
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Hikâye paylaşılamadı.')),
+      );
       return;
     }
     if (!mounted) return;
@@ -688,8 +706,8 @@ class _SocialScreenState extends State<SocialScreen> {
               children: [
                 Text(
                     '${strings.t('social_comments_label')} (${comments.length})',
-                    style: TextStyle(
-                        fontWeight: FontWeight.w900, fontSize: 16)),
+                    style:
+                        TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
                 const SizedBox(height: 10),
                 if (comments.isEmpty)
                   Padding(
@@ -828,10 +846,17 @@ class _SocialScreenState extends State<SocialScreen> {
       ),
     );
     if (ok != true) return;
-    await widget.repository.reportPost(post.id, selected);
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(strings.t('social_report_sent'))));
+    try {
+      await widget.repository.reportPost(post.id, selected);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(strings.t('social_report_sent'))));
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Şikâyet gönderilemedi.')),
+      );
+    }
   }
 
   Future<void> _editPost(BuildContext context, FeedPost post) async {
@@ -843,7 +868,8 @@ class _SocialScreenState extends State<SocialScreen> {
         content: TextField(controller: textC, maxLines: 5, autofocus: true),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx), child: Text(AppLocale.of(context).t('act_cancel'))),
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(AppLocale.of(context).t('act_cancel'))),
           FilledButton(
               onPressed: () => Navigator.pop(ctx, textC.text.trim()),
               child: Text(AppLocale.of(context).t('act_save'))),
@@ -861,6 +887,11 @@ class _SocialScreenState extends State<SocialScreen> {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(e.reason)));
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Gönderi güncellenemedi.')),
+      );
     }
   }
 
@@ -881,15 +912,31 @@ class _SocialScreenState extends State<SocialScreen> {
       ),
     );
     if (ok != true) return;
-    await widget.repository.deletePost(post.id);
-    if (!mounted) return;
-    setState(() => _posts = _posts.where((p) => p.id != post.id).toList());
+    try {
+      await widget.repository.deletePost(post.id);
+      if (!mounted) return;
+      setState(() => _posts = _posts.where((p) => p.id != post.id).toList());
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Gönderi silinemedi.')),
+      );
+    }
   }
 
   Future<void> _deleteStory(CampusStory story) async {
-    await widget.repository.deleteStory(story.id);
-    if (!mounted) return;
-    setState(() => _stories = _stories.where((s) => s.id != story.id).toList());
+    try {
+      await widget.repository.deleteStory(story.id);
+      if (!mounted) return;
+      setState(
+          () => _stories = _stories.where((s) => s.id != story.id).toList());
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Hikâye silinemedi.')),
+      );
+      rethrow;
+    }
   }
 
   Future<void> _togglePin(FeedPost post) async {
@@ -916,33 +963,156 @@ class _SocialScreenState extends State<SocialScreen> {
   }
 }
 
+class _FeedControls extends StatelessWidget {
+  final _FeedFilter selected;
+  final ValueChanged<_FeedFilter> onSelected;
+
+  const _FeedControls({required this.selected, required this.onSelected});
+
+  String get _categoryLabel => switch (selected) {
+        _FeedFilter.official => 'Resmî',
+        _FeedFilter.campus => 'Kampüs',
+        _FeedFilter.courses => 'Dersler',
+        _FeedFilter.events => 'Etkinlikler',
+        _ => 'Tümü',
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(children: [
+      Expanded(
+        child: Container(
+          height: 52,
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: ArucadColors.mist,
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Row(children: [
+            _segment('Akış', _FeedFilter.forYou),
+            _segment('Takip Ettiklerim', _FeedFilter.following),
+          ]),
+        ),
+      ),
+      const SizedBox(width: 10),
+      PopupMenuButton<_FeedFilter>(
+        tooltip: 'İçerik türü',
+        color: ArucadColors.paper,
+        surfaceTintColor: Colors.transparent,
+        elevation: 10,
+        position: PopupMenuPosition.under,
+        offset: const Offset(0, 6),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: const BorderSide(color: ArucadColors.border),
+        ),
+        onSelected: onSelected,
+        itemBuilder: (_) => [
+          for (final entry in const [
+            (_FeedFilter.forYou, 'Tümü', Icons.grid_view_rounded),
+            (_FeedFilter.official, 'Resmî', Icons.verified_rounded),
+            (_FeedFilter.campus, 'Kampüs', Icons.apartment_rounded),
+            (_FeedFilter.courses, 'Dersler', Icons.menu_book_rounded),
+            (_FeedFilter.events, 'Etkinlikler', Icons.event_rounded),
+          ])
+            PopupMenuItem(
+              value: entry.$1,
+              child: Row(children: [
+                Icon(entry.$3,
+                    size: 19,
+                    color: selected == entry.$1
+                        ? ArucadColors.primary
+                        : ArucadColors.muted),
+                const SizedBox(width: 10),
+                Text(entry.$2,
+                    style: TextStyle(
+                      color: ArucadColors.ink,
+                      fontWeight: selected == entry.$1
+                          ? FontWeight.w800
+                          : FontWeight.w600,
+                    )),
+              ]),
+            ),
+        ],
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 44, minWidth: 82),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: ArucadColors.paper,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: ArucadColors.border),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Text(_categoryLabel,
+                style: const TextStyle(
+                    color: ArucadColors.ink,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700)),
+            const SizedBox(width: 3),
+            const Icon(Icons.keyboard_arrow_down_rounded,
+                size: 20, color: ArucadColors.primary),
+          ]),
+        ),
+      ),
+    ]);
+  }
+
+  Widget _segment(String label, _FeedFilter value) {
+    final active = selected == value;
+    return Expanded(
+      child: Material(
+        color: active ? _socialBlue : Colors.transparent,
+        borderRadius: BorderRadius.circular(999),
+        child: InkWell(
+          onTap: () => onSelected(value),
+          borderRadius: BorderRadius.circular(999),
+          child: Center(
+            child: Text(label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: active ? Colors.white : ArucadColors.ink,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                )),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _StoriesBar extends StatelessWidget {
   final List<CampusStory> stories;
   final Set<String> viewedIds;
   final VoidCallback onAddStory;
   final ValueChanged<int> onOpenStory;
+  final VoidCallback onOpenTrends;
 
   const _StoriesBar(
       {required this.stories,
       required this.viewedIds,
       required this.onAddStory,
-      required this.onOpenStory});
+      required this.onOpenStory,
+      required this.onOpenTrends});
 
   @override
   Widget build(BuildContext context) {
     final strings = AppLocale.of(context);
     return SizedBox(
-      height: 92,
+      height: 106,
       child: ListView(
         scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
         children: [
           _StoryBubble(
             label: strings.t('social_new_story'),
             onTap: onAddStory,
             child: Container(
-              decoration: const BoxDecoration(
-                  color: ArucadColors.mist, shape: BoxShape.circle),
-              child: const Icon(Icons.add, color: ArucadColors.ink),
+              decoration: BoxDecoration(
+                  color: ArucadColors.primary.withValues(alpha: .10),
+                  shape: BoxShape.circle),
+              child: const Icon(Icons.add, color: ArucadColors.primary),
             ),
           ),
           for (var i = 0; i < stories.length; i++)
@@ -971,6 +1141,18 @@ class _StoriesBar extends StatelessWidget {
                               color: Colors.white),
                         ),
             ),
+          _StoryBubble(
+            label: 'Trendler',
+            onTap: onOpenTrends,
+            child: Container(
+              decoration: BoxDecoration(
+                color: ArucadColors.yellow.withValues(alpha: .14),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.tag_rounded,
+                  color: ArucadColors.yellow, size: 30),
+            ),
+          ),
         ],
       ),
     );
@@ -995,36 +1177,34 @@ class _StoryBubble extends StatelessWidget {
   Widget build(BuildContext context) => GestureDetector(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.only(right: 12),
+          padding: const EdgeInsets.only(right: 14),
           child: Opacity(
             opacity: viewed ? 0.45 : 1,
             child: Column(children: [
               Container(
-                width: 60,
-                height: 60,
-                padding: EdgeInsets.all(2.5),
+                width: 68,
+                height: 68,
+                padding: const EdgeInsets.all(3),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(
                     color: ring
-                        ? (viewed
-                            ? ArucadColors.muted
-                            : ArucadColors.ink)
-                        : ArucadColors.mist,
-                    width: ring ? 2.2 : 2,
+                        ? (viewed ? ArucadColors.muted : _socialBlue)
+                        : ArucadColors.primary.withValues(alpha: .12),
+                    width: ring ? 2.5 : 2,
                   ),
                 ),
                 child: ClipOval(child: child),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 6),
               SizedBox(
-                width: 64,
+                width: 76,
                 child: Text(label,
                     textAlign: TextAlign.center,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                        fontSize: 11,
+                        fontSize: 11.5,
                         color: viewed ? ArucadColors.muted : null)),
               ),
             ]),
@@ -1095,8 +1275,7 @@ class _StoryViewerScreenState extends State<_StoryViewerScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('Görenler (${viewers.length})',
-                  style: TextStyle(
-                      fontWeight: FontWeight.w900, fontSize: 16)),
+                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
               const SizedBox(height: 12),
               if (viewers.isEmpty)
                 Padding(
@@ -1113,12 +1292,11 @@ class _StoryViewerScreenState extends State<_StoryViewerScreen> {
                           dense: true,
                           leading: CircleAvatar(
                             radius: 16,
-                            backgroundImage: (v.avatarUrl != null &&
-                                    v.avatarUrl!.isNotEmpty)
-                                ? NetworkImage(v.avatarUrl!)
-                                : null,
-                            child: (v.avatarUrl == null ||
-                                    v.avatarUrl!.isEmpty)
+                            backgroundImage:
+                                (v.avatarUrl != null && v.avatarUrl!.isNotEmpty)
+                                    ? NetworkImage(v.avatarUrl!)
+                                    : null,
+                            child: (v.avatarUrl == null || v.avatarUrl!.isEmpty)
                                 ? Text(v.name.isEmpty
                                     ? '?'
                                     : v.name.substring(0, 1).toUpperCase())
@@ -1263,8 +1441,8 @@ class _StoryViewerScreenState extends State<_StoryViewerScreen> {
                   Text('ile · ${tagged.join(', ')}',
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          color: Colors.white70, fontSize: 12)),
+                      style:
+                          const TextStyle(color: Colors.white70, fontSize: 12)),
                 ],
               ],
             );
@@ -1278,7 +1456,8 @@ class _StoryViewerScreenState extends State<_StoryViewerScreen> {
               IconButton(
                 tooltip: AppLocale.of(context).t('sf_viewers'),
                 onPressed: _showViewers,
-                icon: const Icon(Icons.visibility_outlined, color: Colors.white),
+                icon:
+                    const Icon(Icons.visibility_outlined, color: Colors.white),
               ),
             if (widget.onDelete != null && _isOwnCurrent)
               IconButton(
@@ -1311,7 +1490,11 @@ class _StoryViewerScreenState extends State<_StoryViewerScreen> {
       ),
     );
     if (ok != true) return;
-    await widget.onDelete?.call(widget.stories[_index]);
+    try {
+      await widget.onDelete?.call(widget.stories[_index]);
+    } catch (_) {
+      return;
+    }
     if (mounted) Navigator.of(context).pop();
   }
 }
@@ -1359,15 +1542,19 @@ class _PostCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Card(
+        margin: EdgeInsets.zero,
         clipBehavior: Clip.antiAlias,
         surfaceTintColor: Colors.transparent,
-        shadowColor: Colors.transparent,
-        elevation: 0,
-        shape: post.official
-            ? RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(18),
-                side: const BorderSide(color: ArucadColors.primary, width: 1))
-            : null,
+        color: Colors.white,
+        shadowColor: const Color(0x16111827),
+        elevation: 2,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(22),
+          side: BorderSide(
+            color: post.official ? _socialBlue : _socialBorder,
+            width: post.official ? 1.2 : 1,
+          ),
+        ),
         child: InkWell(
           onTap: onOpen,
           hoverColor: Colors.transparent,
@@ -1384,7 +1571,7 @@ class _PostCard extends StatelessWidget {
                   child: CampusAvatar(
                     name: post.name,
                     avatarUrl: post.authorAvatarUrl,
-                    radius: 18,
+                    radius: 24,
                     official: post.official,
                   ),
                 ),
@@ -1409,8 +1596,7 @@ class _PostCard extends StatelessWidget {
                             color: categoryAccent(post.postType.name)
                                 .withValues(alpha: .18),
                             borderRadius: BorderRadius.circular(999)),
-                        child: Text(
-                            post.postType.label(AppLocale.of(context)),
+                        child: Text(post.postType.label(AppLocale.of(context)),
                             style: const TextStyle(
                                 fontSize: 10, fontWeight: FontWeight.w800)),
                       ),
@@ -1499,7 +1685,8 @@ class _PostCard extends StatelessWidget {
                       ],
                       if (isOwn) ...[
                         PopupMenuItem(
-                            value: 'edit', child: Text(AppLocale.of(context).t('act_edit'))),
+                            value: 'edit',
+                            child: Text(AppLocale.of(context).t('act_edit'))),
                         const PopupMenuItem(
                             value: 'delete',
                             child: Text('Sil',
@@ -1512,15 +1699,20 @@ class _PostCard extends StatelessWidget {
                   },
                 ),
               ]),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               if (post.text.isNotEmpty)
-                Text(post.displayText, style: const TextStyle(fontSize: 16)),
+                Text(post.displayText,
+                    style: const TextStyle(
+                        fontSize: 16, height: 1.42, color: ArucadColors.ink)),
               if (post.imageBytes != null || post.imageUrl != null) ...[
                 const SizedBox(height: 10),
                 FeedPostMedia(
                   imageUrl: post.imageUrl,
                   imageBytes: post.imageBytes,
                   mimeType: post.mediaMimeType,
+                  maxWidth: 1000,
+                  borderRadius: 16,
+                  aspectRatio: 16 / 9,
                 ),
               ],
               if (post.locationTag != null || post.courseTag != null) ...[
@@ -1548,43 +1740,71 @@ class _PostCard extends StatelessWidget {
                             fontSize: 12)),
                 ]),
               ],
-              const SizedBox(height: 8),
-              Text(
-                  formatRelativeTime(post.createdAt ?? DateTime.now()),
+              const SizedBox(height: 6),
+              Text(formatRelativeTime(post.createdAt ?? DateTime.now()),
                   style:
-                      const TextStyle(color: ArucadColors.muted, fontSize: 12)),
-              const SizedBox(height: 10),
+                      const TextStyle(color: _socialSecondary, fontSize: 13)),
+              const SizedBox(height: 8),
               Row(children: [
-                InkWell(
+                _PostAction(
                   onTap: onLike,
-                  borderRadius: BorderRadius.circular(999),
-                  child: Row(children: [
-                    Icon(
-                        post.likedByMe ? Icons.favorite : Icons.favorite_border,
-                        size: 18,
-                        color: post.likedByMe ? ArucadColors.danger : null),
-                    const SizedBox(width: 5),
-                    Text('${post.likes}'),
-                  ]),
+                  icon: post.likedByMe
+                      ? Icons.favorite_rounded
+                      : Icons.favorite_border_rounded,
+                  label: '${post.likes}',
+                  color: post.likedByMe ? ArucadColors.red : null,
                 ),
-                const SizedBox(width: 18),
-                InkWell(
+                const SizedBox(width: 8),
+                _PostAction(
                   onTap: onComment,
-                  borderRadius: BorderRadius.circular(999),
-                  child: Row(children: [
-                    const Icon(Icons.mode_comment_outlined, size: 18),
-                    const SizedBox(width: 5),
-                    Text('${post.comments.length}'),
-                  ]),
+                  icon: Icons.mode_comment_outlined,
+                  label: '${post.comments.length}',
                 ),
                 const Spacer(),
-                InkWell(
+                _PostAction(
                   onTap: onSave,
-                  borderRadius: BorderRadius.circular(999),
-                  child: Icon(saved ? Icons.bookmark : Icons.bookmark_border,
-                      size: 20, color: saved ? ArucadColors.blue : null),
+                  icon: saved
+                      ? Icons.bookmark_rounded
+                      : Icons.bookmark_border_rounded,
+                  label: 'Kaydet',
+                  color: saved ? _socialBlue : null,
                 ),
               ]),
+            ]),
+          ),
+        ),
+      );
+}
+
+class _PostAction extends StatelessWidget {
+  final VoidCallback onTap;
+  final IconData icon;
+  final String label;
+  final Color? color;
+
+  const _PostAction({
+    required this.onTap,
+    required this.icon,
+    required this.label,
+    this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 44),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(icon, size: 22, color: color),
+              const SizedBox(width: 7),
+              Text(label,
+                  style: TextStyle(
+                      color: color,
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w500)),
             ]),
           ),
         ),

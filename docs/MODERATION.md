@@ -48,6 +48,11 @@ thirty handlers.
 | `warned` | yes | no | Borderline; author is told, audit row written. |
 | `review` | yes | no | Ambiguous (sarcasm, banter, unnamed target) — queued for a human. |
 | `support` | yes | **never** | Author described harm to themselves — help offered, not a penalty. |
+
+`warned`, `review` and `support` publish, so they travel on the *success*
+response as `meta.moderation` — attached centrally in `ApiResponds::ok()`
+rather than at each call site, because they were previously computed and
+discarded: the self-harm support message never reached anyone.
 | `rejected` | **no** | yes | Violation. Content is never written. |
 | `banned` | **no** | no | Account is already serving a ban. |
 | `unavailable` | **no** | no | Provider unreachable — held, not published. |
@@ -136,9 +141,25 @@ shapes match.
 
 `feed.store`, `feed.update`, `feed.comment`, `feed.storeOfficial`,
 `feed.report`, `story.store`, `chat.send`, `chat.sendGroupMessage`,
-`chat.createGroup`, `place.review`, `place.addWorkshopPost`,
-`profile.updateBio`, `event.createOwnActivity`, `social.reportUser`,
-`media.upload` (images and video).
+`chat.createGroup`, `chat.reportGroup`, `place.review`,
+`place.addWorkshopPost`, `place.report`, `profile.updateBio`,
+`career.updateProfile`, `event.createOwnActivity`, `appointment.book`,
+`consultation.apply`, `application.store`, `application.detail`,
+`social.reportUser`, `admin.event.upsert`, `media.upload` (images, video,
+and web-camera captures — a camera shot is bytes on the same upload path,
+so there is no separate route to forget).
+
+Staff content goes through the same gate. "Authorised" describes who may
+publish, not that what they publish needs no checking — an announcement
+reaches every student at once, which makes a compromised staff account the
+highest-reach path in the app. The engine was measured against real notices
+first (suicide prevention, weapons policy, drug awareness, phishing
+warnings); `PolicyCoverageTest` pins that those still publish.
+
+`ModerationSurfaceCoverageTest` drives each surface over HTTP with the same
+abusive string. Reading the controllers is not enough to know a surface is
+wired: four of them imported the trait and never called it, which looks
+correct at a glance and enforces nothing.
 
 ## Admin tools
 

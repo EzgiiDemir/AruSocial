@@ -35,7 +35,12 @@ enum SettingsSection { info, activity, system }
 /// DiceBear renders deterministically from the seed, so a given name always
 /// produces the same face and these stay stable across rebuilds.
 const _avatarPalette = [
-  'b6e3f4', 'ffd5dc', 'c0aede', 'ffdfbf', 'd1f4d0', 'ffe7a3',
+  'b6e3f4',
+  'ffd5dc',
+  'c0aede',
+  'ffdfbf',
+  'd1f4d0',
+  'ffe7a3',
 ];
 
 const _avatarSeeds = [
@@ -148,43 +153,43 @@ class _ProfileScreenState extends State<ProfileScreen> {
       builder: (ctx) => SafeArea(
         child: SingleChildScrollView(
           child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 30),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(strings.t('profile_change_photo'),
-                style:
-                    const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
-            const SizedBox(height: 14),
-            OutlinedButton.icon(
-              onPressed: () => Navigator.of(ctx).pop('__pick__'),
-              icon: const Icon(Icons.add_a_photo_outlined),
-              label: Text(strings.t('profile_avatar_pick_device')),
-            ),
-            const SizedBox(height: 16),
-            Text(strings.t('profile_avatar_preset'),
-                style:
-                    const TextStyle(color: ArucadColors.muted, fontSize: 12)),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 30),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                for (final url in _presetAvatars)
-                  GestureDetector(
-                    onTap: () => Navigator.of(ctx).pop(url),
-                    child: ClipOval(
-                      child: CampusNetworkImage(url,
-                          width: 56,
-                          height: 56,
-                          cacheBust: url.hashCode.toString()),
-                    ),
-                  ),
+                Text(strings.t('profile_change_photo'),
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w900, fontSize: 18)),
+                const SizedBox(height: 14),
+                OutlinedButton.icon(
+                  onPressed: () => Navigator.of(ctx).pop('__pick__'),
+                  icon: const Icon(Icons.add_a_photo_outlined),
+                  label: Text(strings.t('profile_avatar_pick_device')),
+                ),
+                const SizedBox(height: 16),
+                Text(strings.t('profile_avatar_preset'),
+                    style: const TextStyle(
+                        color: ArucadColors.muted, fontSize: 12)),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    for (final url in _presetAvatars)
+                      GestureDetector(
+                        onTap: () => Navigator.of(ctx).pop(url),
+                        child: ClipOval(
+                          child: CampusNetworkImage(url,
+                              width: 56,
+                              height: 56,
+                              cacheBust: url.hashCode.toString()),
+                        ),
+                      ),
+                  ],
+                ),
               ],
             ),
-          ],
-        ),
           ),
         ),
       ),
@@ -273,21 +278,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
                 child: LayoutBuilder(builder: (context, constraints) {
                   final wide = constraints.maxWidth >= 560;
-                  final title = Text(strings.t('nav_profile'),
-                      style: Theme.of(context)
-                          .textTheme
-                          .headlineSmall
-                          ?.copyWith(fontWeight: FontWeight.w900));
-                  if (wide) return title;
-                  return Row(children: [
-                    _MenuButton(
+                  if (wide) return const SizedBox.shrink();
+                  return Align(
+                    alignment: Alignment.centerLeft,
+                    child: _MenuButton(
                         onTap: () => _scaffoldKey.currentState?.openDrawer()),
-                    const SizedBox(width: 12),
-                    title,
-                  ]);
+                  );
                 }),
               ),
               Expanded(
@@ -316,15 +315,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         indicatorColor:
                             ArucadColors.primary.withValues(alpha: .16),
                         unselectedIconTheme: IconThemeData(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurfaceVariant),
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant),
                         selectedIconTheme:
                             const IconThemeData(color: ArucadColors.primary),
                         unselectedLabelTextStyle: TextStyle(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurfaceVariant,
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
                             fontSize: 11),
                         selectedLabelTextStyle: const TextStyle(
                             color: ArucadColors.primary,
@@ -446,8 +443,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   color: ArucadColors.primary),
               title: Text(AppLocale.of(context).t('pr_my_applications'),
                   style: TextStyle(fontWeight: FontWeight.w800)),
-              subtitle:
-                  Text(AppLocale.of(context).t('pr_my_applications_sub')),
+              subtitle: Text(AppLocale.of(context).t('pr_my_applications_sub')),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => Navigator.of(context).push(MaterialPageRoute(
                   builder: (_) =>

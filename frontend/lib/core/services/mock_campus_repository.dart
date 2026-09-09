@@ -696,6 +696,7 @@ class MockCampusRepository implements CampusRepository {
       result.add(p.copyWith(
         coverUrl: cover,
         recentCheckins: count,
+        totalCheckins: count,
         density: count > 0 ? _densityFromCount(count) : p.density,
         rating: double.parse(rating.toStringAsFixed(1)),
       ));

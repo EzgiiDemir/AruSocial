@@ -83,26 +83,39 @@ class _ExploreScreenState extends State<ExploreScreen> {
     for (final place in _places) {
       if (place.name.toLowerCase().contains(q) ||
           place.category.toLowerCase().contains(q)) {
-        out.add((Icons.location_on_rounded, place.name,
-            normalizeCategory(place.category), _openPlaces));
+        out.add((
+          Icons.location_on_rounded,
+          place.name,
+          normalizeCategory(place.category),
+          _openPlaces
+        ));
       }
     }
     for (final event in _events) {
       if (event.title.toLowerCase().contains(q) ||
           event.placeName.toLowerCase().contains(q)) {
-        out.add((Icons.local_activity_rounded, event.title,
-            '${event.time} · ${event.placeName}', _openEvents));
+        out.add((
+          Icons.local_activity_rounded,
+          event.title,
+          '${event.time} · ${event.placeName}',
+          _openEvents
+        ));
       }
     }
     for (final club in _clubs) {
       if (club.name.toLowerCase().contains(q)) {
-        out.add((Icons.diversity_3_rounded, club.name, club.category, _openClubs));
+        out.add(
+            (Icons.diversity_3_rounded, club.name, club.category, _openClubs));
       }
     }
     for (final sport in _sports) {
       if (sport.name.toLowerCase().contains(q)) {
-        out.add((Icons.sports_soccer_rounded, sport.name, sport.facility,
-            _openSports));
+        out.add((
+          Icons.sports_soccer_rounded,
+          sport.name,
+          sport.facility,
+          _openSports
+        ));
       }
     }
 
@@ -176,8 +189,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
         await one(widget.repository.getPlaces(), const <CampusPlace>[]);
     final events =
         await one(widget.repository.getEvents(), const <CampusEvent>[]);
-    final clubs =
-        await one(widget.repository.getClubs(), const <CampusClub>[]);
+    final clubs = await one(widget.repository.getClubs(), const <CampusClub>[]);
     final sports =
         await one(widget.repository.getSports(), const <CampusSport>[]);
     final food =
@@ -208,20 +220,21 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
   bool _isToday(DateTime date) {
     final now = DateTime.now();
-    return date.year == now.year && date.month == now.month && date.day == now.day;
+    return date.year == now.year &&
+        date.month == now.month &&
+        date.day == now.day;
   }
 
-  int get _todayEventsCount =>
-      _events.where((e) => e.eventDate != null && _isToday(e.eventDate!)).length;
+  int get _todayEventsCount => _events
+      .where((e) => e.eventDate != null && _isToday(e.eventDate!))
+      .length;
 
-  /// Busiest place by real recent check-ins. Students said they open this
-  /// to find where people actually are, which is a different question from
-  /// which building happens to be closest.
+  /// Most popular place by persistent all-time public check-ins.
   CampusPlace? get _mostPopularPlace {
     CampusPlace? best;
     for (final place in _places) {
-      if (place.recentCheckins <= 0) continue;
-      if (best == null || place.recentCheckins > best.recentCheckins) {
+      if (place.totalCheckins <= 0) continue;
+      if (best == null || place.totalCheckins > best.totalCheckins) {
         best = place;
       }
     }
@@ -346,8 +359,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   child: TextField(
                     controller: _searchC,
                     textInputAction: TextInputAction.search,
-                    onChanged: (value) =>
-                        setState(() => _query = value.trim()),
+                    onChanged: (value) => setState(() => _query = value.trim()),
                     decoration: InputDecoration(
                       hintText: strings.t('explore_search_hint'),
                       prefixIcon: const Icon(Icons.search_rounded, size: 20),
@@ -368,8 +380,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         borderRadius: BorderRadius.circular(999),
                         borderSide: BorderSide.none,
                       ),
-                      contentPadding:
-                          const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+                      contentPadding: const EdgeInsets.symmetric(
+                          vertical: 14, horizontal: 8),
                     ),
                   ),
                 ),
@@ -380,166 +392,170 @@ class _ExploreScreenState extends State<ExploreScreen> {
               // reach the answer to what you just typed.
               if (_query.isNotEmpty) ..._searchSlivers(strings),
               if (_query.isEmpty) ...[
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
-                sliver: SliverGrid(
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    mainAxisSpacing: 12,
-                    crossAxisSpacing: 12,
-                    mainAxisExtent: 140,
-                  ),
-                  delegate: SliverChildListDelegate([
-                    ExploreCategoryCard(
-                      title: strings.t('discover_calendar'),
-                      subtitle: strings.t('explore_cat_calendar_sub'),
-                      icon: Icons.calendar_month_rounded,
-                      accent: accentAt(0),
-                      badge: _calendarBadge > 0 ? '$_calendarBadge' : null,
-                      onTap: () => _openCalendar(),
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+                  sliver: SliverGrid(
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      mainAxisSpacing: 12,
+                      crossAxisSpacing: 12,
+                      mainAxisExtent: 140,
                     ),
-                    ExploreCategoryCard(
-                      title: strings.t('discover_creative'),
-                      subtitle: strings.t('explore_cat_events_sub'),
-                      icon: Icons.local_activity_rounded,
-                      accent: accentAt(1),
-                      badge: _eventsCount > 0 ? '$_eventsCount' : null,
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => ExploreEventsScreen(
-                            repository: widget.repository,
-                            mapProvider: widget.mapProvider,
-                            analyticsTracker: widget.analyticsTracker,
-                          ),
-                        ),
-                      ),
-                    ),
-                    ExploreCategoryCard(
-                      title: strings.t('discover_clubs'),
-                      subtitle: strings.t('explore_cat_clubs_sub'),
-                      icon: Icons.diversity_3_rounded,
-                      accent: accentAt(2),
-                      badge: _clubsCount > 0 ? '$_clubsCount' : null,
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => ExploreClubsScreen(
-                              repository: widget.repository),
-                        ),
-                      ),
-                    ),
-                    ExploreCategoryCard(
-                      title: strings.t('discover_sports'),
-                      subtitle: strings.t('explore_cat_sports_sub'),
-                      icon: Icons.sports_soccer_rounded,
-                      accent: accentAt(3),
-                      badge: _sportsCount > 0 ? '$_sportsCount' : null,
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => ExploreSportsScreen(
-                              repository: widget.repository),
-                        ),
-                      ),
-                    ),
-                    ExploreCategoryCard(
-                      title: strings.t('discover_services'),
-                      subtitle: strings.t('help_campus_services_sub'),
-                      icon: Icons.support_agent_rounded,
-                      accent: accentAt(4),
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              NeedHelpScreen(repository: widget.repository),
-                        ),
-                      ),
-                    ),
-                    ExploreCategoryCard(
-                      title: strings.t('discover_career'),
-                      subtitle: strings.t('career_opportunities'),
-                      icon: Icons.work_rounded,
-                      accent: accentAt(5),
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              CareerHubScreen(repository: widget.repository),
-                        ),
-                      ),
-                    ),
-                    ExploreCategoryCard(
-                      title: strings.t('discover_places'),
-                      subtitle: strings.t('explore_cat_places_sub'),
-                      icon: Icons.location_on_rounded,
-                      accent: accentAt(6),
-                      badge: _placesCount > 0 ? '$_placesCount' : null,
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => ExplorePlacesScreen(
-                            repository: widget.repository,
-                            mapProvider: widget.mapProvider,
-                            analyticsTracker: widget.analyticsTracker,
-                          ),
-                        ),
-                      ),
-                    ),
-                    ExploreCategoryCard(
-                      title: strings.t('discover_food'),
-                      subtitle: strings.t('explore_cat_food_sub'),
-                      icon: Icons.ramen_dining_rounded,
-                      accent: accentAt(7),
-                      badge: _foodCount > 0 ? '$_foodCount' : null,
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              ExploreFoodScreen(repository: widget.repository),
-                        ),
-                      ),
-                    ),
-                  ]),
-                ),
-              ),
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
-                sliver: SliverToBoxAdapter(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(strings.t('explore_recommended'),
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w900, fontSize: 15)),
-                      const SizedBox(height: 10),
-                      _RecommendationTile(
-                        icon: Icons.event_available_rounded,
-                        accent: ArucadColors.blue,
-                        title: strings.t('explore_recommend_today_events'),
-                        subtitle: _todayEventsCount > 0
-                            ? '$_todayEventsCount ${strings.t('explore_recommend_today_events_suffix')}'
-                            : strings.t('explore_recommend_today_events_empty'),
+                    delegate: SliverChildListDelegate([
+                      ExploreCategoryCard(
+                        title: strings.t('discover_calendar'),
+                        subtitle: strings.t('explore_cat_calendar_sub'),
+                        icon: Icons.calendar_month_rounded,
+                        accent: accentAt(0),
+                        badge: _calendarBadge > 0 ? '$_calendarBadge' : null,
                         onTap: () => _openCalendar(),
                       ),
-                      const SizedBox(height: 10),
-                      Builder(builder: (context) {
-                        final popular = _mostPopularPlace;
-                        return _RecommendationTile(
-                          icon: Icons.local_fire_department_rounded,
-                          accent: ArucadColors.campusGreen,
-                          title: strings.t('explore_recommend_popular_places'),
-                          subtitle: popular == null
-                              ? strings.t('explore_recommend_popular_places_empty')
-                              : '${popular.name} · ${popular.recentCheckins} ${strings.t('explore_recommend_popular_suffix')}',
-                          onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => PopularPlacesScreen(
-                                repository: widget.repository,
-                                mapProvider: widget.mapProvider,
-                                analyticsTracker: widget.analyticsTracker,
-                              ),
+                      ExploreCategoryCard(
+                        title: strings.t('discover_creative'),
+                        subtitle: strings.t('explore_cat_events_sub'),
+                        icon: Icons.local_activity_rounded,
+                        accent: accentAt(1),
+                        badge: _eventsCount > 0 ? '$_eventsCount' : null,
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => ExploreEventsScreen(
+                              repository: widget.repository,
+                              mapProvider: widget.mapProvider,
+                              analyticsTracker: widget.analyticsTracker,
                             ),
                           ),
-                        );
-                      }),
-                    ],
+                        ),
+                      ),
+                      ExploreCategoryCard(
+                        title: strings.t('discover_clubs'),
+                        subtitle: strings.t('explore_cat_clubs_sub'),
+                        icon: Icons.diversity_3_rounded,
+                        accent: accentAt(2),
+                        badge: _clubsCount > 0 ? '$_clubsCount' : null,
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => ExploreClubsScreen(
+                                repository: widget.repository),
+                          ),
+                        ),
+                      ),
+                      ExploreCategoryCard(
+                        title: strings.t('discover_sports'),
+                        subtitle: strings.t('explore_cat_sports_sub'),
+                        icon: Icons.sports_soccer_rounded,
+                        accent: accentAt(3),
+                        badge: _sportsCount > 0 ? '$_sportsCount' : null,
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => ExploreSportsScreen(
+                                repository: widget.repository),
+                          ),
+                        ),
+                      ),
+                      ExploreCategoryCard(
+                        title: strings.t('discover_services'),
+                        subtitle: strings.t('help_campus_services_sub'),
+                        icon: Icons.support_agent_rounded,
+                        accent: accentAt(4),
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                NeedHelpScreen(repository: widget.repository),
+                          ),
+                        ),
+                      ),
+                      ExploreCategoryCard(
+                        title: strings.t('discover_career'),
+                        subtitle: strings.t('career_opportunities'),
+                        icon: Icons.work_rounded,
+                        accent: accentAt(5),
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                CareerHubScreen(repository: widget.repository),
+                          ),
+                        ),
+                      ),
+                      ExploreCategoryCard(
+                        title: strings.t('discover_places'),
+                        subtitle: strings.t('explore_cat_places_sub'),
+                        icon: Icons.location_on_rounded,
+                        accent: accentAt(6),
+                        badge: _placesCount > 0 ? '$_placesCount' : null,
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => ExplorePlacesScreen(
+                              repository: widget.repository,
+                              mapProvider: widget.mapProvider,
+                              analyticsTracker: widget.analyticsTracker,
+                            ),
+                          ),
+                        ),
+                      ),
+                      ExploreCategoryCard(
+                        title: strings.t('discover_food'),
+                        subtitle: strings.t('explore_cat_food_sub'),
+                        icon: Icons.ramen_dining_rounded,
+                        accent: accentAt(7),
+                        badge: _foodCount > 0 ? '$_foodCount' : null,
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => ExploreFoodScreen(
+                                repository: widget.repository),
+                          ),
+                        ),
+                      ),
+                    ]),
                   ),
                 ),
-              ),
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
+                  sliver: SliverToBoxAdapter(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(strings.t('explore_recommended'),
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w900, fontSize: 15)),
+                        const SizedBox(height: 10),
+                        _RecommendationTile(
+                          icon: Icons.event_available_rounded,
+                          accent: ArucadColors.blue,
+                          title: strings.t('explore_recommend_today_events'),
+                          subtitle: _todayEventsCount > 0
+                              ? '$_todayEventsCount ${strings.t('explore_recommend_today_events_suffix')}'
+                              : strings
+                                  .t('explore_recommend_today_events_empty'),
+                          onTap: () => _openCalendar(),
+                        ),
+                        const SizedBox(height: 10),
+                        Builder(builder: (context) {
+                          final popular = _mostPopularPlace;
+                          return _RecommendationTile(
+                            icon: Icons.local_fire_department_rounded,
+                            accent: ArucadColors.campusGreen,
+                            title:
+                                strings.t('explore_recommend_popular_places'),
+                            subtitle: popular == null
+                                ? strings
+                                    .t('explore_recommend_popular_places_empty')
+                                : '${popular.name} · ${popular.totalCheckins} ${strings.t('explore_recommend_popular_suffix')}',
+                            onTap: () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => PopularPlacesScreen(
+                                  repository: widget.repository,
+                                  mapProvider: widget.mapProvider,
+                                  analyticsTracker: widget.analyticsTracker,
+                                ),
+                              ),
+                            ),
+                          );
+                        }),
+                      ],
+                    ),
+                  ),
+                ),
               ],
             ],
           ),

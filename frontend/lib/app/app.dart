@@ -30,6 +30,7 @@ import '../features/place/place_detail_screen.dart';
 import '../features/social/chat_screen.dart';
 import '../features/social/notifications_screen.dart';
 import '../features/trainer/trainer_panel_screen.dart';
+import '../features/widgets/moderation_notice.dart';
 
 /// Lets code below the login screen show feedback (e.g. "location denied")
 /// without needing a Scaffold ancestor at the exact point it's called from.
@@ -215,6 +216,31 @@ class _DemoSessionState extends State<_DemoSession>
     _pushOpened = _push.opened.listen(_onPushOpened);
     unawaited(_restoreSessionIfAny());
     ApiClient.onSessionInvalid = _onSessionInvalid;
+    ApiClient.onModerationNotice = _onModerationNotice;
+  }
+
+  /// Content published, but moderation had something to say.
+  ///
+  /// `support` is the one that must not be missed — a student who wrote
+  /// about hurting themselves is being offered help — so it gets a dialog.
+  /// A warning or a "queued for review" is informative rather than urgent,
+  /// so it takes a snackbar and does not interrupt what they were doing.
+  void _onModerationNotice(String status, String message) {
+    if (!mounted) return;
+
+    if (status == 'support') {
+      final context = rootMessengerKey.currentContext;
+      if (context != null) {
+        unawaited(showModerationNotice(context, message: message, code: status));
+
+        return;
+      }
+    }
+
+    rootMessengerKey.currentState?.showSnackBar(SnackBar(
+      content: Text(message),
+      duration: const Duration(seconds: 6),
+    ));
   }
 
   void _popToRoot() {
@@ -298,6 +324,9 @@ class _DemoSessionState extends State<_DemoSession>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _pushOpened?.cancel();
+    if (identical(ApiClient.onModerationNotice, _onModerationNotice)) {
+      ApiClient.onModerationNotice = null;
+    }
     if (identical(ApiClient.onSessionInvalid, _onSessionInvalid)) {
       ApiClient.onSessionInvalid = null;
     }

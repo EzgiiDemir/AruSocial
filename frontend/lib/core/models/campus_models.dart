@@ -38,6 +38,7 @@ class CampusPlace {
   final double rating;
   final String? coverUrl;
   final int recentCheckins;
+  final int totalCheckins;
   final List<CampusCheckinEntry> recentCheckinEntries;
 
   const CampusPlace({
@@ -57,6 +58,7 @@ class CampusPlace {
     required this.rating,
     this.coverUrl,
     this.recentCheckins = 0,
+    this.totalCheckins = 0,
     this.recentCheckinEntries = const [],
   });
 
@@ -78,8 +80,12 @@ class CampusPlace {
       rating: (json['rating'] as num).toDouble(),
       coverUrl: json['coverUrl'] as String?,
       recentCheckins: (json['recentCheckins'] as num?)?.toInt() ?? 0,
+      totalCheckins: (json['totalCheckins'] as num?)?.toInt() ??
+          (json['recentCheckins'] as num?)?.toInt() ??
+          0,
       recentCheckinEntries: (json['recentCheckinEntries'] as List<dynamic>?)
-              ?.map((e) => CampusCheckinEntry.fromJson(e as Map<String, dynamic>))
+              ?.map(
+                  (e) => CampusCheckinEntry.fromJson(e as Map<String, dynamic>))
               .toList() ??
           const [],
     );
@@ -92,6 +98,7 @@ class CampusPlace {
     String? tourUrl,
     String? tourTarget,
     int? recentCheckins,
+    int? totalCheckins,
   }) =>
       CampusPlace(
         id: id,
@@ -110,6 +117,7 @@ class CampusPlace {
         rating: rating ?? this.rating,
         coverUrl: coverUrl ?? this.coverUrl,
         recentCheckins: recentCheckins ?? this.recentCheckins,
+        totalCheckins: totalCheckins ?? this.totalCheckins,
         recentCheckinEntries: recentCheckinEntries,
       );
 }
@@ -122,6 +130,7 @@ class UserSettings {
   final bool checkInVisible;
   final bool personalization;
   final bool isPrivateProfile;
+
   /// Account-scoped UI language code: `TR` | `EN` | `RU`.
   final String preferredLanguage;
 
@@ -580,12 +589,11 @@ class FeedPost {
   /// Preserve the original post for storage/editing but omit emoji artwork
   /// from rendered feed text. Android emoji sets vary substantially by OS.
   String get displayText => String.fromCharCodes(
-        text.runes.where((rune) =>
-            !((rune >= 0x1F000 && rune <= 0x1FAFF) ||
-                (rune >= 0x2600 && rune <= 0x27BF) ||
-                rune == 0xFE0F ||
-                rune == 0x200D ||
-                rune == 0x20E3)),
+        text.runes.where((rune) => !((rune >= 0x1F000 && rune <= 0x1FAFF) ||
+            (rune >= 0x2600 && rune <= 0x27BF) ||
+            rune == 0xFE0F ||
+            rune == 0x200D ||
+            rune == 0x20E3)),
       ).replaceAll(RegExp(r'\s+'), ' ').trim();
 
   FeedPost copyWith({
@@ -769,7 +777,8 @@ class WorkshopInfo {
           .map((e) => WorkshopEquipmentItem.fromJson(e as Map<String, dynamic>))
           .toList(),
       posts: (json['posts'] as List<dynamic>? ?? const [])
-          .map((e) => CampusCollaborationPost.fromJson(e as Map<String, dynamic>))
+          .map((e) =>
+              CampusCollaborationPost.fromJson(e as Map<String, dynamic>))
           .toList(),
     );
   }

@@ -19,6 +19,7 @@ class PlacePresence
         public readonly array $recentCheckins,
         public readonly array $avgRatings,
         public readonly array $recentCheckinEntries = [],
+        public readonly array $totalCheckins = [],
     ) {}
 
     public static function forIds(array $ids): self
@@ -32,6 +33,18 @@ class PlacePresence
             ->whereIn('place_id', $ids)
             ->where('created_at', '>=', now()->subHours(self::WINDOW_HOURS))
             ->where('visible_to_others', true)
+            ->groupBy('place_id')
+            ->pluck('total', 'place_id')
+            ->all();
+
+        // Popular-place rankings are historical, unlike the live density
+        // signal above. These totals deliberately have no time window, so a
+        // real check-in remains part of the ranking after sign-out or later
+        // sessions. Visibility controls whether the check-in is shown in the
+        // social feed; anonymous aggregate popularity still counts it.
+        $totals = Checkin::query()
+            ->selectRaw('place_id, count(*) as total')
+            ->whereIn('place_id', $ids)
             ->groupBy('place_id')
             ->pluck('total', 'place_id')
             ->all();
@@ -65,7 +78,7 @@ class PlacePresence
                 ->all())
             ->all();
 
-        return new self($checkins, $ratings, $entries);
+        return new self($checkins, $ratings, $entries, $totals);
     }
 
     private static function initialFrom(?string $name): string
@@ -83,6 +96,11 @@ class PlacePresence
     public function recentCheckinEntriesFor(string $placeId): array
     {
         return $this->recentCheckinEntries[$placeId] ?? [];
+    }
+
+    public function totalCheckinsFor(string $placeId): int
+    {
+        return (int) ($this->totalCheckins[$placeId] ?? 0);
     }
 
     public function densityFor(string $placeId): string

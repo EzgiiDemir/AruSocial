@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:arucad_campus_prototype/core/l10n/app_strings.dart';
 import 'package:arucad_campus_prototype/core/services/contracts.dart';
+import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
 import 'package:arucad_campus_prototype/features/social/chat_screen.dart';
 import 'package:arucad_campus_prototype/features/social/notifications_screen.dart';
 import 'package:arucad_campus_prototype/features/social/people_screen.dart';
@@ -54,20 +55,37 @@ class _SocialShellState extends State<SocialShell> {
   int _index = 0;
   final Set<int> _visited = {0};
   List<String> _peers = const [];
+  int _unreadNotifications = 0;
   final _scaffoldKey = GlobalKey<ScaffoldState>();
 
   @override
   void initState() {
     super.initState();
     _loadLeaderboardPeers();
+    _loadNotificationCount();
+  }
+
+  Future<void> _loadNotificationCount() async {
+    try {
+      final notifications = await widget.repository.getInboxNotifications();
+      if (!mounted) return;
+      setState(() => _unreadNotifications =
+          notifications.where((notification) => !notification.read).length);
+    } catch (_) {}
+  }
+
+  Future<void> _openNotifications() async {
+    await Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => NotificationsScreen(repository: widget.repository)));
+    if (mounted) await _loadNotificationCount();
   }
 
   Future<void> _loadLeaderboardPeers() async {
     try {
       final entries = await widget.repository.getLeaderboard();
       if (!mounted) return;
-      setState(() => _peers =
-          entries.where((e) => !e.isMe).map((e) => e.name).toList());
+      setState(() =>
+          _peers = entries.where((e) => !e.isMe).map((e) => e.name).toList());
     } catch (_) {}
   }
 
@@ -137,13 +155,12 @@ class _SocialShellState extends State<SocialShell> {
               labelType: NavigationRailLabelType.all,
               indicatorColor:
                   Theme.of(context).colorScheme.surfaceContainerHighest,
-              unselectedIconTheme: IconThemeData(
-                  color: Theme.of(context).colorScheme.onSurface),
-              selectedIconTheme: IconThemeData(
-                  color: Theme.of(context).colorScheme.onSurface),
+              unselectedIconTheme:
+                  IconThemeData(color: Theme.of(context).colorScheme.onSurface),
+              selectedIconTheme:
+                  IconThemeData(color: Theme.of(context).colorScheme.onSurface),
               unselectedLabelTextStyle: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurface,
-                  fontSize: 11),
+                  color: Theme.of(context).colorScheme.onSurface, fontSize: 11),
               selectedLabelTextStyle: TextStyle(
                   color: Theme.of(context).colorScheme.onSurface,
                   fontSize: 11,
@@ -151,9 +168,10 @@ class _SocialShellState extends State<SocialShell> {
               destinations: [
                 for (var i = 0; i < _navItems.length; i++)
                   NavigationRailDestination(
-                      icon: Icon(_navItems[i].icon, color: socialNavAccentAt(i)),
-                      selectedIcon:
-                          Icon(_navItems[i].selectedIcon, color: socialNavAccentAt(i)),
+                      icon:
+                          Icon(_navItems[i].icon, color: socialNavAccentAt(i)),
+                      selectedIcon: Icon(_navItems[i].selectedIcon,
+                          color: socialNavAccentAt(i)),
                       label: Text(_navItems[i].label)),
               ],
             ),
@@ -163,19 +181,18 @@ class _SocialShellState extends State<SocialShell> {
       }
       return Scaffold(
         key: _scaffoldKey,
-        backgroundColor: Colors.transparent,
+        backgroundColor: ArucadColors.canvas,
         drawer: _NavDrawer(selectedIndex: _index, onSelect: _select),
         body: SafeArea(
           child: Column(
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(8, 4, 12, 4),
+                padding: const EdgeInsets.fromLTRB(12, 8, 14, 4),
                 child: Row(
                   children: [
                     _MenuButton(
-                        onTap: () =>
-                            _scaffoldKey.currentState?.openDrawer()),
-                    const SizedBox(width: 4),
+                        onTap: () => _scaffoldKey.currentState?.openDrawer()),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         _titleForIndex(context, _index),
@@ -184,7 +201,10 @@ class _SocialShellState extends State<SocialShell> {
                         style: Theme.of(context)
                             .textTheme
                             .headlineSmall
-                            ?.copyWith(fontWeight: FontWeight.w900),
+                            ?.copyWith(
+                                fontWeight: FontWeight.w900,
+                                fontSize: 26,
+                                letterSpacing: -.5),
                       ),
                     ),
                     // The feed tab's notifications action lives here, in
@@ -194,12 +214,11 @@ class _SocialShellState extends State<SocialShell> {
                     // could never actually line up.
                     if (_index == 0)
                       _MenuButton(
-                        icon: Icons.favorite_border,
-                        tooltip: AppLocale.of(context).t('social_notifications'),
-                        onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                                builder: (_) => NotificationsScreen(
-                                    repository: widget.repository))),
+                        icon: Icons.notifications_none_rounded,
+                        badgeCount: _unreadNotifications,
+                        tooltip:
+                            AppLocale.of(context).t('social_notifications'),
+                        onTap: _openNotifications,
                       ),
                   ],
                 ),
@@ -230,13 +249,17 @@ class _NavDrawer extends StatelessWidget {
             for (var i = 0; i < _navItems.length; i++)
               ListTile(
                 leading: Icon(
-                  i == selectedIndex ? _navItems[i].selectedIcon : _navItems[i].icon,
+                  i == selectedIndex
+                      ? _navItems[i].selectedIcon
+                      : _navItems[i].icon,
                   color: socialNavAccentAt(i),
                 ),
                 title: Text(_navItems[i].label,
                     style: TextStyle(
                         color: scheme.onSurface,
-                        fontWeight: i == selectedIndex ? FontWeight.w700 : FontWeight.w500)),
+                        fontWeight: i == selectedIndex
+                            ? FontWeight.w700
+                            : FontWeight.w500)),
                 selected: i == selectedIndex,
                 selectedTileColor: scheme.surfaceContainerHighest,
                 onTap: () => onSelect(i),
@@ -256,10 +279,12 @@ class _MenuButton extends StatelessWidget {
   final VoidCallback onTap;
   final IconData icon;
   final String tooltip;
+  final int badgeCount;
   const _MenuButton({
     required this.onTap,
     this.icon = Icons.menu,
     this.tooltip = 'Menü',
+    this.badgeCount = 0,
   });
 
   @override
@@ -276,7 +301,30 @@ class _MenuButton extends StatelessWidget {
         hoverColor: Colors.transparent,
         splashFactory: NoSplash.splashFactory,
       ),
-      icon: Icon(icon, size: 26),
+      icon: Stack(clipBehavior: Clip.none, children: [
+        Icon(icon, size: 27),
+        if (badgeCount > 0)
+          Positioned(
+            right: -7,
+            top: -7,
+            child: Container(
+              constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              alignment: Alignment.center,
+              decoration: const BoxDecoration(
+                color: ArucadColors.red,
+                shape: BoxShape.circle,
+              ),
+              child: Text(
+                badgeCount > 9 ? '9+' : '$badgeCount',
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800),
+              ),
+            ),
+          ),
+      ]),
     );
   }
 }

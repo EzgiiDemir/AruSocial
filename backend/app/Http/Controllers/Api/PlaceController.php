@@ -53,6 +53,7 @@ class PlaceController extends Controller
             'rating' => $presence->ratingFor($p->id),
             'coverUrl' => $p->cover_url,
             'recentCheckins' => $recent,
+            'totalCheckins' => $presence->totalCheckinsFor($p->id),
             'recentCheckinEntries' => $presence->recentCheckinEntriesFor($p->id),
         ];
     }
@@ -245,6 +246,12 @@ class PlaceController extends Controller
         }
         $reason = (string) $request->input('reason', '');
         $me = $this->currentUser();
+
+        // Moderated for the same reason as every other report reason: it is
+        // free text a human will read, and it reaches a moderator directly.
+        if ($blocked = $this->moderationBlock($me, $reason, 'report', 'place.report')) {
+            return $blocked;
+        }
 
         ActivityLogger::log($me->id, 'report', "Şikayet ettin: {$place->name}", $reason);
 

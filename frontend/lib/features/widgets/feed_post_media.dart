@@ -33,6 +33,7 @@ class FeedPostMedia extends StatelessWidget {
   final bool bytesAreVideo;
   final double maxWidth;
   final double borderRadius;
+  final double aspectRatio;
 
   const FeedPostMedia({
     super.key,
@@ -42,6 +43,7 @@ class FeedPostMedia extends StatelessWidget {
     this.bytesAreVideo = false,
     this.maxWidth = 236,
     this.borderRadius = 12,
+    this.aspectRatio = MediaFrame.post,
   });
 
   @override
@@ -54,6 +56,7 @@ class FeedPostMedia extends StatelessWidget {
       return CompactFeedImage(
         maxWidth: maxWidth,
         borderRadius: borderRadius,
+        aspectRatio: aspectRatio,
         child: ColoredBox(
           color: ArucadColors.mist,
           child: Center(
@@ -72,8 +75,9 @@ class FeedPostMedia extends StatelessWidget {
                   TextButton.icon(
                     icon: const Icon(Icons.play_arrow),
                     label: const Text('Oynat'),
-                    onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => VideoPlaybackScreen(url: url))),
+                    onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                            builder: (_) => VideoPlaybackScreen(url: url))),
                   ),
               ],
             ),
@@ -85,6 +89,7 @@ class FeedPostMedia extends StatelessWidget {
       return CompactFeedImage(
         maxWidth: maxWidth,
         borderRadius: borderRadius,
+        aspectRatio: aspectRatio,
         child: Image.memory(imageBytes!, fit: BoxFit.cover),
       );
     }
@@ -92,6 +97,7 @@ class FeedPostMedia extends StatelessWidget {
       return CompactFeedImage(
         maxWidth: maxWidth,
         borderRadius: borderRadius,
+        aspectRatio: aspectRatio,
         child: CampusNetworkImage(url, fit: BoxFit.cover),
       );
     }

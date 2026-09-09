@@ -3,12 +3,14 @@ import 'package:geolocator/geolocator.dart';
 
 import 'package:arucad_campus_prototype/core/l10n/app_strings.dart';
 import 'package:arucad_campus_prototype/core/models/campus_models.dart';
+import 'package:arucad_campus_prototype/core/services/upload_rules.dart';
 import 'package:arucad_campus_prototype/core/services/content_moderation.dart';
 import 'package:arucad_campus_prototype/core/services/contracts.dart';
 import 'package:arucad_campus_prototype/core/services/image_moderation_service.dart';
 import 'package:arucad_campus_prototype/core/services/location_service.dart';
 import 'package:arucad_campus_prototype/core/services/photo_picker_service.dart';
 import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
+import 'package:arucad_campus_prototype/features/widgets/moderation_notice.dart';
 import 'package:arucad_campus_prototype/features/widgets/campus_widgets.dart';
 import 'package:arucad_campus_prototype/features/widgets/media_frame.dart';
 
@@ -16,7 +18,8 @@ import 'package:arucad_campus_prototype/features/widgets/media_frame.dart';
 /// posts" both create the exact same kind of post, so they share this one
 /// sheet instead of maintaining two copies. Returns true if a post was
 /// actually created.
-Future<bool> showComposePostSheet(BuildContext context, CampusRepository repository) async {
+Future<bool> showComposePostSheet(
+    BuildContext context, CampusRepository repository) async {
   final strings = AppLocale.of(context);
   final textController = TextEditingController();
   final locationController = TextEditingController();
@@ -62,7 +65,8 @@ Future<bool> showComposePostSheet(BuildContext context, CampusRepository reposit
                 controller: textController,
                 maxLines: 4,
                 autofocus: true,
-                decoration: InputDecoration(hintText: strings.t('compose_hint')),
+                decoration:
+                    InputDecoration(hintText: strings.t('compose_hint')),
               ),
               const SizedBox(height: 10),
               if (picked != null)
@@ -97,7 +101,8 @@ Future<bool> showComposePostSheet(BuildContext context, CampusRepository reposit
                                 const SizedBox(height: 6),
                                 Text(strings.t('compose_video_attached'),
                                     style: const TextStyle(
-                                        color: ArucadColors.muted, fontSize: 12)),
+                                        color: ArucadColors.muted,
+                                        fontSize: 12)),
                               ],
                             ),
                           ),
@@ -109,6 +114,19 @@ Future<bool> showComposePostSheet(BuildContext context, CampusRepository reposit
                   onPressed: () async {
                     final media = await PhotoPickerService.pickPostMedia(ctx);
                     if (media == null) return;
+
+                    // Same client-side pre-check the avatar paths use, so a
+                    // file the server will refuse fails here instead of
+                    // after a slow upload. The server still decides.
+                    final reason =
+                        UploadRules.rejectionReason(media.bytes, media.fileName);
+                    if (reason != null) {
+                      if (!ctx.mounted) return;
+                      await showModerationNotice(ctx, message: reason);
+
+                      return;
+                    }
+
                     if (media.isVideo) {
                       setSheetState(() => picked = media);
                       return;
@@ -139,8 +157,7 @@ Future<bool> showComposePostSheet(BuildContext context, CampusRepository reposit
                     if (!ctx.mounted) return;
                     ScaffoldMessenger.of(ctx).showSnackBar(
                       const SnackBar(
-                          content: Text(
-                              'Konum paylaşımı için izin gerekli.')),
+                          content: Text('Konum paylaşımı için izin gerekli.')),
                     );
                     return;
                   }
@@ -191,10 +208,12 @@ Future<bool> showComposePostSheet(BuildContext context, CampusRepository reposit
               ],
               const SizedBox(height: 6),
               Text(strings.t('compose_hashtag_tip'),
-                  style: const TextStyle(color: ArucadColors.muted, fontSize: 11.5)),
+                  style: const TextStyle(
+                      color: ArucadColors.muted, fontSize: 11.5)),
               const SizedBox(height: 14),
               Text(strings.t('social_visibility'),
-                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w700, fontSize: 12)),
               const SizedBox(height: 6),
               AudienceChips(
                 value: visibility,
@@ -237,7 +256,14 @@ Future<bool> showComposePostSheet(BuildContext context, CampusRepository reposit
             : locationController.text.trim());
   } on ContentModerationException catch (e) {
     if (!context.mounted) return false;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.reason)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(e.reason)));
+    return false;
+  } catch (_) {
+    if (!context.mounted) return false;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Gönderi paylaşılamadı.')),
+    );
     return false;
   }
   return true;

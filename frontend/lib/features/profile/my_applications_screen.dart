@@ -35,9 +35,9 @@ class _MyApplicationsScreenState extends State<MyApplicationsScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Başvurunu iptal et'),
-        content: Text(
-            '“$label” başvurun iptal edilsin mi? Bu işlem geri alınamaz, '
-            'ancak sonra tekrar başvurabilirsin.'),
+        content:
+            Text('“$label” başvurun iptal edilsin mi? Bu işlem geri alınamaz, '
+                'ancak sonra tekrar başvurabilirsin.'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
@@ -91,7 +91,8 @@ class _MyApplicationsScreenState extends State<MyApplicationsScreen> {
   Widget build(BuildContext context) {
     final s = AppLocale.of(context);
     return Scaffold(
-      appBar: AppBar(title: Text(s.t('apps_title')), leading: const CampusBackButton()),
+      appBar: AppBar(
+          title: Text(s.t('apps_title')), leading: const CampusBackButton()),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
@@ -101,7 +102,8 @@ class _MyApplicationsScreenState extends State<MyApplicationsScreen> {
                     child: Column(mainAxisSize: MainAxisSize.min, children: [
                       Text(_error!, textAlign: TextAlign.center),
                       const SizedBox(height: 12),
-                      FilledButton(onPressed: _load, child: Text(s.t('common_retry'))),
+                      FilledButton(
+                          onPressed: _load, child: Text(s.t('common_retry'))),
                     ]),
                   ),
                 )
@@ -121,7 +123,8 @@ class _MyApplicationsScreenState extends State<MyApplicationsScreen> {
                       : ListView.separated(
                           padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
                           itemCount: _rows.length,
-                          separatorBuilder: (_, __) => const SizedBox(height: 8),
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 8),
                           itemBuilder: (context, index) {
                             return _ApplicationCard(
                               application: _rows[index],
@@ -207,8 +210,8 @@ class _ApplicationCard extends StatelessWidget {
             if (application.responsibleStaffName != null) ...[
               const SizedBox(height: 8),
               Text('Sorumlu: ${application.responsibleStaffName}',
-                  style: const TextStyle(
-                      color: ArucadColors.muted, fontSize: 12)),
+                  style:
+                      const TextStyle(color: ArucadColors.muted, fontSize: 12)),
             ],
             // The reason matters most on a rejection: "Reddedildi" with no
             // explanation leaves nothing to act on.
@@ -236,11 +239,11 @@ class _ApplicationCard extends StatelessWidget {
             if (cancellable)
               Align(
                 alignment: Alignment.centerRight,
-                child: TextButton.icon(
+                child: TextButton(
                   onPressed: onCancel,
-                  icon: const Icon(Icons.close_rounded, size: 16),
-                  label: const Text('Başvuruyu iptal et'),
-                  style: TextButton.styleFrom(foregroundColor: ArucadColors.red),
+                  style: TextButton.styleFrom(
+                      foregroundColor: ArucadColors.primary),
+                  child: const Text('İptal'),
                 ),
               )
             else

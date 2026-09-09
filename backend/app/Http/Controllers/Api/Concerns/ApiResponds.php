@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Concerns;
 
 use App\Http\Requests\PaginatedListRequest;
 use App\Models\User;
+use App\Services\Moderation\ModerationNotice;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Str;
@@ -18,6 +19,21 @@ trait ApiResponds
         $meta = ['request_id' => $this->requestId()];
         if ($pagination !== null) {
             $meta['pagination'] = $pagination;
+        }
+
+        // A publishable-but-notable moderation result rides along in meta.
+        //
+        // "warned", "review" and "support" all let the content through, so
+        // the controller returns a plain success and the client had no way
+        // to know anything happened. That silently discarded the self-harm
+        // support message — the one outcome where telling the person
+        // matters most — and left "sent for review" invisible too.
+        //
+        // Attached here rather than at each call site so no endpoint can
+        // forget: every controller already answers through ok().
+        $notice = ModerationNotice::take();
+        if ($notice !== null) {
+            $meta['moderation'] = $notice;
         }
 
         return response()->json([

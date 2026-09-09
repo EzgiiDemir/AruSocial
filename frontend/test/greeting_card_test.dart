@@ -79,6 +79,10 @@ void main() {
     expect(find.text('İyi günler, Ezgi'), findsOneWidget);
     expect(find.textContaining('Girne'), findsOneWidget);
     expect(find.textContaining('27°C'), findsOneWidget);
+
+    final card = tester.getRect(find.byType(GreetingCard));
+    final weather = tester.getRect(find.textContaining('Girne'));
+    expect(weather.center.dx, greaterThan(card.center.dx));
   });
 
   testWidgets('omits the weather row rather than inventing a temperature',

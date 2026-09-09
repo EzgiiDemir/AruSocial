@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Concerns;
 
 use App\Models\User;
 use App\Services\Moderation\ContentModerator;
+use App\Services\Moderation\ModerationNotice;
 use App\Services\Moderation\ModerationOutcome;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Str;
@@ -39,8 +40,15 @@ trait ModeratesContent
         array $imageUrls = [],
     ): ?JsonResponse {
         $outcome = $this->moderate($user, $text, $contentType, $sourceFeature, $imageUrls);
+        if (! $outcome->isPublishable()) {
+            return $this->moderationError($outcome);
+        }
 
-        return $outcome->isPublishable() ? null : $this->moderationError($outcome);
+        // Warned / review / support publish, but the author still needs to
+        // be told — ApiResponds::ok() picks this up and puts it in meta.
+        ModerationNotice::remember($outcome);
+
+        return null;
     }
 
     /** The raw outcome, for callers that need the warned/review signal. */

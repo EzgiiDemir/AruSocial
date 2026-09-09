@@ -12,6 +12,16 @@ use Tests\Fakes\FakeFcmClient;
 
 abstract class TestCase extends BaseTestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // The notice slot is static and survives between tests in one
+        // process, so a leftover from an earlier case could otherwise show
+        // up in an unrelated assertion.
+        \App\Services\Moderation\ModerationNotice::reset();
+    }
+
     /**
      * Every /api/v1 route except health and login now sits behind
      * `auth:sanctum`, so a feature test has to say who it is. Returns the

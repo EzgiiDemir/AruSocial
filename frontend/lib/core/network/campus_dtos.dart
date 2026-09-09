@@ -60,8 +60,10 @@ class CampusUserDto {
       year: json['year'] as String?,
       university: json['university'] as String?,
       clubs: (json['clubs'] as List<dynamic>?)?.cast<String>() ?? const [],
-      achievements: (json['achievements'] as List<dynamic>?)?.cast<String>() ?? const [],
-      projects: (json['projects'] as List<dynamic>?)?.cast<String>() ?? const [],
+      achievements:
+          (json['achievements'] as List<dynamic>?)?.cast<String>() ?? const [],
+      projects:
+          (json['projects'] as List<dynamic>?)?.cast<String>() ?? const [],
     );
   }
 
@@ -107,6 +109,7 @@ class CampusPlaceDto {
     required this.rating,
     this.coverUrl,
     this.recentCheckins = 0,
+    this.totalCheckins = 0,
     this.recentCheckinEntries = const [],
   });
 
@@ -126,6 +129,7 @@ class CampusPlaceDto {
   final double rating;
   final String? coverUrl;
   final int recentCheckins;
+  final int totalCheckins;
   final List<CampusCheckinEntry> recentCheckinEntries;
 
   factory CampusPlaceDto.fromJson(Map<String, dynamic> json) {
@@ -146,8 +150,12 @@ class CampusPlaceDto {
       rating: (json['rating'] as num).toDouble(),
       coverUrl: json['coverUrl'] as String?,
       recentCheckins: (json['recentCheckins'] as num?)?.toInt() ?? 0,
+      totalCheckins: (json['totalCheckins'] as num?)?.toInt() ??
+          (json['recentCheckins'] as num?)?.toInt() ??
+          0,
       recentCheckinEntries: (json['recentCheckinEntries'] as List<dynamic>?)
-              ?.map((e) => CampusCheckinEntry.fromJson(e as Map<String, dynamic>))
+              ?.map(
+                  (e) => CampusCheckinEntry.fromJson(e as Map<String, dynamic>))
               .toList() ??
           const [],
     );
@@ -171,6 +179,7 @@ class CampusPlaceDto {
       rating: rating,
       coverUrl: coverUrl,
       recentCheckins: recentCheckins,
+      totalCheckins: totalCheckins,
       recentCheckinEntries: recentCheckinEntries,
     );
   }

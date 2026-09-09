@@ -24,6 +24,7 @@ class PlaceDerivedFieldsTest extends TestCase
         $this->assertEquals('quiet', $data['density']);
         $this->assertEquals(0, $data['rating']);
         $this->assertEquals(0, $data['recentCheckins']);
+        $this->assertEquals(0, $data['totalCheckins']);
         $this->assertNull($data['coverUrl']);
     }
 
@@ -92,6 +93,7 @@ class PlaceDerivedFieldsTest extends TestCase
 
         $data = $this->getJson("/api/v1/places/{$place->id}")->assertOk()->json('data');
         $this->assertSame([], $data['recentCheckinEntries']);
+        $this->assertEquals(1, $data['totalCheckins']);
     }
 
     public function test_two_recent_checkins_are_moderate_and_stale_ones_do_not_count(): void
@@ -124,6 +126,7 @@ class PlaceDerivedFieldsTest extends TestCase
         $data = $this->getJson("/api/v1/places/{$place->id}")->assertOk()->json('data');
         $this->assertEquals('moderate', $data['density']);
         $this->assertEquals(2, $data['recentCheckins']);
+        $this->assertEquals(3, $data['totalCheckins']);
     }
 
     public function test_rating_is_the_average_of_reviews(): void

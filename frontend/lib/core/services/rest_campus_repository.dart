@@ -19,6 +19,7 @@ import 'package:arucad_campus_prototype/core/models/email_log.dart';
 import 'package:arucad_campus_prototype/core/models/event_participant.dart';
 import 'package:arucad_campus_prototype/core/models/inbox_notification.dart';
 import 'package:arucad_campus_prototype/core/models/media_item.dart';
+import 'package:arucad_campus_prototype/core/models/moderation_appeal.dart';
 import 'package:arucad_campus_prototype/core/models/page_slice.dart';
 import 'package:arucad_campus_prototype/core/models/role_assignment.dart';
 import 'package:arucad_campus_prototype/core/models/staff_application.dart';
@@ -465,8 +466,30 @@ class RestCampusRepository implements CampusRepository {
   }
 
   @override
-  Future<void> reportPost(String postId, String reason) async {
-    await client.post('/feed/$postId/report', body: {'reason': reason});
+  Future<void> reportPost(String postId, String reason,
+      {String? reasonCode}) async {
+    await client.post('/feed/$postId/report', body: {
+      'reason': reason,
+      if (reasonCode != null) 'reasonCode': reasonCode
+    });
+  }
+
+  @override
+  Future<void> reportComment(String commentId, String reason,
+      {String? reasonCode}) async {
+    await client.post('/feed/comments/$commentId/report', body: {
+      'reason': reason,
+      if (reasonCode != null) 'reasonCode': reasonCode
+    });
+  }
+
+  @override
+  Future<void> reportStory(String storyId, String reason,
+      {String? reasonCode}) async {
+    await client.post('/stories/$storyId/report', body: {
+      'reason': reason,
+      if (reasonCode != null) 'reasonCode': reasonCode
+    });
   }
 
   @override
@@ -565,8 +588,12 @@ class RestCampusRepository implements CampusRepository {
   }
 
   @override
-  Future<void> reportPlace(String placeId, String reason) async {
-    await client.post('/places/$placeId/report', body: {'reason': reason});
+  Future<void> reportPlace(String placeId, String reason,
+      {String? reasonCode}) async {
+    await client.post('/places/$placeId/report', body: {
+      'reason': reason,
+      if (reasonCode != null) 'reasonCode': reasonCode
+    });
   }
 
   @override
@@ -595,14 +622,13 @@ class RestCampusRepository implements CampusRepository {
       required String name,
       bool available = true,
       int sortOrder = 0}) async {
-    final response = await client.post(
-        '/admin/places/$placeId/workshop/equipment',
-        body: {
-          if (id != null) 'id': id,
-          'name': name,
-          'available': available,
-          'sortOrder': sortOrder,
-        });
+    final response =
+        await client.post('/admin/places/$placeId/workshop/equipment', body: {
+      if (id != null) 'id': id,
+      'name': name,
+      'available': available,
+      'sortOrder': sortOrder,
+    });
     return WorkshopEquipmentItem.fromJson(
         response['data'] as Map<String, dynamic>);
   }
@@ -1817,9 +1843,28 @@ class RestCampusRepository implements CampusRepository {
   }
 
   @override
-  Future<void> reportUser(String peer, String reason) async {
-    await client
-        .post('/social/report-user', body: {'peer': peer, 'reason': reason});
+  Future<void> reportUser(String peer, String reason,
+      {String? reasonCode}) async {
+    await client.post('/social/report-user', body: {
+      'peer': peer,
+      'reason': reason,
+      if (reasonCode != null) 'reasonCode': reasonCode,
+    });
+  }
+
+  @override
+  Future<void> submitAppeal(String caseId, String reason) async {
+    await client.post('/moderation/appeals',
+        body: {'caseId': caseId, 'reason': reason});
+  }
+
+  @override
+  Future<List<ModerationAppeal>> getMyAppeals() async {
+    final response = await client.get('/moderation/appeals/mine');
+
+    return (response['data'] as List<dynamic>)
+        .map((row) => ModerationAppeal.fromJson(row as Map<String, dynamic>))
+        .toList(growable: false);
   }
 
   @override
@@ -1917,8 +1962,7 @@ class RestCampusRepository implements CampusRepository {
     final me = await getMe();
     final response = await client.get('/chat/groups/$groupId/messages');
     return (response['data'] as List<dynamic>)
-        .map((e) =>
-            _groupMessageFromJson(e as Map<String, dynamic>, me.name))
+        .map((e) => _groupMessageFromJson(e as Map<String, dynamic>, me.name))
         .toList();
   }
 
@@ -1945,8 +1989,12 @@ class RestCampusRepository implements CampusRepository {
   }
 
   @override
-  Future<void> reportChatGroup(String id, String reason) async {
-    await client.post('/chat/groups/$id/report', body: {'reason': reason});
+  Future<void> reportChatGroup(String id, String reason,
+      {String? reasonCode}) async {
+    await client.post('/chat/groups/$id/report', body: {
+      'reason': reason,
+      if (reasonCode != null) 'reasonCode': reasonCode
+    });
   }
 
   @override

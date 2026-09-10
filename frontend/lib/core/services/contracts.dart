@@ -15,6 +15,7 @@ import '../models/chat_message.dart';
 import '../models/content_block.dart';
 import '../models/content_revision.dart';
 import '../models/media_item.dart';
+import '../models/moderation_appeal.dart';
 import '../models/event_participant.dart';
 import '../models/inbox_notification.dart';
 import '../models/email_log.dart';
@@ -118,8 +119,10 @@ abstract class CampusRepository {
   // only which steps are done, and a real cross-device "day 1", move here.
   // [eligible] is server-computed (year / new account); when false the Home
   // card must not show.
-  Future<({Set<String> done, DateTime startedAt, bool eligible})> getOnboardingProgress();
+  Future<({Set<String> done, DateTime startedAt, bool eligible})>
+      getOnboardingProgress();
   Future<void> setOnboardingStepDone(String stepId, bool done);
+
   /// Real replacement for the previously fully-hardcoded `onboardingSteps`
   /// const — REST mode is the source of truth; Mock mode has no backend and
   /// keeps returning that const as its offline seed.
@@ -144,6 +147,7 @@ abstract class CampusRepository {
   // Admin CRUD — places.manage permission server-side.
   Future<void> upsertPlace(CampusPlace place);
   Future<void> deletePlace(String id);
+
   /// [includeUnpublished] shows drafts and not-yet-published/expired events
   /// too — only the Admin Panel should pass `true`; every normal screen
   /// should only ever see what's actually live right now.
@@ -156,6 +160,7 @@ abstract class CampusRepository {
     String? placeId,
   });
   Future<List<Quest>> getQuests();
+
   /// Server-evaluated achievements (locked/unlocked). Not the bio
   /// free-text list on [CampusUser.achievements].
   Future<List<Achievement>> getAchievements();
@@ -169,13 +174,22 @@ abstract class CampusRepository {
       PostCategory postType = PostCategory.normal,
       String? courseTag,
       String? locationTag});
+
   /// Toggles the signed-in account's like. The returned post is the
   /// backend's own view of `likes` / `likedByMe` after the write — the
   /// caller must not invent those numbers locally and then assume they
   /// stuck.
   Future<FeedPost> toggleLike(String postId);
   Future<FeedPost> addComment(String postId, String text);
-  Future<void> reportPost(String postId, String reason);
+  Future<void> reportPost(String postId, String reason, {String? reasonCode});
+
+  /// Comments need their own call: reporting the parent post shows a
+  /// moderator the wrong content and blames the wrong author.
+  Future<void> reportComment(String commentId, String reason,
+      {String? reasonCode});
+
+  Future<void> reportStory(String storyId, String reason, {String? reasonCode});
+
   /// Owner-only — the backend re-checks authorship itself (404 if the
   /// post isn't actually yours), this isn't just a hidden-button UI rule.
   Future<FeedPost> updatePost(String postId,
@@ -183,7 +197,8 @@ abstract class CampusRepository {
   Future<void> deletePost(String postId);
   Future<FeedPost> pinPost(String postId);
   Future<FeedPost> unpinPost(String postId);
-  Future<FeedPost> createOfficialPost(String text, {String? imageUrl, Uint8List? imageBytes});
+  Future<FeedPost> createOfficialPost(String text,
+      {String? imageUrl, Uint8List? imageBytes});
   Future<List<CampusStory>> getStories();
   Future<void> addStory(
       {String? text,
@@ -191,23 +206,29 @@ abstract class CampusRepository {
       int? backgroundColorValue,
       Map<String, dynamic>? style,
       PostVisibility visibility = PostVisibility.everyone});
+
   /// Owner-only, same real server-side check as [deletePost].
   Future<void> deleteStory(String storyId);
   Future<void> markStoryViewed(String storyId);
   Future<List<StoryViewer>> getStoryViewers(String storyId);
   Future<List<Review>> getReviews(String placeId);
   Future<void> addReview(String placeId, int rating, String comment);
-  Future<void> reportPlace(String placeId, String reason);
+  Future<void> reportPlace(String placeId, String reason, {String? reasonCode});
   Future<void> setPlaceCover(String placeId, String url);
+
   /// Real replacement for the previously hardcoded, fake `_workshopEquipment`
   /// / `_collaborationBoard` consts shown on every workshop-category place.
   Future<WorkshopInfo> getWorkshopInfo(String placeId);
   Future<CampusCollaborationPost> addCollaborationPost(
       String placeId, String text);
   Future<WorkshopEquipmentItem> upsertWorkshopEquipment(String placeId,
-      {String? id, required String name, bool available = true, int sortOrder = 0});
+      {String? id,
+      required String name,
+      bool available = true,
+      int sortOrder = 0});
   Future<void> deleteWorkshopEquipment(String placeId, String itemId);
   Future<void> deleteCollaborationPost(String placeId, String postId);
+
   /// Real replacement for the previously fully-hardcoded `shuttleRoutes`
   /// const — REST mode is the source of truth; Mock mode has no backend and
   /// keeps returning that const as its offline seed.
@@ -219,13 +240,15 @@ abstract class CampusRepository {
   Future<CampusWeather?> getWeather();
   Future<ShuttleRoute> upsertShuttleRoute(ShuttleRoute route);
   Future<void> deleteShuttleRoute(String id);
+
   /// Real, fully server-side vision-moderation check (docs/EKSIKLER.md
   /// §26): uploads [bytes] to the backend, which scans them with an API
   /// key that only ever lives server-side (never sent to, or configured
   /// on, this device) and records a real strike if flagged. Throws
   /// [ContentModerationException] if the image is rejected. Mock mode has
   /// no backend to scan with, so it always allows — honest, not faked.
-  Future<void> checkImageModeration(Uint8List bytes, {String mimeType = 'image/jpeg'});
+  Future<void> checkImageModeration(Uint8List bytes,
+      {String mimeType = 'image/jpeg'});
   Future<void> checkIn(
     String placeId, {
     bool visibleToOthers = true,
@@ -233,15 +256,19 @@ abstract class CampusRepository {
     required double longitude,
     double? accuracy,
   });
+
   /// [participationTypeId] selects one of the event's real, admin-defined
   /// participation options (if it has any — see [CampusEvent.participationTypes]).
   /// The returned status reflects what the backend actually did: whether the
   /// club-organizer email and the student's own confirmation email were sent.
-  Future<EventJoinResult> joinEvent(String eventId, {String? participationTypeId});
+  Future<EventJoinResult> joinEvent(String eventId,
+      {String? participationTypeId});
+
   /// Real, in-app completion of the katılım formu the student receives by
   /// email after joining — this is the gate that actually makes the join
   /// reviewable by the organizer (see [EventJoinResult.formSubmitted]).
   Future<EventJoinResult> submitEventJoinForm(String eventId);
+
   /// [history] is the conversation so far (oldest first, NOT including
   /// [prompt] itself) — passed to the real backend so Ask ARUCAD answers
   /// with actual multi-turn context instead of re-deriving a fresh answer
@@ -266,18 +293,24 @@ abstract class CampusRepository {
   // -scoped enforcement happens server-side (department-head middleware);
   // these calls simply hit the /trainer/* routes rather than /admin/*.
   Future<List<CampusEvent>> getTrainerEvents();
+
   /// [isNew] must be passed explicitly rather than inferred from
   /// [event.id] — a new event's id is only ever assigned by the server.
-  Future<CampusEvent> upsertTrainerEvent(CampusEvent event, {required bool isNew});
+  Future<CampusEvent> upsertTrainerEvent(CampusEvent event,
+      {required bool isNew});
   Future<void> deleteTrainerEvent(String id);
 
   // Trainer Panel — the same approve/reject/revise pipeline Admin's
   // Applications tab uses, scoped server-side to this trainer's own
   // department, plus a read-only view of their department colleagues.
-  Future<List<ParticipationApplication>> getTrainerApplications({String? status});
-  Future<ParticipationApplication> approveTrainerApplication(String id, {String? reviewNote});
-  Future<ParticipationApplication> rejectTrainerApplication(String id, {required String reviewNote});
-  Future<ParticipationApplication> requestTrainerApplicationRevision(String id, {required String reviewNote});
+  Future<List<ParticipationApplication>> getTrainerApplications(
+      {String? status});
+  Future<ParticipationApplication> approveTrainerApplication(String id,
+      {String? reviewNote});
+  Future<ParticipationApplication> rejectTrainerApplication(String id,
+      {required String reviewNote});
+  Future<ParticipationApplication> requestTrainerApplicationRevision(String id,
+      {required String reviewNote});
   Future<List<StaffProfile>> getTrainerRoster();
 
   // Real attendance roster for one of this trainer's own events — same
@@ -290,7 +323,8 @@ abstract class CampusRepository {
   Future<void> resolveReport(String id, ModerationAction action);
 
   /// Human visual queue for media with moderationStatus=pending.
-  Future<PageSlice<MediaItem>> getModerationQueue({int page = 1, int perPage = 20});
+  Future<PageSlice<MediaItem>> getModerationQueue(
+      {int page = 1, int perPage = 20});
   Future<void> resolveModerationQueueItem(String id, {required String action});
   Future<PageSlice<FeedPost>> getPendingPosts({int page = 1, int perPage = 20});
   Future<void> approvePendingPost(String id);
@@ -299,18 +333,21 @@ abstract class CampusRepository {
 
   /// Poster image → draft event only (never publishes). Throws on 501
   /// when AI is not configured server-side.
-  Future<CampusEvent> draftEventFromPoster(Uint8List bytes, {required String fileName});
+  Future<CampusEvent> draftEventFromPoster(Uint8List bytes,
+      {required String fileName});
 
   /// Whether a real image-moderation API key is configured server-side
   /// (docs/EKSIKLER.md §26) — never the raw key itself, which the client
   /// never sees. Mock mode has no such backend setting, so it's always
   /// false there — honest, not faked.
   Future<bool> getImageModerationConfigured();
+
   /// Admin-only real configuration/reachability snapshot (superAdmin).
   /// Mock mode reports everything as "not configured" except the
   /// database, which is trivially always reachable in-process — honest
   /// given there's no real backend to probe.
   Future<SystemHealth> getSystemHealth();
+
   /// Sets (or, with an empty string, clears) the server-side image-
   /// moderation API key. Returns the new configured state.
   Future<bool> setImageModerationApiKey(String apiKey);
@@ -395,26 +432,35 @@ abstract class CampusRepository {
     bool? lookingForInternships,
     bool? lookingForJobs,
   });
-  Future<CareerProfile> uploadCareerCv(Uint8List bytes, {required String fileName});
+  Future<CareerProfile> uploadCareerCv(Uint8List bytes,
+      {required String fileName});
   Future<void> deleteCareerCv();
   Future<List<int>> downloadOwnCareerCv();
   Future<CareerOpportunity> getCareerOpportunity(String id);
   Future<CareerApplication> applyToCareerOpportunity(String opportunityId);
   Future<List<CareerApplication>> getMyCareerApplications();
-  Future<List<CareerApplication>> getAdminCareerApplications({String? status, String? opportunityId, String? q});
-  Future<CareerApplication> updateCareerApplication(String id, {String? status, String? adminNotes});
+  Future<List<CareerApplication>> getAdminCareerApplications(
+      {String? status, String? opportunityId, String? q});
+  Future<CareerApplication> updateCareerApplication(String id,
+      {String? status, String? adminNotes});
   Future<List<int>> downloadCareerApplicationCv(String id);
-  Future<PageSlice<CareerOpportunity>> getAdminCareerOpportunitiesPage({int page = 1, int perPage = 20});
+  Future<PageSlice<CareerOpportunity>> getAdminCareerOpportunitiesPage(
+      {int page = 1, int perPage = 20});
 
-  Future<PageSlice<ConsultationOffering>> getConsultationsPage({int page = 1, int perPage = 20});
+  Future<PageSlice<ConsultationOffering>> getConsultationsPage(
+      {int page = 1, int perPage = 20});
   Future<ConsultationOffering> getConsultation(String id);
-  Future<ConsultationApplication> applyToConsultation(String id, {String? notes});
+  Future<ConsultationApplication> applyToConsultation(String id,
+      {String? notes});
   Future<List<ConsultationApplication>> getMyConsultationApplications();
-  Future<PageSlice<ConsultationOffering>> getAdminConsultationsPage({int page = 1, int perPage = 20});
+  Future<PageSlice<ConsultationOffering>> getAdminConsultationsPage(
+      {int page = 1, int perPage = 20});
   Future<void> upsertConsultation(ConsultationOffering consultation);
   Future<void> deleteConsultation(String id);
-  Future<List<ConsultationApplication>> getAdminConsultationApplications({String? status, String? q});
-  Future<ConsultationApplication> updateConsultationApplication(String id, {String? status, String? adminNotes});
+  Future<List<ConsultationApplication>> getAdminConsultationApplications(
+      {String? status, String? q});
+  Future<ConsultationApplication> updateConsultationApplication(String id,
+      {String? status, String? adminNotes});
   Future<void> upsertCareerOpportunity(CareerOpportunity opportunity);
   Future<void> deleteCareerOpportunity(String id);
 
@@ -426,7 +472,8 @@ abstract class CampusRepository {
     String? title,
     bool departmentHeadOnly = false,
   });
-  Future<List<StaffProfile>> getAdminStaff({String? q, String? department, bool? active});
+  Future<List<StaffProfile>> getAdminStaff(
+      {String? q, String? department, bool? active});
   Future<void> upsertStaffProfile(StaffProfile staff);
   Future<void> deleteStaffProfile(String id);
 
@@ -434,10 +481,13 @@ abstract class CampusRepository {
   /// stage — see ParticipationApplication's class doc. Always fetch these
   /// rather than hardcoding a category's fields; the Detail stage itself
   /// is filled out on the emailed web link, not in the app.
-  Future<List<ApplicationQuestion>> getApplicationQuestions(String targetType, String stage);
+  Future<List<ApplicationQuestion>> getApplicationQuestions(
+      String targetType, String stage);
 
   Future<List<ParticipationApplication>> getMyApplications();
-  Future<List<Map<String, dynamic>>> getApplicationHistory(String applicationId);
+  Future<List<Map<String, dynamic>>> getApplicationHistory(
+      String applicationId);
+
   /// Stage 1 only — a Preview submission. Never participation by itself;
   /// see ParticipationApplication.isApproved.
   Future<ParticipationApplication> submitApplication({
@@ -446,6 +496,7 @@ abstract class CampusRepository {
     String? responsibleStaffId,
     Map<String, dynamic>? formPayload,
   });
+
   /// Stage 2 from inside the app — same outcome as the emailed Detail form.
   Future<ParticipationApplication> submitApplicationDetail(
     String applicationId, {
@@ -455,12 +506,17 @@ abstract class CampusRepository {
   /// The student withdraws their own application while it is still open.
   /// Refused once a decision exists — see the backend for why.
   Future<ParticipationApplication> cancelApplication(String applicationId);
-  Future<List<ParticipationApplication>> getAdminApplications({String? status, String? targetType});
-  Future<ParticipationApplication> approveApplication(String id, {String? reviewNote});
-  Future<ParticipationApplication> rejectApplication(String id, {String? reviewNote});
-  Future<ParticipationApplication> requestApplicationRevision(String id, {required String reviewNote});
+  Future<List<ParticipationApplication>> getAdminApplications(
+      {String? status, String? targetType});
+  Future<ParticipationApplication> approveApplication(String id,
+      {String? reviewNote});
+  Future<ParticipationApplication> rejectApplication(String id,
+      {String? reviewNote});
+  Future<ParticipationApplication> requestApplicationRevision(String id,
+      {required String reviewNote});
 
   Future<List<AppointmentBooking>> getMyAppointments();
+
   /// Booked slots across staff — admin/staff CRM. Students must not call this.
   Future<List<AppointmentBooking>> getAdminAppointments({
     String? staffProfileId,
@@ -480,7 +536,8 @@ abstract class CampusRepository {
   });
   Future<void> cancelAppointment(String id);
   Future<AppointmentBooking> getAppointment(String id);
-  Future<AppointmentBooking> updateAdminAppointment(String id, {String? status, String? adminNotes, String? staffProfileId});
+  Future<AppointmentBooking> updateAdminAppointment(String id,
+      {String? status, String? adminNotes, String? staffProfileId});
 
   Future<List<Achievement>> getAdminAchievements();
   Future<void> upsertAchievementDefinition(Achievement definition);
@@ -489,6 +546,7 @@ abstract class CampusRepository {
   // Building directory + generic Pages — same real-backend-in-Rest-mode/
   // local-in-Mock-mode split as Clubs/Sports/Services.
   Future<List<DirectoryEntry>> getDirectoryEntries();
+
   /// Distinct buildings from directory_entries (soft hierarchy).
   Future<List<CampusBuilding>> getDirectoryBuildings();
   Future<List<CampusFloor>> getDirectoryFloors(String building);
@@ -512,22 +570,26 @@ abstract class CampusRepository {
 
   // RBAC — real, shared email->role table in Rest mode.
   Future<List<RoleAssignment>> getRoleAssignments();
+
   /// Single-email lookup — used at sign-in time to resolve the actually
   /// assigned role, without fetching the whole assignment list.
   Future<UserRole?> roleFor(String? email);
-  Future<void> setRoleAssignment(String email, UserRole role, {required String assignedBy});
+  Future<void> setRoleAssignment(String email, UserRole role,
+      {required String assignedBy});
   Future<void> deleteRoleAssignment(String email);
 
   // Admin activity log (capped at the most recent 200/500 server- or
   // locally-side) — read-only from the UI; every admin write elsewhere
   // logs to this automatically.
   Future<List<AuditLogEntry>> getAuditLog();
-  Future<PageSlice<AuditLogEntry>> getAuditLogPage({int page = 1, int perPage = 20});
+  Future<PageSlice<AuditLogEntry>> getAuditLogPage(
+      {int page = 1, int perPage = 20});
 
   // Content revision history ("Sürüm Geçmişi") for the block editor —
   // keyed the same way locally and remotely (e.g. `event:123`).
   Future<List<ContentRevision>> getRevisions(String contentKey);
-  Future<void> recordRevision(String contentKey, List<ContentBlock> snapshot, String editorName);
+  Future<void> recordRevision(
+      String contentKey, List<ContentBlock> snapshot, String editorName);
 
   // Saved posts / follow / block — real, shared state in Rest mode.
   Future<Set<String>> getSavedPostIds();
@@ -539,7 +601,7 @@ abstract class CampusRepository {
   Future<Set<String>> getBlocked();
   Future<bool> toggleFollow(String peer);
   Future<bool> toggleBlock(String peer);
-  Future<void> reportUser(String peer, String reason);
+  Future<void> reportUser(String peer, String reason, {String? reasonCode});
   Future<List<FollowRequestPeer>> getFollowRequests();
   Future<void> acceptFollowRequest(String peer);
   Future<void> declineFollowRequest(String peer);
@@ -556,9 +618,16 @@ abstract class CampusRepository {
   Future<List<ChatMessage>> getGroupMessages(String groupId);
   Future<ChatMessage> sendGroupMessage(String groupId, String text);
   Future<void> leaveChatGroup(String id);
+
   /// [field] is `mute` or `archive`.
   Future<ChatGroup> toggleChatGroupPref(String id, String field);
-  Future<void> reportChatGroup(String id, String reason);
+  Future<void> reportChatGroup(String id, String reason, {String? reasonCode});
+
+  /// Contest a moderation decision about your own content. Decided by a
+  /// person, never by re-running the model that made the call.
+  Future<void> submitAppeal(String caseId, String reason);
+
+  Future<List<ModerationAppeal>> getMyAppeals();
 
   // Backend-delivered notifications (e.g. a real follow event) — additive
   // to NotificationsScreen's existing feed/activity synthesis, not a
@@ -570,7 +639,8 @@ abstract class CampusRepository {
   Future<void> markAllNotificationsRead();
 
   /// Device FCM token. Rest mode POSTs `/push-tokens`; mock is a no-op.
-  Future<void> registerPushToken({required String token, required String platform});
+  Future<void> registerPushToken(
+      {required String token, required String platform});
   Future<void> unregisterPushToken(String token);
 
   // Survey/poll — student-facing active list + vote, admin management.
@@ -626,7 +696,8 @@ abstract class CampusRepository {
   /// admin event form and the student own-activity form show a real
   /// conflict before submitting, matching the same check the backend
   /// enforces server-side in createOwnActivity()/upsertEvent().
-  Future<List<PlaceBooking>> getPlaceAvailability(String placeId, DateTime date);
+  Future<List<PlaceBooking>> getPlaceAvailability(
+      String placeId, DateTime date);
 
   // Real attendance roster ("yoklama") for one event — who actually
   // joined, with their chosen participation type, and whether an admin
@@ -636,10 +707,13 @@ abstract class CampusRepository {
 
   // Admin bulk email + email log/retry.
   Future<List<EmailLogEntry>> getEmailLogs();
-  Future<PageSlice<EmailLogEntry>> getEmailLogsPage({int page = 1, int perPage = 20});
+  Future<PageSlice<EmailLogEntry>> getEmailLogsPage(
+      {int page = 1, int perPage = 20});
   Future<String?> retryEmail(String id);
   Future<int> sendBulkEmail(
-      {required List<String> recipients, required String subject, required String body});
+      {required List<String> recipients,
+      required String subject,
+      required String body});
 }
 
 abstract class AuthProvider {

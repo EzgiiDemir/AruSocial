@@ -22,6 +22,7 @@ import '../models/content_block.dart';
 import '../models/content_revision.dart';
 import '../models/email_log.dart';
 import '../models/media_item.dart';
+import '../models/moderation_appeal.dart';
 import '../models/event_participant.dart';
 import '../models/inbox_notification.dart';
 import '../models/page_slice.dart';
@@ -59,7 +60,8 @@ class MockCampusRepository implements CampusRepository {
     events: 17,
     memories: 86,
     interests: ['Art', 'Photography', 'Cinema'],
-    avatarUrl: 'https://api.dicebear.com/7.x/notionists/png?seed=demo-001&size=200',
+    avatarUrl:
+        'https://api.dicebear.com/7.x/notionists/png?seed=demo-001&size=200',
     department: 'Grafik Tasarım',
     year: '3. Sınıf',
     university: 'ARUCAD',
@@ -87,8 +89,7 @@ class MockCampusRepository implements CampusRepository {
     );
   }
 
-  int get _lifetimeActivityXp =>
-      _activity.fold(0, (sum, a) => sum + a.xp);
+  int get _lifetimeActivityXp => _activity.fold(0, (sum, a) => sum + a.xp);
 
   /// [_user.xp] is the seed "before this session" baseline; real totals are
   /// that baseline plus everything genuinely earned since, computed fresh
@@ -164,8 +165,7 @@ class MockCampusRepository implements CampusRepository {
       category: 'Kütüphane',
       lat: 35.337754,
       lng: 33.321358,
-      description:
-          'Kütüphane, dijital kütüphane ve konferans salonu.',
+      description: 'Kütüphane, dijital kütüphane ve konferans salonu.',
       distance: '6 min',
       density: 'Quiet',
       street: 'Şair Nedim Sokak',
@@ -180,8 +180,7 @@ class MockCampusRepository implements CampusRepository {
       category: 'Galeri',
       lat: 35.337799,
       lng: 33.321082,
-      description:
-          'Performans stüdyosu, ARUCAD Galerisi ve Sağlık Merkezi.',
+      description: 'Performans stüdyosu, ARUCAD Galerisi ve Sağlık Merkezi.',
       distance: '5 min',
       density: 'moderate',
       street: 'Şair Nedim Sokak',
@@ -311,7 +310,8 @@ class MockCampusRepository implements CampusRepository {
     const ConsultationOffering(
       id: 'consult-cv-review',
       title: 'CV Review',
-      purpose: 'CV ve portfolyonun kariyer danışmanı ile birlikte gözden geçirilmesi.',
+      purpose:
+          'CV ve portfolyonun kariyer danışmanı ile birlikte gözden geçirilmesi.',
       audience: 'Staj veya iş arayan öğrenciler.',
       content: 'Bire bir dosya incelemesi ve geribildirim.',
       outcomes: 'Daha güçlü bir CV.',
@@ -364,7 +364,8 @@ class MockCampusRepository implements CampusRepository {
       unlocked: false,
     ),
   ];
-  late final List<Achievement> _mutableAchievementDefs = List.of(_achievementDefs);
+  late final List<Achievement> _mutableAchievementDefs =
+      List.of(_achievementDefs);
 
   final List<FeedPost> _feed = [
     const FeedPost(
@@ -471,21 +472,28 @@ class MockCampusRepository implements CampusRepository {
 
   final List<LeaderboardEntry> _peers = const [
     LeaderboardEntry(name: 'Mert Arslan', xp: 4120, department: 'Mimarlık'),
-    LeaderboardEntry(name: 'Deniz Kaya', xp: 3380, department: 'Grafik Tasarım'),
-    LeaderboardEntry(name: 'Sude Yılmaz', xp: 2990, department: 'Moda Tasarımı'),
-    LeaderboardEntry(name: 'Kaan Tekin', xp: 2410, department: 'Sinema ve Televizyon'),
+    LeaderboardEntry(
+        name: 'Deniz Kaya', xp: 3380, department: 'Grafik Tasarım'),
+    LeaderboardEntry(
+        name: 'Sude Yılmaz', xp: 2990, department: 'Moda Tasarımı'),
+    LeaderboardEntry(
+        name: 'Kaan Tekin', xp: 2410, department: 'Sinema ve Televizyon'),
     LeaderboardEntry(name: 'Elif Şahin', xp: 1870, department: 'İç Mimarlık'),
-    LeaderboardEntry(name: 'Ali Rüzgar', xp: 1120, department: 'Güzel Sanatlar'),
-    LeaderboardEntry(name: 'Zeynep Aydın', xp: 980, department: 'Grafik Tasarım'),
+    LeaderboardEntry(
+        name: 'Ali Rüzgar', xp: 1120, department: 'Güzel Sanatlar'),
+    LeaderboardEntry(
+        name: 'Zeynep Aydın', xp: 980, department: 'Grafik Tasarım'),
     LeaderboardEntry(name: 'Emre Doğan', xp: 860, department: 'Mimarlık'),
     LeaderboardEntry(name: 'Ceren Polat', xp: 740, department: 'Moda Tasarımı'),
-    LeaderboardEntry(name: 'Burak Çelik', xp: 690, department: 'Sinema ve Televizyon'),
+    LeaderboardEntry(
+        name: 'Burak Çelik', xp: 690, department: 'Sinema ve Televizyon'),
     LeaderboardEntry(name: 'Naz Öztürk', xp: 610, department: 'Güzel Sanatlar'),
     LeaderboardEntry(name: 'Yusuf Aksoy', xp: 540, department: 'İç Mimarlık'),
     LeaderboardEntry(name: 'İrem Kurt', xp: 470, department: 'Grafik Tasarım'),
     LeaderboardEntry(name: 'Barış Yıldız', xp: 390, department: 'Mimarlık'),
     LeaderboardEntry(name: 'Selin Avcı', xp: 310, department: 'Moda Tasarımı'),
-    LeaderboardEntry(name: 'Onur Demirtaş', xp: 250, department: 'Sinema ve Televizyon'),
+    LeaderboardEntry(
+        name: 'Onur Demirtaş', xp: 250, department: 'Sinema ve Televizyon'),
   ];
 
   final Map<String, List<Review>> _reviews = {
@@ -584,7 +592,8 @@ class MockCampusRepository implements CampusRepository {
   // the mock "started" window is still open (≤14 days) — mirrors the
   // server's conservative new-account rule when year is unknown.
   @override
-  Future<({Set<String> done, DateTime startedAt, bool eligible})> getOnboardingProgress() async {
+  Future<({Set<String> done, DateTime startedAt, bool eligible})>
+      getOnboardingProgress() async {
     final done = await AppSettingsStore.onboardingDone();
     final startedAt = await AppSettingsStore.onboardingStartedAt();
     final eligible = DateTime.now().difference(startedAt).inDays <= 14;
@@ -692,7 +701,8 @@ class MockCampusRepository implements CampusRepository {
       final reviews = _reviews[p.id] ?? const <Review>[];
       final rating = reviews.isEmpty
           ? 0.0
-          : reviews.map((r) => r.rating).reduce((a, b) => a + b) / reviews.length;
+          : reviews.map((r) => r.rating).reduce((a, b) => a + b) /
+              reviews.length;
       result.add(p.copyWith(
         coverUrl: cover,
         recentCheckins: count,
@@ -726,7 +736,9 @@ class MockCampusRepository implements CampusRepository {
     String? category,
     String? placeId,
   }) async {
-    var base = includeUnpublished ? _events : _events.where((e) => e.isVisibleNow).toList();
+    var base = includeUnpublished
+        ? _events
+        : _events.where((e) => e.isVisibleNow).toList();
     if (academicYearId != null) {
       base = base.where((e) => e.academicYearId == academicYearId).toList();
     }
@@ -737,12 +749,12 @@ class MockCampusRepository implements CampusRepository {
       base = base.where((e) => e.placeId == placeId).toList();
     }
     base = [...base]..sort((a, b) {
-      final ad = a.eventDate ?? DateTime(1970);
-      final bd = b.eventDate ?? DateTime(1970);
-      final byDate = ad.compareTo(bd);
-      if (byDate != 0) return byDate;
-      return a.time.compareTo(b.time);
-    });
+        final ad = a.eventDate ?? DateTime(1970);
+        final bd = b.eventDate ?? DateTime(1970);
+        final byDate = ad.compareTo(bd);
+        if (byDate != 0) return byDate;
+        return a.time.compareTo(b.time);
+      });
     return base;
   }
 
@@ -811,9 +823,8 @@ class MockCampusRepository implements CampusRepository {
           triggerKind: def.triggerKind,
           threshold: def.threshold,
           unlocked: _unlockedAchievements.contains(def.id),
-          unlockedAt: _unlockedAchievements.contains(def.id)
-              ? DateTime.now()
-              : null,
+          unlockedAt:
+              _unlockedAchievements.contains(def.id) ? DateTime.now() : null,
         ),
     ];
   }
@@ -838,7 +849,8 @@ class MockCampusRepository implements CampusRepository {
   }
 
   @override
-  Future<PageSlice<FeedPost>> getFeedPage({int page = 1, int perPage = 20}) async =>
+  Future<PageSlice<FeedPost>> getFeedPage(
+          {int page = 1, int perPage = 20}) async =>
       _pageOf(_feed, page: page, perPage: perPage);
 
   static const _checkInXp = 10;
@@ -861,7 +873,8 @@ class MockCampusRepository implements CampusRepository {
       }
     }
     if (place == null) {
-      throw ApiClientException('Place not found', code: 'PLACE_NOT_FOUND', statusCode: 404);
+      throw ApiClientException('Place not found',
+          code: 'PLACE_NOT_FOUND', statusCode: 404);
     }
     final meters = _distanceMeters(latitude, longitude, place.lat, place.lng);
     if (meters > _checkInRadiusMeters) {
@@ -928,10 +941,12 @@ class MockCampusRepository implements CampusRepository {
   }
 
   @override
-  Future<void> reportPlace(String placeId, String reason) async {
+  Future<void> reportPlace(String placeId, String reason,
+      {String? reasonCode}) async {
     // No moderation *backend* in this prototype, but there is a real local
     // moderation queue (`_reports`) an admin can act on — see below.
-    _logActivity(ActivityKind.report, 'Şikayet ettin: ${_placeName(placeId)}', reason);
+    _logActivity(
+        ActivityKind.report, 'Şikayet ettin: ${_placeName(placeId)}', reason);
     _reports.insert(
       0,
       ModerationReport(
@@ -1036,24 +1051,29 @@ class MockCampusRepository implements CampusRepository {
   }
 
   @override
-  Future<void> checkImageModeration(Uint8List bytes, {String mimeType = 'image/jpeg'}) async {
+  Future<void> checkImageModeration(Uint8List bytes,
+      {String mimeType = 'image/jpeg'}) async {
     // Mock mode has no backend to actually scan an image with (and no
     // strikes/ban schema to record against) — honestly a no-op rather than
     // faking a moderation result with nowhere real to run the check.
   }
 
   @override
-  Future<EventJoinResult> joinEvent(String eventId, {String? participationTypeId}) async {
+  Future<EventJoinResult> joinEvent(String eventId,
+      {String? participationTypeId}) async {
     final event = _eventById(eventId);
     final roster = _eventParticipants.putIfAbsent(eventId, () => []);
     final alreadyJoined = roster.any((p) => p.userId == _user.id);
     if (!alreadyJoined) {
-      _logActivity(ActivityKind.eventJoin, 'Katıldın: ${event?.title ?? eventId}',
-          '+${event?.xp ?? 0} XP',
+      _logActivity(ActivityKind.eventJoin,
+          'Katıldın: ${event?.title ?? eventId}', '+${event?.xp ?? 0} XP',
           xp: event?.xp ?? 0);
       final label = participationTypeId == null
           ? null
-          : event?.participationTypes.where((t) => t.id == participationTypeId).firstOrNull?.label;
+          : event?.participationTypes
+              .where((t) => t.id == participationTypeId)
+              .firstOrNull
+              ?.label;
       roster.add(EventParticipant(
         id: 'join-${DateTime.now().microsecondsSinceEpoch}',
         userId: _user.id,
@@ -1091,8 +1111,10 @@ class MockCampusRepository implements CampusRepository {
         formSubmittedAt: DateTime.now(),
       );
       final event = _eventById(eventId);
-      _logActivity(ActivityKind.eventJoin,
-          'Katılım formunu doldurdun: ${event?.title ?? eventId}', 'Onay bekleniyor');
+      _logActivity(
+          ActivityKind.eventJoin,
+          'Katılım formunu doldurdun: ${event?.title ?? eventId}',
+          'Onay bekleniyor');
     }
     return const EventJoinResult(
       alreadyJoined: true,
@@ -1118,7 +1140,8 @@ class MockCampusRepository implements CampusRepository {
   @override
   Future<void> upsertEvent(CampusEvent event) async {
     if (event.placeId != null) {
-      final conflict = _placeConflict(event.placeId!, event.eventDate, event.time,
+      final conflict = _placeConflict(
+          event.placeId!, event.eventDate, event.time,
           excludeEventId: event.id);
       if (conflict != null) {
         throw PlaceConflictException(
@@ -1146,13 +1169,17 @@ class MockCampusRepository implements CampusRepository {
 
   @override
   Future<List<CampusEvent>> getTrainerEvents() async {
-    return _events.where((e) => e.responsibleStaffId == _mockTrainerStaffId).toList();
+    return _events
+        .where((e) => e.responsibleStaffId == _mockTrainerStaffId)
+        .toList();
   }
 
   @override
-  Future<CampusEvent> upsertTrainerEvent(CampusEvent event, {required bool isNew}) async {
+  Future<CampusEvent> upsertTrainerEvent(CampusEvent event,
+      {required bool isNew}) async {
     if (event.placeId != null) {
-      final conflict = _placeConflict(event.placeId!, event.eventDate, event.time,
+      final conflict = _placeConflict(
+          event.placeId!, event.eventDate, event.time,
           excludeEventId: isNew ? null : event.id);
       if (conflict != null) {
         throw PlaceConflictException(
@@ -1187,11 +1214,13 @@ class MockCampusRepository implements CampusRepository {
 
   @override
   Future<void> deleteTrainerEvent(String id) async {
-    _events.removeWhere((e) => e.id == id && e.responsibleStaffId == _mockTrainerStaffId);
+    _events.removeWhere(
+        (e) => e.id == id && e.responsibleStaffId == _mockTrainerStaffId);
   }
 
   @override
-  Future<List<ParticipationApplication>> getTrainerApplications({String? status}) async {
+  Future<List<ParticipationApplication>> getTrainerApplications(
+      {String? status}) async {
     return _applications.where((a) {
       if (a.responsibleStaffId != _mockTrainerStaffId) return false;
       if (status != null) return a.status == status;
@@ -1202,8 +1231,10 @@ class MockCampusRepository implements CampusRepository {
     }).toList();
   }
 
-  ParticipationApplication _updateTrainerApplication(String id, String status, String? reviewNote) {
-    final i = _applications.indexWhere((a) => a.id == id && a.responsibleStaffId == _mockTrainerStaffId);
+  ParticipationApplication _updateTrainerApplication(
+      String id, String status, String? reviewNote) {
+    final i = _applications.indexWhere(
+        (a) => a.id == id && a.responsibleStaffId == _mockTrainerStaffId);
     final old = _applications[i];
     final next = ParticipationApplication(
       id: old.id,
@@ -1225,24 +1256,32 @@ class MockCampusRepository implements CampusRepository {
   }
 
   @override
-  Future<ParticipationApplication> approveTrainerApplication(String id, {String? reviewNote}) async {
-    return _updateTrainerApplication(id, ParticipationApplication.statusApproved, reviewNote);
+  Future<ParticipationApplication> approveTrainerApplication(String id,
+      {String? reviewNote}) async {
+    return _updateTrainerApplication(
+        id, ParticipationApplication.statusApproved, reviewNote);
   }
 
   @override
-  Future<ParticipationApplication> rejectTrainerApplication(String id, {required String reviewNote}) async {
-    return _updateTrainerApplication(id, ParticipationApplication.statusRejected, reviewNote);
+  Future<ParticipationApplication> rejectTrainerApplication(String id,
+      {required String reviewNote}) async {
+    return _updateTrainerApplication(
+        id, ParticipationApplication.statusRejected, reviewNote);
   }
 
   @override
-  Future<ParticipationApplication> requestTrainerApplicationRevision(String id, {required String reviewNote}) async {
-    return _updateTrainerApplication(id, ParticipationApplication.statusRevisionRequired, reviewNote);
+  Future<ParticipationApplication> requestTrainerApplicationRevision(String id,
+      {required String reviewNote}) async {
+    return _updateTrainerApplication(
+        id, ParticipationApplication.statusRevisionRequired, reviewNote);
   }
 
   @override
   Future<List<StaffProfile>> getTrainerRoster() async {
     final me = _staff.firstWhere((s) => s.id == _mockTrainerStaffId);
-    return _staff.where((s) => s.active && s.department == me.department).toList();
+    return _staff
+        .where((s) => s.active && s.department == me.department)
+        .toList();
   }
 
   @override
@@ -1283,13 +1322,15 @@ class MockCampusRepository implements CampusRepository {
   }
 
   @override
-  Future<void> leaveClub(String clubId) => AppSettingsStore.setClubJoined(clubId, false);
+  Future<void> leaveClub(String clubId) =>
+      AppSettingsStore.setClubJoined(clubId, false);
 
   @override
   Future<List<CampusSport>> getSports() => AdminContentStore.sports();
 
   @override
-  Future<void> upsertSport(CampusSport sport) => AdminContentStore.saveSport(sport);
+  Future<void> upsertSport(CampusSport sport) =>
+      AdminContentStore.saveSport(sport);
 
   @override
   Future<void> deleteSport(String id) => AdminContentStore.deleteSport(id);
@@ -1298,20 +1339,23 @@ class MockCampusRepository implements CampusRepository {
   Future<List<CampusService>> getServices() => AdminContentStore.services();
 
   @override
-  Future<void> upsertService(CampusService service) => AdminContentStore.saveService(service);
+  Future<void> upsertService(CampusService service) =>
+      AdminContentStore.saveService(service);
 
   @override
   Future<void> deleteService(String id) => AdminContentStore.deleteService(id);
 
   @override
-  Future<List<CampusFoodVenue>> getFoodVenues() => AdminContentStore.foodVenues();
+  Future<List<CampusFoodVenue>> getFoodVenues() =>
+      AdminContentStore.foodVenues();
 
   @override
   Future<void> upsertFoodVenue(CampusFoodVenue venue) =>
       AdminContentStore.saveFoodVenue(venue);
 
   @override
-  Future<void> deleteFoodVenue(String id) => AdminContentStore.deleteFoodVenue(id);
+  Future<void> deleteFoodVenue(String id) =>
+      AdminContentStore.deleteFoodVenue(id);
 
   @override
   Future<void> upsertFoodMenu(String venueId, DailyMenu menu) async {
@@ -1345,7 +1389,9 @@ class MockCampusRepository implements CampusRepository {
       hours: venue.hours,
       dailyMenus: [
         for (final m in venue.dailyMenus)
-          if (m.date.year != date.year || m.date.month != date.month || m.date.day != date.day)
+          if (m.date.year != date.year ||
+              m.date.month != date.month ||
+              m.date.day != date.day)
             m,
       ],
       menuText: venue.menuText,
@@ -1372,13 +1418,15 @@ class MockCampusRepository implements CampusRepository {
       MediaLibraryStore.markUsed(id, ref);
 
   @override
-  Future<PageSlice<MediaItem>> getMyMediaPage({int page = 1, int perPage = 20}) async {
+  Future<PageSlice<MediaItem>> getMyMediaPage(
+      {int page = 1, int perPage = 20}) async {
     final all = await MediaLibraryStore.personalItems();
     return _pageOf(all, page: page, perPage: perPage);
   }
 
   @override
-  Future<MediaItem> uploadMyMedia(Uint8List bytes, {required String fileName}) =>
+  Future<MediaItem> uploadMyMedia(Uint8List bytes,
+          {required String fileName}) =>
       MediaLibraryStore.uploadPersonal(
         bytes,
         fileName: fileName,
@@ -1391,8 +1439,7 @@ class MockCampusRepository implements CampusRepository {
   @override
   Future<PageSlice<CareerOpportunity>> getCareerOpportunitiesPage(
       {int page = 1, int perPage = 20}) async {
-    final published =
-        _careerOpportunities.where((o) => o.published).toList();
+    final published = _careerOpportunities.where((o) => o.published).toList();
     return _pageOf(published, page: page, perPage: perPage);
   }
 
@@ -1423,7 +1470,8 @@ class MockCampusRepository implements CampusRepository {
 
   @override
   Future<void> upsertCareerOpportunity(CareerOpportunity opportunity) async {
-    final index = _careerOpportunities.indexWhere((o) => o.id == opportunity.id);
+    final index =
+        _careerOpportunities.indexWhere((o) => o.id == opportunity.id);
     if (index >= 0) {
       _careerOpportunities[index] = opportunity;
     } else {
@@ -1478,7 +1526,8 @@ class MockCampusRepository implements CampusRepository {
   }
 
   @override
-  Future<List<StaffProfile>> getAdminStaff({String? q, String? department, bool? active}) async {
+  Future<List<StaffProfile>> getAdminStaff(
+      {String? q, String? department, bool? active}) async {
     return _staff.where((s) {
       if (active != null && s.active != active) return false;
       if (department != null && s.department != department) return false;
@@ -1518,7 +1567,8 @@ class MockCampusRepository implements CampusRepository {
         a.targetId == targetId &&
         a.isOpen);
     if (open) {
-      throw ApiClientException('Already applied', code: 'ALREADY_APPLIED', statusCode: 409);
+      throw ApiClientException('Already applied',
+          code: 'ALREADY_APPLIED', statusCode: 409);
     }
     final app = ParticipationApplication(
       id: 'app-${DateTime.now().millisecondsSinceEpoch}',
@@ -1562,7 +1612,8 @@ class MockCampusRepository implements CampusRepository {
   }
 
   @override
-  Future<ParticipationApplication> cancelApplication(String applicationId) async {
+  Future<ParticipationApplication> cancelApplication(
+      String applicationId) async {
     final i = _applications.indexWhere((a) => a.id == applicationId);
     final old = _applications[i];
     final next = ParticipationApplication(
@@ -1586,7 +1637,8 @@ class MockCampusRepository implements CampusRepository {
   }
 
   @override
-  Future<List<ApplicationQuestion>> getApplicationQuestions(String targetType, String stage) async {
+  Future<List<ApplicationQuestion>> getApplicationQuestions(
+      String targetType, String stage) async {
     // Mock mode's own small representative set — real question
     // management lives server-side (ApplicationQuestion, admin-editable);
     // this only exists so the offline demo still shows a real dynamic
@@ -1607,43 +1659,78 @@ class MockCampusRepository implements CampusRepository {
     return switch (targetType) {
       'sport' => const [
           ApplicationQuestion(
-            id: 'mock-sport-before', targetType: 'sport', stage: 'preview',
-            type: 'single_choice', label: 'Bu spor dalıyla daha önce ilgilendiniz mi?',
-            options: ['Evet', 'Hayır'], required: true, sortOrder: 1,
+            id: 'mock-sport-before',
+            targetType: 'sport',
+            stage: 'preview',
+            type: 'single_choice',
+            label: 'Bu spor dalıyla daha önce ilgilendiniz mi?',
+            options: ['Evet', 'Hayır'],
+            required: true,
+            sortOrder: 1,
           ),
           ApplicationQuestion(
-            id: 'mock-sport-purpose', targetType: 'sport', stage: 'preview',
-            type: 'single_choice', label: 'Katılım amacınız nedir?',
-            options: ['Rekabetçi', 'Hobi', 'Sosyalleşme'], required: true, sortOrder: 2,
+            id: 'mock-sport-purpose',
+            targetType: 'sport',
+            stage: 'preview',
+            type: 'single_choice',
+            label: 'Katılım amacınız nedir?',
+            options: ['Rekabetçi', 'Hobi', 'Sosyalleşme'],
+            required: true,
+            sortOrder: 2,
           ),
         ],
       'club' || 'community' => const [
           ApplicationQuestion(
-            id: 'mock-club-purpose', targetType: 'club', stage: 'preview',
-            type: 'textarea', label: 'Bu kulübe katılma amacınız', required: true, sortOrder: 1,
+            id: 'mock-club-purpose',
+            targetType: 'club',
+            stage: 'preview',
+            type: 'textarea',
+            label: 'Bu kulübe katılma amacınız',
+            required: true,
+            sortOrder: 1,
           ),
         ],
       'career' => const [
           ApplicationQuestion(
-            id: 'mock-career-field', targetType: 'career', stage: 'preview',
-            type: 'text', label: 'İlgilendiğiniz kariyer alanı', required: true, sortOrder: 1,
+            id: 'mock-career-field',
+            targetType: 'career',
+            stage: 'preview',
+            type: 'text',
+            label: 'İlgilendiğiniz kariyer alanı',
+            required: true,
+            sortOrder: 1,
           ),
           ApplicationQuestion(
-            id: 'mock-career-why', targetType: 'career', stage: 'preview',
-            type: 'textarea', label: 'Neden bu fırsata başvuruyorsunuz?', required: true, sortOrder: 2,
+            id: 'mock-career-why',
+            targetType: 'career',
+            stage: 'preview',
+            type: 'textarea',
+            label: 'Neden bu fırsata başvuruyorsunuz?',
+            required: true,
+            sortOrder: 2,
           ),
         ],
       'help' || 'service' => const [
           ApplicationQuestion(
-            id: 'mock-help-topic', targetType: 'help', stage: 'preview',
-            type: 'textarea', label: 'Hangi konuda yardıma ihtiyacınız var?', required: true, sortOrder: 1,
+            id: 'mock-help-topic',
+            targetType: 'help',
+            stage: 'preview',
+            type: 'textarea',
+            label: 'Hangi konuda yardıma ihtiyacınız var?',
+            required: true,
+            sortOrder: 1,
           ),
         ],
       'event' => const [
           ApplicationQuestion(
-            id: 'mock-event-purpose', targetType: 'event', stage: 'preview',
-            type: 'single_choice', label: 'Etkinliğe katılma amacınız',
-            options: ['Bilgi edinmek', 'Ağ kurmak', 'Eğlence', 'Zorunlu'], required: true, sortOrder: 1,
+            id: 'mock-event-purpose',
+            targetType: 'event',
+            stage: 'preview',
+            type: 'single_choice',
+            label: 'Etkinliğe katılma amacınız',
+            options: ['Bilgi edinmek', 'Ağ kurmak', 'Eğlence', 'Zorunlu'],
+            required: true,
+            sortOrder: 1,
           ),
         ],
       _ => const [],
@@ -1651,10 +1738,13 @@ class MockCampusRepository implements CampusRepository {
   }
 
   @override
-  Future<List<Map<String, dynamic>>> getApplicationHistory(String applicationId) async => const [];
+  Future<List<Map<String, dynamic>>> getApplicationHistory(
+          String applicationId) async =>
+      const [];
 
   @override
-  Future<List<ParticipationApplication>> getAdminApplications({String? status, String? targetType}) async {
+  Future<List<ParticipationApplication>> getAdminApplications(
+      {String? status, String? targetType}) async {
     return _applications.where((a) {
       if (status != null && a.status != status) return false;
       if (targetType != null && a.targetType != targetType) return false;
@@ -1663,7 +1753,8 @@ class MockCampusRepository implements CampusRepository {
   }
 
   @override
-  Future<ParticipationApplication> approveApplication(String id, {String? reviewNote}) async {
+  Future<ParticipationApplication> approveApplication(String id,
+      {String? reviewNote}) async {
     final i = _applications.indexWhere((a) => a.id == id);
     final old = _applications[i];
     final next = ParticipationApplication(
@@ -1689,7 +1780,8 @@ class MockCampusRepository implements CampusRepository {
   }
 
   @override
-  Future<ParticipationApplication> rejectApplication(String id, {String? reviewNote}) async {
+  Future<ParticipationApplication> rejectApplication(String id,
+      {String? reviewNote}) async {
     final i = _applications.indexWhere((a) => a.id == id);
     final old = _applications[i];
     final next = ParticipationApplication(
@@ -1712,7 +1804,8 @@ class MockCampusRepository implements CampusRepository {
   }
 
   @override
-  Future<ParticipationApplication> requestApplicationRevision(String id, {required String reviewNote}) async {
+  Future<ParticipationApplication> requestApplicationRevision(String id,
+      {required String reviewNote}) async {
     final i = _applications.indexWhere((a) => a.id == id);
     final old = _applications[i];
     final next = ParticipationApplication(
@@ -1746,10 +1839,13 @@ class MockCampusRepository implements CampusRepository {
     String? department,
   }) async {
     return _appointments.where((a) {
-      if (staffProfileId != null && a.staffProfileId != staffProfileId) return false;
+      if (staffProfileId != null && a.staffProfileId != staffProfileId)
+        return false;
       if (status != null && a.status != status) return false;
       if (q != null && q.isNotEmpty) {
-        final hay = '${a.subject ?? ''} ${a.studentName ?? ''} ${a.staffName ?? ''}'.toLowerCase();
+        final hay =
+            '${a.subject ?? ''} ${a.studentName ?? ''} ${a.staffName ?? ''}'
+                .toLowerCase();
         if (!hay.contains(q.toLowerCase())) return false;
       }
       return true;
@@ -1757,33 +1853,33 @@ class MockCampusRepository implements CampusRepository {
   }
 
   @override
-  Future<List<StaffSlot>> getStaffSlots(String staffProfileId, {String? date}) async {
-    final selectedDate = date ?? DateTime.now().toIso8601String().split('T').first;
+  Future<List<StaffSlot>> getStaffSlots(String staffProfileId,
+      {String? date}) async {
+    final selectedDate =
+        date ?? DateTime.now().toIso8601String().split('T').first;
     const slots = [
       ('10:00', '10:30'),
       ('11:00', '11:30'),
       ('14:00', '14:30'),
       ('15:00', '15:30'),
     ];
-    return slots
-        .map((s) {
-          final booked = _appointments.any((a) =>
-              a.staffProfileId == staffProfileId &&
-              a.date == selectedDate &&
-              a.startTime == s.$1 &&
-              a.status == 'booked');
-          final status = booked ? 'booked' : 'available';
-          return StaffSlot(
-            id: 'slot-$staffProfileId-$selectedDate-${s.$1}',
-            staffProfileId: staffProfileId,
-            date: selectedDate,
-            startTime: s.$1,
-            endTime: s.$2,
-            available: !booked,
-            status: status,
-          );
-        })
-        .toList();
+    return slots.map((s) {
+      final booked = _appointments.any((a) =>
+          a.staffProfileId == staffProfileId &&
+          a.date == selectedDate &&
+          a.startTime == s.$1 &&
+          a.status == 'booked');
+      final status = booked ? 'booked' : 'available';
+      return StaffSlot(
+        id: 'slot-$staffProfileId-$selectedDate-${s.$1}',
+        staffProfileId: staffProfileId,
+        date: selectedDate,
+        startTime: s.$1,
+        endTime: s.$2,
+        available: !booked,
+        status: status,
+      );
+    }).toList();
   }
 
   @override
@@ -1800,9 +1896,12 @@ class MockCampusRepository implements CampusRepository {
         a.staffProfileId == staffProfileId &&
         a.date == date &&
         a.startTime == startTime &&
-        (a.status == 'booked' || a.status == 'pending' || a.status == 'approved'));
+        (a.status == 'booked' ||
+            a.status == 'pending' ||
+            a.status == 'approved'));
     if (clash) {
-      throw ApiClientException('Slot taken', code: 'SLOT_UNAVAILABLE', statusCode: 409);
+      throw ApiClientException('Slot taken',
+          code: 'SLOT_UNAVAILABLE', statusCode: 409);
     }
     final appt = AppointmentBooking(
       id: 'appt-${DateTime.now().millisecondsSinceEpoch}',
@@ -1860,7 +1959,8 @@ class MockCampusRepository implements CampusRepository {
   }
 
   @override
-  Future<List<DirectoryEntry>> getDirectoryEntries() => BuildingDirectoryStore.entries();
+  Future<List<DirectoryEntry>> getDirectoryEntries() =>
+      BuildingDirectoryStore.entries();
 
   @override
   Future<List<CampusBuilding>> getDirectoryBuildings() async {
@@ -1897,7 +1997,8 @@ class MockCampusRepository implements CampusRepository {
   }
 
   @override
-  Future<List<CampusRoom>> getDirectoryRooms(String building, String floor) async {
+  Future<List<CampusRoom>> getDirectoryRooms(
+      String building, String floor) async {
     final entries = await BuildingDirectoryStore.entries();
     final rooms = entries
         .where((e) => e.building == building && e.floor == floor)
@@ -1933,7 +2034,8 @@ class MockCampusRepository implements CampusRepository {
       BuildingDirectoryStore.saveEntry(entry);
 
   @override
-  Future<void> deleteDirectoryEntry(String id) => BuildingDirectoryStore.deleteEntry(id);
+  Future<void> deleteDirectoryEntry(String id) =>
+      BuildingDirectoryStore.deleteEntry(id);
 
   @override
   Future<List<AdminPage>> getPages() => AdminPageStore.pages();
@@ -1945,23 +2047,28 @@ class MockCampusRepository implements CampusRepository {
   Future<void> deletePage(String id) => AdminPageStore.delete(id);
 
   @override
-  Future<List<RoleAssignment>> getRoleAssignments() => RoleAssignmentStore.assignments();
+  Future<List<RoleAssignment>> getRoleAssignments() =>
+      RoleAssignmentStore.assignments();
 
   @override
-  Future<UserRole?> roleFor(String? email) => RoleAssignmentStore.roleFor(email);
+  Future<UserRole?> roleFor(String? email) =>
+      RoleAssignmentStore.roleFor(email);
 
   @override
-  Future<void> setRoleAssignment(String email, UserRole role, {required String assignedBy}) =>
+  Future<void> setRoleAssignment(String email, UserRole role,
+          {required String assignedBy}) =>
       RoleAssignmentStore.setRole(email, role, assignedBy: assignedBy);
 
   @override
-  Future<void> deleteRoleAssignment(String email) => RoleAssignmentStore.removeRole(email);
+  Future<void> deleteRoleAssignment(String email) =>
+      RoleAssignmentStore.removeRole(email);
 
   @override
   Future<List<AuditLogEntry>> getAuditLog() => AuditLogStore.entries();
 
   @override
-  Future<PageSlice<AuditLogEntry>> getAuditLogPage({int page = 1, int perPage = 20}) async =>
+  Future<PageSlice<AuditLogEntry>> getAuditLogPage(
+          {int page = 1, int perPage = 20}) async =>
       _pageOf(await AuditLogStore.entries(), page: page, perPage: perPage);
 
   @override
@@ -1969,7 +2076,8 @@ class MockCampusRepository implements CampusRepository {
       ContentRevisionStore.revisionsFor(contentKey);
 
   @override
-  Future<void> recordRevision(String contentKey, List<ContentBlock> snapshot, String editorName) =>
+  Future<void> recordRevision(
+          String contentKey, List<ContentBlock> snapshot, String editorName) =>
       ContentRevisionStore.record(contentKey, snapshot, editorName);
 
   @override
@@ -1994,7 +2102,30 @@ class MockCampusRepository implements CampusRepository {
   Future<bool> toggleBlock(String peer) => SocialGraphStore.toggleBlock(peer);
 
   @override
-  Future<void> reportUser(String peer, String reason) async {}
+  Future<void> reportUser(String peer, String reason,
+      {String? reasonCode}) async {}
+
+  /// Mock mode keeps appeals in memory so the flow can be walked through
+  /// offline. Nothing here decides anything — a real appeal needs a human.
+  final List<ModerationAppeal> _appeals = [];
+
+  @override
+  Future<void> submitAppeal(String caseId, String reason) async {
+    _appeals.insert(
+      0,
+      ModerationAppeal(
+        id: 'appeal-${_appeals.length + 1}',
+        caseId: caseId,
+        originalDecision: 'remove',
+        status: 'open',
+        submittedAt: DateTime.now(),
+      ),
+    );
+  }
+
+  @override
+  Future<List<ModerationAppeal>> getMyAppeals() async =>
+      List.unmodifiable(_appeals);
 
   @override
   Future<List<FollowRequestPeer>> getFollowRequests() async => const [];
@@ -2006,7 +2137,8 @@ class MockCampusRepository implements CampusRepository {
   Future<void> declineFollowRequest(String peer) async {}
 
   @override
-  Future<List<ChatThreadPeer>> getChatThreadPeers(List<String> knownPeers) async {
+  Future<List<ChatThreadPeer>> getChatThreadPeers(
+      List<String> knownPeers) async {
     final names = await ChatStore.threadPeers(_user.name, knownPeers);
     // Mock mode has no per-peer avatar data source (only the signed-in
     // user's own avatar is ever set) — honestly reports null rather than
@@ -2143,7 +2275,8 @@ class MockCampusRepository implements CampusRepository {
   }
 
   @override
-  Future<void> reportChatGroup(String id, String reason) async {}
+  Future<void> reportChatGroup(String id, String reason,
+      {String? reasonCode}) async {}
 
   // Mock mode has no real backend notification pipeline — no other real
   // user exists to generate one (same honest scope as NotificationsScreen
@@ -2163,7 +2296,8 @@ class MockCampusRepository implements CampusRepository {
   Future<void> markAllNotificationsRead() async {}
 
   @override
-  Future<void> registerPushToken({required String token, required String platform}) async {}
+  Future<void> registerPushToken(
+      {required String token, required String platform}) async {}
 
   @override
   Future<void> unregisterPushToken(String token) async {}
@@ -2181,7 +2315,8 @@ class MockCampusRepository implements CampusRepository {
   ];
 
   Survey _surveyToModel(_MockSurvey s, {bool forCurrentUser = false}) {
-    final totalVotes = s.responses.values.fold(0, (sum, set) => sum + set.length);
+    final totalVotes =
+        s.responses.values.fold(0, (sum, set) => sum + set.length);
     return Survey(
       id: s.id,
       question: s.question,
@@ -2194,7 +2329,9 @@ class MockCampusRepository implements CampusRepository {
       showResults: s.showResults,
       active: s.active,
       totalVotes: totalVotes,
-      myOptionIds: forCurrentUser ? (s.responses[_user.id]?.toList() ?? const []) : const [],
+      myOptionIds: forCurrentUser
+          ? (s.responses[_user.id]?.toList() ?? const [])
+          : const [],
       options: [
         for (final o in s.options)
           SurveyOption(
@@ -2203,10 +2340,12 @@ class MockCampusRepository implements CampusRepository {
             votes: s.responses.values.where((set) => set.contains(o.id)).length,
             percentage: totalVotes == 0
                 ? 0
-                : double.parse((s.responses.values.where((set) => set.contains(o.id)).length /
-                            totalVotes *
-                            100)
-                        .toStringAsFixed(1)),
+                : double.parse((s.responses.values
+                            .where((set) => set.contains(o.id))
+                            .length /
+                        totalVotes *
+                        100)
+                    .toStringAsFixed(1)),
           ),
       ],
     );
@@ -2292,7 +2431,8 @@ class MockCampusRepository implements CampusRepository {
   ];
 
   @override
-  Future<List<AcademicYear>> getAcademicYears() async => List.unmodifiable(_academicYears);
+  Future<List<AcademicYear>> getAcademicYears() async =>
+      List.unmodifiable(_academicYears);
 
   @override
   Future<void> upsertAcademicYear({
@@ -2315,8 +2455,12 @@ class MockCampusRepository implements CampusRepository {
       }
     }
     final index = _academicYears.indexWhere((y) => y.id == id);
-    final year =
-        AcademicYear(id: id, label: label, startsOn: startsOn, endsOn: endsOn, isActive: isActive);
+    final year = AcademicYear(
+        id: id,
+        label: label,
+        startsOn: startsOn,
+        endsOn: endsOn,
+        isActive: isActive);
     if (index == -1) {
       _academicYears.add(year);
     } else {
@@ -2329,7 +2473,8 @@ class MockCampusRepository implements CampusRepository {
     _academicYears.removeWhere((y) => y.id == id);
   }
 
-  CampusEvent _reconstructEvent(CampusEvent e, {
+  CampusEvent _reconstructEvent(
+    CampusEvent e, {
     bool? draft,
     String? workflowStatus,
     String? reviewNote,
@@ -2368,7 +2513,8 @@ class MockCampusRepository implements CampusRepository {
     final option = EventParticipationOption(id: typeId, label: label);
     final current = _events[index];
     final types = [
-      for (final t in current.participationTypes) if (t.id != typeId) t,
+      for (final t in current.participationTypes)
+        if (t.id != typeId) t,
       option,
     ];
     _events[index] = _reconstructEvent(current, participationTypes: types);
@@ -2381,7 +2527,8 @@ class MockCampusRepository implements CampusRepository {
     if (index == -1) return;
     final current = _events[index];
     _events[index] = _reconstructEvent(current,
-        participationTypes: current.participationTypes.where((t) => t.id != typeId).toList());
+        participationTypes:
+            current.participationTypes.where((t) => t.id != typeId).toList());
   }
 
   @override
@@ -2424,7 +2571,8 @@ class MockCampusRepository implements CampusRepository {
   }
 
   @override
-  Future<List<PlaceBooking>> getPlaceAvailability(String placeId, DateTime date) async {
+  Future<List<PlaceBooking>> getPlaceAvailability(
+      String placeId, DateTime date) async {
     return _events
         .where((e) =>
             e.placeId == placeId &&
@@ -2434,7 +2582,10 @@ class MockCampusRepository implements CampusRepository {
             e.eventDate!.day == date.day &&
             e.workflowStatus != 'rejected')
         .map((e) => PlaceBooking(
-            eventId: e.id, title: e.title, time: e.time, workflowStatus: e.workflowStatus))
+            eventId: e.id,
+            title: e.title,
+            time: e.time,
+            workflowStatus: e.workflowStatus))
         .toList();
   }
 
@@ -2483,7 +2634,8 @@ class MockCampusRepository implements CampusRepository {
       responsibleStaffName: staff.name,
     );
     _events.add(event);
-    _logActivity(ActivityKind.eventJoin, 'Aktivite önerdin: $title', 'İnceleme bekliyor');
+    _logActivity(ActivityKind.eventJoin, 'Aktivite önerdin: $title',
+        'İnceleme bekliyor');
     return event;
   }
 
@@ -2538,7 +2690,8 @@ class MockCampusRepository implements CampusRepository {
       List.unmodifiable(_emailLogs.reversed);
 
   @override
-  Future<PageSlice<EmailLogEntry>> getEmailLogsPage({int page = 1, int perPage = 20}) async =>
+  Future<PageSlice<EmailLogEntry>> getEmailLogsPage(
+          {int page = 1, int perPage = 20}) async =>
       _pageOf(await getEmailLogs(), page: page, perPage: perPage);
 
   // Mock mode has no real mail pipeline — nothing to actually retry.
@@ -2547,7 +2700,9 @@ class MockCampusRepository implements CampusRepository {
 
   @override
   Future<int> sendBulkEmail(
-      {required List<String> recipients, required String subject, required String body}) async {
+      {required List<String> recipients,
+      required String subject,
+      required String body}) async {
     for (final email in recipients) {
       _emailLogs.add(EmailLogEntry(
         id: 'mock-email-${DateTime.now().microsecondsSinceEpoch}-$email',
@@ -2564,21 +2719,25 @@ class MockCampusRepository implements CampusRepository {
   }
 
   @override
-  Future<List<ModerationReport>> getReports() async => List.unmodifiable(_reports);
+  Future<List<ModerationReport>> getReports() async =>
+      List.unmodifiable(_reports);
 
   @override
   Future<void> resolveReport(String id, ModerationAction action) async {
     final index = _reports.indexWhere((r) => r.id == id);
     if (index == -1) return;
     final report = _reports[index];
-    _reports[index] = report.copyWith(action: action, resolvedAt: DateTime.now());
-    if (action == ModerationAction.removed && report.kind == ReportedKind.post) {
+    _reports[index] =
+        report.copyWith(action: action, resolvedAt: DateTime.now());
+    if (action == ModerationAction.removed &&
+        report.kind == ReportedKind.post) {
       _feed.removeWhere((p) => p.id == report.targetId);
     }
   }
 
   @override
-  Future<PageSlice<MediaItem>> getModerationQueue({int page = 1, int perPage = 20}) async {
+  Future<PageSlice<MediaItem>> getModerationQueue(
+      {int page = 1, int perPage = 20}) async {
     final pending = (await MediaLibraryStore.items())
         .where((m) => m.moderationStatus == 'pending')
         .toList();
@@ -2586,7 +2745,8 @@ class MockCampusRepository implements CampusRepository {
   }
 
   @override
-  Future<void> resolveModerationQueueItem(String id, {required String action}) async {
+  Future<void> resolveModerationQueueItem(String id,
+      {required String action}) async {
     final items = await MediaLibraryStore.items();
     final item = items.firstWhere((m) => m.id == id);
     if (item.moderationStatus != 'pending') {
@@ -2599,9 +2759,11 @@ class MockCampusRepository implements CampusRepository {
   }
 
   @override
-  Future<CampusEvent> draftEventFromPoster(Uint8List bytes, {required String fileName}) async {
+  Future<CampusEvent> draftEventFromPoster(Uint8List bytes,
+      {required String fileName}) async {
     // Mock: local draft only — never auto-publishes. Not a production AI fallback.
-    final title = fileName.replaceAll(RegExp(r'\.[^.]+$'), '').replaceAll('_', ' ');
+    final title =
+        fileName.replaceAll(RegExp(r'\.[^.]+$'), '').replaceAll('_', ' ');
     final event = CampusEvent(
       id: 'event-ai-${DateTime.now().microsecondsSinceEpoch}',
       title: title.isEmpty ? 'Poster taslağı' : title,
@@ -2680,7 +2842,8 @@ class MockCampusRepository implements CampusRepository {
   // mode has no dedicated per-checkin table like the real backend's.
   @override
   Future<AdminStats> getAdminStats({int days = 14}) async {
-    final checkinActivity = _activity.where((a) => a.kind == ActivityKind.checkIn).toList();
+    final checkinActivity =
+        _activity.where((a) => a.kind == ActivityKind.checkIn).toList();
     final placeCounts = <String, int>{};
     for (final a in checkinActivity) {
       final name = a.title.replaceFirst('Check-in: ', '');
@@ -2690,7 +2853,8 @@ class MockCampusRepository implements CampusRepository {
       ..sort((a, b) => b.value.compareTo(a.value));
     final mostChecked = sortedPlaces
         .take(10)
-        .map((e) => PlaceCount(placeId: e.key, placeName: e.key, total: e.value))
+        .map(
+            (e) => PlaceCount(placeId: e.key, placeName: e.key, total: e.value))
         .toList();
 
     final since = DateTime.now().subtract(Duration(days: days - 1));
@@ -2703,7 +2867,8 @@ class MockCampusRepository implements CampusRepository {
           '${a.timestamp.day.toString().padLeft(2, '0')}';
       byDayMap[key] = (byDayMap[key] ?? 0) + 1;
     }
-    final byDay = (byDayMap.entries.toList()..sort((a, b) => a.key.compareTo(b.key)))
+    final byDay = (byDayMap.entries.toList()
+          ..sort((a, b) => a.key.compareTo(b.key)))
         .map((e) => DailyCount(day: e.key, total: e.value))
         .toList();
 
@@ -2719,11 +2884,13 @@ class MockCampusRepository implements CampusRepository {
       }
       if (entry.value.isNotEmpty) joinsByEvent[entry.key] = entry.value.length;
     }
-    final mostJoined = (joinsByEvent.entries.toList()..sort((a, b) => b.value.compareTo(a.value)))
+    final mostJoined = (joinsByEvent.entries.toList()
+          ..sort((a, b) => b.value.compareTo(a.value)))
         .take(10)
         .map((e) {
       final event = _events.where((ev) => ev.id == e.key).firstOrNull;
-      return EventJoinCount(eventId: e.key, title: event?.title ?? e.key, total: e.value);
+      return EventJoinCount(
+          eventId: e.key, title: event?.title ?? e.key, total: e.value);
     }).toList();
 
     var totalComments = 0;
@@ -2733,11 +2900,13 @@ class MockCampusRepository implements CampusRepository {
     final reviewsList = _reviews.values.expand((l) => l).toList();
     final avgRating = reviewsList.isEmpty
         ? 0.0
-        : reviewsList.map((r) => r.rating).reduce((a, b) => a + b) / reviewsList.length;
+        : reviewsList.map((r) => r.rating).reduce((a, b) => a + b) /
+            reviewsList.length;
 
     var totalResponses = 0;
     for (final s in _surveys) {
-      totalResponses += s.responses.values.fold(0, (sum, set) => sum + set.length);
+      totalResponses +=
+          s.responses.values.fold(0, (sum, set) => sum + set.length);
     }
 
     final activityKindCounts = <String, int>{};
@@ -2754,7 +2923,8 @@ class MockCampusRepository implements CampusRepository {
     return AdminStats(
       appUsage: const AppUsageStats(
         trackable: false,
-        note: 'Uygulama indirme/kurulum sayısı bu ortamda (Mock mod) da ölçülemez — gerçek '
+        note:
+            'Uygulama indirme/kurulum sayısı bu ortamda (Mock mod) da ölçülemez — gerçek '
             'backende geçilse bile bu bir mağaza/analytics metriğidir, bu projenin backend\'i '
             'bunu hiçbir zaman ölçemez.',
       ),
@@ -2762,7 +2932,8 @@ class MockCampusRepository implements CampusRepository {
         realAccountCount: 1,
         activeAccounts: 1,
         newAccounts: 0,
-        note: 'Mock modda tek demo hesap var; buradaki sayılar o hesabın bu oturumdaki '
+        note:
+            'Mock modda tek demo hesap var; buradaki sayılar o hesabın bu oturumdaki '
             'bellek-içi etkinliğidir, uygulama kapanınca sıfırlanır.',
         totalXp: _user.xp,
         totalStrikes: 0,
@@ -2777,7 +2948,8 @@ class MockCampusRepository implements CampusRepository {
       events: EventStats(
         total: _events.length,
         published: _events.where((e) => e.isVisibleNow).length,
-        pendingReview: _events.where((e) => e.workflowStatus == 'pending_review').length,
+        pendingReview:
+            _events.where((e) => e.workflowStatus == 'pending_review').length,
         totalJoins: totalJoins,
         formsSubmitted: formsSubmitted,
         attendanceApproved: approved,
@@ -2791,16 +2963,22 @@ class MockCampusRepository implements CampusRepository {
         reviews: reviewsList.length,
         averageRating: double.parse(avgRating.toStringAsFixed(2)),
         moderationReportsFiled: _reports.length,
-        moderationReportsUnresolved: _reports.where((r) => r.resolvedAt == null).length,
+        moderationReportsUnresolved:
+            _reports.where((r) => r.resolvedAt == null).length,
       ),
       applications: ApplicationStats(
         pending: _applications
             .where((a) =>
-                a.status == ParticipationApplication.statusDetailFormSubmitted ||
+                a.status ==
+                    ParticipationApplication.statusDetailFormSubmitted ||
                 a.status == ParticipationApplication.statusUnderReview)
             .length,
-        approved: _applications.where((a) => a.status == ParticipationApplication.statusApproved).length,
-        rejected: _applications.where((a) => a.status == ParticipationApplication.statusRejected).length,
+        approved: _applications
+            .where((a) => a.status == ParticipationApplication.statusApproved)
+            .length,
+        rejected: _applications
+            .where((a) => a.status == ParticipationApplication.statusRejected)
+            .length,
         byType: [
           for (final type in {'club', 'sport', 'service', 'career'})
             KindCount(
@@ -2810,9 +2988,11 @@ class MockCampusRepository implements CampusRepository {
         ].where((k) => k.total > 0).toList(),
       ),
       notifications: const NotificationStats(total: 0, unread: 0),
-      surveys: SurveyStats(total: _surveys.length, totalResponses: totalResponses),
-      activityByKind:
-          activityKindCounts.entries.map((e) => KindCount(kind: e.key, total: e.value)).toList(),
+      surveys:
+          SurveyStats(total: _surveys.length, totalResponses: totalResponses),
+      activityByKind: activityKindCounts.entries
+          .map((e) => KindCount(kind: e.key, total: e.value))
+          .toList(),
       email: EmailStats(
         sent: _emailLogs.where((l) => l.status == 'sent').length,
         failed: _emailLogs.where((l) => l.status == 'failed').length,
@@ -2983,9 +3163,12 @@ class MockCampusRepository implements CampusRepository {
   }
 
   @override
-  Future<FeedPost> updatePost(String postId, {String? text, PostVisibility? visibility}) async {
-    final index = _feed.indexWhere((p) => p.id == postId && p.authorId == _user.id);
-    if (index == -1) throw Exception('Post not found or not owned by the current user.');
+  Future<FeedPost> updatePost(String postId,
+      {String? text, PostVisibility? visibility}) async {
+    final index =
+        _feed.indexWhere((p) => p.id == postId && p.authorId == _user.id);
+    if (index == -1)
+      throw Exception('Post not found or not owned by the current user.');
     if (text != null) assertTextAllowed(text);
     _feed[index] = _feed[index].copyWith(text: text, visibility: visibility);
     return _feed[index];
@@ -2997,10 +3180,23 @@ class MockCampusRepository implements CampusRepository {
   }
 
   @override
-  Future<void> reportPost(String postId, String reason) async {
+  Future<void> reportComment(String commentId, String reason,
+      {String? reasonCode}) async {
+    _logActivity(ActivityKind.report, 'Yorumu şikayet ettin', reason);
+  }
+
+  @override
+  Future<void> reportStory(String storyId, String reason,
+      {String? reasonCode}) async {
+    _logActivity(ActivityKind.report, 'Hikayeyi şikayet ettin', reason);
+  }
+
+  @override
+  Future<void> reportPost(String postId, String reason,
+      {String? reasonCode}) async {
     final post = _findPost(postId);
-    _logActivity(
-        ActivityKind.report, 'Gönderiyi şikayet ettin: ${post?.name ?? postId}', reason);
+    _logActivity(ActivityKind.report,
+        'Gönderiyi şikayet ettin: ${post?.name ?? postId}', reason);
     _reports.insert(
       0,
       ModerationReport(
@@ -3084,14 +3280,19 @@ class MockCampusRepository implements CampusRepository {
             'kısmından "Ön Başvuru / Katıl" ile başvurabilirsin.';
       }
     }
-    if (q.contains('menü') || q.contains('menu') || q.contains('yemek') || q.contains('garden')) {
+    if (q.contains('menü') ||
+        q.contains('menu') ||
+        q.contains('yemek') ||
+        q.contains('garden')) {
       for (final venue in await getFoodVenues()) {
         final todayMenu = venue.menuForDay(DateTime.now());
         if (todayMenu == null) {
           return '${venue.name} için bugünün menüsü henüz girilmedi. Discover → The Garden '
               'kısmından takvimden başka bir günü kontrol edebilirsin.';
         }
-        final items = todayMenu.items.isEmpty ? 'menü detayı girilmedi' : todayMenu.items.join(', ');
+        final items = todayMenu.items.isEmpty
+            ? 'menü detayı girilmedi'
+            : todayMenu.items.join(', ');
         return '${venue.name} bugün: $items'
             '${todayMenu.price != null ? ' · ${todayMenu.price}' : ''}';
       }
@@ -3100,7 +3301,8 @@ class MockCampusRepository implements CampusRepository {
   }
 
   @override
-  Future<List<AskArucadConversation>> getAskConversations() => AskArucadStore.all();
+  Future<List<AskArucadConversation>> getAskConversations() =>
+      AskArucadStore.all();
 
   @override
   Future<AskArucadConversation?> getAskConversation(String id) async {
@@ -3115,8 +3317,10 @@ class MockCampusRepository implements CampusRepository {
   Future<void> deleteAskConversation(String id) => AskArucadStore.delete(id);
 
   @override
-  Future<PageSlice<FeedPost>> getPendingPosts({int page = 1, int perPage = 20}) async {
-    final pending = _feed.where((p) => p.workflowStatus == 'pending_review').toList();
+  Future<PageSlice<FeedPost>> getPendingPosts(
+      {int page = 1, int perPage = 20}) async {
+    final pending =
+        _feed.where((p) => p.workflowStatus == 'pending_review').toList();
     return _pageOf(pending, page: page, perPage: perPage);
   }
 
@@ -3157,19 +3361,24 @@ class MockCampusRepository implements CampusRepository {
     throw StateError('WORDPRESS_NOT_CONFIGURED');
   }
 
-  static double _distanceMeters(double lat1, double lng1, double lat2, double lng2) {
+  static double _distanceMeters(
+      double lat1, double lng1, double lat2, double lng2) {
     const earth = 6371000.0;
     final phi1 = lat1 * math.pi / 180;
     final phi2 = lat2 * math.pi / 180;
     final dPhi = (lat2 - lat1) * math.pi / 180;
     final dLam = (lng2 - lng1) * math.pi / 180;
     final a = math.sin(dPhi / 2) * math.sin(dPhi / 2) +
-        math.cos(phi1) * math.cos(phi2) * math.sin(dLam / 2) * math.sin(dLam / 2);
+        math.cos(phi1) *
+            math.cos(phi2) *
+            math.sin(dLam / 2) *
+            math.sin(dLam / 2);
     return 2 * earth * math.asin(math.sqrt(a.clamp(0.0, 1.0)));
   }
 
   @override
-  Future<CareerProfile> uploadCareerCv(Uint8List bytes, {required String fileName}) async {
+  Future<CareerProfile> uploadCareerCv(Uint8List bytes,
+      {required String fileName}) async {
     _careerProfile = CareerProfile(
       occupation: _careerProfile.occupation,
       expertise: _careerProfile.expertise,
@@ -3206,14 +3415,19 @@ class MockCampusRepository implements CampusRepository {
       _careerOpportunities.firstWhere((o) => o.id == id);
 
   @override
-  Future<CareerApplication> applyToCareerOpportunity(String opportunityId) async {
+  Future<CareerApplication> applyToCareerOpportunity(
+      String opportunityId) async {
     if (!_careerProfile.hasCv) {
-      throw ApiClientException('CV required', code: 'CV_REQUIRED', statusCode: 400);
+      throw ApiClientException('CV required',
+          code: 'CV_REQUIRED', statusCode: 400);
     }
     if (_careerApplications.any((a) =>
         a.opportunityId == opportunityId &&
-        (a.status == 'pending' || a.status == 'reviewed' || a.status == 'shortlisted'))) {
-      throw ApiClientException('Exists', code: 'APPLICATION_EXISTS', statusCode: 409);
+        (a.status == 'pending' ||
+            a.status == 'reviewed' ||
+            a.status == 'shortlisted'))) {
+      throw ApiClientException('Exists',
+          code: 'APPLICATION_EXISTS', statusCode: 409);
     }
     final opp = _careerOpportunities.firstWhere((o) => o.id == opportunityId);
     final app = CareerApplication(
@@ -3293,11 +3507,15 @@ class MockCampusRepository implements CampusRepository {
       _consultations.firstWhere((c) => c.id == id);
 
   @override
-  Future<ConsultationApplication> applyToConsultation(String id, {String? notes}) async {
+  Future<ConsultationApplication> applyToConsultation(String id,
+      {String? notes}) async {
     if (_consultationApplications.any((a) =>
         a.consultationId == id &&
-        (a.status == 'pending' || a.status == 'reviewed' || a.status == 'shortlisted'))) {
-      throw ApiClientException('Exists', code: 'APPLICATION_EXISTS', statusCode: 409);
+        (a.status == 'pending' ||
+            a.status == 'reviewed' ||
+            a.status == 'shortlisted'))) {
+      throw ApiClientException('Exists',
+          code: 'APPLICATION_EXISTS', statusCode: 409);
     }
     final c = _consultations.firstWhere((x) => x.id == id);
     final app = ConsultationApplication(
@@ -3434,7 +3652,8 @@ class MockCampusRepository implements CampusRepository {
   }
 
   @override
-  Future<FeedPost> createOfficialPost(String text, {String? imageUrl, Uint8List? imageBytes}) async {
+  Future<FeedPost> createOfficialPost(String text,
+      {String? imageUrl, Uint8List? imageBytes}) async {
     final post = FeedPost(
       id: 'post-${DateTime.now().millisecondsSinceEpoch}',
       authorId: _user.id,

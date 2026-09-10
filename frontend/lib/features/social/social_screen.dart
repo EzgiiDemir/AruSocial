@@ -14,6 +14,8 @@ import 'package:arucad_campus_prototype/core/services/image_moderation_service.d
 import 'package:arucad_campus_prototype/core/services/chat_realtime_service.dart';
 import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
 import 'package:arucad_campus_prototype/core/utils/relative_time.dart';
+import 'package:arucad_campus_prototype/core/models/report_reason.dart';
+import 'package:arucad_campus_prototype/features/widgets/report_sheet.dart';
 import 'package:arucad_campus_prototype/features/place/place_detail_screen.dart';
 import 'package:arucad_campus_prototype/features/social/compose_post_sheet.dart';
 import 'package:arucad_campus_prototype/features/social/compose_story_sheet.dart';
@@ -241,80 +243,70 @@ class _SocialScreenState extends State<SocialScreen> {
         icon: Icon(Icons.add),
         label: Text(strings.t('social_share')),
       ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 640),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Real fix for "the heart icon sits lower than the ☰/title":
-              // this used to render its own second Row directly below
-              // SocialShell's ☰+title row — two separately-padded rows
-              // stacked in a Column can never share one visual baseline no
-              // matter how closely their paddings are matched, since one is
-              // always physically below the other. When titleInShell is
-              // true, SocialShell now renders the notifications action
-              // itself, in the SAME row as ☰+title, so it's skipped here
-              // entirely rather than drawn a second time one row lower.
-              if (!widget.titleInShell)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
-                  child: Row(children: [
-                    Expanded(
-                      child: Text(strings.t('social_title'),
-                          style: Theme.of(context)
-                              .textTheme
-                              .headlineSmall
-                              ?.copyWith(fontWeight: FontWeight.w900)),
-                    ),
-                    IconButton(
-                      tooltip: strings.t('social_notifications'),
-                      icon: const Icon(Icons.notifications_none_rounded),
-                      onPressed: () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                              builder: (_) => NotificationsScreen(
-                                  repository: widget.repository))),
-                    ),
-                  ]),
+      body: Column(
+        children: [
+          if (!widget.titleInShell)
+            CampusPageHeader(
+              title: strings.t('nav_social'),
+              actions: [
+                IconButton(
+                  tooltip: strings.t('social_notifications'),
+                  icon: const Icon(Icons.notifications_none_rounded),
+                  onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) =>
+                          NotificationsScreen(repository: widget.repository))),
                 ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
-                child: SizedBox(
-                  height: 52,
-                  child: TextField(
-                    controller: _searchController,
-                    onChanged: (value) => setState(() => _query = value),
-                    decoration: InputDecoration(
-                      hintText: AppLocale.of(context).t('sf_search_hint'),
-                      hintStyle: const TextStyle(color: _socialSecondary),
-                      prefixIcon: const Icon(Icons.search_rounded,
-                          size: 23, color: _socialSecondary),
-                      suffixIcon: _query.isEmpty
-                          ? null
-                          : IconButton(
-                              tooltip:
-                                  AppLocale.of(context).t('sf_clear_search'),
-                              icon: const Icon(Icons.close, size: 18),
-                              onPressed: () {
-                                _searchController.clear();
-                                setState(() => _query = '');
-                              },
-                            ),
-                      filled: true,
-                      fillColor: ArucadColors.paper,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 14),
-                      border: _searchBorder(),
-                      enabledBorder: _searchBorder(),
-                      focusedBorder:
-                          _searchBorder(color: _socialBlue, width: 1.4),
+              ],
+            ),
+          Expanded(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 640),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
+                      child: SizedBox(
+                        height: 52,
+                        child: TextField(
+                          controller: _searchController,
+                          onChanged: (value) => setState(() => _query = value),
+                          decoration: InputDecoration(
+                            hintText: AppLocale.of(context).t('sf_search_hint'),
+                            hintStyle: const TextStyle(color: _socialSecondary),
+                            prefixIcon: const Icon(Icons.search_rounded,
+                                size: 23, color: _socialSecondary),
+                            suffixIcon: _query.isEmpty
+                                ? null
+                                : IconButton(
+                                    tooltip: AppLocale.of(context)
+                                        .t('sf_clear_search'),
+                                    icon: const Icon(Icons.close, size: 18),
+                                    onPressed: () {
+                                      _searchController.clear();
+                                      setState(() => _query = '');
+                                    },
+                                  ),
+                            filled: true,
+                            fillColor: ArucadColors.paper,
+                            contentPadding:
+                                const EdgeInsets.symmetric(vertical: 14),
+                            border: _searchBorder(),
+                            enabledBorder: _searchBorder(),
+                            focusedBorder:
+                                _searchBorder(color: _socialBlue, width: 1.4),
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
+                    Expanded(child: _buildFeed(context)),
+                  ],
                 ),
               ),
-              Expanded(child: _buildFeed(context)),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -803,60 +795,29 @@ class _SocialScreenState extends State<SocialScreen> {
     );
   }
 
+  /// Reporting now goes through the shared sheet, which sends a reason
+  /// *code* rather than a localised sentence. The old dialog posted the
+  /// Turkish label as free text, so the same complaint filed in two
+  /// languages arrived as two unrelated things the queue could not group
+  /// or prioritise.
   Future<void> _report(BuildContext context, FeedPost post) async {
-    final strings = AppLocale.of(context);
-    final reasons = [
-      strings.t('social_report_reason_spam'),
-      strings.t('social_report_reason_inappropriate'),
-      strings.t('social_report_reason_harassment'),
-      strings.t('social_report_reason_other'),
-    ];
-    String selected = reasons.first;
-    final ok = await showDialog<bool?>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: Text(strings.t('social_report_post_title')),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (final reason in reasons)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  dense: true,
-                  leading: Icon(
-                      reason == selected
-                          ? Icons.radio_button_checked
-                          : Icons.radio_button_off,
-                      color: reason == selected ? ArucadColors.blue : null),
-                  title: Text(reason),
-                  onTap: () => setDialogState(() => selected = reason),
-                ),
-            ],
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.of(ctx).pop(false),
-                child: Text(strings.t('social_cancel'))),
-            FilledButton(
-                onPressed: () => Navigator.of(ctx).pop(true),
-                child: Text(strings.t('social_send'))),
-          ],
-        ),
-      ),
+    ReportReason? chosen;
+
+    final sent = await showReportSheet(
+      context,
+      targetLabel: post.text.isEmpty ? post.name : post.text,
+      onSubmit: (submission) async {
+        chosen = submission.reason;
+        await widget.repository.reportPost(
+          post.id,
+          submission.description,
+          reasonCode: submission.reason.code,
+        );
+      },
     );
-    if (ok != true) return;
-    try {
-      await widget.repository.reportPost(post.id, selected);
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(strings.t('social_report_sent'))));
-    } catch (_) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Şikâyet gönderilemedi.')),
-      );
-    }
+
+    if (!sent || !context.mounted || chosen == null) return;
+    showReportSentMessage(context, chosen!);
   }
 
   Future<void> _editPost(BuildContext context, FeedPost post) async {
@@ -997,6 +958,10 @@ class _FeedControls extends StatelessWidget {
       const SizedBox(width: 10),
       PopupMenuButton<_FeedFilter>(
         tooltip: 'İçerik türü',
+        style: ButtonStyle(
+          overlayColor: WidgetStateProperty.all(Colors.transparent),
+          splashFactory: NoSplash.splashFactory,
+        ),
         color: ArucadColors.paper,
         surfaceTintColor: Colors.transparent,
         elevation: 10,

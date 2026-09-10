@@ -24,7 +24,13 @@ class ModerationQueueController extends Controller
 
     public function index(PaginatedListRequest $request): JsonResponse
     {
-        $query = MediaItem::where('moderation_status', 'pending')
+        // Both states mean "withheld, waiting for a person". `pending` is
+        // set by the synchronous upload path and `review` by the queued
+        // job for the same classifier verdict, so listing only one left
+        // everything the background worker held invisible to moderators —
+        // private forever, in no queue, which is worse than a backlog
+        // because a backlog can at least be seen.
+        $query = MediaItem::whereIn('moderation_status', ['pending', 'review'])
             ->orderByDesc('uploaded_at')
             ->orderByDesc('id');
 
@@ -52,7 +58,9 @@ class ModerationQueueController extends Controller
         if (! $item) {
             return $this->fail(404, 'MEDIA_NOT_FOUND', 'Media item not found.');
         }
-        if ($item->moderation_status !== 'pending') {
+        // Must accept the same set the queue lists, or a moderator can see
+        // an item and then be refused when they act on it.
+        if (! in_array($item->moderation_status, ['pending', 'review'], true)) {
             return $this->fail(409, 'ALREADY_REVIEWED', 'This media item is not awaiting review.');
         }
 

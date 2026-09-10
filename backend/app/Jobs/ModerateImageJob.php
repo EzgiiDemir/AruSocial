@@ -84,6 +84,10 @@ class ModerateImageJob implements ShouldQueue
 
         $item->update(['moderation_status' => $runner->statusFor($verdict)]);
 
+        // Held and blocked content needs a case, or it is private with no
+        // route to a human and no case for its author to appeal against.
+        $runner->openCaseIfHeld($item, $verdict);
+
         // ERROR is retried; a decided verdict is final. Throwing here is
         // what puts the job back on the queue, so it must happen only
         // when nothing actually looked at the image.

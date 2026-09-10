@@ -100,28 +100,19 @@ final class ReportService
             ->count('reporter_user_id');
     }
 
+    /**
+     * Shared with the automatic path, so a report about content the
+     * classifier already flagged joins that case rather than opening a
+     * second one beside it.
+     */
     private function openCaseFor(string $targetType, string $targetId, ?int $ownerId): ModerationCase
     {
-        $case = ModerationCase::query()
-            ->where('content_type', $targetType)
-            ->where('content_id', $targetId)
-            ->where('status', '!=', ModerationCase::STATUS_RESOLVED)
-            ->first();
-
-        if ($case !== null) {
-            return $case;
-        }
-
-        return ModerationCase::create([
-            'id' => (string) Str::uuid(),
-            'content_type' => $targetType,
-            'content_id' => $targetId,
-            'user_id' => $ownerId,
-            'source' => ModerationCase::SOURCE_USER_REPORT,
-            'priority' => 60,
-            'status' => ModerationCase::STATUS_OPEN,
-            'report_count' => 0,
-        ]);
+        return app(ModerationCaseService::class)->openOrReuse(
+            contentType: $targetType,
+            contentId: $targetId,
+            ownerId: $ownerId,
+            source: ModerationCase::SOURCE_USER_REPORT,
+        );
     }
 
     /**

@@ -4,6 +4,7 @@ namespace App\Services\Moderation\Image;
 
 use App\Models\MediaItem;
 use App\Models\ModerationEvent;
+use App\Services\Moderation\Workflow\ModerationCaseService;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -70,6 +71,58 @@ final class ImageModerationRunner
             ImageVerdict::INVALID => 'blocked',
             default => 'moderation_error',
         };
+    }
+
+    /**
+     * Put a held or blocked image in front of a human.
+     *
+     * Without this a REVIEW verdict set a status and stopped: the file was
+     * private, in no queue, and would have stayed that way indefinitely —
+     * which is worse than the review backlog it replaced, because at least
+     * a backlog is visible. A BLOCK likewise had no case, and since an
+     * appeal is filed against a case, the automatic decisions most worth
+     * contesting were the only ones that could not be.
+     *
+     * ALLOW deliberately opens nothing. A queue containing every published
+     * photo is a queue nobody reads.
+     */
+    public function openCaseIfHeld(
+        MediaItem $item,
+        ImageVerdict $verdict,
+    ): void {
+        $needsHuman = match ($verdict->decision) {
+            ImageVerdict::REVIEW => 'hold',
+            ImageVerdict::BLOCK => 'block',
+            default => null,
+        };
+        if ($needsHuman === null) {
+            return;
+        }
+
+        try {
+            app(ModerationCaseService::class)->openForAutomaticVerdict(
+                contentType: $this->isVideo($item) ? 'video' : 'image',
+                contentId: (string) $item->id,
+                ownerId: $item->user_id === null ? null : (int) $item->user_id,
+                verdict: $needsHuman,
+            );
+        } catch (\Throwable $e) {
+            // The verdict still stands and the content is still private.
+            // Losing the case only means a moderator has to find it some
+            // other way, so this must not undo the decision — but it is
+            // never silent, because unreviewable held content is how a
+            // queue quietly becomes a graveyard.
+            Log::error('moderation.image.case_open_failed', [
+                'media_item' => $item->id,
+                'decision' => $verdict->decision,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    private function isVideo(MediaItem $item): bool
+    {
+        return str_starts_with((string) $item->mime_type, 'video/');
     }
 
     /**

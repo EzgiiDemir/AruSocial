@@ -53,6 +53,8 @@ class ApiContractInventoryTest extends TestCase
         //     their own in-flight application.
         // +7: the moderation case queue, appeals, and a student's own
         //     appeal endpoints (Phase 2).
-        $this->assertCount(258, $fromLaravel);
+        // +2: reporting a comment and reporting a story — neither was
+        //     reportable at all before.
+        $this->assertCount(260, $fromLaravel);
     }
 }

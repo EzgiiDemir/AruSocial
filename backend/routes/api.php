@@ -169,6 +169,11 @@ Route::prefix('v1')->middleware(['throttle:api', 'auth:sanctum', 'not-banned', '
     // client entirely.
     Route::post('/feed/{id}/report', [FeedController::class, 'report'])
         ->middleware('throttle:reports');
+    // Comments need their own route: reporting the parent post puts the
+    // wrong content in front of a moderator and attributes the case to
+    // the wrong author.
+    Route::post('/feed/comments/{id}/report', [FeedController::class, 'reportComment'])
+        ->middleware('throttle:reports');
 
     // Appealing a decision about your own content.
     Route::post('/moderation/appeals', [AppealController::class, 'store'])
@@ -182,6 +187,8 @@ Route::prefix('v1')->middleware(['throttle:api', 'auth:sanctum', 'not-banned', '
     Route::post('/stories/{id}/view', [StoryController::class, 'view']);
     Route::get('/stories/{id}/viewers', [StoryController::class, 'viewers']);
     Route::post('/stories/{id}/delete', [StoryController::class, 'destroy']);
+    Route::post('/stories/{id}/report', [StoryController::class, 'report'])
+        ->middleware('throttle:reports');
 
     Route::get('/leaderboard', [LeaderboardController::class, 'index']);
 

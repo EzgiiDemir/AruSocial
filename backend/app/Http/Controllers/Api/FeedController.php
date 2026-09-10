@@ -444,6 +444,33 @@ class FeedController extends Controller
         );
     }
 
+    /**
+     * Report a comment.
+     *
+     * Comments needed their own route: reporting the parent post instead
+     * puts the wrong thing in front of a moderator and attributes the
+     * case to the wrong author — which matters most in the case that
+     * matters most, someone being harassed underneath their own post.
+     */
+    public function reportComment(Request $request, string $id): JsonResponse
+    {
+        $me = $this->currentUser();
+        $comment = PostComment::find($id);
+        if (! $comment) {
+            return $this->fail(404, 'COMMENT_NOT_FOUND', 'Comment not found.');
+        }
+
+        return $this->submitReport(
+            request: $request,
+            reporter: $me,
+            targetType: 'comment',
+            targetId: (string) $comment->id,
+            targetLabel: mb_substr((string) $comment->text, 0, 60),
+            sourceFeature: 'feed.reportComment',
+            contentOwnerId: $comment->user_id === null ? null : (int) $comment->user_id,
+        );
+    }
+
     private function visiblePost(string $id, User $me): ?FeedPost
     {
         $post = FeedPost::find($id);

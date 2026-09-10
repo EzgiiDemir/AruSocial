@@ -703,7 +703,7 @@ Track in `docs/AUDIT_GERCEK_URUN.md`, not as live `/api/v1` paths.
 
 ---
 
-## Route inventory (canonical, 258)
+## Route inventory (canonical, 260)
 
 Machine-readable. One `METHOD /api/v1/...` per line. `tests/Feature/ApiContractInventoryTest.php` compares this list to `php artisan route:list --path=api` (HEAD omitted).
 
@@ -919,6 +919,7 @@ POST /api/v1/events/mine
 POST /api/v1/events/{id}/join
 POST /api/v1/events/{id}/join/form
 POST /api/v1/feed
+POST /api/v1/feed/comments/{id}/report
 POST /api/v1/feed/{id}
 POST /api/v1/feed/{id}/comments
 POST /api/v1/feed/{id}/delete
@@ -958,6 +959,7 @@ POST /api/v1/social/follow-requests/decline
 POST /api/v1/social/report-user
 POST /api/v1/stories
 POST /api/v1/stories/{id}/delete
+POST /api/v1/stories/{id}/report
 POST /api/v1/stories/{id}/view
 POST /api/v1/surveys/{id}/vote
 POST /api/v1/trainer/applications/{id}/approve

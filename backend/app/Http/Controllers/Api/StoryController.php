@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Api\Concerns\ApiResponds;
 use App\Http\Controllers\Api\Concerns\ModeratesContent;
+use App\Http\Controllers\Api\Concerns\SubmitsReports;
 use App\Http\Controllers\Controller;
 use App\Models\Story;
 use App\Models\StoryView;
@@ -17,7 +18,7 @@ use Illuminate\Http\Request;
 
 class StoryController extends Controller
 {
-    use ApiResponds, ModeratesContent;
+    use ApiResponds, ModeratesContent, SubmitsReports;
 
     private function storyToJson(Story $s, int $viewerId, array $viewedIds): array
     {
@@ -99,6 +100,7 @@ class StoryController extends Controller
             'style_json' => is_array($request->input('style')) ? $request->input('style') : null,
             'visibility' => SocialAudience::visibility($request->input('visibility')),
             'created_at' => now(),
+            'moderation_status' => 'approved',
         ]);
         $story->views_count = 0;
 
@@ -152,6 +154,34 @@ class StoryController extends Controller
             'avatarUrl' => $v->viewer?->avatar_url,
             'viewedAt' => $v->viewed_at?->toIso8601String(),
         ])->values());
+    }
+
+    /**
+     * Report a story.
+     *
+     * Ephemeral content needs reporting more than permanent content, not
+     * less: a story is gone in 24 hours, so without a route the only
+     * options are screenshot it or let it pass. The case outlives the
+     * story, which is the point — the evidence row and the moderator
+     * decision remain after the content itself has expired.
+     */
+    public function report(Request $request, string $id): JsonResponse
+    {
+        $me = $this->currentUser();
+        $story = Story::includingUnmoderated()->find($id);
+        if (! $story) {
+            return $this->fail(404, 'STORY_NOT_FOUND', 'Story not found.');
+        }
+
+        return $this->submitReport(
+            request: $request,
+            reporter: $me,
+            targetType: 'story',
+            targetId: (string) $story->id,
+            targetLabel: mb_substr((string) ($story->text ?: $story->author_name), 0, 60),
+            sourceFeature: 'story.report',
+            contentOwnerId: $story->author_id === null ? null : (int) $story->author_id,
+        );
     }
 
     // Stories are ephemeral (24h), so only deletion is offered — not

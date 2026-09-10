@@ -2,11 +2,12 @@
 
 namespace Tests\Feature;
 
-use App\Models\ChatGroup;
 use App\Models\FeedPost;
 use App\Models\ModerationCase;
 use App\Models\ModerationReport;
 use App\Models\Place;
+use App\Models\PostComment;
+use App\Models\Story;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -63,6 +64,40 @@ class ReportSurfaceConsistencyTest extends TestCase
                 return ["/api/v1/places/{$place->id}/report", 'place', $place->id];
             })(),
             'user' => ['/api/v1/social/report-user', 'user', (string) $owner->id],
+            'comment' => (function () use ($owner) {
+                $post = FeedPost::create([
+                    'id' => 'post-'.uniqid(),
+                    'author_id' => $owner->id,
+                    'name' => $owner->name,
+                    'text' => 'ana gonderi',
+                    'visibility' => 'everyone',
+                    'created_at' => now(),
+                ]);
+                $comment = PostComment::create([
+                    'id' => 'comment-'.uniqid(),
+                    'post_id' => $post->id,
+                    'user_id' => $owner->id,
+                    'text' => 'test yorum',
+                    'meta' => 'az önce',
+                    'created_at' => now(),
+                    'moderation_status' => 'approved',
+                ]);
+
+                return ["/api/v1/feed/comments/{$comment->id}/report", 'comment', $comment->id];
+            })(),
+            'story' => (function () use ($owner) {
+                $story = Story::create([
+                    'id' => 'story-'.uniqid(),
+                    'author_id' => $owner->id,
+                    'author_name' => $owner->name,
+                    'text' => 'test hikaye',
+                    'visibility' => 'friends',
+                    'created_at' => now(),
+                    'moderation_status' => 'approved',
+                ]);
+
+                return ["/api/v1/stories/{$story->id}/report", 'story', $story->id];
+            })(),
         };
     }
 
@@ -72,6 +107,8 @@ class ReportSurfaceConsistencyTest extends TestCase
             'feed post' => ['post'],
             'place' => ['place'],
             'user profile' => ['user'],
+            'comment' => ['comment'],
+            'story' => ['story'],
         ];
     }
 

@@ -30,6 +30,9 @@ class ModerationEvent extends Model
         'strike_number', 'penalty', 'banned_until',
         'moderation_provider', 'moderation_model', 'excerpt', 'excerpt_purge_after',
         'submission_hash',
+        // Which model and which thresholds produced this verdict. Without
+        // both, a decision made under old settings cannot be explained.
+        'model_version', 'policy_version', 'latency_ms', 'moderation_case_id',
     ];
 
     protected function casts(): array

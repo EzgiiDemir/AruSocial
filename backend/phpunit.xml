@@ -28,12 +28,25 @@
         <env name="DB_URL" value="" force="true"/>
         <env name="GROQ_API_KEY" value="" force="true"/>
         <!--
+            The visual classifier is off by default in tests, and forced so
+            a developer's local .env cannot switch it on. It is a real HTTP
+            service: left enabled, every upload test in the suite would try
+            to reach it, correctly fail closed, and return 503 — turning a
+            working safety guarantee into a hundred confusing failures.
+
+            Tests that exercise image moderation enable it themselves and
+            fake the transport (see ImageModerationSafetyTest).
+        -->
+        <env name="IMAGE_MODERATION_ENABLED" value="false" force="true"/>
+        <!--
             The test suite must never call the real moderation API: it would
             be slow, non-deterministic, and would spend a live quota. Tests
             therefore run on the local engine by default; the ones that
             exercise the OpenAI path set the key themselves and fake HTTP.
         -->
         <env name="OPENAI_API_KEY" value="" force="true"/>
+        <env name="MODERATION_OPENAI_ENABLED" value="true" force="true"/>
+        <env name="MODERATION_SERVICE_ENABLED" value="false" force="true"/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>

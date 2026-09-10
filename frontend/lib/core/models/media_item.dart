@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:arucad_campus_prototype/core/models/moderation_state.dart';
 import 'package:arucad_campus_prototype/core/network/media_url.dart';
 import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
 
@@ -21,8 +22,16 @@ class MediaItem {
   /// MIME from the server (or inferred in mock). Empty when unknown.
   final String mimeType;
 
-  /// `pending` | `approved` | `rejected` — matches backend media_items.
+  /// Raw backend value from `media_items.moderation_status`:
+  /// `pending` | `review` | `approved` | `blocked` | `moderation_error` |
+  /// `removed`.
+  ///
+  /// Prefer [state] over comparing this string — an unrecognised value
+  /// must never be read as safe, and [ModerationState.fromApi] is the one
+  /// place that guarantees it is not.
   final String moderationStatus;
+
+  ModerationState get state => ModerationState.fromApi(moderationStatus);
 
   const MediaItem({
     required this.id,

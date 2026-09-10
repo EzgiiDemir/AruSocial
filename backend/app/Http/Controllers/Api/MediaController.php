@@ -2,21 +2,32 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Events\CampusDataChanged;
 use App\Http\Controllers\Api\Concerns\ApiResponds;
 use App\Http\Controllers\Api\Concerns\ModeratesContent;
 use App\Http\Controllers\Controller;
-use App\Events\CampusDataChanged;
 use App\Http\Requests\PaginatedListRequest;
 use App\Http\Requests\StoreMediaRequest;
+use App\Jobs\ModerateImageJob;
 use App\Models\MediaItem;
+use App\Models\ModerationEvent;
 use App\Models\ModerationReport;
 use App\Services\AuditLogger;
 use App\Services\ImageModerationService;
+use App\Services\Moderation\ContentModerator;
+use App\Services\Moderation\Image\FastApiImageModerationProvider;
+use App\Services\Moderation\Image\ImageModerationPolicy;
+use App\Services\Moderation\Image\ImageVerdict;
+use App\Services\Moderation\ModerationClient;
+use App\Services\Moderation\ModerationOutcome;
+use App\Services\Moderation\VideoModerator;
 use App\Services\ModerationService;
 use App\Support\UploadMagic;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 // Real multipart upload to local disk (storage/app/public/media).
 // No third-party vision API is used. Magic-byte validation always runs.
@@ -30,6 +41,7 @@ class MediaController extends Controller
     // Size limits live in config('services.media_uploads') so the upload
     // request and this controller cannot disagree about what is accepted.
     private const IMAGE_MIME = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+
     private const VIDEO_MIME = ['video/mp4', 'video/webm', 'video/quicktime'];
 
     private function toJson(MediaItem $m): array
@@ -115,7 +127,7 @@ class MediaController extends Controller
         }
 
         if ($isVideo) {
-            $seconds = (new \App\Services\Moderation\VideoModerator())
+            $seconds = (new VideoModerator)
                 ->durationSeconds($file->getRealPath());
             // Null means the duration could not be read — that is handled by
             // the frame-extraction step, which holds the upload rather than
@@ -143,6 +155,24 @@ class MediaController extends Controller
             return $decision;
         }
 
+        // Visual moderation. Once a classifier is configured it is the
+        // authority for images, and it is the last word: an image never
+        // continues past here to a fallback whose failure mode is
+        // "approve because nothing was configured". Nothing below this
+        // point may look at an image again.
+        if (! $isVideo && app(FastApiImageModerationProvider::class)->isConfigured()) {
+            // Queued mode stores the image as pending and lets the job
+            // decide. It is written as pending *before* the job is
+            // dispatched, so a worker that never runs leaves it private
+            // rather than published — the failure is inert by
+            // construction, not by remembering to handle it.
+            if ((bool) config('moderation.image.async', false)) {
+                return [null, 'pending'];
+            }
+
+            return $this->inspectImageVisually($file, $submitter);
+        }
+
         // A configured ARUCAD-owned semantic model may make a high-confidence
         // decision for both image and video files. It is intentionally not a
         // remote API. If the model is configured but unavailable, the upload
@@ -165,13 +195,116 @@ class MediaController extends Controller
             return [null, 'approved'];
         }
 
-        // Classifier not installed/configured: approve after magic-byte checks.
-        // Classifier configured but unavailable: keep pending for a human.
-        if (! ImageModerationService::semanticClassifierConfigured()) {
+        // No semantic classifier configured is a deployment choice, not a
+        // reason to strand every ordinary selfie in pending. Structural
+        // checks have completed, so publish. A configured runner that failed
+        // is a technical ERROR and must neither store a pending/blocked row
+        // nor create a strike.
+        if (trim((string) config('services.local_moderation.binary')) === '') {
             return [null, 'approved'];
         }
 
-        return [null, 'pending'];
+        return [$this->moderationError(ModerationOutcome::unavailable()), null];
+    }
+
+    /**
+     * Visual moderation for one image.
+     *
+     * Maps a verdict to a storage decision. The mapping is exhaustive on
+     * purpose — there is no `default` that continues to somewhere more
+     * permissive, because that is exactly how an uninspected image
+     * reached the timeline before.
+     *
+     * @return array{0: JsonResponse|null, 1: string|null}
+     */
+    private function inspectImageVisually($file, $submitter): array
+    {
+        $bytes = (string) file_get_contents($file->getRealPath());
+
+        $signal = app(FastApiImageModerationProvider::class)
+            ->inspect($bytes, $file->getClientOriginalName() ?: 'upload');
+        $verdict = app(ImageModerationPolicy::class)->decide($signal);
+
+        $this->recordImageVerdict($submitter, $file, $verdict);
+
+        return match ($verdict->decision) {
+            ImageVerdict::ALLOW => [null, 'approved'],
+
+            // Held, and deliberately without a strike: REVIEW means the
+            // model was unsure, and punishing people for our uncertainty
+            // is how a moderation system loses the users it exists for.
+            ImageVerdict::REVIEW => [null, 'pending'],
+
+            ImageVerdict::BLOCK => [
+                $this->blockedImageResponse($submitter, $verdict),
+                null,
+            ],
+
+            // The file was never usable. A validation error, so it says so
+            // plainly and costs the uploader nothing but a retry.
+            ImageVerdict::INVALID => [
+                $this->fail(400, 'INVALID_FILE_CONTENTS',
+                    'Görsel okunamadı. Lütfen geçerli bir JPEG, PNG veya WEBP dosyası yükle.'),
+                null,
+            ],
+
+            // Nothing looked at the pixels. Fail closed — always.
+            default => [$this->moderationError(ModerationOutcome::unavailable()), null],
+        };
+    }
+
+    private function blockedImageResponse($submitter, ImageVerdict $verdict): JsonResponse
+    {
+        $category = $verdict->topCategory() ?? 'policy';
+
+        if ($submitter !== null) {
+            ModerationService::recordMediaViolation($submitter, $category);
+        }
+        AuditLogger::logAsCurrentUser('moderation', 'media',
+            'Görsel sınıflandırıcı engelledi: '.$category);
+
+        return $this->fail(400, 'CONTENT_BLOCKED',
+            'Bu görsel topluluk kurallarına aykırı olduğu için paylaşılmadı.');
+    }
+
+    /**
+     * Evidence for every visual decision, including the ones that allowed
+     * publication — a false negative is unreviewable if only blocks were
+     * recorded. Scores and versions, never a copy of the image.
+     */
+    private function recordImageVerdict($submitter, $file, ImageVerdict $verdict): void
+    {
+        try {
+            ModerationEvent::create([
+                'id' => (string) Str::uuid(),
+                'user_id' => (string) ($submitter->id ?? ''),
+                'content_type' => 'image',
+                'source_feature' => 'media.upload',
+                'action' => match ($verdict->decision) {
+                    ImageVerdict::ALLOW => ModerationEvent::ACTION_ALLOWED,
+                    ImageVerdict::BLOCK => ModerationEvent::ACTION_REJECTED,
+                    default => ModerationEvent::ACTION_REVIEW,
+                },
+                'flagged' => $verdict->categories !== [],
+                'categories' => $verdict->categories,
+                'category_scores' => $verdict->scores,
+                'decided_by' => 'image_model',
+                'moderation_provider' => 'fastapi_image',
+                'moderation_model' => $verdict->model,
+                'model_version' => $verdict->modelVersion,
+                'policy_version' => $verdict->policyVersion,
+                'latency_ms' => $verdict->latencyMs,
+                'excerpt' => $verdict->reasonCode,
+            ]);
+        } catch (\Throwable $e) {
+            // Losing the audit row must not change the verdict, but it is
+            // never silent: an unrecorded decision is one nobody can
+            // explain later.
+            Log::error('moderation.image.evidence_write_failed', [
+                'error' => $e->getMessage(),
+                'decision' => $verdict->decision,
+            ]);
+        }
     }
 
     /**
@@ -182,20 +315,46 @@ class MediaController extends Controller
      * Videos are reduced to sampled frames first; if ffmpeg is unavailable
      * the video is held for human review rather than published unchecked.
      *
-     * @return array{0: \Illuminate\Http\JsonResponse|null, 1: string|null}|null
+     * @return array{0: JsonResponse|null, 1: string|null}|null
      */
     private function inspectUploadWithProvider($file, string $mime, bool $isVideo, $submitter): ?array
     {
-        $moderator = app(\App\Services\Moderation\ContentModerator::class);
+        // With no remote provider configured, continue to the optional local
+        // classifier. Trying to extract frames first made all videos depend
+        // on ffmpeg even in installations that intentionally use only the
+        // structural/local path.
+        $client = app(ModerationClient::class);
+        if (! $client->isConfigured()) {
+            return null;
+        }
+
+        $moderator = app(ContentModerator::class);
+
+        if ($client->usesGateway()) {
+            $outcome = $moderator->check(
+                $submitter,
+                null,
+                $isVideo ? 'video' : 'image',
+                'media.upload',
+                [],
+                [[
+                    'path' => $file->getRealPath(),
+                    'name' => $file->getClientOriginalName(),
+                ]],
+            );
+
+            return match ($outcome->status) {
+                ModerationOutcome::ALLOWED, ModerationOutcome::WARNED => [null, 'approved'],
+                default => [$this->moderationError($outcome), null],
+            };
+        }
 
         if ($isVideo) {
-            $extraction = (new \App\Services\Moderation\VideoModerator())
+            $extraction = (new VideoModerator)
                 ->extractFrames($file->getRealPath());
 
             if (! $extraction['available']) {
-                // No frames means nothing was actually inspected. Holding
-                // for review is the only honest outcome.
-                return [null, 'pending'];
+                return [$this->moderationError(ModerationOutcome::unavailable()), null];
             }
 
             $outcome = $moderator->check(
@@ -209,7 +368,7 @@ class MediaController extends Controller
             );
         }
 
-        $status = \App\Services\Moderation\ModerationOutcome::class;
+        $status = ModerationOutcome::class;
 
         // Written as an allowlist, not a blocklist.
         //
@@ -226,18 +385,23 @@ class MediaController extends Controller
         // anything added to the enum later.
         return match ($outcome->status) {
             $status::REJECTED, $status::BANNED => [$this->moderationError($outcome), null],
-            $status::ALLOWED, $status::WARNED => null,
+            // A local text-only fallback returning ALLOWED is not evidence
+            // that pixels were inspected. Only a configured vision provider
+            // can approve at this point; otherwise continue to the local
+            // media classifier path, which holds if it cannot inspect.
+            $status::ALLOWED, $status::WARNED => [null, 'approved'],
+            $status::UNAVAILABLE => [$this->moderationError($outcome), null],
             default => [null, 'pending'],
         };
     }
 
     private function storeUpload($file, ?int $userId, string $uploadedBy, string $moderationStatus): MediaItem
     {
-        $id = 'media-'.\Illuminate\Support\Str::uuid();
+        $id = 'media-'.Str::uuid();
         $folder = $this->isVideo($file->getMimeType()) ? 'media/video' : 'media';
         $path = $file->store($folder, MediaItem::disk());
 
-        return MediaItem::create([
+        $item = MediaItem::create([
             'id' => $id,
             'user_id' => $userId,
             'file_path' => $path,
@@ -249,6 +413,18 @@ class MediaController extends Controller
             'used_in' => [],
             'moderation_status' => $moderationStatus,
         ]);
+
+        // Dispatched only after the row exists as pending. Ordering is the
+        // safety property: if dispatch or the worker fails, the image is
+        // already stored in a state that cannot be served.
+        if ($moderationStatus === 'pending'
+            && $this->isImage($file->getMimeType())
+            && (bool) config('moderation.image.async', false)
+            && app(FastApiImageModerationProvider::class)->isConfigured()) {
+            ModerateImageJob::dispatch($item->id);
+        }
+
+        return $item;
     }
 
     public function index(): JsonResponse
@@ -449,13 +625,8 @@ class MediaController extends Controller
             return $this->file($item->id);
         }
 
-        $disk = Storage::disk(MediaItem::disk());
-        foreach (['media/'.$safe, 'media/video/'.$safe] as $path) {
-            if ($disk->exists($path)) {
-                return $disk->response($path, $safe, $this->fileHeaders(null), 'inline');
-            }
-        }
-
+        // Never fall back to a raw disk path. A file without a MediaItem
+        // approval record is unmoderated by definition.
         abort(404);
     }
 

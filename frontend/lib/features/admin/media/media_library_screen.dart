@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:video_player/video_player.dart';
 
+import 'package:arucad_campus_prototype/core/models/moderation_state.dart';
 import 'package:arucad_campus_prototype/core/models/media_item.dart';
 import 'package:arucad_campus_prototype/core/network/api_client.dart';
 import 'package:arucad_campus_prototype/core/services/contracts.dart';
@@ -143,7 +144,7 @@ class _MediaPickerSheetState extends State<_MediaPickerSheet> {
               // moderator approves it; this prevents pages from referring to
               // a file that the public media endpoint correctly refuses.
               final items = snap.data!
-                  .where((item) => item.moderationStatus == 'approved')
+                  .where((item) => item.state.isVisibleToOthers)
                   .toList(growable: false);
               if (items.isEmpty) {
                 return const Center(
@@ -248,16 +249,12 @@ class _MediaThumb extends StatelessWidget {
             Positioned(
               bottom: 6,
               left: 6,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.black54,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  item.moderationStatus,
-                  style: const TextStyle(color: Colors.white, fontSize: 10),
-                ),
+              // Was the raw backend string ("moderation_error"), which is
+              // a column name, not something a moderator should have to
+              // read. Same state, in their language.
+              child: ModerationStateBadge(
+                state: item.state,
+                showWhenPublished: true,
               ),
             ),
           ]),

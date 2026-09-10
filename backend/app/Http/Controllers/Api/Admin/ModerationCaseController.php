@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Models\UserViolation;
 use App\Services\Moderation\Workflow\AccountEnforcementPolicy;
 use App\Services\Moderation\Workflow\ModerationAudit;
+use App\Services\Moderation\Workflow\ModerationNotifier;
 use App\Services\Moderation\Workflow\ReportReason;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -177,6 +178,30 @@ class ModerationCaseController extends Controller
 
         ModerationReport::where('moderation_case_id', $case->id)
             ->update(['status' => 'resolved']);
+
+        // Tell the author. A decision they are never told about is
+        // indistinguishable from the app being broken, and is the fastest
+        // way to make someone assume they were treated arbitrarily.
+        if ($case->user_id !== null) {
+            $author = User::find($case->user_id);
+            if ($author !== null) {
+                $notifier = app(ModerationNotifier::class);
+                match ($contentDecision) {
+                    'remove' => $notifier->contentRemoved(
+                        $author, (string) $case->content_type, $case->id),
+                    'hold' => $notifier->contentUnderReview(
+                        $author, (string) $case->content_type, $case->id),
+                    default => null,
+                };
+                // The account penalty is a separate message from the
+                // content one: they are separate decisions, and merging
+                // them is how "your post was removed" gets read as "you
+                // are banned".
+                if ($enforcement !== null && ($enforcement['action'] ?? 'none') !== 'none') {
+                    $notifier->accountWarned($author, (string) $enforcement['action']);
+                }
+            }
+        }
 
         ModerationAudit::record(
             actorType: ModerationAudit::ACTOR_MODERATOR,

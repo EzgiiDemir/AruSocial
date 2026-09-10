@@ -3,8 +3,10 @@
 namespace App\Jobs;
 
 use App\Models\MediaItem;
+use App\Models\User;
 use App\Services\Moderation\Image\ImageModerationRunner;
 use App\Services\Moderation\Image\ImageVerdict;
+use App\Services\Moderation\Workflow\ModerationNotifier;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
@@ -86,7 +88,28 @@ class ModerateImageJob implements ShouldQueue
 
         // Held and blocked content needs a case, or it is private with no
         // route to a human and no case for its author to appeal against.
-        $runner->openCaseIfHeld($item, $verdict);
+        $case = $runner->openCaseIfHeld($item, $verdict);
+
+        // In queued mode the upload already returned 201, so the verdict
+        // arrives after the student has moved on. Without a notice their
+        // photo simply never appears and the app looks broken.
+        $owner = $item->user_id === null ? null : User::find($item->user_id);
+        if ($owner !== null) {
+            $notifier = app(ModerationNotifier::class);
+            $contentType = str_starts_with((string) $item->mime_type, 'video/')
+                ? 'video' : 'image';
+
+            match ($verdict->decision) {
+                ImageVerdict::BLOCK => $notifier->contentRemoved(
+                    $owner, $contentType, $case?->id),
+                ImageVerdict::REVIEW => $notifier->contentUnderReview(
+                    $owner, $contentType, $case?->id),
+                // ALLOW is silent: telling someone their ordinary photo
+                // passed a check is noise, and it advertises that every
+                // upload is inspected.
+                default => null,
+            };
+        }
 
         // ERROR is retried; a decided verdict is final. Throwing here is
         // what puts the job back on the queue, so it must happen only

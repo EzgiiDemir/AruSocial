@@ -8,8 +8,10 @@ use App\Models\FeedPost;
 use App\Models\MediaItem;
 use App\Models\ModerationAppeal;
 use App\Models\ModerationCase;
+use App\Models\User;
 use App\Models\UserViolation;
 use App\Services\Moderation\Workflow\ModerationAudit;
+use App\Services\Moderation\Workflow\ModerationNotifier;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -103,6 +105,15 @@ class AppealReviewController extends Controller
             'review_note' => $note,
             'reviewed_at' => now(),
         ]);
+
+        // The student is told the outcome and the reason. An appeals
+        // process whose result you have to go looking for is one people
+        // stop using.
+        $appellant = User::find($appeal->user_id);
+        if ($appellant !== null) {
+            app(ModerationNotifier::class)
+                ->appealDecided($appellant, $outcome === 'overturn', $note);
+        }
 
         ModerationAudit::record(
             actorType: ModerationAudit::ACTOR_MODERATOR,

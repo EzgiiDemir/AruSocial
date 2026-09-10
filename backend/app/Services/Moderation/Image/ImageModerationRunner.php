@@ -89,18 +89,18 @@ final class ImageModerationRunner
     public function openCaseIfHeld(
         MediaItem $item,
         ImageVerdict $verdict,
-    ): void {
+    ): ?\App\Models\ModerationCase {
         $needsHuman = match ($verdict->decision) {
             ImageVerdict::REVIEW => 'hold',
             ImageVerdict::BLOCK => 'block',
             default => null,
         };
         if ($needsHuman === null) {
-            return;
+            return null;
         }
 
         try {
-            app(ModerationCaseService::class)->openForAutomaticVerdict(
+            return app(ModerationCaseService::class)->openForAutomaticVerdict(
                 contentType: $this->isVideo($item) ? 'video' : 'image',
                 contentId: (string) $item->id,
                 ownerId: $item->user_id === null ? null : (int) $item->user_id,
@@ -117,6 +117,8 @@ final class ImageModerationRunner
                 'decision' => $verdict->decision,
                 'error' => $e->getMessage(),
             ]);
+
+            return null;
         }
     }
 

@@ -44,8 +44,15 @@ class ApiContractInventoryTest extends TestCase
             $fromDoc,
             'docs/API_CONTRACT.md inventory drifted from php artisan route:list --path=api',
         );
+        // A deliberate second gate: the comparison above only proves the
+        // doc and the router agree, so both could drift together if a
+        // route were added and documented without anyone noticing. This
+        // number has to be changed by hand, which is the point.
+        //
         // +1: POST /me/applications/{id}/cancel — a student withdrawing
-        // their own in-flight application.
-        $this->assertCount(251, $fromLaravel);
+        //     their own in-flight application.
+        // +7: the moderation case queue, appeals, and a student's own
+        //     appeal endpoints (Phase 2).
+        $this->assertCount(258, $fromLaravel);
     }
 }

@@ -91,4 +91,13 @@ return [
          */
         'async' => filter_var(env('IMAGE_MODERATION_ASYNC', false), FILTER_VALIDATE_BOOLEAN),
     ],
+
+    /*
+     * User reporting. The limit is per account per hour — high enough
+     * that nobody reporting in good faith will ever notice it, low
+     * enough that flooding the queue stops being possible.
+     */
+    'reports' => [
+        'rate_limit_per_hour' => (int) env('REPORTS_RATE_LIMIT_PER_HOUR', 20),
+    ],
 ];

@@ -407,6 +407,13 @@ Video uploads and flagged images land as `pending` (human queue) — never auto-
 | GET | `/api/v1/admin/moderation/posts` | `perm:moderation.moderate` | page/perPage | pending feed posts |
 | POST | `/api/v1/admin/moderation/posts/{id}/approve` | `perm:moderation.moderate` | `{ id, workflowStatus }` |
 | POST | `/api/v1/admin/moderation/posts/{id}/reject` | `perm:moderation.moderate` | `{ reviewNote? }` |
+| GET | `/api/v1/admin/moderation/cases` | `perm:moderation.moderate` | `status?` | cases, most urgent first |
+| GET | `/api/v1/admin/moderation/cases/{id}` | `perm:moderation.moderate` | — | case + reports + model signals + author history |
+| POST | `/api/v1/admin/moderation/cases/{id}/decide` | `perm:moderation.moderate` | `{ contentDecision: approve\|remove\|hold\|escalate, accountAction?: none\|warn\|restrict\|suspend, note? }` | `note` required when `accountAction` is not `none`; 409 `CASE_ALREADY_RESOLVED` |
+| GET | `/api/v1/admin/moderation/appeals` | `perm:moderation.moderate` | `status?` | open appeals |
+| POST | `/api/v1/admin/moderation/appeals/{id}/decide` | `perm:moderation.moderate` | `{ outcome: uphold\|overturn, note }` | overturn restores content and clears the violation; 409 `APPEAL_ALREADY_DECIDED` |
+| POST | `/api/v1/moderation/appeals` | auth, `throttle:reports` | `{ caseId, reason }` | author only; 404 for someone else's case |
+| GET | `/api/v1/moderation/appeals/mine` | auth | — | the student's own appeals |
 | GET | `/api/v1/admin/wordpress/versions` | `perm:users.manage` | page/perPage | form snapshots |
 | POST | `/api/v1/admin/wordpress/versions` | `perm:users.manage` | `{ payload? }` | snapshot or 501/502 |
 
@@ -696,7 +703,7 @@ Track in `docs/AUDIT_GERCEK_URUN.md`, not as live `/api/v1` paths.
 
 ---
 
-## Route inventory (canonical, 244)
+## Route inventory (canonical, 258)
 
 Machine-readable. One `METHOD /api/v1/...` per line. `tests/Feature/ApiContractInventoryTest.php` compares this list to `php artisan route:list --path=api` (HEAD omitted).
 
@@ -717,11 +724,14 @@ GET /api/v1/admin/consultations
 GET /api/v1/admin/email-logs
 GET /api/v1/admin/events/pending
 GET /api/v1/admin/events/{eventId}/participants
+GET /api/v1/admin/moderation/appeals
+GET /api/v1/admin/moderation/cases
+GET /api/v1/admin/moderation/cases/{id}
 GET /api/v1/admin/moderation/events
 GET /api/v1/admin/moderation/policy
-GET /api/v1/admin/moderation/users
 GET /api/v1/admin/moderation/posts
 GET /api/v1/admin/moderation/queue
+GET /api/v1/admin/moderation/users
 GET /api/v1/admin/onboarding-steps
 GET /api/v1/admin/reports
 GET /api/v1/admin/roles
@@ -781,6 +791,7 @@ GET /api/v1/media/file/{filename}
 GET /api/v1/media/mine
 GET /api/v1/media/{id}/file
 GET /api/v1/media/{id}/review-file
+GET /api/v1/moderation/appeals/mine
 GET /api/v1/notifications
 GET /api/v1/onboarding-steps
 GET /api/v1/pages
@@ -847,11 +858,13 @@ POST /api/v1/admin/food-venues
 POST /api/v1/admin/food-venues/{id}/delete
 POST /api/v1/admin/food-venues/{venueId}/menus
 POST /api/v1/admin/food-venues/{venueId}/menus/{date}/delete
+POST /api/v1/admin/moderation/appeals/{id}/decide
+POST /api/v1/admin/moderation/cases/{id}/decide
 POST /api/v1/admin/moderation/events/{id}/remove-strike
-POST /api/v1/admin/moderation/users/{userId}/ban
 POST /api/v1/admin/moderation/posts/{id}/approve
 POST /api/v1/admin/moderation/posts/{id}/reject
 POST /api/v1/admin/moderation/queue/{id}/resolve
+POST /api/v1/admin/moderation/users/{userId}/ban
 POST /api/v1/admin/onboarding-steps
 POST /api/v1/admin/onboarding-steps/{id}/delete
 POST /api/v1/admin/pages
@@ -926,6 +939,7 @@ POST /api/v1/media/mine
 POST /api/v1/media/mine/{id}/delete
 POST /api/v1/media/{id}
 POST /api/v1/media/{id}/delete
+POST /api/v1/moderation/appeals
 POST /api/v1/moderation/check-image
 POST /api/v1/notifications/read-all
 POST /api/v1/notifications/{id}/read

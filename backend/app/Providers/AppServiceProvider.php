@@ -57,5 +57,22 @@ class AppServiceProvider extends ServiceProvider
 
             return Limit::perMinute(max(1, $perMinute))->by($request->user()?->id ?: $request->ip());
         });
+
+        /*
+         * Reports and appeals.
+         *
+         * Deliberately much tighter than the general budget, and keyed to
+         * the account rather than the IP: report flooding buries real
+         * cases under noise, and a shared campus network would otherwise
+         * let one abuser throttle a whole building.
+         *
+         * Nobody files twenty genuine reports a minute. Someone doing so
+         * is the behaviour this limit exists for.
+         */
+        RateLimiter::for('reports', function ($request) {
+            $perHour = (int) config('moderation.reports.rate_limit_per_hour', 20);
+
+            return Limit::perHour(max(1, $perHour))->by($request->user()?->id ?: $request->ip());
+        });
     }
 }

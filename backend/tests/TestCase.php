@@ -14,6 +14,30 @@ abstract class TestCase extends BaseTestCase
 {
     protected function setUp(): void
     {
+        /*
+         * A cached config silently overrides phpunit.xml.
+         *
+         * bootstrap/cache/config.php freezes whatever .env held when it was
+         * written, and Laravel then ignores the `force="true"` env values
+         * this suite depends on — including DB_CONNECTION and DB_DATABASE.
+         * The suite quietly starts running against the *development*
+         * database, with RefreshDatabase enabled.
+         *
+         * This has already happened twice here, and both times it looked
+         * like a dozen unrelated test failures rather than what it was.
+         * Failing loudly, once, with the fix in the message costs far less
+         * than diagnosing it a third time.
+         */
+        // dirname(__DIR__), not base_path(): this runs before the
+        // application is booted, so the container does not exist yet.
+        if (file_exists(dirname(__DIR__).'/bootstrap/cache/config.php')) {
+            $this->fail(
+                'bootstrap/cache/config.php exists, which overrides phpunit.xml '
+                .'and can point the test suite at the development database. '
+                .'Run: php artisan config:clear'
+            );
+        }
+
         parent::setUp();
 
         // The notice slot is static and survives between tests in one

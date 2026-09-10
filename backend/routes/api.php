@@ -1,6 +1,9 @@
 <?php
 
 use App\Http\Controllers\Api\Admin\AchievementDefinitionController;
+use App\Http\Controllers\Api\Admin\AppealReviewController;
+use App\Http\Controllers\Api\Admin\ModerationCaseController;
+use App\Http\Controllers\Api\AppealController;
 use App\Http\Controllers\Api\Admin\EmailController as AdminEmailController;
 use App\Http\Controllers\Api\Admin\EventController as AdminEventController;
 use App\Http\Controllers\Api\Admin\EventPosterDraftController;
@@ -159,7 +162,17 @@ Route::prefix('v1')->middleware(['throttle:api', 'auth:sanctum', 'not-banned', '
     Route::post('/feed/{id}/delete', [FeedController::class, 'destroy']);
     Route::post('/feed/{id}/like', [FeedController::class, 'like']);
     Route::post('/feed/{id}/comments', [FeedController::class, 'comment']);
-    Route::post('/feed/{id}/report', [FeedController::class, 'report']);
+    // Reporting is rate limited server-side. Report flooding is itself an
+    // abuse vector — it buries real cases under noise — and the limit has
+    // to live here, not in Flutter, because a direct API call bypasses the
+    // client entirely.
+    Route::post('/feed/{id}/report', [FeedController::class, 'report'])
+        ->middleware('throttle:reports');
+
+    // Appealing a decision about your own content.
+    Route::post('/moderation/appeals', [AppealController::class, 'store'])
+        ->middleware('throttle:reports');
+    Route::get('/moderation/appeals/mine', [AppealController::class, 'mine']);
     Route::post('/feed/{id}/pin', [FeedController::class, 'pin'])->middleware('permission:pages.manage');
     Route::post('/feed/{id}/unpin', [FeedController::class, 'unpin'])->middleware('permission:pages.manage');
 
@@ -306,6 +319,15 @@ Route::prefix('v1')->middleware(['throttle:api', 'auth:sanctum', 'not-banned', '
         Route::post('/admin/reviews/{id}/delete', [AdminReportController::class, 'destroyReview']);
         Route::get('/admin/moderation/queue', [ModerationQueueController::class, 'index']);
         Route::post('/admin/moderation/queue/{id}/resolve', [ModerationQueueController::class, 'resolve']);
+
+        // Case-based review: user reports and automatic verdicts converge
+        // here, so one piece of content is one item of work.
+        Route::get('/admin/moderation/cases', [ModerationCaseController::class, 'index']);
+        Route::get('/admin/moderation/cases/{id}', [ModerationCaseController::class, 'show']);
+        Route::post('/admin/moderation/cases/{id}/decide', [ModerationCaseController::class, 'decide']);
+
+        Route::get('/admin/moderation/appeals', [AppealReviewController::class, 'index']);
+        Route::post('/admin/moderation/appeals/{id}/decide', [AppealReviewController::class, 'decide']);
         Route::get('/admin/settings/moderation', [AdminSettingsController::class, 'moderation']);
         Route::post('/admin/settings/moderation', [AdminSettingsController::class, 'setModeration']);
         Route::get('/admin/moderation/posts', [FeedModerationController::class, 'index']);

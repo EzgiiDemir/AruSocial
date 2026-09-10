@@ -12,3 +12,8 @@ Artisan::command('inspire', function () {
 // Bearer token to the mobile app. `withoutOverlapping` protects the remote
 // directory if a slow network response spans the next hourly invocation.
 Schedule::command('campus:sync-360-directory')->hourly()->withoutOverlapping();
+
+// Stories are a 24h promise. Reading is time-filtered so an expired story
+// is already invisible; this is what actually makes it gone. Every fifteen
+// minutes rather than daily so "expired" and "deleted" stay close together.
+Schedule::command('stories:purge-expired')->everyFifteenMinutes()->withoutOverlapping();

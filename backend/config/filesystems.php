@@ -15,9 +15,23 @@ return [
 
     'default' => env('FILESYSTEM_DISK', 'local'),
 
-    // Media library disk (P2-2). Local/staging/prod set FILESYSTEM_MEDIA_DISK
-    // and MEDIA_URL / APP_URL so URLs never point at another environment.
-    'media_disk' => env('FILESYSTEM_MEDIA_DISK', 'public'),
+    /*
+     * Media library disk.
+     *
+     * This defaults to a PRIVATE disk and must stay that way. The `public`
+     * disk is exposed verbatim by the `public/storage` symlink, so an
+     * upload written there is fetchable at /storage/<path> by anyone who
+     * can guess or is given the filename — with no authentication and no
+     * moderation check. MediaController's approved-only gate is bypassed
+     * entirely, which means pending, review and blocked files were all
+     * readable while the app reported them as withheld.
+     *
+     * Serving goes through MediaController::file(), which checks the
+     * moderation status on every request. Do not point this at `public`
+     * to "make images load"; if they do not load, the route is the thing
+     * to fix.
+     */
+    'media_disk' => env('FILESYSTEM_MEDIA_DISK', 'local'),
 
     /*
     |--------------------------------------------------------------------------

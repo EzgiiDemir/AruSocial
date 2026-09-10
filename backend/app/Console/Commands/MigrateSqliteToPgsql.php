@@ -52,6 +52,14 @@ class MigrateSqliteToPgsql extends Command
         'failed_jobs', 'sessions', 'password_reset_tokens',
     ];
 
+    /** `main.users` / `public.users` -> `users`. */
+    private function bareTableName(string $table): string
+    {
+        $dot = strrpos($table, '.');
+
+        return $dot === false ? $table : substr($table, $dot + 1);
+    }
+
     public function handle(): int
     {
         $sourceName = (string) $this->option('source');
@@ -91,7 +99,12 @@ class MigrateSqliteToPgsql extends Command
             return self::FAILURE;
         }
 
+        // getTableListing() returns schema-qualified names — `main.users` on
+        // SQLite, `public.users` on PostgreSQL. Comparing those raw makes
+        // every table look missing on the target, and the skip-list stops
+        // matching too. Strip the schema on both sides before any comparison.
         $allTables = collect(Schema::connection($sourceName)->getTableListing())
+            ->map(fn (string $t) => $this->bareTableName($t))
             ->reject(fn (string $t) => in_array($t, self::SKIP_TABLES, true))
             ->values();
 
@@ -100,7 +113,8 @@ class MigrateSqliteToPgsql extends Command
             $allTables = $allTables->intersect($only)->values();
         }
 
-        $targetTables = collect(Schema::connection($targetName)->getTableListing());
+        $targetTables = collect(Schema::connection($targetName)->getTableListing())
+            ->map(fn (string $t) => $this->bareTableName($t));
         $missingOnTarget = $allTables->diff($targetTables);
         if ($missingOnTarget->isNotEmpty()) {
             $this->error('These tables exist in the source but not on the target — run `php artisan migrate --force` against the target connection first: '.$missingOnTarget->implode(', '));

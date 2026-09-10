@@ -35,7 +35,17 @@ return [
         'sqlite' => [
             'driver' => 'sqlite',
             'url' => env('DB_URL'),
-            'database' => env('DB_DATABASE', database_path('database.sqlite')),
+            /*
+             * SQLITE_DATABASE exists so both connections can be live at
+             * once. Every driver here reads DB_DATABASE, which is fine
+             * while only one is in use — but copying rows from SQLite into
+             * PostgreSQL needs the source and the target configured
+             * simultaneously, and one shared key cannot name both.
+             *
+             * Falls back to DB_DATABASE, so an install that never sets it
+             * behaves exactly as before.
+             */
+            'database' => env('SQLITE_DATABASE', env('DB_DATABASE', database_path('database.sqlite'))),
             'prefix' => '',
             'foreign_key_constraints' => env('DB_FOREIGN_KEYS', true),
             'busy_timeout' => null,

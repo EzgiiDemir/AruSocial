@@ -26,7 +26,9 @@ class EnvironmentConfigTest extends TestCase
 
     public function test_media_url_follows_app_url_unless_overridden(): void
     {
-        $this->assertSame('public', config('filesystems.media_disk'));
+        // Private by default: the public disk is exposed verbatim by the
+        // public/storage symlink, which bypasses the moderation gate.
+        $this->assertNotSame('public', config('filesystems.media_disk'));
         config(['app.url' => 'https://staging-api.example.com']);
         $this->assertStringStartsWith(
             'https://staging-api.example.com',

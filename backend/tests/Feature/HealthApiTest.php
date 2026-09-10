@@ -52,6 +52,23 @@ class HealthApiTest extends TestCase
 
         $data = $this->getJson('/api/v1/health')->json('data');
 
-        $this->assertEqualsCanonicalizing(['status', 'service', 'version', 'database'], array_keys($data));
+        $this->assertEqualsCanonicalizing(
+            ['status', 'service', 'version', 'database', 'moderation'],
+            array_keys($data),
+        );
+
+        // `moderation` reports whether the classifier can answer, which is
+        // operational rather than user or domain data — it exists because
+        // a stopped classifier is otherwise invisible and looks exactly
+        // like content being rejected. Pin what it may contain, so the
+        // exemption granted here cannot quietly widen into scores,
+        // queue contents or anything about a person.
+        // Asserted as a subset rather than an exact list: the shape varies
+        // by state (disabled reports only `image`, healthy adds the model
+        // and policy versions, unreachable adds the url). What must hold
+        // in every state is that nothing *unexpected* appears.
+        $allowed = ['image', 'url', 'model', 'modelVersion', 'policyVersion'];
+        $this->assertSame([], array_diff(array_keys($data['moderation']), $allowed),
+            'health.moderation grew a field that has not been reviewed for leakage');
     }
 }

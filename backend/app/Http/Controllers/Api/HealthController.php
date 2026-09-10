@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\Concerns\ApiResponds;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 
 // Connection diagnostics for the exact URL the Flutter app is configured
 // with (API_BASE_URL, i.e. …/api/v1). Without these two routes that URL
@@ -27,7 +28,53 @@ class HealthController extends Controller
             'service' => 'arucad-campus-api',
             'version' => 'v1',
             'database' => $this->databaseStatus(),
+            'moderation' => $this->moderationStatus(),
         ]);
+    }
+
+    /**
+     * Whether the visual classifier can actually answer.
+     *
+     * Reported here because its absence is invisible everywhere else and
+     * looks exactly like a content problem to a student: with the scanner
+     * down every photo and video upload correctly fails closed with a
+     * 503, so "Stories block everything" and "the classifier process is
+     * not running" produce the same symptom. One field turns a confusing
+     * outage into an obvious one.
+     */
+    private function moderationStatus(): array
+    {
+        if (! (bool) config('moderation.image.enabled', false)) {
+            // Not an error. An install can legitimately run without a
+            // visual classifier — media is then held rather than
+            // published, which the upload path already enforces.
+            return ['image' => 'disabled'];
+        }
+
+        $base = rtrim((string) config('moderation.image.base_url'), '/');
+
+        try {
+            $response = Http::timeout(3)->get($base.'/health');
+        } catch (\Throwable) {
+            return ['image' => 'unreachable', 'url' => $base];
+        }
+
+        if ($response->status() === 503) {
+            // The service is up but its weights failed to load, which is
+            // a different fix from "the process is not running".
+            return ['image' => 'model_not_loaded', 'url' => $base];
+        }
+
+        if (! $response->successful()) {
+            return ['image' => 'unhealthy', 'url' => $base];
+        }
+
+        return [
+            'image' => 'ok',
+            'model' => $response->json('model'),
+            'modelVersion' => $response->json('model_version'),
+            'policyVersion' => config('moderation.image.policy_version'),
+        ];
     }
 
     // Reported as a field rather than thrown: an unreachable database is

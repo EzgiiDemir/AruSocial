@@ -18,6 +18,7 @@ use App\Services\Moderation\ContentModerator;
 use App\Services\Moderation\Image\FastApiImageModerationProvider;
 use App\Services\Moderation\Image\ImageModerationPolicy;
 use App\Services\Moderation\Image\ImageVerdict;
+use App\Services\Moderation\Image\VideoModerationRunner;
 use App\Services\Moderation\ModerationClient;
 use App\Services\Moderation\ModerationExemption;
 use App\Services\Moderation\ModerationOutcome;
@@ -170,6 +171,14 @@ class MediaController extends Controller
         // continues past here to a fallback whose failure mode is
         // "approve because nothing was configured". Nothing below this
         // point may look at an image again.
+        // Video used to skip this block and fall through to a fallback
+        // ending in "no local classifier configured → approve", so every
+        // clip published with no frame ever inspected. It now goes through
+        // the same provider, policy and calibrated thresholds as a photo.
+        if ($isVideo && app(FastApiImageModerationProvider::class)->isConfigured()) {
+            return $this->inspectVideoVisually($file, $submitter);
+        }
+
         if (! $isVideo && app(FastApiImageModerationProvider::class)->isConfigured()) {
             // Queued mode stores the image as pending and lets the job
             // decide. It is written as pending *before* the job is
@@ -259,6 +268,38 @@ class MediaController extends Controller
             ],
 
             // Nothing looked at the pixels. Fail closed — always.
+            default => [$this->moderationError(ModerationOutcome::unavailable()), null],
+        };
+    }
+
+    /**
+     * Visual moderation for one video.
+     *
+     * Shares the image mapping exactly, including the exhaustive match
+     * with no permissive default. The only difference is where the
+     * verdict came from — frames rather than a single picture.
+     *
+     * @return array{0: JsonResponse|null, 1: string|null}
+     */
+    private function inspectVideoVisually($file, $submitter): array
+    {
+        $verdict = app(VideoModerationRunner::class)
+            ->scanFile((string) $file->getRealPath());
+
+        $this->recordImageVerdict($submitter, $file, $verdict);
+
+        return match ($verdict->decision) {
+            ImageVerdict::ALLOW => [null, 'approved'],
+            ImageVerdict::REVIEW => [null, 'pending'],
+            ImageVerdict::BLOCK => [$this->blockedImageResponse($submitter, $verdict), null],
+            ImageVerdict::INVALID => [
+                $this->fail(400, 'INVALID_FILE_CONTENTS',
+                    'Video okunamadı. Lütfen geçerli bir MP4, MOV veya WEBM dosyası yükle.'),
+                null,
+            ],
+            // No frames inspected — including the common case of FFmpeg
+            // not being installed. That is an operational gap, never a
+            // safe state, so the clip is held rather than published.
             default => [$this->moderationError(ModerationOutcome::unavailable()), null],
         };
     }

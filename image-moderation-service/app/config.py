@@ -24,6 +24,36 @@ class Settings(BaseSettings):
     model_id: str = "Falconsai/nsfw_image_detection"
     model_revision: str = "96cb0d0342c7afb80cab76ecc58b265fa44da256"
 
+    # Second signal: violence / graphic content. NOT SHIPPED.
+    #
+    # The NSFW model above detects adult content and nothing else. It does
+    # not detect gore, and no threshold change makes it — a separate model
+    # is the only honest way to cover that category.
+    #
+    # The obvious candidate was benchmarked and rejected. Recorded here so
+    # nobody spends the afternoon rediscovering it:
+    #
+    #   jaranohaal/vit-base-violence-detection  (Apache-2.0, the most
+    #   downloaded result for "violence" image-classification, with three
+    #   near-identical forks) does not load. Its checkpoint is in timm
+    #   `blocks.*` layout, which ViTForImageClassification cannot map, so
+    #   every encoder layer and the classifier head are randomly
+    #   initialised. Transformers says so plainly: "You should probably
+    #   TRAIN this model on a down-stream task."
+    #
+    #   Its output is noise, and noise in the dangerous direction. On our
+    #   labelled set it scored SAFE content *higher* on the violent label
+    #   (median 0.67) than the unsafe set (0.47), with 38 of 46 safe
+    #   images above 0.50. Shipping it would have blocked most of the
+    #   campus photo library while catching nothing.
+    #
+    # Run probe_candidate.py against benchmark_manifest.json before
+    # enabling any replacement. A second model can only *add* false
+    # positives to a pipeline whose safe set currently passes at zero.
+    violence_enabled: bool = False
+    violence_model_id: str = ""
+    violence_model_revision: str = ""
+
     # Loading the weights takes seconds; doing it per request would make
     # every upload pay for it. Preload at startup so /health only reports
     # ready once the model can actually answer.

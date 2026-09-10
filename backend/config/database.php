@@ -35,23 +35,30 @@ return [
         'sqlite' => [
             'driver' => 'sqlite',
             'url' => env('DB_URL'),
-            /*
-             * SQLITE_DATABASE exists so both connections can be live at
-             * once. Every driver here reads DB_DATABASE, which is fine
-             * while only one is in use — but copying rows from SQLite into
-             * PostgreSQL needs the source and the target configured
-             * simultaneously, and one shared key cannot name both.
-             *
-             * Falls back to DB_DATABASE, so an install that never sets it
-             * behaves exactly as before.
-             */
-            'database' => env('SQLITE_DATABASE', env('DB_DATABASE', database_path('database.sqlite'))),
+            'database' => env('DB_DATABASE', database_path('database.sqlite')),
             'prefix' => '',
             'foreign_key_constraints' => env('DB_FOREIGN_KEYS', true),
             'busy_timeout' => null,
             'journal_mode' => null,
             'synchronous' => null,
             'transaction_mode' => 'DEFERRED',
+        ],
+
+        /*
+         * The pre-PostgreSQL SQLite file, for the one-time row copy only.
+         *
+         * A separate connection rather than an env override on `sqlite`
+         * above: that connection must keep reading DB_DATABASE so the
+         * test suite's forced `:memory:` still wins. Pointing it at a
+         * second variable made SQLITE_DATABASE outrank phpunit.xml, and
+         * the suite quietly started running against the real development
+         * database — RefreshDatabase and all.
+         */
+        'sqlite_legacy' => [
+            'driver' => 'sqlite',
+            'database' => env('SQLITE_LEGACY_DATABASE', database_path('database.sqlite')),
+            'prefix' => '',
+            'foreign_key_constraints' => false,
         ],
 
         'mysql' => [

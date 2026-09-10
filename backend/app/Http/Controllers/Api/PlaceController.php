@@ -2,10 +2,11 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Events\CampusDataChanged;
 use App\Http\Controllers\Api\Concerns\ApiResponds;
 use App\Http\Controllers\Api\Concerns\ModeratesContent;
+use App\Http\Controllers\Api\Concerns\SubmitsReports;
 use App\Http\Controllers\Controller;
-use App\Events\CampusDataChanged;
 use App\Http\Requests\SetPlaceCoverRequest;
 use App\Http\Requests\UpsertPlaceRequest;
 use App\Models\CollaborationPost;
@@ -17,14 +18,13 @@ use App\Models\WorkshopEquipmentItem;
 use App\Services\AchievementEvaluator;
 use App\Services\ActivityLogger;
 use App\Services\AuditLogger;
-use App\Services\ModerationService;
 use App\Services\PlacePresence;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class PlaceController extends Controller
 {
-    use ApiResponds, ModeratesContent;
+    use ApiResponds, ModeratesContent, SubmitsReports;
 
     private function placeToJson(Place $p, PlacePresence $presence): array
     {
@@ -150,6 +150,7 @@ class PlaceController extends Controller
             'comment' => $comment,
             'meta' => 'az önce',
             'created_at' => now(),
+            'moderation_status' => 'approved',
         ]);
         $review->setRelation('user', $me);
 
@@ -193,6 +194,14 @@ class PlaceController extends Controller
 
     public function upsert(UpsertPlaceRequest $request): JsonResponse
     {
+        if ($blocked = $this->moderationBlock(
+            $this->currentUser(),
+            $this->moderationText($request->validated()),
+            'catalog',
+            'admin.place.upsert',
+        )) {
+            return $blocked;
+        }
         $id = $request->input('id');
         $isNew = ! Place::where('id', $id)->exists();
 
@@ -244,27 +253,18 @@ class PlaceController extends Controller
         if (! $place) {
             return $this->fail(404, 'PLACE_NOT_FOUND', 'Place not found.');
         }
-        $reason = (string) $request->input('reason', '');
         $me = $this->currentUser();
+        ActivityLogger::log($me->id, 'report', "Şikayet ettin: {$place->name}",
+            (string) $request->input('reason', ''));
 
-        // Moderated for the same reason as every other report reason: it is
-        // free text a human will read, and it reaches a moderator directly.
-        if ($blocked = $this->moderationBlock($me, $reason, 'report', 'place.report')) {
-            return $blocked;
-        }
-
-        ActivityLogger::log($me->id, 'report', "Şikayet ettin: {$place->name}", $reason);
-
-        ModerationReport::create([
-            'id' => $this->newId('report'),
-            'kind' => 'place',
-            'target_id' => $place->id,
-            'target_label' => $place->name,
-            'reason' => $reason,
-            'reported_at' => now(),
-        ]);
-
-        return $this->ok(['reported' => true]);
+        return $this->submitReport(
+            request: $request,
+            reporter: $me,
+            targetType: 'place',
+            targetId: (string) $place->id,
+            targetLabel: (string) $place->name,
+            sourceFeature: 'place.report',
+        );
     }
 
     private function equipmentToJson(WorkshopEquipmentItem $e): array
@@ -335,6 +335,7 @@ class PlaceController extends Controller
             'text' => $text,
             'created_at' => now(),
             'expires_at' => now()->addDays(14),
+            'moderation_status' => 'approved',
         ]);
         $post->setRelation('author', $me);
 
@@ -350,6 +351,14 @@ class PlaceController extends Controller
         $name = trim((string) $request->input('name', ''));
         if ($name === '') {
             return $this->fail(400, 'VALIDATION', 'name is required.');
+        }
+        if ($blocked = $this->moderationBlock(
+            $this->currentUser(),
+            $name,
+            'workshop_equipment',
+            'place.upsertWorkshopEquipment',
+        )) {
+            return $blocked;
         }
         $itemId = $request->input('id');
         $isNew = ! $itemId || ! WorkshopEquipmentItem::where('id', $itemId)->exists();

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Api\Concerns\ApiResponds;
 use App\Http\Controllers\Api\Concerns\ModeratesContent;
+use App\Http\Controllers\Api\Concerns\SubmitsReports;
 use App\Http\Controllers\Controller;
 use App\Models\ModerationReport;
 use App\Models\Notification as InboxNotification;
@@ -20,7 +21,7 @@ use Illuminate\Http\Request;
 // discarded. The rows themselves never store a name.
 class SocialGraphController extends Controller
 {
-    use ApiResponds, ModeratesContent;
+    use ApiResponds, ModeratesContent, SubmitsReports;
 
     public function following(Request $request): JsonResponse
     {
@@ -60,27 +61,25 @@ class SocialGraphController extends Controller
         }
 
         $reason = trim((string) $request->input('reason', ''));
-        if ($reason !== '' && ($blocked = $this->moderationBlock(
-            $me, $reason, 'report_reason', 'social.reportUser'
-        ))) {
-            return $blocked;
-        }
-        if ($reason === '') {
-            return $this->fail(400, 'VALIDATION', 'reason is required.');
+        if ($reason === '' && (string) $request->input('reasonCode', '') === '') {
+            return $this->fail(400, 'VALIDATION',
+                'Either reasonCode or reason is required.');
         }
 
-        ActivityLogger::log($me->id, 'report', "Kullanıcıyı şikayet ettin: {$target->name}", $reason);
+        ActivityLogger::log($me->id, 'report',
+            "Kullanıcıyı şikayet ettin: {$target->name}", $reason);
 
-        ModerationReport::create([
-            'id' => $this->newId('report'),
-            'kind' => 'user',
-            'target_id' => (string) $target->id,
-            'target_label' => $target->name,
-            'reason' => $reason,
-            'reported_at' => now(),
-        ]);
-
-        return $this->ok(['reported' => true]);
+        return $this->submitReport(
+            request: $request,
+            reporter: $me,
+            targetType: 'user',
+            targetId: (string) $target->id,
+            targetLabel: (string) $target->name,
+            sourceFeature: 'social.reportUser',
+            // The reported account is the "owner" of the case, so a
+            // moderator sees their history rather than the reporter's.
+            contentOwnerId: (int) $target->id,
+        );
     }
 
     public function blocked(): JsonResponse

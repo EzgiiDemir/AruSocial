@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Events\MessageCreated;
 use App\Http\Controllers\Api\Concerns\ApiResponds;
 use App\Http\Controllers\Api\Concerns\ModeratesContent;
+use App\Http\Controllers\Api\Concerns\SubmitsReports;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\SendChatMessageRequest;
 use App\Models\ChatGroup;
@@ -30,7 +31,7 @@ use Illuminate\Support\Str;
 // the history source of truth; MessageCreated is realtime delivery only.
 class ChatController extends Controller
 {
-    use ApiResponds, ModeratesContent;
+    use ApiResponds, ModeratesContent, SubmitsReports;
 
     public function __construct(private ConversationService $conversations) {}
 
@@ -47,20 +48,32 @@ class ChatController extends Controller
             ->whereHas('participants', fn ($q) => $q->where('users.id', $me->id))
             ->with('participants')
             ->get()
-            ->map(fn (Conversation $conversation) => $conversation->otherParticipant($me->id))
-            ->filter()
-            ->reject(fn (User $peer) => in_array((int) $peer->id, $blockedPeerIds, true))
-            ->map(function (User $peer) use ($prefsByPeer) {
+            ->map(function (Conversation $conversation) use ($me, $prefsByPeer, $blockedPeerIds) {
+                $peer = $conversation->otherParticipant($me->id);
+                if ($peer === null || in_array((int) $peer->id, $blockedPeerIds, true)) {
+                    return null;
+                }
                 $pref = $prefsByPeer->get((int) $peer->id);
+                $last = $conversation->messages()->latest('created_at')->latest('id')->first();
+                $unread = $conversation->messages()
+                    ->where('sender_id', $peer->id)
+                    ->when($pref?->last_read_at !== null,
+                        fn ($q) => $q->where('created_at', '>', $pref->last_read_at))
+                    ->count();
 
                 return [
                     'name' => $peer->name,
                     'avatarUrl' => MediaPublicUrl::rewrite($peer->avatar_url),
+                    'lastMessage' => $last?->body,
+                    'lastMessageAt' => $last?->created_at?->toIso8601String(),
+                    'unreadCount' => $unread,
                     'muted' => $pref?->muted_at !== null,
                     'archived' => $pref?->archived_at !== null,
                     'restricted' => $pref?->restricted_at !== null,
                 ];
             })
+            ->filter()
+            ->sortByDesc('lastMessageAt')
             ->values();
 
         return $this->ok($peers);
@@ -273,28 +286,15 @@ class ChatController extends Controller
             return $group;
         }
 
-        $reason = trim((string) $request->input('reason', ''));
-        if ($reason === '') {
-            return $this->fail(400, 'VALIDATION', 'reason is required.');
-        }
-
-        // A report is free text a moderator will read. Reporting is exactly
-        // the channel someone reaches for to abuse the person they are
-        // reporting, so the reason is moderated like any other message.
-        if ($blocked = $this->moderationBlock($me, $reason, 'report', 'chat.reportGroup')) {
-            return $blocked;
-        }
-
-        ModerationReport::create([
-            'id' => $this->newId('report'),
-            'kind' => 'chat_group',
-            'target_id' => (string) $group->id,
-            'target_label' => $group->name,
-            'reason' => $reason,
-            'reported_at' => now(),
-        ]);
-
-        return $this->ok(['reported' => true]);
+        return $this->submitReport(
+            request: $request,
+            reporter: $me,
+            targetType: 'chat_group',
+            targetId: (string) $group->id,
+            targetLabel: (string) $group->name,
+            sourceFeature: 'chat.reportGroup',
+            contentOwnerId: $group->created_by === null ? null : (int) $group->created_by,
+        );
     }
 
     public function groupMessages(string $id): JsonResponse
@@ -332,6 +332,7 @@ class ChatController extends Controller
             'sender_user_id' => $me->id,
             'text' => $text,
             'created_at' => now(),
+            'moderation_status' => 'approved',
         ]);
         $message->setRelation('sender', $me);
         $group->touch();
@@ -359,6 +360,11 @@ class ChatController extends Controller
         }
 
         $rows = $conversation->messages()->with('sender')->orderBy('created_at')->orderBy('id')->get();
+
+        ChatThreadPref::query()->updateOrCreate(
+            ['user_id' => $me->id, 'peer_user_id' => $target->id],
+            ['last_read_at' => now()],
+        );
 
         return $this->ok($rows->map(fn (ChatMessage $m) => $m->toApiArray($me, $target))->values());
     }
@@ -389,6 +395,7 @@ class ChatController extends Controller
                 'conversation_id' => $conversation->id,
                 'sender_id' => $me->id,
                 'body' => $text,
+                'moderation_status' => 'approved',
             ]);
             $created->setRelation('sender', $me);
 

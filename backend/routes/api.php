@@ -141,7 +141,8 @@ Route::prefix('v1')->middleware(['throttle:api', 'auth:sanctum', 'not-banned', '
         ->middleware('permission:places.manage');
     Route::get('/places/{id}/reviews', [PlaceController::class, 'reviews']);
     Route::post('/places/{id}/reviews', [PlaceController::class, 'addReview']);
-    Route::post('/places/{id}/report', [PlaceController::class, 'report']);
+    Route::post('/places/{id}/report', [PlaceController::class, 'report'])
+        ->middleware('throttle:reports');
     Route::get('/places/{id}/workshop', [PlaceController::class, 'workshop']);
     Route::post('/places/{id}/workshop/posts', [PlaceController::class, 'addWorkshopPost']);
 
@@ -222,7 +223,8 @@ Route::prefix('v1')->middleware(['throttle:api', 'auth:sanctum', 'not-banned', '
     Route::post('/social/follow-requests/decline', [SocialGraphController::class, 'declineFollowRequest']);
     Route::post('/social/follow', [SocialGraphController::class, 'toggleFollow']);
     Route::post('/social/block', [SocialGraphController::class, 'toggleBlock']);
-    Route::post('/social/report-user', [SocialGraphController::class, 'reportUser']);
+    Route::post('/social/report-user', [SocialGraphController::class, 'reportUser'])
+        ->middleware('throttle:reports');
     Route::get('/saved-posts', [SavedPostController::class, 'index']);
     Route::post('/saved-posts/toggle', [SavedPostController::class, 'toggle']);
     Route::get('/club-memberships', [ClubMemberController::class, 'index']);
@@ -245,7 +247,8 @@ Route::prefix('v1')->middleware(['throttle:api', 'auth:sanctum', 'not-banned', '
     Route::post('/chat/groups', [ChatController::class, 'createGroup']);
     Route::post('/chat/groups/{id}/leave', [ChatController::class, 'leaveGroup']);
     Route::post('/chat/groups/{id}/prefs/toggle', [ChatController::class, 'toggleGroupPref']);
-    Route::post('/chat/groups/{id}/report', [ChatController::class, 'reportGroup']);
+    Route::post('/chat/groups/{id}/report', [ChatController::class, 'reportGroup'])
+        ->middleware('throttle:reports');
     Route::get('/chat/groups/{id}/messages', [ChatController::class, 'groupMessages']);
     Route::post('/chat/groups/{id}/messages', [ChatController::class, 'sendGroupMessage']);
     Route::get('/chat/{peer}/messages', [ChatController::class, 'messages']);

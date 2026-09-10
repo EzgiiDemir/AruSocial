@@ -15,6 +15,8 @@ use App\Models\PostLike;
 use App\Models\User;
 use App\Services\ActivityLogger;
 use App\Services\GranularPermissions;
+use App\Services\Moderation\Workflow\ReportReason;
+use App\Services\Moderation\Workflow\ReportService;
 use App\Services\ModerationService;
 use App\Support\MediaPublicUrl;
 use App\Support\SchemaColumnCache;
@@ -113,7 +115,14 @@ class FeedController extends Controller
             return $this->fail(400, 'VALIDATION', 'Text must be at most 2000 characters.');
         }
         $visibility = SocialAudience::visibility($request->input('visibility'));
-        $needsReview = (bool) config('services.feed.require_approval', false);
+
+        // `require_approval` is an editorial switch, not a safety one. It
+        // used to send every post to pending_review — including posts the
+        // moderation gate had just examined and cleared — which filled the
+        // queue with clean content and taught moderators to approve
+        // without reading. Moderation decides what is held; this flag only
+        // applies when moderation itself asked for a human.
+        $needsReview = false;
         $attachment = SocialMediaAttachment::resolve($request->input('imageUrl'), $me);
         if ($attachment['code'] !== null) {
             return $this->fail(422, $attachment['code'], $attachment['message']);
@@ -420,24 +429,40 @@ class FeedController extends Controller
         if (! $post) {
             return $this->fail(404, 'POST_NOT_FOUND', 'Post not found.');
         }
-        $reason = (string) $request->input('reason', '');
-        // A report reason is read by moderators and stored — it is still
-        // user-written text and has been used as an abuse channel of its own.
-        if ($blocked = $this->moderationBlock($me, $reason, 'report_reason', 'feed.report')) {
+        $description = trim((string) $request->input('reason', ''));
+
+        // A closed set of reason codes, with the prose kept as an optional
+        // description. Storing only free text was why nothing could be
+        // counted, sorted or prioritised — and a queue nobody can sort is
+        // a queue nobody works.
+        $reason = ReportReason::tryFrom((string) $request->input('reasonCode', ''))
+            ?? ReportReason::Other;
+
+        // The description is user-written text shown to moderators, and
+        // the report form has been used as an abuse channel of its own.
+        if ($description !== ''
+            && ($blocked = $this->moderationBlock($me, $description, 'report_reason', 'feed.report'))) {
             return $blocked;
         }
 
-        ActivityLogger::log($me->id, 'report', "Gönderiyi şikayet ettin: {$post->name}", $reason);
+        $result = app(ReportService::class)->report(
+            reporter: $me,
+            targetType: 'post',
+            targetId: (string) $post->id,
+            reason: $reason,
+            targetLabel: mb_substr((string) $post->text, 0, 60) ?: (string) $post->name,
+            description: $description === '' ? null : $description,
+            contentOwnerId: $post->author_id === null ? null : (int) $post->author_id,
+        );
 
-        ModerationReport::create([
-            'id' => $this->newId('report'),
-            'kind' => 'post',
-            'target_id' => $post->id,
-            'target_label' => mb_substr($post->text, 0, 60) ?: $post->name,
-            'reason' => $reason,
-            'reported_at' => now(),
-        ]);
+        if ($result['status'] === ReportService::CREATED) {
+            ActivityLogger::log($me->id, 'report',
+                "Gönderiyi şikayet ettin: {$post->name}", $reason->value);
+        }
 
+        // A repeat report is answered exactly like a first one. Saying
+        // "you already reported this" confirms the earlier report exists
+        // and invites the reporter to try again from another account.
         return $this->ok(['reported' => true]);
     }
 

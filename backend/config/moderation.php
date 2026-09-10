@@ -30,7 +30,7 @@ return [
          * "why was this blocked in March" has no answer if the numbers
          * that blocked it were silently replaced in April.
          */
-        'policy_version' => env('IMAGE_POLICY_VERSION', 'image-v1'),
+        'policy_version' => env('IMAGE_POLICY_VERSION', 'image-v2-calibrated'),
 
         /*
          * Per-category thresholds. Semantics:
@@ -39,13 +39,37 @@ return [
          *   review <= score < block      -> REVIEW  (held, no strike)
          *   score >= block               -> BLOCK
          *
-         * PROVISIONAL VALUES. These are a deliberately cautious starting
-         * point, not calibrated numbers — they were chosen before any
-         * benchmark existed, and reviewing a few extra safe photos is a
-         * far cheaper mistake than publishing one unsafe one. They must
-         * be re-derived from our own labelled test set (see
-         * `moderation:benchmark-images`) before launch; a model author's
-         * reported accuracy says nothing about our campus photos.
+         * CALIBRATED against our own labelled set — see
+         * image-moderation-service/benchmark.py and
+         * benchmark_manifest.json. Measured separation on that set:
+         *
+         *   safe    n=49   highest score 0.0663
+         *   unsafe  n=21   lowest  score 0.6715
+         *
+         * The two populations do not overlap, and they do not come close:
+         * there is an empty band roughly ten times wider than the entire
+         * spread of the safe set. These values sit inside it with margin
+         * on both sides — 3x above the highest safe score, and 0.17 below
+         * the lowest unsafe one.
+         *
+         * The previous 0.85 block was wrong in a way that mattered: real
+         * photographic nudity scores ~0.67, so it was *held for review*
+         * rather than blocked. Held content waits on a moderator, and an
+         * unstaffed queue means it waits indefinitely.
+         *
+         * The safe set deliberately includes the app's Rodin sculpture
+         * series (`03-falling-man`, `05-eve`, `07-eternal-spring`,
+         * `11-the-kiss`). ARUCAD is an art and design university, so
+         * sculpture and figure work are ordinary coursework here. Those
+         * files score 0.003-0.006 — the model separates bronze from
+         * photography cleanly, which is the single result that makes it
+         * usable at this institution.
+         *
+         * HONEST LIMIT: the unsafe set is 21 files but only 2 distinct
+         * images; the rest are duplicate uploads. Two images cannot
+         * establish a recall figure. These thresholds are defensible and
+         * measured, not statistically validated — widen the set before
+         * treating any accuracy number as real.
          *
          * Categories are matched against the labels the model actually
          * returns, lowercased. Unknown labels are ignored rather than
@@ -53,8 +77,8 @@ return [
          */
         'thresholds' => [
             'nsfw' => [
-                'review' => (float) env('IMAGE_NSFW_REVIEW_THRESHOLD', 0.35),
-                'block' => (float) env('IMAGE_NSFW_BLOCK_THRESHOLD', 0.85),
+                'review' => (float) env('IMAGE_NSFW_REVIEW_THRESHOLD', 0.20),
+                'block' => (float) env('IMAGE_NSFW_BLOCK_THRESHOLD', 0.50),
             ],
         ],
 

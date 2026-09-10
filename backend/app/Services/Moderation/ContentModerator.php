@@ -31,9 +31,9 @@ use Illuminate\Support\Str;
 class ContentModerator
 {
     public function __construct(
-        private readonly OpenAiModerationClient $provider = new OpenAiModerationClient(),
-        private readonly TextPolicyEngine $localEngine = new TextPolicyEngine(),
-        private readonly PenaltyLadder $ladder = new PenaltyLadder(),
+        private readonly ModerationClient $provider = new ModerationClient,
+        private readonly TextPolicyEngine $localEngine = new TextPolicyEngine,
+        private readonly PenaltyLadder $ladder = new PenaltyLadder,
     ) {}
 
     /**
@@ -47,12 +47,27 @@ class ContentModerator
         string $contentType,
         string $sourceFeature,
         array $imageUrls = [],
+        array $files = [],
     ): ModerationOutcome {
         if ($this->ladder->isCurrentlyBanned($user)) {
             return ModerationOutcome::banned($user->banned_until);
         }
 
-        $hash = $this->submissionHash($user, $text, $contentType, $imageUrls);
+        // Staff content is not scanned — but the ban check above runs
+        // first, deliberately. A suspended account stays suspended
+        // whatever its role, or "promote them to trainer" becomes a way
+        // to lift a suspension.
+        //
+        // The exemption skips scanning, not accountability: an evidence
+        // row is still written, so who published a given announcement
+        // remains answerable afterwards.
+        if (! ModerationExemption::appliesTo($user)) {
+            $this->recordExemption($user, $contentType, $sourceFeature);
+
+            return ModerationOutcome::allowed();
+        }
+
+        $hash = $this->submissionHash($user, $text, $contentType, $imageUrls, $files);
 
         // A double-tapped submit button must not cost two strikes.
         //
@@ -70,7 +85,7 @@ class ContentModerator
             ->first();
         if ($existing !== null) {
             $replay = ModerationOutcome::fromRepeat($existing);
-            if ($imageUrls === [] || ! $replay->isPublishable()) {
+            if (($imageUrls === [] && $files === []) || ! $replay->isPublishable()) {
                 return $replay;
             }
         }
@@ -79,24 +94,36 @@ class ContentModerator
             ? $this->localEngine->evaluate($text)
             : null;
 
-        $provider = $this->provider->inspect($text, $imageUrls);
+        $provider = $this->provider->inspect($text, $imageUrls, $files, $sourceFeature);
 
-        // "No key configured" and "the provider is down" are different
-        // situations. An install with no key runs on the local engine alone
-        // — that is a deployment choice, not an outage. A configured
-        // provider that cannot be reached means content genuinely went
-        // uninspected, so it is held rather than published.
-        $outage = ! $provider->available && $provider->unavailableReason !== 'not_configured';
+        // "The provider is down" and "this install has no working provider"
+        // are different situations, and only the first is an outage.
+        //
+        // An outage is temporary, so holding content until it clears is
+        // reasonable. A rejected credential is not temporary: a revoked or
+        // unpaid key is rejected identically on every retry, so treating it
+        // as an outage means the queue never drains and the app simply
+        // stops accepting posts — which is exactly what happened here, and
+        // why the OpenAI layer had been switched off by hand to get the app
+        // working again. Both "no key" and "key refused" therefore degrade
+        // to the local engine; the distinct reason strings are kept because
+        // they need very different fixes, and both are logged as errors.
+        $degraded = ['not_configured', 'credentials_rejected'];
+        $outage = ! $provider->available
+            && ! in_array($provider->unavailableReason, $degraded, true);
 
-        // Media has no local fallback. The offline engine reads text; it
-        // cannot look at pixels, so when a submission carries images (or
-        // video frames) and the provider did not actually inspect them,
-        // nothing has judged that content at all. Unlike text — where
-        // degrading to the local engine still enforces a real policy —
-        // "no key configured" here means completely uninspected media, and
-        // approving it would publish exactly what this gate exists to stop.
-        // So media is held whatever the reason, including a missing key.
-        if ($imageUrls !== [] && ! $provider->available) {
+        // Media is held when a provider that *should* have looked at it
+        // could not be reached: that content genuinely went uninspected.
+        //
+        // An install with no provider configured is a different case, and
+        // holding everything there was wrong — it put every ordinary photo
+        // in the review queue forever, which is indistinguishable from the
+        // upload being broken. That deployment runs on the layers it does
+        // have: MediaController's format/size/pixel checks and, when one is
+        // installed, the local semantic classifier — the same
+        // "not configured → decide locally, unavailable → hold" rule
+        // MediaController already applies to that classifier.
+        if (($imageUrls !== [] || $files !== []) && $outage) {
             $this->record($user, $contentType, $sourceFeature, ModerationEvent::ACTION_REVIEW,
                 $provider, $local, $text, $hash, null);
 
@@ -104,13 +131,10 @@ class ContentModerator
         }
 
         if ($outage && ! $this->localSaysBlock($local)) {
-            if (! config('services.moderation.fail_open', false)) {
-                $this->record($user, $contentType, $sourceFeature, ModerationEvent::ACTION_REVIEW,
-                    $provider, $local, $text, $hash, null);
+            $this->record($user, $contentType, $sourceFeature, ModerationEvent::ACTION_REVIEW,
+                $provider, $local, $text, $hash, null);
 
-                return ModerationOutcome::unavailable();
-            }
-            Log::warning('moderation.fail_open', ['feature' => $sourceFeature]);
+            return ModerationOutcome::unavailable();
         }
 
         $providerViolations = $provider->violatedCategories();
@@ -135,31 +159,42 @@ class ContentModerator
 
         if ($blockedByProvider || $blockedByLocal) {
             $categories = $blockedByProvider ? $providerViolations : ($local?->labels ?? []);
-            $penalty = $this->ladder->applyStrike($user, implode(',', $categories) ?: 'policy');
+            $penalty = ($blockedByLocal || $provider->strikeRecommended)
+                ? $this->ladder->applyStrike($user, implode(',', $categories) ?: 'policy')
+                : null;
 
             $event = $this->record($user, $contentType, $sourceFeature, ModerationEvent::ACTION_REJECTED,
                 $provider, $local, $text, $hash, $penalty);
 
             AuditLogger::log('system', 'moderation_block', 'user', sprintf(
-                '%s (%d): %s/%s [%s]',
-                $user->name, $penalty['strike'], $sourceFeature, $contentType, implode(',', $categories),
+                '%s (%s): %s/%s [%s]',
+                $user->name, $penalty['strike'] ?? 'no-strike', $sourceFeature, $contentType, implode(',', $categories),
             ));
 
             return ModerationOutcome::rejected(
                 categories: $categories,
-                strike: $penalty['strike'],
-                action: $penalty['action'],
-                bannedUntil: $penalty['banned_until'],
+                strike: $penalty['strike'] ?? null,
+                action: $penalty['action'] ?? null,
+                bannedUntil: $penalty['banned_until'] ?? null,
                 eventId: $event->id,
             );
         }
 
-        // Borderline local verdicts are published but queued for a human.
+        // REVIEW is a weak/ambiguous lexical signal, not a violation. If the
+        // semantic provider checked the submission and found it clean, that
+        // second opinion resolves the ambiguity in favour of publication.
+        // A deliberately local-only installation also stays usable: it may
+        // warn/audit an uncertain match, but it must not turn every ordinary
+        // mention of a sensitive subject into a hidden post.
         if ($local !== null && $local->needsReview()) {
-            $this->record($user, $contentType, $sourceFeature, ModerationEvent::ACTION_REVIEW,
+            if ($provider->available) {
+                return ModerationOutcome::allowed();
+            }
+
+            $this->record($user, $contentType, $sourceFeature, ModerationEvent::ACTION_WARNED,
                 $provider, $local, $text, $hash, null);
 
-            return ModerationOutcome::allowedWithReview();
+            return ModerationOutcome::allowedWithWarning($local->labels);
         }
 
         if ($local !== null && $local->isWarning()) {
@@ -180,7 +215,15 @@ class ContentModerator
 
     private function localSaysBlock(?ModerationVerdict $local): bool
     {
-        return $local !== null && $local->blocksPublication();
+        if ($local === null) {
+            return false;
+        }
+
+        // Labels describe the topic; the verdict describes confidence and
+        // context. Blocking on a label alone turned WARN/REVIEW decisions
+        // (casual profanity, political discussion, ambiguous wording) back
+        // into removals and was the main source of false positives.
+        return $local->blocksPublication();
     }
 
     /**
@@ -196,7 +239,8 @@ class ContentModerator
     private function isCryForHelp(?ModerationVerdict $local, array $providerViolations): bool
     {
         if ($local !== null && $local->context === 'self_harm') {
-            return true;
+            return $providerViolations === []
+                || array_diff($providerViolations, ['self-harm', 'self-harm/intent']) === [];
         }
 
         if ($providerViolations === []) {
@@ -211,6 +255,35 @@ class ContentModerator
     /**
      * @param  array{strike: int, action: string, banned_until: ?Carbon}|null  $penalty
      */
+    /**
+     * Evidence that a submission was exempt, and on whose authority.
+     *
+     * Without this an exempt publication leaves no trace at all, and the
+     * question "who put this on the timeline" has no answer — which is
+     * exactly the question asked after something goes wrong.
+     */
+    private function recordExemption(User $user, string $contentType, string $sourceFeature): void
+    {
+        try {
+            ModerationEvent::create([
+                'id' => (string) Str::uuid(),
+                'user_id' => (string) $user->id,
+                'content_type' => $contentType,
+                'source_feature' => $sourceFeature,
+                'action' => ModerationEvent::ACTION_ALLOWED,
+                'flagged' => false,
+                'decided_by' => 'exempt',
+                'moderation_provider' => 'exempt',
+                'excerpt' => 'staff_exempt:'.ModerationExemption::reasonFor($user),
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('moderation.exemption_record_failed', [
+                'user' => $user->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
     private function record(
         User $user,
         string $contentType,
@@ -247,7 +320,7 @@ class ContentModerator
             'strike_number' => $penalty['strike'] ?? null,
             'penalty' => $penalty['action'] ?? null,
             'banned_until' => $penalty['banned_until'] ?? null,
-            'moderation_provider' => $provider->available ? 'openai' : 'local',
+            'moderation_provider' => $provider->available ? $provider->providerName : 'local',
             'moderation_model' => $provider->model,
             // Only a short excerpt, and only until the appeal window closes.
             'excerpt' => $text === null ? null : mb_substr(trim($text), 0, 280),
@@ -256,14 +329,25 @@ class ContentModerator
         ]);
     }
 
-    /** @param list<string> $imageUrls */
-    private function submissionHash(User $user, ?string $text, string $contentType, array $imageUrls): string
+    /**
+     * @param  list<string>  $imageUrls
+     * @param  list<array{path:string,name?:string}>  $files
+     */
+    private function submissionHash(User $user, ?string $text, string $contentType, array $imageUrls, array $files): string
     {
+        $fileHashes = array_map(
+            static fn (array $file): string => is_file($file['path'] ?? '')
+                ? (hash_file('sha256', $file['path']) ?: '')
+                : '',
+            $files,
+        );
+
         return hash('sha256', implode('|', [
             $user->id,
             $contentType,
             trim((string) $text),
             implode(',', array_map(fn ($u) => mb_substr($u, 0, 200), $imageUrls)),
+            implode(',', $fileHashes),
         ]));
     }
 }

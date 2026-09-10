@@ -19,6 +19,7 @@ use App\Services\Moderation\Image\FastApiImageModerationProvider;
 use App\Services\Moderation\Image\ImageModerationPolicy;
 use App\Services\Moderation\Image\ImageVerdict;
 use App\Services\Moderation\ModerationClient;
+use App\Services\Moderation\ModerationExemption;
 use App\Services\Moderation\ModerationOutcome;
 use App\Services\Moderation\VideoModerator;
 use App\Services\ModerationService;
@@ -148,6 +149,15 @@ class MediaController extends Controller
             // Hold it rather than approve — an unattributed upload is the
             // last thing that should skip the check.
             return [null, 'pending'];
+        }
+
+        // Staff uploads are not scanned. Structural validation above still
+        // ran — format, size, pixel ceiling, decode — because a corrupt or
+        // enormous file is a problem whoever sent it. Only the classifier
+        // is skipped, and only for accounts the server itself resolves as
+        // staff; nothing in the request can claim this.
+        if (! ModerationExemption::appliesTo($submitter)) {
+            return [null, 'approved'];
         }
 
         $decision = $this->inspectUploadWithProvider($file, $mime, $isVideo, $submitter);

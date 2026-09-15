@@ -13,9 +13,13 @@ namespace App\Services\Moderation\Image;
 final class ImageVerdict
 {
     public const ALLOW = 'allow';
+
     public const REVIEW = 'review';
+
     public const BLOCK = 'block';
+
     public const ERROR = 'error';
+
     /** Not a policy violation — the upload itself was unusable. */
     public const INVALID = 'invalid';
 

@@ -3,6 +3,7 @@
 namespace App\Services\Moderation\Image;
 
 use App\Models\MediaItem;
+use App\Models\ModerationCase;
 use App\Models\ModerationEvent;
 use App\Services\Moderation\Workflow\ModerationCaseService;
 use Illuminate\Support\Facades\Log;
@@ -89,7 +90,7 @@ final class ImageModerationRunner
     public function openCaseIfHeld(
         MediaItem $item,
         ImageVerdict $verdict,
-    ): ?\App\Models\ModerationCase {
+    ): ?ModerationCase {
         $needsHuman = match ($verdict->decision) {
             ImageVerdict::REVIEW => 'hold',
             ImageVerdict::BLOCK => 'block',
@@ -101,7 +102,7 @@ final class ImageModerationRunner
 
         try {
             return app(ModerationCaseService::class)->openForAutomaticVerdict(
-                contentType: $this->isVideo($item) ? 'video' : 'image',
+                contentType: 'image',
                 contentId: (string) $item->id,
                 ownerId: $item->user_id === null ? null : (int) $item->user_id,
                 verdict: $needsHuman,
@@ -120,11 +121,6 @@ final class ImageModerationRunner
 
             return null;
         }
-    }
-
-    private function isVideo(MediaItem $item): bool
-    {
-        return str_starts_with((string) $item->mime_type, 'video/');
     }
 
     /**

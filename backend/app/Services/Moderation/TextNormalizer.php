@@ -50,6 +50,10 @@ final class TextNormalizer
         'а' => 'a', 'е' => 'e', 'ё' => 'e', 'о' => 'o', 'р' => 'p', 'с' => 'c',
         'х' => 'x', 'у' => 'y', 'к' => 'k', 'н' => 'h', 'в' => 'b', 'м' => 'm',
         'т' => 't', 'і' => 'i', 'ѕ' => 's',
+        // Not a strict lookalike, but the substitution people actually
+        // make: "пиzдец" typed with a Latin z. Folding both sides of the
+        // comparison the same way is what makes the swap harmless.
+        'з' => 'z',
     ];
 
     private const MASKING_CHARS = ['*', '#', '•', '×', '¤'];
@@ -172,6 +176,15 @@ final class TextNormalizer
      * masking attempt, so "f*ck" can reach "fuck" without "fck" quietly
      * matching unrelated words in clean text.
      */
+    /**
+     * "sikktir" → "siktir". Normalisation keeps doubled letters on purpose
+     * (kill, hall, добби), so callers that want them gone ask for it.
+     */
+    public function collapseDoubles(string $value): string
+    {
+        return preg_replace('/(.)\1+/u', '$1', $value) ?? $value;
+    }
+
     public function skeleton(string $value): string
     {
         return preg_replace('/[aeiouyıöüаеёиоуыэюя]/u', '', $value) ?? $value;

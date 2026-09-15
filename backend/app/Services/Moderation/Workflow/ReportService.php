@@ -24,6 +24,7 @@ final class ReportService
 {
     /** Outcome of a report attempt. */
     public const CREATED = 'created';
+
     public const DUPLICATE = 'duplicate';
 
     /**

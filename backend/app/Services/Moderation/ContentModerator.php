@@ -61,7 +61,7 @@ class ContentModerator
         // The exemption skips scanning, not accountability: an evidence
         // row is still written, so who published a given announcement
         // remains answerable afterwards.
-        if (! ModerationExemption::appliesTo($user)) {
+        if (! ModerationExemption::appliesTo($user, $sourceFeature)) {
             $this->recordExemption($user, $contentType, $sourceFeature);
 
             return ModerationOutcome::allowed();
@@ -148,8 +148,17 @@ class ContentModerator
         // people how to hurt themselves is harmful content, not a call for
         // help, and stays on the normal enforcement path below.
         if ($this->isCryForHelp($local, $providerViolations)) {
+            // Stamped `self_harm` rather than letting `decided_by` fall to
+            // 'unavailable' when the provider happens to be down.
+            //
+            // Without it the replay below cannot tell a support decision
+            // from "nothing inspected this", so a student who posted once
+            // and tried again within the idempotency window got a
+            // MODERATION_UNAVAILABLE server error instead of the
+            // counselling contact — measured, not hypothetical. Retrying
+            // is exactly what someone in distress does.
             $this->record($user, $contentType, $sourceFeature, ModerationEvent::ACTION_REVIEW,
-                $provider, $local, $text, $hash, null);
+                $provider, $local, $text, $hash, null, 'self_harm');
 
             return ModerationOutcome::support();
         }
@@ -178,6 +187,24 @@ class ContentModerator
                 bannedUntil: $penalty['banned_until'] ?? null,
                 eventId: $event->id,
             );
+        }
+
+        // The semantic layer found this ambiguous: above the review line,
+        // below the block line. Held for a moderator rather than refused
+        // or published.
+        //
+        // Measured, this band is worth nine more catches across the
+        // labelled sets for four held safe posts out of fifty — the best
+        // remaining trade, and only defensible because there is now a
+        // screen that drains the queue. No strike is recorded: the system
+        // is saying it does not know, and a person should not be punished
+        // for the model's uncertainty.
+        $ambiguous = $provider->ambiguousCategories();
+        if ($ambiguous !== []) {
+            $event = $this->record($user, $contentType, $sourceFeature,
+                ModerationEvent::ACTION_REVIEW, $provider, $local, $text, $hash, null);
+
+            return ModerationOutcome::heldForReview($ambiguous, $event->id);
         }
 
         // REVIEW is a weak/ambiguous lexical signal, not a violation. If the
@@ -247,6 +274,20 @@ class ContentModerator
             return false;
         }
 
+        // The lexicon refusing this for some *other* reason ends the
+        // question. The support path publishes, so a post that reaches it
+        // by scoring just over the self-harm line goes up untouched —
+        // which is how "numaranı ver güzelim, geceleri seni yalnız
+        // bırakmam" came to publish: the engine had already refused it as
+        // sexual harassment, and the model happened to score it SELF
+        // 0.0924 against a 0.09 support line.
+        //
+        // A crisis post containing swearing is still a crisis post, so
+        // this only applies where the engine blocks, not where it warns.
+        if ($local !== null && $this->localSaysBlock($local) && $local->context !== 'self_harm') {
+            return false;
+        }
+
         $supportable = ['self-harm', 'self-harm/intent'];
 
         return array_diff($providerViolations, $supportable) === [];
@@ -294,8 +335,9 @@ class ContentModerator
         ?string $text,
         string $hash,
         ?array $penalty,
+        ?string $decidedByOverride = null,
     ): ModerationEvent {
-        $decidedBy = match (true) {
+        $decidedBy = $decidedByOverride ?? match (true) {
             ! $provider->available => 'unavailable',
             $provider->violatedCategories() !== [] && $this->localSaysBlock($local) => 'both',
             $provider->violatedCategories() !== [] => 'openai',

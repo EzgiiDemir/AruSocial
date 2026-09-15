@@ -20,7 +20,8 @@ class OpenAiModerationClient
 {
     public function isConfigured(): bool
     {
-        return trim((string) config('services.moderation.openai_key')) !== '';
+        return (bool) config('services.moderation.enabled', true)
+            && trim((string) config('services.moderation.openai_key')) !== '';
     }
 
     /**
@@ -99,22 +100,17 @@ class OpenAiModerationClient
                 'body' => mb_substr((string) $response->body(), 0, 300),
             ]);
 
-            // An account-level refusal is a deployment mistake, not an
-            // outage. Holding every post until it is fixed brings the whole
-            // app down — nobody can post, chat, review or edit a profile —
-            // and no amount of waiting helps, because the next request is
-            // refused identically. Treat it like "no key configured" so the
-            // local engine keeps enforcing while somebody fixes the account.
-            // Genuine transient failures still fail closed, because those
-            // really do resolve on their own.
+            // Credentials/quota failure means a configured safety layer did
+            // not inspect the submission. It is therefore unavailable, not
+            // equivalent to a deliberately unconfigured optional provider.
             if ($this->isAccountRefusal($response->status(), $response->json())) {
                 Log::error('moderation.provider_credentials_rejected', [
                     'status' => $response->status(),
                     'hint' => 'Check OPENAI_API_KEY and the project\'s billing/quota. '
-                        .'Running on the local engine alone until then.',
+                        .'Publication is held until the configured layer recovers.',
                 ]);
 
-                return ProviderResult::unavailable('not_configured');
+                return ProviderResult::unavailable('credentials_rejected');
             }
 
             return ProviderResult::unavailable('http_'.$response->status());

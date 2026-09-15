@@ -38,12 +38,42 @@ final class ModerationExemption
      */
     private const MODERATED_ROLES = ['student'];
 
-    public static function appliesTo(?User $user): bool
+    /**
+     * Surfaces where a member of staff publishes *as the university*.
+     *
+     * The exemption is scoped to these and nowhere else. The first version
+     * exempted staff on every surface, which meant a trainer's personal
+     * feed post or story skipped moderation entirely — hate speech
+     * published from the accounts the university's own staff use daily.
+     * That is not what "do not hold up my announcements" asked for, and
+     * it is the worst place to have a blind spot, because staff content
+     * carries institutional authority.
+     *
+     * Matched by prefix on the source feature the controller already
+     * declares, so a new admin surface inherits the exemption and a new
+     * *social* surface does not.
+     */
+    private const INSTITUTIONAL_PREFIXES = [
+        'admin.',
+        'trainer.',
+        'media.library',   // the shared library, not a personal gallery
+    ];
+
+    /**
+     * Whether the moderation pipeline scans this submission.
+     *
+     * @param  string  $surface  Source feature, e.g. `feed.store`,
+     *                           `story.store`, `admin.place.upsert`. An
+     *                           unknown or empty surface counts as
+     *                           personal: defaulting to exempt is how a
+     *                           caller that forgot to pass it would open a
+     *                           hole without anyone noticing.
+     */
+    public static function appliesTo(?User $user, string $surface = ''): bool
     {
         if ($user === null) {
-            // No account to attribute the content to. Not staff, so it is
-            // scanned — an unattributed submission is the last thing that
-            // should skip the check.
+            // No account to attribute the content to. An unattributed
+            // submission is the last thing that should skip the check.
             return true;
         }
 
@@ -51,7 +81,18 @@ final class ModerationExemption
         // This was written with a negation and meant the exact opposite —
         // students exempt, staff scanned — which the tests caught before
         // it reached anything. Kept positive so it cannot invert again.
-        return in_array(GranularPermissions::roleOf($user), self::MODERATED_ROLES, true);
+        if (in_array(GranularPermissions::roleOf($user), self::MODERATED_ROLES, true)) {
+            return true;
+        }
+
+        // Staff: exempt only where they speak for the institution.
+        foreach (self::INSTITUTIONAL_PREFIXES as $prefix) {
+            if (str_starts_with($surface, $prefix)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /** The role that earned the exemption, for the evidence row. */

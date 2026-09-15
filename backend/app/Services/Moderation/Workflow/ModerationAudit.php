@@ -20,7 +20,9 @@ use Illuminate\Support\Str;
 final class ModerationAudit
 {
     public const ACTOR_MODERATOR = 'moderator';
+
     public const ACTOR_SYSTEM = 'system';
+
     public const ACTOR_USER = 'user';
 
     /** @param array<string, mixed> $context */

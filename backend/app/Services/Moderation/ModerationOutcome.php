@@ -28,7 +28,7 @@ final class ModerationOutcome
     public const UNAVAILABLE = 'unavailable';
 
     /**
-     * The post is published and no strike is recorded — the author is shown
+     * The post is held and no strike is recorded — the author is shown
      * support contacts. Separate from REVIEW because the client must not
      * render this as "your content is being checked": someone who has just
      * said they want to hurt themselves needs a different sentence.
@@ -61,6 +61,22 @@ final class ModerationOutcome
         return new self(self::REVIEW);
     }
 
+    /**
+     * The semantic layer was unsure: held for a moderator, not refused.
+     *
+     * Carries the categories so the review queue can show *what* it was
+     * unsure about, and the event id so the author can appeal a hold the
+     * same way they can appeal a removal. No strike — the system is
+     * saying it does not know, and nobody should be sanctioned for the
+     * model's uncertainty.
+     *
+     * @param  list<string>  $categories
+     */
+    public static function heldForReview(array $categories, ?string $eventId = null): self
+    {
+        return new self(self::REVIEW, $categories, eventId: $eventId);
+    }
+
     public static function support(): self
     {
         return new self(self::SUPPORT, ['self_harm']);
@@ -79,7 +95,7 @@ final class ModerationOutcome
     }
 
     /** @param list<string> $categories */
-    public static function rejected(array $categories, int $strike, string $action, ?Carbon $bannedUntil, string $eventId): self
+    public static function rejected(array $categories, ?int $strike, ?string $action, ?Carbon $bannedUntil, string $eventId): self
     {
         return new self(self::REJECTED, $categories, $strike, $action, $bannedUntil, $eventId);
     }
@@ -101,16 +117,24 @@ final class ModerationOutcome
                 self::REJECTED, $event->categories ?? [], $event->strike_number,
                 $event->penalty, $event->banned_until, $event->id,
             ),
-            ModerationEvent::ACTION_REVIEW => new self(self::REVIEW),
+            // A support decision must replay as support. Re-posting the
+            // same words is what someone in distress does, and answering
+            // the second attempt with a server error would withdraw the
+            // offer of help at the moment it was repeated.
+            ModerationEvent::ACTION_REVIEW => match ($event->decided_by) {
+                'self_harm' => self::support(),
+                'unavailable' => new self(self::UNAVAILABLE),
+                default => new self(self::REVIEW),
+            },
             ModerationEvent::ACTION_WARNED => new self(self::WARNED, $event->categories ?? []),
             default => new self(self::ALLOWED),
         };
     }
 
-    /** True when the content may be saved and shown. */
+    /** True only after a positive, completed moderation decision. */
     public function isPublishable(): bool
     {
-        return in_array($this->status, [self::ALLOWED, self::WARNED, self::REVIEW, self::SUPPORT], true);
+        return in_array($this->status, [self::ALLOWED, self::WARNED, self::SUPPORT], true);
     }
 
     /** Stable machine code for the client to branch on. */
@@ -120,6 +144,7 @@ final class ModerationOutcome
             self::REJECTED => 'CONTENT_BLOCKED',
             self::BANNED => 'ACCOUNT_SUSPENDED',
             self::UNAVAILABLE => 'MODERATION_UNAVAILABLE',
+            self::REVIEW, self::SUPPORT => 'MODERATION_PENDING',
             default => 'OK',
         };
     }
@@ -138,11 +163,22 @@ final class ModerationOutcome
                     .'yayınlanmadı ve incelemeye alındı. Kontrol edilmeden hiçbir '
                     .'görsel akışta gösterilmez.'
                 : 'İçerik kontrolü şu anda yapılamıyor. Lütfen birazdan tekrar dene.',
-            // Not a penalty and not an error — the post went through. This
-            // is the app noticing and offering a way to talk to someone.
-            self::SUPPORT => 'Paylaşımın yayınlandı. Zor bir dönemden geçiyorsan yalnız '
+            self::SUPPORT => 'Paylaşımın güvenlik incelemesine alındı. Zor bir dönemden geçiyorsan yalnız '
                 .'değilsin: ARUCAD Psikolojik Danışmanlık Birimi (psikolojik.danismanlik@arucad.edu.tr) '
                 .'sana destek olabilir. Acil durumda 112’yi arayabilirsin.',
+
+            // Held, not refused — and the difference has to be audible.
+            //
+            // This fell through to an empty string, so a student whose
+            // post was held saw a bare 400 with no explanation, which
+            // reads as a broken app rather than a decision. Content held
+            // because the system was unsure is the one case where saying
+            // so plainly costs nothing and silence costs trust.
+            self::REVIEW => 'Paylaşımın yayınlanmadan önce bir moderatör tarafından '
+                .'kontrol edilecek. Bu bir ihlal tespiti değil: sistem emin olamadı, '
+                .'bu yüzden kararı bir insan verecek. Onaylanırsa paylaşımın '
+                .'yayınlanır ve hesabında hiçbir iz kalmaz.',
+
             default => '',
         };
     }
@@ -201,6 +237,10 @@ final class ModerationOutcome
                 .$this->bannedUntil->timezone(config('app.timezone'))->format('d.m.Y H:i')
                 .' tarihine kadar askıya alındı. Askı süresi bittiğinde hesabın '
                 .'otomatik olarak açılır; ihlal devam ederse süre uzar.';
+        }
+
+        if ($this->strike === null) {
+            return $base;
         }
 
         // Someone who has just had a post refused is the one person certain

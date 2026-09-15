@@ -61,6 +61,19 @@ class PenaltyLadder
      */
     public function applyStrike(User $user, string $reason): array
     {
+        if (! AccountEnforcement::enabled()) {
+            AccountEnforcement::skip($user, "strike for: $reason");
+
+            // Report the strike the caller would have received, without
+            // having charged it. Callers surface this to the user, and a
+            // caller that reads `banned_until` must see null.
+            return [
+                'strike' => (int) $user->strikes,
+                'action' => 'warning',
+                'banned_until' => null,
+            ];
+        }
+
         $user->increment('strikes');
         $user->refresh();
 

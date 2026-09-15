@@ -4,6 +4,7 @@ namespace App\Services\Moderation\Workflow;
 
 use App\Models\User;
 use App\Models\UserViolation;
+use App\Services\Moderation\AccountEnforcement;
 use Illuminate\Support\Str;
 
 /**
@@ -152,6 +153,16 @@ final class AccountEnforcementPolicy
     private function apply(User $user, array $consequence): void
     {
         if ($consequence['hours'] <= 0) {
+            return;
+        }
+
+        // The violation row above is still written: it is the case
+        // record moderators work from, and suppressing it would break the
+        // queue rather than the punishment. Only the lock is skipped.
+        if (! AccountEnforcement::enabled()) {
+            AccountEnforcement::skip($user,
+                "{$consequence['action']} for {$consequence['hours']}h");
+
             return;
         }
 

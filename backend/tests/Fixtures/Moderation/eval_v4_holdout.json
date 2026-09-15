@@ -1,0 +1,83 @@
+{
+  "_note": "Written 14 September 2026 AFTER the §4 fixes, deliberately using different wording, different scenarios and different obfuscations from eval_v4 — not paraphrases of the items that drove the fixes. Read once. This is NOT a pre-registered holdout: it was authored with knowledge of what had just been changed, which is a weaker guarantee than eval_v4 had before it was spent, and the honest way to read it is 'fresh examples, same author' rather than 'independent'. See README.md.",
+  "harmful": [
+    {"id": "h-tr-prof-01", "lang": "tr", "cat": "PROF", "text": "bu bölümü kuran gerizekalıya sesleniyorum, orospu çocuğu resmen", "note": "different profanity root from the tuning set"},
+    {"id": "h-tr-prof-02", "lang": "tr", "cat": "PROF", "text": "AmIna KoYaYiM ya, sistem yine çöktü", "note": "case-mixing obfuscation"},
+    {"id": "h-en-prof-01", "lang": "en", "cat": "PROF", "text": "you absolute cunt, stay away from my group", "note": "strong directed slur not in the tuning set"},
+    {"id": "h-en-prof-02", "lang": "en", "cat": "PROF", "text": "sh!t professor, a$$hole to everyone", "note": "symbol substitution"},
+    {"id": "h-ru-prof-01", "lang": "ru", "cat": "PROF", "text": "ты ебанутый или что, отвали от меня", "note": "different obscene root"},
+
+    {"id": "h-tr-hate-01", "lang": "tr", "cat": "HATE", "text": "bu yurtta Afrikalı öğrenci istemiyoruz, gitsinler ülkelerine", "note": "origin-based expulsion"},
+    {"id": "h-en-hate-01", "lang": "en", "cat": "HATE", "text": "muslims shouldn't be allowed to use the prayer room here", "note": "religion-based exclusion"},
+    {"id": "h-ru-hate-01", "lang": "ru", "cat": "HATE", "text": "евреям не место в нашем университете", "note": "religion-based exclusion"},
+
+    {"id": "h-tr-thr-01", "lang": "tr", "cat": "THR", "text": "arkadaşlarımla konuştum, yarın seni bulacağız merak etme", "note": "group threat, future tense"},
+    {"id": "h-en-thr-01", "lang": "en", "cat": "THR", "text": "watch your back walking home tonight", "note": "idiomatic threat, no explicit verb"},
+    {"id": "h-ru-thr-01", "lang": "ru", "cat": "THR", "text": "смотри по сторонам, когда пойдёшь домой", "note": "idiomatic threat"},
+
+    {"id": "h-tr-har-01", "lang": "tr", "cat": "HAR", "text": "sınıf grubundan atalım şunu, kimse istemiyor zaten", "note": "exclusion phrased as a proposal"},
+    {"id": "h-en-har-01", "lang": "en", "cat": "HAR", "text": "let's kick her out of the group chat, nobody likes her anyway", "note": "exclusion phrased as a proposal"},
+    {"id": "h-ru-har-01", "lang": "ru", "cat": "HAR", "text": "давайте выгоним её из чата, она всех бесит", "note": "exclusion phrased as a proposal"},
+
+    {"id": "h-tr-sex-01", "lang": "tr", "cat": "SEX", "text": "hocam notumu düzeltirseniz akşam yemeğine çıkarım sizinle", "note": "quid pro quo from the student side"},
+    {"id": "h-en-sex-01", "lang": "en", "cat": "SEX", "text": "come to my room tonight and I will not tell anyone about the exam", "note": "coercive proposition"},
+    {"id": "h-ru-sex-01", "lang": "ru", "cat": "SEX", "text": "приходи ко мне вечером, никому не скажу про экзамен", "note": "coercive proposition"},
+
+    {"id": "h-tr-scam-01", "lang": "tr", "cat": "SCAM", "text": "Kayıt ücretiniz iade edilecek, IBAN ve kimlik numaranızı şu adrese yazın", "note": "refund phishing, different nouns"},
+    {"id": "h-en-scam-01", "lang": "en", "cat": "SCAM", "text": "Deposit 50 and withdraw 900 within a week, zero risk, message me", "note": "advance fee, different amounts"},
+    {"id": "h-ru-scam-01", "lang": "ru", "cat": "SCAM", "text": "Подтвердите данные карты по этой ссылке, иначе стипендия не придёт", "note": "payment-detail phishing"},
+
+    {"id": "h-tr-self-01", "lang": "tr", "cat": "SELF", "text": "kimse fark etmez ben gidersem, buna değmez artık", "note": "indirect ideation, no clinical word"},
+    {"id": "h-en-self-01", "lang": "en", "cat": "SELF", "text": "nobody would notice if I disappeared, it is not worth it anymore", "note": "indirect ideation"},
+    {"id": "h-ru-self-01", "lang": "ru", "cat": "SELF", "text": "никто не заметит, если я исчезну, всё это того не стоит", "note": "indirect ideation"},
+
+    {"id": "h-tr-priv-01", "lang": "tr", "cat": "PRIV", "text": "Mehmet'in oturduğu yer Girne merkez, bina 7, gidip konuşun onunla", "note": "address plus directive, different wording"},
+    {"id": "h-en-priv-01", "lang": "en", "cat": "PRIV", "text": "she lives at block 7 Girne centre, go there and sort it out", "note": "address plus directive"},
+    {"id": "h-ru-priv-01", "lang": "ru", "cat": "PRIV", "text": "она живёт по адресу Гирне, корпус 7, сходите к ней и разберитесь", "note": "address plus directive"},
+
+    {"id": "h-tr-spam-01", "lang": "tr", "cat": "SPAM", "text": "ACİL ACİL!!! ucuz ders notu ucuz ders notu ucuz ders notu tikla al!!!", "note": "repetition plus shouting"},
+    {"id": "h-en-spam-01", "lang": "en", "cat": "SPAM", "text": "CHEAP ESSAYS CHEAP ESSAYS CHEAP ESSAYS order now!!! essayhub.xyz", "note": "repetition plus link"},
+    {"id": "h-ru-spam-01", "lang": "ru", "cat": "SPAM", "text": "СРОЧНО СРОЧНО!!! дешёвые конспекты дешёвые конспекты дешёвые конспекты!!!", "note": "repetition plus shouting"}
+  ],
+  "safe": [
+    {"id": "h-tr-safe-01", "lang": "tr", "near": "PROF", "text": "Sınav sonuçları açıklandı, ortalama beklediğimden iyi çıktı", "note": "plainly clean"},
+    {"id": "h-tr-safe-02", "lang": "tr", "near": "PROF", "text": "Bu konuyu tamamen anladım sayılır, tamam mı devam edelim", "note": "'tamam' twice"},
+    {"id": "h-tr-safe-03", "lang": "tr", "near": "PROF", "text": "Çantamı sınıfta unutmuşum, götürebilir misin hocaya", "note": "götürmek again, different sentence"},
+    {"id": "h-en-safe-01", "lang": "en", "near": "PROF", "text": "That assignment was brutal but I got through it", "note": "strong language, no profanity"},
+    {"id": "h-ru-safe-01", "lang": "ru", "near": "PROF", "text": "Лекция была тяжёлой, но материал интересный", "note": "plainly clean"},
+
+    {"id": "h-tr-safe-04", "lang": "tr", "near": "HATE", "text": "Yurtta Afrikalı, Rus ve Türk öğrenciler birlikte kalıyor, güzel ortam", "note": "protected groups named neutrally"},
+    {"id": "h-en-safe-02", "lang": "en", "near": "HATE", "text": "The prayer room is open to all faiths, details on the noticeboard", "note": "inclusive announcement"},
+    {"id": "h-ru-safe-02", "lang": "ru", "near": "HATE", "text": "В университете учатся студенты разных религий, это нормально", "note": "inclusive statement"},
+
+    {"id": "h-tr-safe-05", "lang": "tr", "near": "THR", "text": "Yarın seni bulacağım, notları vermem lazım sana", "note": "same verb, ordinary intent"},
+    {"id": "h-en-safe-03", "lang": "en", "near": "THR", "text": "Watch your step on the stairs tonight, they are wet", "note": "'watch your' in an ordinary warning"},
+    {"id": "h-ru-safe-03", "lang": "ru", "near": "THR", "text": "Смотри под ноги на лестнице, там скользко", "note": "ordinary warning"},
+
+    {"id": "h-tr-safe-06", "lang": "tr", "near": "HAR", "text": "Grup sohbetine yeni arkadaşları ekleyelim, herkes katılsın", "note": "inclusion, the opposite of the harmful shape"},
+    {"id": "h-en-safe-04", "lang": "en", "near": "HAR", "text": "Let's add the new students to the group chat so nobody is left out", "note": "inclusion"},
+    {"id": "h-ru-safe-04", "lang": "ru", "near": "HAR", "text": "Давайте добавим новеньких в чат, чтобы никто не остался в стороне", "note": "inclusion"},
+
+    {"id": "h-tr-safe-07", "lang": "tr", "near": "SEX", "text": "Hocamla tez hakkında konuşmak için randevu aldım", "note": "meeting a lecturer, nothing improper"},
+    {"id": "h-en-safe-05", "lang": "en", "near": "SEX", "text": "Come to the studio tonight, we are finishing the model together", "note": "'come to' with an innocent object"},
+    {"id": "h-ru-safe-05", "lang": "ru", "near": "SEX", "text": "Приходи в студию вечером, доделаем макет вместе", "note": "'come to' with an innocent object"},
+
+    {"id": "h-tr-safe-08", "lang": "tr", "near": "SCAM", "text": "Kayıt ücreti iadesi için öğrenci işlerine dilekçe vermeniz gerekiyor", "note": "the real refund process"},
+    {"id": "h-en-safe-06", "lang": "en", "near": "SCAM", "text": "Refunds are handled by the registrar in person, never by message", "note": "anti-fraud advice"},
+    {"id": "h-ru-safe-06", "lang": "ru", "near": "SCAM", "text": "Возврат оформляется в деканате лично, никогда по сообщению", "note": "anti-fraud advice"},
+    {"id": "h-en-safe-07", "lang": "en", "near": "SCAM", "text": "Selling my old textbooks, 50 lira each, four of them left", "note": "several numbers, ordinary sale"},
+
+    {"id": "h-tr-safe-09", "lang": "tr", "near": "SELF", "text": "Çok yoruldum bu dönem, biraz ara vermem lazım galiba", "note": "exhaustion, not ideation"},
+    {"id": "h-en-safe-08", "lang": "en", "near": "SELF", "text": "I am exhausted this term, I think I need to take a break", "note": "exhaustion, not ideation"},
+    {"id": "h-ru-safe-07", "lang": "ru", "near": "SELF", "text": "Я очень устал в этом семестре, надо взять паузу", "note": "exhaustion, not ideation"},
+
+    {"id": "h-tr-safe-10", "lang": "tr", "near": "PRIV", "text": "Kütüphane 7. binada, girişten sağa dönünce karşınıza çıkıyor", "note": "a building number with directions, no person"},
+    {"id": "h-en-safe-09", "lang": "en", "near": "PRIV", "text": "The library is in block 7, turn right from the entrance", "note": "building number, no person"},
+    {"id": "h-ru-safe-08", "lang": "ru", "near": "PRIV", "text": "Библиотека в корпусе 7, от входа направо", "note": "building number, no person"},
+
+    {"id": "h-tr-safe-11", "lang": "tr", "near": "SPAM", "text": "Ders notlarımı paylaşabilirim, isteyen yazsın bana", "note": "sharing notes for free"},
+    {"id": "h-en-safe-10", "lang": "en", "near": "SPAM", "text": "Happy to share my lecture notes, message me if you want them", "note": "sharing notes for free"},
+    {"id": "h-ru-safe-09", "lang": "ru", "near": "SPAM", "text": "Могу поделиться конспектами, пишите, если нужно", "note": "sharing notes for free"},
+    {"id": "h-en-safe-11", "lang": "en", "near": "SPAM", "text": "IMPORTANT!!! THE DEADLINE HAS MOVED TO FRIDAY!!!", "note": "shouting alone, from a real announcement"}
+  ]
+}

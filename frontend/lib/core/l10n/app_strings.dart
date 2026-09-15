@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/widgets.dart';
 
 import 'package:arucad_campus_prototype/core/models/campus_models.dart';
@@ -37,22 +39,29 @@ class AppStrings {
       AppLanguage.en: 'Social',
       AppLanguage.ru: 'Соцсеть'
     },
+    // The Social tab's own Profile destination, and the fallback label for
+    // the account tab in the main shell.
+    //
+    // All three languages said "Settings" — a key named `nav_profile`
+    // labelled Ayarlar / Settings / Настройки. It opens a profile, not the
+    // Settings screen, which has its own key (`settings_title`) and keeps
+    // its own wording.
     'nav_profile': {
-      AppLanguage.tr: 'Ayarlar',
-      AppLanguage.en: 'Settings',
-      AppLanguage.ru: 'Настройки'
+      AppLanguage.tr: 'Profil',
+      AppLanguage.en: 'Profile',
+      AppLanguage.ru: 'Профиль'
     },
     'nav_ask': {
-      AppLanguage.tr: "Arucad'a Sor",
-      AppLanguage.en: 'Ask ARUCAD',
-      AppLanguage.ru: 'Спросить ARUCAD'
+      AppLanguage.tr: 'Aicad',
+      AppLanguage.en: 'Aicad',
+      AppLanguage.ru: 'Aicad'
     },
     // Shorter form of nav_ask for the bottom nav on narrow phones, where the
     // full label would wrap and force the bar taller than the other items.
     'nav_ask_short': {
-      AppLanguage.tr: 'Sor',
-      AppLanguage.en: 'Ask',
-      AppLanguage.ru: 'ARUCAD'
+      AppLanguage.tr: 'Aicad',
+      AppLanguage.en: 'Aicad',
+      AppLanguage.ru: 'Aicad'
     },
 
     // Home — timeline
@@ -521,6 +530,11 @@ class AppStrings {
       AppLanguage.en: 'Locations',
       AppLanguage.ru: 'Места'
     },
+    // Was the tooltip on the profile app bar's gear. That bar is gone and
+    // the gear now sits beside the follower counts with its own tooltip
+    // (`sp_open_settings`). Kept because the completeness test reads this
+    // table and an orphaned row is cheaper than a broken build for anyone
+    // still referencing it.
     'sp_profile_options': {
       AppLanguage.tr: 'Ayarlar',
       AppLanguage.en: 'Settings',
@@ -598,54 +612,254 @@ class AppStrings {
       AppLanguage.en: 'This content was removed after review.',
       AppLanguage.ru: 'Этот контент удалён после проверки.'
     },
-    'report_title': {AppLanguage.tr: 'Şikâyet et', AppLanguage.en: 'Report', AppLanguage.ru: 'Пожаловаться'},
-    'report_description_label': {AppLanguage.tr: 'Ek açıklama (isteğe bağlı)', AppLanguage.en: 'More detail (optional)', AppLanguage.ru: 'Подробнее (необязательно)'},
-    'report_description_hint': {AppLanguage.tr: 'Ne olduğunu kısaca anlatabilirsin.', AppLanguage.en: 'You can briefly describe what happened.', AppLanguage.ru: 'Кратко опишите, что произошло.'},
-    'report_sent': {AppLanguage.tr: 'Şikâyetin iletildi. Ekibimiz inceleyecek.', AppLanguage.en: 'Your report has been sent. Our team will review it.', AppLanguage.ru: 'Жалоба отправлена. Мы её рассмотрим.'},
-    'report_sent_welfare': {AppLanguage.tr: 'Teşekkürler. Bu durumu önemsiyoruz ve en kısa sürede bakacağız. Acil bir tehlike varsa lütfen üniversite danışmanlık merkezine ulaş.', AppLanguage.en: 'Thank you. We take this seriously and will look at it as soon as possible. If someone is in immediate danger, please contact the university counselling service.', AppLanguage.ru: 'Спасибо. Мы отнесёмся к этому серьёзно и рассмотрим как можно скорее. Если есть непосредственная опасность, обратитесь в консультационный центр университета.'},
-    'report_error_generic': {AppLanguage.tr: 'Şikâyet gönderilemedi. Lütfen tekrar dene.', AppLanguage.en: 'The report could not be sent. Please try again.', AppLanguage.ru: 'Не удалось отправить жалобу. Попробуйте ещё раз.'},
-    'report_error_description_blocked': {AppLanguage.tr: 'Açıklaman topluluk kurallarına aykırı. Lütfen düzenleyip tekrar gönder.', AppLanguage.en: 'Your description goes against the community rules. Please edit it and send again.', AppLanguage.ru: 'Ваше описание нарушает правила сообщества. Измените его и отправьте снова.'},
-    'report_error_rate_limited': {AppLanguage.tr: 'Çok fazla şikâyet gönderdin. Lütfen biraz sonra tekrar dene.', AppLanguage.en: 'You have sent too many reports. Please try again later.', AppLanguage.ru: 'Вы отправили слишком много жалоб. Попробуйте позже.'},
-    'report_reason_harassment': {AppLanguage.tr: 'Taciz', AppLanguage.en: 'Harassment', AppLanguage.ru: 'Домогательства'},
-    'report_reason_harassment_hint': {AppLanguage.tr: 'Birine sürekli rahatsızlık veriyor', AppLanguage.en: 'Repeatedly bothering someone', AppLanguage.ru: 'Постоянно беспокоит кого-то'},
-    'report_reason_bullying': {AppLanguage.tr: 'Zorbalık', AppLanguage.en: 'Bullying', AppLanguage.ru: 'Травля'},
-    'report_reason_bullying_hint': {AppLanguage.tr: 'Birini hedef alıp küçük düşürüyor', AppLanguage.en: 'Targeting and humiliating someone', AppLanguage.ru: 'Преследует и унижает кого-то'},
-    'report_reason_hate': {AppLanguage.tr: 'Nefret söylemi', AppLanguage.en: 'Hate speech', AppLanguage.ru: 'Разжигание ненависти'},
-    'report_reason_hate_hint': {AppLanguage.tr: 'Irk, din, cinsiyet veya kimlik üzerinden saldırı', AppLanguage.en: 'Attacks based on race, religion, gender or identity', AppLanguage.ru: 'Нападки по признаку расы, религии, пола или идентичности'},
-    'report_reason_threat': {AppLanguage.tr: 'Tehdit', AppLanguage.en: 'Threat', AppLanguage.ru: 'Угроза'},
-    'report_reason_threat_hint': {AppLanguage.tr: 'Birine zarar vermekle tehdit ediyor', AppLanguage.en: 'Threatening to harm someone', AppLanguage.ru: 'Угрожает причинить вред'},
-    'report_reason_sexual_content': {AppLanguage.tr: 'Cinsel içerik', AppLanguage.en: 'Sexual content', AppLanguage.ru: 'Сексуальный контент'},
-    'report_reason_sexual_content_hint': {AppLanguage.tr: 'Müstehcen görsel veya metin', AppLanguage.en: 'Explicit images or text', AppLanguage.ru: 'Откровенные изображения или текст'},
-    'report_reason_violence': {AppLanguage.tr: 'Şiddet', AppLanguage.en: 'Violence', AppLanguage.ru: 'Насилие'},
-    'report_reason_violence_hint': {AppLanguage.tr: 'Şiddet içeren veya şiddeti öven içerik', AppLanguage.en: 'Violent content, or content praising violence', AppLanguage.ru: 'Насильственный контент или его восхваление'},
-    'report_reason_personal_information': {AppLanguage.tr: 'Kişisel bilgi', AppLanguage.en: 'Personal information', AppLanguage.ru: 'Личные данные'},
-    'report_reason_personal_information_hint': {AppLanguage.tr: 'Telefon, adres veya özel bilgi paylaşımı', AppLanguage.en: 'Sharing a phone number, address or private detail', AppLanguage.ru: 'Публикация телефона, адреса или личных данных'},
-    'report_reason_impersonation': {AppLanguage.tr: 'Sahte hesap', AppLanguage.en: 'Impersonation', AppLanguage.ru: 'Выдача себя за другого'},
-    'report_reason_impersonation_hint': {AppLanguage.tr: 'Başkasıymış gibi davranıyor', AppLanguage.en: 'Pretending to be someone else', AppLanguage.ru: 'Выдаёт себя за другого человека'},
-    'report_reason_scam': {AppLanguage.tr: 'Dolandırıcılık', AppLanguage.en: 'Scam', AppLanguage.ru: 'Мошенничество'},
-    'report_reason_scam_hint': {AppLanguage.tr: 'Para veya şifre istiyor', AppLanguage.en: 'Asking for money or a password', AppLanguage.ru: 'Просит деньги или пароль'},
-    'report_reason_spam': {AppLanguage.tr: 'Spam', AppLanguage.en: 'Spam', AppLanguage.ru: 'Спам'},
-    'report_reason_spam_hint': {AppLanguage.tr: 'Tekrar eden veya alakasız içerik', AppLanguage.en: 'Repeated or irrelevant content', AppLanguage.ru: 'Повторяющийся или нерелевантный контент'},
-    'report_reason_drugs': {AppLanguage.tr: 'Uyuşturucu', AppLanguage.en: 'Drugs', AppLanguage.ru: 'Наркотики'},
-    'report_reason_drugs_hint': {AppLanguage.tr: 'Satış veya kullanıma teşvik', AppLanguage.en: 'Selling or encouraging use', AppLanguage.ru: 'Продажа или побуждение к употреблению'},
-    'report_reason_self_harm': {AppLanguage.tr: 'Kendine zarar', AppLanguage.en: 'Self-harm', AppLanguage.ru: 'Самоповреждение'},
-    'report_reason_self_harm_hint': {AppLanguage.tr: 'Biri için endişeleniyorum', AppLanguage.en: 'I am worried about someone', AppLanguage.ru: 'Я беспокоюсь о ком-то'},
-    'report_reason_other': {AppLanguage.tr: 'Diğer', AppLanguage.en: 'Other', AppLanguage.ru: 'Другое'},
-    'report_reason_other_hint': {AppLanguage.tr: 'Yukarıdakilerden hiçbiri', AppLanguage.en: 'None of the above', AppLanguage.ru: 'Ничего из перечисленного'},
-    'appeal_title': {AppLanguage.tr: 'Karara itiraz et', AppLanguage.en: 'Appeal this decision', AppLanguage.ru: 'Обжаловать решение'},
-    'appeal_reason_label': {AppLanguage.tr: 'Neden itiraz ediyorsun?', AppLanguage.en: 'Why are you appealing?', AppLanguage.ru: 'Почему вы обжалуете?'},
-    'appeal_reason_hint': {AppLanguage.tr: 'Kararın neden yanlış olduğunu açıkla.', AppLanguage.en: 'Explain why you think the decision was wrong.', AppLanguage.ru: 'Объясните, почему решение неверно.'},
-    'appeal_submit': {AppLanguage.tr: 'İtirazı gönder', AppLanguage.en: 'Send appeal', AppLanguage.ru: 'Отправить'},
-    'appeal_sent': {AppLanguage.tr: 'İtirazın alındı. Bir ekip üyesi inceleyecek.', AppLanguage.en: 'Your appeal has been received. A team member will review it.', AppLanguage.ru: 'Ваша апелляция получена. Её рассмотрит сотрудник.'},
-    'appeal_reason_required': {AppLanguage.tr: 'Lütfen bir açıklama yaz.', AppLanguage.en: 'Please write an explanation.', AppLanguage.ru: 'Пожалуйста, напишите объяснение.'},
-    'appeal_error_generic': {AppLanguage.tr: 'İtiraz gönderilemedi. Lütfen tekrar dene.', AppLanguage.en: 'The appeal could not be sent. Please try again.', AppLanguage.ru: 'Не удалось отправить апелляцию. Попробуйте ещё раз.'},
-    'appeal_already_submitted': {AppLanguage.tr: 'Bu karar için zaten bir itirazın var.', AppLanguage.en: 'You have already appealed this decision.', AppLanguage.ru: 'Вы уже обжаловали это решение.'},
-    'appeals_title': {AppLanguage.tr: 'İtirazlarım', AppLanguage.en: 'My appeals', AppLanguage.ru: 'Мои апелляции'},
-    'appeals_empty': {AppLanguage.tr: 'Henüz bir itirazın yok.', AppLanguage.en: 'You have no appeals yet.', AppLanguage.ru: 'У вас пока нет апелляций.'},
-    'appeal_status_open': {AppLanguage.tr: 'İnceleniyor', AppLanguage.en: 'Under review', AppLanguage.ru: 'На рассмотрении'},
-    'appeal_status_reviewing': {AppLanguage.tr: 'İnceleniyor', AppLanguage.en: 'Under review', AppLanguage.ru: 'На рассмотрении'},
-    'appeal_status_upheld': {AppLanguage.tr: 'Karar korundu', AppLanguage.en: 'Decision upheld', AppLanguage.ru: 'Решение оставлено в силе'},
-    'appeal_status_overturned': {AppLanguage.tr: 'Karar geri alındı', AppLanguage.en: 'Decision reversed', AppLanguage.ru: 'Решение отменено'},
+    'report_title': {
+      AppLanguage.tr: 'Şikâyet et',
+      AppLanguage.en: 'Report',
+      AppLanguage.ru: 'Пожаловаться'
+    },
+    'report_description_label': {
+      AppLanguage.tr: 'Ek açıklama (isteğe bağlı)',
+      AppLanguage.en: 'More detail (optional)',
+      AppLanguage.ru: 'Подробнее (необязательно)'
+    },
+    'report_description_hint': {
+      AppLanguage.tr: 'Ne olduğunu kısaca anlatabilirsin.',
+      AppLanguage.en: 'You can briefly describe what happened.',
+      AppLanguage.ru: 'Кратко опишите, что произошло.'
+    },
+    'report_sent': {
+      AppLanguage.tr: 'Şikâyetin iletildi. Ekibimiz inceleyecek.',
+      AppLanguage.en: 'Your report has been sent. Our team will review it.',
+      AppLanguage.ru: 'Жалоба отправлена. Мы её рассмотрим.'
+    },
+    'report_sent_welfare': {
+      AppLanguage.tr:
+          'Teşekkürler. Bu durumu önemsiyoruz ve en kısa sürede bakacağız. Acil bir tehlike varsa lütfen üniversite danışmanlık merkezine ulaş.',
+      AppLanguage.en:
+          'Thank you. We take this seriously and will look at it as soon as possible. If someone is in immediate danger, please contact the university counselling service.',
+      AppLanguage.ru:
+          'Спасибо. Мы отнесёмся к этому серьёзно и рассмотрим как можно скорее. Если есть непосредственная опасность, обратитесь в консультационный центр университета.'
+    },
+    'report_error_generic': {
+      AppLanguage.tr: 'Şikâyet gönderilemedi. Lütfen tekrar dene.',
+      AppLanguage.en: 'The report could not be sent. Please try again.',
+      AppLanguage.ru: 'Не удалось отправить жалобу. Попробуйте ещё раз.'
+    },
+    'report_error_description_blocked': {
+      AppLanguage.tr:
+          'Açıklaman topluluk kurallarına aykırı. Lütfen düzenleyip tekrar gönder.',
+      AppLanguage.en:
+          'Your description goes against the community rules. Please edit it and send again.',
+      AppLanguage.ru:
+          'Ваше описание нарушает правила сообщества. Измените его и отправьте снова.'
+    },
+    'report_error_rate_limited': {
+      AppLanguage.tr:
+          'Çok fazla şikâyet gönderdin. Lütfen biraz sonra tekrar dene.',
+      AppLanguage.en: 'You have sent too many reports. Please try again later.',
+      AppLanguage.ru: 'Вы отправили слишком много жалоб. Попробуйте позже.'
+    },
+    'report_reason_harassment': {
+      AppLanguage.tr: 'Taciz',
+      AppLanguage.en: 'Harassment',
+      AppLanguage.ru: 'Домогательства'
+    },
+    'report_reason_harassment_hint': {
+      AppLanguage.tr: 'Birine sürekli rahatsızlık veriyor',
+      AppLanguage.en: 'Repeatedly bothering someone',
+      AppLanguage.ru: 'Постоянно беспокоит кого-то'
+    },
+    'report_reason_bullying': {
+      AppLanguage.tr: 'Zorbalık',
+      AppLanguage.en: 'Bullying',
+      AppLanguage.ru: 'Травля'
+    },
+    'report_reason_bullying_hint': {
+      AppLanguage.tr: 'Birini hedef alıp küçük düşürüyor',
+      AppLanguage.en: 'Targeting and humiliating someone',
+      AppLanguage.ru: 'Преследует и унижает кого-то'
+    },
+    'report_reason_hate': {
+      AppLanguage.tr: 'Nefret söylemi',
+      AppLanguage.en: 'Hate speech',
+      AppLanguage.ru: 'Разжигание ненависти'
+    },
+    'report_reason_hate_hint': {
+      AppLanguage.tr: 'Irk, din, cinsiyet veya kimlik üzerinden saldırı',
+      AppLanguage.en: 'Attacks based on race, religion, gender or identity',
+      AppLanguage.ru: 'Нападки по признаку расы, религии, пола или идентичности'
+    },
+    'report_reason_threat': {
+      AppLanguage.tr: 'Tehdit',
+      AppLanguage.en: 'Threat',
+      AppLanguage.ru: 'Угроза'
+    },
+    'report_reason_threat_hint': {
+      AppLanguage.tr: 'Birine zarar vermekle tehdit ediyor',
+      AppLanguage.en: 'Threatening to harm someone',
+      AppLanguage.ru: 'Угрожает причинить вред'
+    },
+    'report_reason_sexual_content': {
+      AppLanguage.tr: 'Cinsel içerik',
+      AppLanguage.en: 'Sexual content',
+      AppLanguage.ru: 'Сексуальный контент'
+    },
+    'report_reason_sexual_content_hint': {
+      AppLanguage.tr: 'Müstehcen görsel veya metin',
+      AppLanguage.en: 'Explicit images or text',
+      AppLanguage.ru: 'Откровенные изображения или текст'
+    },
+    'report_reason_violence': {
+      AppLanguage.tr: 'Şiddet',
+      AppLanguage.en: 'Violence',
+      AppLanguage.ru: 'Насилие'
+    },
+    'report_reason_violence_hint': {
+      AppLanguage.tr: 'Şiddet içeren veya şiddeti öven içerik',
+      AppLanguage.en: 'Violent content, or content praising violence',
+      AppLanguage.ru: 'Насильственный контент или его восхваление'
+    },
+    'report_reason_personal_information': {
+      AppLanguage.tr: 'Kişisel bilgi',
+      AppLanguage.en: 'Personal information',
+      AppLanguage.ru: 'Личные данные'
+    },
+    'report_reason_personal_information_hint': {
+      AppLanguage.tr: 'Telefon, adres veya özel bilgi paylaşımı',
+      AppLanguage.en: 'Sharing a phone number, address or private detail',
+      AppLanguage.ru: 'Публикация телефона, адреса или личных данных'
+    },
+    'report_reason_impersonation': {
+      AppLanguage.tr: 'Sahte hesap',
+      AppLanguage.en: 'Impersonation',
+      AppLanguage.ru: 'Выдача себя за другого'
+    },
+    'report_reason_impersonation_hint': {
+      AppLanguage.tr: 'Başkasıymış gibi davranıyor',
+      AppLanguage.en: 'Pretending to be someone else',
+      AppLanguage.ru: 'Выдаёт себя за другого человека'
+    },
+    'report_reason_scam': {
+      AppLanguage.tr: 'Dolandırıcılık',
+      AppLanguage.en: 'Scam',
+      AppLanguage.ru: 'Мошенничество'
+    },
+    'report_reason_scam_hint': {
+      AppLanguage.tr: 'Para veya şifre istiyor',
+      AppLanguage.en: 'Asking for money or a password',
+      AppLanguage.ru: 'Просит деньги или пароль'
+    },
+    'report_reason_spam': {
+      AppLanguage.tr: 'Spam',
+      AppLanguage.en: 'Spam',
+      AppLanguage.ru: 'Спам'
+    },
+    'report_reason_spam_hint': {
+      AppLanguage.tr: 'Tekrar eden veya alakasız içerik',
+      AppLanguage.en: 'Repeated or irrelevant content',
+      AppLanguage.ru: 'Повторяющийся или нерелевантный контент'
+    },
+    'report_reason_drugs': {
+      AppLanguage.tr: 'Uyuşturucu',
+      AppLanguage.en: 'Drugs',
+      AppLanguage.ru: 'Наркотики'
+    },
+    'report_reason_drugs_hint': {
+      AppLanguage.tr: 'Satış veya kullanıma teşvik',
+      AppLanguage.en: 'Selling or encouraging use',
+      AppLanguage.ru: 'Продажа или побуждение к употреблению'
+    },
+    'report_reason_self_harm': {
+      AppLanguage.tr: 'Kendine zarar',
+      AppLanguage.en: 'Self-harm',
+      AppLanguage.ru: 'Самоповреждение'
+    },
+    'report_reason_self_harm_hint': {
+      AppLanguage.tr: 'Biri için endişeleniyorum',
+      AppLanguage.en: 'I am worried about someone',
+      AppLanguage.ru: 'Я беспокоюсь о ком-то'
+    },
+    'report_reason_other': {
+      AppLanguage.tr: 'Diğer',
+      AppLanguage.en: 'Other',
+      AppLanguage.ru: 'Другое'
+    },
+    'report_reason_other_hint': {
+      AppLanguage.tr: 'Yukarıdakilerden hiçbiri',
+      AppLanguage.en: 'None of the above',
+      AppLanguage.ru: 'Ничего из перечисленного'
+    },
+    'appeal_title': {
+      AppLanguage.tr: 'Karara itiraz et',
+      AppLanguage.en: 'Appeal this decision',
+      AppLanguage.ru: 'Обжаловать решение'
+    },
+    'appeal_reason_label': {
+      AppLanguage.tr: 'Neden itiraz ediyorsun?',
+      AppLanguage.en: 'Why are you appealing?',
+      AppLanguage.ru: 'Почему вы обжалуете?'
+    },
+    'appeal_reason_hint': {
+      AppLanguage.tr: 'Kararın neden yanlış olduğunu açıkla.',
+      AppLanguage.en: 'Explain why you think the decision was wrong.',
+      AppLanguage.ru: 'Объясните, почему решение неверно.'
+    },
+    'appeal_submit': {
+      AppLanguage.tr: 'İtirazı gönder',
+      AppLanguage.en: 'Send appeal',
+      AppLanguage.ru: 'Отправить'
+    },
+    'appeal_sent': {
+      AppLanguage.tr: 'İtirazın alındı. Bir ekip üyesi inceleyecek.',
+      AppLanguage.en:
+          'Your appeal has been received. A team member will review it.',
+      AppLanguage.ru: 'Ваша апелляция получена. Её рассмотрит сотрудник.'
+    },
+    'appeal_reason_required': {
+      AppLanguage.tr: 'Lütfen bir açıklama yaz.',
+      AppLanguage.en: 'Please write an explanation.',
+      AppLanguage.ru: 'Пожалуйста, напишите объяснение.'
+    },
+    'appeal_error_generic': {
+      AppLanguage.tr: 'İtiraz gönderilemedi. Lütfen tekrar dene.',
+      AppLanguage.en: 'The appeal could not be sent. Please try again.',
+      AppLanguage.ru: 'Не удалось отправить апелляцию. Попробуйте ещё раз.'
+    },
+    'appeal_already_submitted': {
+      AppLanguage.tr: 'Bu karar için zaten bir itirazın var.',
+      AppLanguage.en: 'You have already appealed this decision.',
+      AppLanguage.ru: 'Вы уже обжаловали это решение.'
+    },
+    'appeals_title': {
+      AppLanguage.tr: 'İtirazlarım',
+      AppLanguage.en: 'My appeals',
+      AppLanguage.ru: 'Мои апелляции'
+    },
+    'appeals_empty': {
+      AppLanguage.tr: 'Henüz bir itirazın yok.',
+      AppLanguage.en: 'You have no appeals yet.',
+      AppLanguage.ru: 'У вас пока нет апелляций.'
+    },
+    'appeal_status_open': {
+      AppLanguage.tr: 'İnceleniyor',
+      AppLanguage.en: 'Under review',
+      AppLanguage.ru: 'На рассмотрении'
+    },
+    'appeal_status_reviewing': {
+      AppLanguage.tr: 'İnceleniyor',
+      AppLanguage.en: 'Under review',
+      AppLanguage.ru: 'На рассмотрении'
+    },
+    'appeal_status_upheld': {
+      AppLanguage.tr: 'Karar korundu',
+      AppLanguage.en: 'Decision upheld',
+      AppLanguage.ru: 'Решение оставлено в силе'
+    },
+    'appeal_status_overturned': {
+      AppLanguage.tr: 'Karar geri alındı',
+      AppLanguage.en: 'Decision reversed',
+      AppLanguage.ru: 'Решение отменено'
+    },
     'category_all': {
       AppLanguage.tr: 'Tümü',
       AppLanguage.en: 'All',
@@ -727,6 +941,11 @@ class AppStrings {
       AppLanguage.tr: 'Mesajlar',
       AppLanguage.en: 'Messages',
       AppLanguage.ru: 'Сообщения'
+    },
+    'social_search': {
+      AppLanguage.tr: 'Arama',
+      AppLanguage.en: 'Search',
+      AppLanguage.ru: 'Поиск'
     },
     'social_follow': {
       AppLanguage.tr: 'Takip Et',
@@ -1657,9 +1876,9 @@ class AppStrings {
       AppLanguage.ru: 'Вход в кампус'
     },
     'nav_ask_needs_session': {
-      AppLanguage.tr: 'Ask ARUCAD için oturum açık olmalı.',
-      AppLanguage.en: 'Sign in to use Ask ARUCAD.',
-      AppLanguage.ru: 'Войдите, чтобы спросить ARUCAD.'
+      AppLanguage.tr: 'Aicad için oturum açık olmalı.',
+      AppLanguage.en: 'Sign in to use Aicad.',
+      AppLanguage.ru: 'Войдите, чтобы использовать Aicad.'
     },
     'nav_calculating': {
       AppLanguage.tr: '{mode} rotası hesaplanıyor…',
@@ -1960,6 +2179,34 @@ class AppStrings {
       AppLanguage.tr: 'Kampüs, ders, servis veya etkinlik hakkında sor...',
       AppLanguage.en: 'Ask about campus, classes, services or events...',
       AppLanguage.ru: 'Спросите о кампусе, учёбе, услугах или событиях...'
+    },
+    'ask_intro': {
+      AppLanguage.tr:
+          'Kampüsteki her şeyi sorabilirsin — yerler, etkinlikler, dersler, kulüpler ve servisler.',
+      AppLanguage.en:
+          'Ask anything about campus — places, events, classes, clubs and services.',
+      AppLanguage.ru:
+          'Спросите о кампусе: местах, событиях, занятиях, клубах и услугах.'
+    },
+    'ask_prompt_busy': {
+      AppLanguage.tr: 'Şu an en yoğun yer neresi?',
+      AppLanguage.en: 'Where is busiest right now?',
+      AppLanguage.ru: 'Где сейчас больше всего людей?'
+    },
+    'ask_prompt_events': {
+      AppLanguage.tr: 'Bugün hangi etkinlikler var?',
+      AppLanguage.en: 'What events are on today?',
+      AppLanguage.ru: 'Какие события проходят сегодня?'
+    },
+    'ask_prompt_library': {
+      AppLanguage.tr: 'Kütüphane nerede, saat kaçta kapanıyor?',
+      AppLanguage.en: 'Where is the library and when does it close?',
+      AppLanguage.ru: 'Где библиотека и когда она закрывается?'
+    },
+    'ask_prompt_clubs': {
+      AppLanguage.tr: 'Hangi kulüplere katılabilirim?',
+      AppLanguage.en: 'Which clubs can I join?',
+      AppLanguage.ru: 'В какие клубы можно вступить?'
     },
     'ask_directions': {
       AppLanguage.tr: 'Yol Tarifi',
@@ -2337,6 +2584,131 @@ class AppStrings {
       AppLanguage.en: 'Followers',
       AppLanguage.ru: 'Подписчики'
     },
+    // The stat beside it was the literal string 'Takip', so an English or
+    // Russian profile read "Posts / Followers / Takip".
+    'sp_following': {
+      AppLanguage.tr: 'Takip',
+      AppLanguage.en: 'Following',
+      AppLanguage.ru: 'Подписки'
+    },
+    // "{name} · 5 dk önce check-in yaptı" — the whole sentence was built
+    // in Turkish in campus_live_map.dart, elapsed time included.
+    'legal_public_url': {
+      AppLanguage.tr: 'Herkese açık adres',
+      AppLanguage.en: 'Public address',
+      AppLanguage.ru: 'Публичный адрес'
+    },
+    'story_frame_fill': {
+      AppLanguage.tr: 'Doldur',
+      AppLanguage.en: 'Fill',
+      AppLanguage.ru: 'Заполнить'
+    },
+    'story_frame_fit': {
+      AppLanguage.tr: 'Sığdır',
+      AppLanguage.en: 'Fit',
+      AppLanguage.ru: 'Вместить'
+    },
+    'story_frame_hint': {
+      AppLanguage.tr: 'Yakınlaştırmak için parmaklarınızı kullanın, konumlandırmak için sürükleyin',
+      AppLanguage.en: 'Pinch to zoom, drag to position',
+      AppLanguage.ru: 'Сведите пальцы для масштаба, перетащите чтобы переместить'
+    },
+    'social_remove_photo': {
+      AppLanguage.tr: 'Fotoğrafı kaldır',
+      AppLanguage.en: 'Remove photo',
+      AppLanguage.ru: 'Убрать фото'
+    },
+    'consent_title': {
+      AppLanguage.tr: 'Gizliliğiniz ve Güvenliğiniz',
+      AppLanguage.en: 'Your Privacy & Safety',
+      AppLanguage.ru: 'Ваша конфиденциальность и безопасность'
+    },
+    'consent_subtitle': {
+      AppLanguage.tr: 'Öğrencilere güvenli ve saygılı bir topluluk sunmayı '
+          'taahhüt ediyoruz.',
+      AppLanguage.en: 'We are committed to providing students with a safe and '
+          'respectful community.',
+      AppLanguage.ru: 'Мы стремимся дать студентам безопасное и уважительное '
+          'сообщество.'
+    },
+    'consent_moderation_heading': {
+      AppLanguage.tr: 'Moderasyon nasıl işler',
+      AppLanguage.en: 'How moderation works',
+      AppLanguage.ru: 'Как работает модерация'
+    },
+    'consent_moderation_automated': {
+      AppLanguage.tr: 'Paylaşımlar otomatik güvenlik sistemleri tarafından '
+          'denetlenebilir.',
+      AppLanguage.en: 'Posts may be checked by automated safety systems.',
+      AppLanguage.ru: 'Публикации могут проверяться автоматизированными '
+          'системами безопасности.'
+    },
+    'consent_moderation_reviewers': {
+      AppLanguage.tr: 'Yetkili moderatörler bildirilen içerikleri '
+          'inceleyebilir.',
+      AppLanguage.en: 'Authorized moderators may review reported content.',
+      AppLanguage.ru: 'Уполномоченные модераторы могут рассматривать контент, '
+          'на который поступили жалобы.'
+    },
+    'consent_moderation_referral': {
+      AppLanguage.tr: 'Ciddi ihlaller üniversite birimlerine iletilebilir.',
+      AppLanguage.en: 'Serious violations may be referred to university '
+          'authorities.',
+      AppLanguage.ru: 'Серьёзные нарушения могут быть переданы органам '
+          'университета.'
+    },
+    'consent_privacy_link': {
+      AppLanguage.tr: 'Gizlilik Politikası',
+      AppLanguage.en: 'Privacy Policy',
+      AppLanguage.ru: 'Политика конфиденциальности'
+    },
+    'consent_guidelines_link': {
+      AppLanguage.tr: 'Topluluk Kuralları',
+      AppLanguage.en: 'Community Guidelines',
+      AppLanguage.ru: 'Правила сообщества'
+    },
+    'consent_accept': {
+      AppLanguage.tr: 'Gizlilik Politikasını ve Topluluk Kurallarını okudum '
+          've kabul ediyorum.',
+      AppLanguage.en: 'I have read and agree to the Privacy Policy and '
+          'Community Guidelines.',
+      AppLanguage.ru: 'Я прочитал(а) и принимаю Политику конфиденциальности и '
+          'Правила сообщества.'
+    },
+    'consent_continue': {
+      AppLanguage.tr: 'Devam et',
+      AppLanguage.en: 'Continue',
+      AppLanguage.ru: 'Продолжить'
+    },
+    'consent_updated_title': {
+      AppLanguage.tr: 'Politikamız güncellendi',
+      AppLanguage.en: 'Our policy has been updated',
+      AppLanguage.ru: 'Наша политика обновлена'
+    },
+    'consent_updated_body': {
+      AppLanguage.tr: 'Gizlilik Politikası ve Topluluk Kuralları değişti. '
+          'Devam etmeden önce lütfen yeni metni okuyup kabul edin.',
+      AppLanguage.en: 'The Privacy Policy and Community Guidelines have '
+          'changed. Please read and accept the new text before continuing.',
+      AppLanguage.ru: 'Политика конфиденциальности и Правила сообщества '
+          'изменились. Пожалуйста, прочитайте и примите новый текст, прежде '
+          'чем продолжить.'
+    },
+    'time_yesterday': {
+      AppLanguage.tr: 'Dün',
+      AppLanguage.en: 'Yesterday',
+      AppLanguage.ru: 'Вчера'
+    },
+    'map_checkin_by': {
+      AppLanguage.tr: 'check-in yaptı',
+      AppLanguage.en: 'checked in',
+      AppLanguage.ru: 'отметился'
+    },
+    'sp_open_settings': {
+      AppLanguage.tr: 'Ayarları aç',
+      AppLanguage.en: 'Open settings',
+      AppLanguage.ru: 'Открыть настройки'
+    },
     'sp_private': {
       AppLanguage.tr:
           'Bu profil gizli. İçeriği yalnızca takipçileri görebilir.',
@@ -2698,6 +3070,21 @@ class AppStrings {
       AppLanguage.en: 'Busy',
       AppLanguage.ru: 'Много людей'
     },
+    'clm_quiet': {
+      AppLanguage.tr: 'Sakin',
+      AppLanguage.en: 'Quiet',
+      AppLanguage.ru: 'Свободно'
+    },
+    'clm_moderate': {
+      AppLanguage.tr: 'Orta',
+      AppLanguage.en: 'Moderate',
+      AppLanguage.ru: 'Средне'
+    },
+    'clm_map_info': {
+      AppLanguage.tr: 'Harita bilgisi',
+      AppLanguage.en: 'Map info',
+      AppLanguage.ru: 'О карте'
+    },
     'clm_all': {
       AppLanguage.tr: 'Tümü',
       AppLanguage.en: 'All',
@@ -2837,6 +3224,30 @@ class AppStrings {
       AppLanguage.en: 'Trainer panel',
       AppLanguage.ru: 'Панель преподавателя'
     },
+
+    // Safety and legal. The safety entry carries a subtitle because it is
+    // the one a person looks for while something is going wrong, and
+    // "Güvenlik" alone does not say that reporting lives behind it.
+    'legal_safety': {
+      AppLanguage.tr: 'Güvenlik ve içerik bildirimi',
+      AppLanguage.en: 'Safety and reporting',
+      AppLanguage.ru: 'Безопасность и жалобы'
+    },
+    'legal_safety_sub': {
+      AppLanguage.tr: 'Uygunsuz içerik bildir, engelle, itiraz et',
+      AppLanguage.en: 'Report content, block users, appeal a decision',
+      AppLanguage.ru: 'Пожаловаться, заблокировать, оспорить'
+    },
+    'legal_terms': {
+      AppLanguage.tr: 'Kullanım şartları',
+      AppLanguage.en: 'Terms of use',
+      AppLanguage.ru: 'Условия использования'
+    },
+    'legal_privacy': {
+      AppLanguage.tr: 'Gizlilik politikası',
+      AppLanguage.en: 'Privacy policy',
+      AppLanguage.ru: 'Политика конфиденциальности'
+    },
     'pr_menu': {
       AppLanguage.tr: 'Menü',
       AppLanguage.en: 'Menu',
@@ -2870,10 +3281,100 @@ class AppStrings {
   @visibleForTesting
   static Map<String, Map<AppLanguage, String>> get debugTable => _table;
 
-  String t(String key) {
+  /// Strings published from the Admin panel, layered over the table above.
+  ///
+  /// The table stays in the binary and stays the fallback: it is what the
+  /// app shows on first launch, offline, and if the server is unreachable.
+  /// A published override wins when one exists, which is what lets a
+  /// wording fix reach students without an App Store release.
+  ///
+  /// Written only by [TranslationStore]; read on every `t()`.
+  static Map<AppLanguage, Map<String, String>> _overrides = const {};
+
+  static void applyOverrides(Map<AppLanguage, Map<String, String>> values) {
+    _overrides = values;
+  }
+
+  /// Drops back to the bundled table.
+  ///
+  /// Not test-only: this is how [TranslationStore] reverts after a cache it
+  /// could not read, so the app shows reviewed wording rather than whatever
+  /// half-decoded map it was holding.
+  static void clearOverrides() => _overrides = const {};
+
+  /// The text for [key], with `{placeholders}` filled in.
+  ///
+  /// Lookup order: the published override for this language, then the
+  /// bundled table for this language, then English, then Turkish, then the
+  /// key itself. The key is a last resort and should never be reached —
+  /// a screen reading `sp_private` at a student is worse than one in the
+  /// wrong language, which is why every earlier step falls back rather
+  /// than failing.
+  String t(String key, [Map<String, Object?>? args]) {
+    final text = _overrides[language]?[key] ?? _bundled(key) ?? key;
+
+    return args == null || args.isEmpty ? text : _fill(text, args);
+  }
+
+  String? _bundled(String key) {
     final row = _table[key];
-    if (row == null) return key;
-    return row[language] ?? row[AppLanguage.en] ?? row[AppLanguage.tr] ?? key;
+    if (row == null) return null;
+    return row[language] ?? row[AppLanguage.en] ?? row[AppLanguage.tr];
+  }
+
+  /// Plural-aware lookup.
+  ///
+  /// The published value is a JSON object keyed by CLDR category. Russian
+  /// takes one/few/many/other and gets it wrong in the obvious ways if you
+  /// treat it like English — "2 сообщения", not "2 сообщений".
+  String plural(String key, int count, [Map<String, Object?>? args]) {
+    final raw = _overrides[language]?[key] ?? _bundled(key);
+    if (raw == null) return key;
+
+    final forms = _decodeForms(raw);
+    final form = forms[_category(count)] ?? forms['other'] ?? raw;
+
+    return _fill(form, {'count': count, ...?args});
+  }
+
+  Map<String, String> _decodeForms(String raw) {
+    if (!raw.trimLeft().startsWith('{')) return {'other': raw};
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is Map) {
+        return decoded.map((k, v) => MapEntry('$k', '$v'));
+      }
+    } on FormatException {
+      // Not a plural payload after all — treat it as a plain string.
+    }
+    return {'other': raw};
+  }
+
+  /// CLDR plural category for [count] in the current language.
+  String _category(int count) {
+    final n = count.abs();
+
+    switch (language) {
+      case AppLanguage.ru:
+        final mod10 = n % 10;
+        final mod100 = n % 100;
+        if (mod10 == 1 && mod100 != 11) return 'one';
+        if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+          return 'few';
+        }
+        return 'many';
+      case AppLanguage.tr:
+      case AppLanguage.en:
+        return n == 1 ? 'one' : 'other';
+    }
+  }
+
+  String _fill(String text, Map<String, Object?> args) {
+    var out = text;
+    args.forEach((name, value) {
+      out = out.replaceAll('{$name}', '${value ?? ''}');
+    });
+    return out;
   }
 }
 
@@ -2895,6 +3396,14 @@ class AppLocale extends InheritedWidget {
   static AppStrings of(BuildContext context) {
     final scope = context.dependOnInheritedWidgetOfExactType<AppLocale>();
     return scope?.strings ?? const AppStrings(AppLanguage.tr);
+  }
+
+  /// The chosen language itself, for things that are formatted rather than
+  /// translated — dates, times and elapsed-time labels, which need a locale
+  /// tag rather than a table lookup.
+  static AppLanguage languageOf(BuildContext context) {
+    final scope = context.dependOnInheritedWidgetOfExactType<AppLocale>();
+    return scope?.language ?? AppLanguage.tr;
   }
 
   @override

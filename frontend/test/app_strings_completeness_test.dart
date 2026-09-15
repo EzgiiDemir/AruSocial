@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/widgets.dart';
 
+import 'package:arucad_campus_prototype/app/app.dart';
 import 'package:arucad_campus_prototype/core/l10n/app_strings.dart';
 
 /// Guards the translation table against the two ways it silently rots.
@@ -11,6 +13,12 @@ import 'package:arucad_campus_prototype/core/l10n/app_strings.dart';
 /// are cheap to catch here and expensive to notice in the field.
 void main() {
   group('AppStrings', () {
+    test('first launch follows supported device languages', () {
+      expect(deviceLanguageCode(const Locale('tr', 'TR')), 'TR');
+      expect(deviceLanguageCode(const Locale('en', 'GB')), 'EN');
+      expect(deviceLanguageCode(const Locale('ru', 'RU')), 'RU');
+      expect(deviceLanguageCode(const Locale('de', 'DE')), 'EN');
+    });
     test('every key is translated into all three languages', () {
       final missing = <String>[];
 

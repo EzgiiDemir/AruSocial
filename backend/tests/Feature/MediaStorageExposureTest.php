@@ -36,6 +36,46 @@ class MediaStorageExposureTest extends TestCase
             "Media disk '{$disk}' is marked publicly visible.");
     }
 
+    /**
+     * Faking the wrong disk is indistinguishable from faking the right one:
+     * the test passes, the upload succeeds, and the bytes go to the real
+     * filesystem instead of the fake. That is not hypothetical — the media
+     * disk moved off `public` and a dozen tests kept faking `public`, so
+     * every run wrote real files into `storage/app/private/media`. Roughly
+     * seventeen hundred of them had piled up, which in turn made the orphan
+     * sweeper quarantine the directory and the app's images vanish.
+     *
+     * Nothing about that failed a test, so the only place it can be caught
+     * is here, by reading the suite's own source.
+     */
+    public function test_no_test_fakes_the_disk_media_no_longer_uses(): void
+    {
+        $offenders = [];
+
+        foreach (glob(dirname(__DIR__).'/*/*.php') as $file) {
+            $source = (string) file_get_contents($file);
+
+            if (! str_contains($source, "Storage::fake('public')")) {
+                continue;
+            }
+
+            // Faking `public` is legitimate when the media disk is faked
+            // too — that is how a test proves an upload lands on one disk
+            // and not the other. It is only a bug when `public` is faked
+            // *instead of* the disk the upload actually goes to.
+            if (str_contains($source, 'Storage::fake(MediaItem::disk())')) {
+                continue;
+            }
+
+            $offenders[] = basename($file);
+        }
+
+        $this->assertSame([], $offenders,
+            "These fake the 'public' disk, which media has not used since it moved behind "
+            ."the authorised route. Uploads in them write to real storage. Use "
+            .'Storage::fake(MediaItem::disk()) instead: '.implode(', ', $offenders));
+    }
+
     public function test_an_upload_is_not_written_to_the_public_disk(): void
     {
         Storage::fake('public');

@@ -80,7 +80,7 @@ class MediaSafetyTest extends TestCase
      */
     public function test_a_clean_image_is_approved_when_no_provider_is_configured(): void
     {
-        Storage::fake('public');
+        Storage::fake(MediaItem::disk());
         $this->actingAsUser();
         config(['services.moderation.openai_key' => '']);
 
@@ -98,7 +98,7 @@ class MediaSafetyTest extends TestCase
      */
     public function test_media_provider_failure_is_unavailable_and_non_punitive(): void
     {
-        Storage::fake('public');
+        Storage::fake(MediaItem::disk());
         $user = $this->actingAsUser();
         $this->providerOutage();
 
@@ -127,7 +127,7 @@ class MediaSafetyTest extends TestCase
      */
     public function test_re_uploading_during_an_outage_remains_a_non_punitive_error(): void
     {
-        Storage::fake('public');
+        Storage::fake(MediaItem::disk());
         $this->actingAsUser();
         $this->providerOutage();   // held, so there is something to launder
 
@@ -151,7 +151,7 @@ class MediaSafetyTest extends TestCase
      */
     public function test_an_unrecognised_outcome_holds_rather_than_publishes(): void
     {
-        Storage::fake('public');
+        Storage::fake(MediaItem::disk());
         $this->actingAsUser();
         config(['services.moderation.openai_key' => 'sk-test-key']);
 
@@ -175,7 +175,7 @@ class MediaSafetyTest extends TestCase
 
     public function test_prohibited_imagery_is_rejected_and_never_stored_as_approved(): void
     {
-        Storage::fake('public');
+        Storage::fake(MediaItem::disk());
         $this->actingAsUser();
 
         foreach ([['sexual'], ['violence/graphic'], ['violence'], ['self-harm/instructions']] as $categories) {
@@ -197,7 +197,7 @@ class MediaSafetyTest extends TestCase
 
     public function test_the_rejection_tells_the_student_why_and_what_happens_next(): void
     {
-        Storage::fake('public');
+        Storage::fake(MediaItem::disk());
         $this->actingAsUser();
         $this->flaggedAs(['sexual']);
 
@@ -217,7 +217,7 @@ class MediaSafetyTest extends TestCase
 
     public function test_a_clean_image_still_publishes_normally(): void
     {
-        Storage::fake('public');
+        Storage::fake(MediaItem::disk());
         $this->actingAsUser();
         $this->providerClean();
 
@@ -238,7 +238,7 @@ class MediaSafetyTest extends TestCase
      */
     public function test_a_video_upload_is_refused_as_unsupported(): void
     {
-        Storage::fake('public');
+        Storage::fake(MediaItem::disk());
         $this->actingAsUser();
         $this->providerClean();
 
@@ -257,7 +257,7 @@ class MediaSafetyTest extends TestCase
 
     public function test_disallowed_file_types_are_refused_before_anything_is_stored(): void
     {
-        Storage::fake('public');
+        Storage::fake(MediaItem::disk());
         $this->actingAsUser();
 
         foreach (['payload.exe' => 'application/octet-stream', 'doc.pdf' => 'application/pdf'] as $name => $mime) {
@@ -271,7 +271,7 @@ class MediaSafetyTest extends TestCase
 
     public function test_a_renamed_file_does_not_get_through_on_its_extension(): void
     {
-        Storage::fake('public');
+        Storage::fake(MediaItem::disk());
         $this->actingAsUser();
 
         // Claims to be a JPEG, contains something else entirely.

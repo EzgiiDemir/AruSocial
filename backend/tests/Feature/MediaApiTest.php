@@ -14,7 +14,7 @@ class MediaApiTest extends TestCase
 
     public function test_a_content_editor_can_list_upload_update_and_delete_media(): void
     {
-        Storage::fake('public');
+        Storage::fake(MediaItem::disk());
         $this->actingAsRole('contentEditor');
 
         $file = $this->fakeJpeg('garden.jpg');
@@ -40,12 +40,21 @@ class MediaApiTest extends TestCase
         $path = MediaItem::find($created['id'])->file_path;
         $this->postJson('/api/v1/media/'.$created['id'].'/delete')->assertOk();
         $this->assertSoftDeleted('media_items', ['id' => $created['id']]);
-        Storage::disk('public')->assertMissing($path);
+
+        // The bytes deliberately survive a soft delete: a file removed here
+        // is referenced by posts, covers and avatars, and keeping it is what
+        // makes restore possible at all (see MediaItem's note, and
+        // `media:restore-quarantine`). This previously asserted the file was
+        // *missing* and passed only because it asked the public disk, which
+        // media has not used since it moved behind the authorised route —
+        // so it was asserting the opposite of the intended contract against
+        // a disk that was always empty.
+        Storage::disk(MediaItem::disk())->assertExists($path);
     }
 
     public function test_a_student_cannot_delete_existing_media(): void
     {
-        Storage::fake('public');
+        Storage::fake(MediaItem::disk());
         $this->actingAsRole('contentEditor');
         $created = $this->post('/api/v1/media', [
             'file' => $this->fakeJpeg('keep.jpg'),
@@ -81,7 +90,7 @@ class MediaApiTest extends TestCase
 
     public function test_upload_rejects_non_images_and_oversize_files(): void
     {
-        Storage::fake('public');
+        Storage::fake(MediaItem::disk());
         $this->actingAsRole('contentEditor');
 
         // A wrong file type is now refused by the form request, before the
@@ -118,7 +127,7 @@ class MediaApiTest extends TestCase
 
     public function test_public_file_by_name_serves_storage_basename(): void
     {
-        Storage::fake('public');
+        Storage::fake(MediaItem::disk());
         $this->actingAsRole('contentEditor');
         $created = $this->post('/api/v1/media', [
             'file' => $this->fakeJpeg('garden.jpg'),

@@ -2,17 +2,26 @@
 
 namespace App\Services\Moderation;
 
+use App\Models\MediaItem;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 /**
  * Makes locally stored uploads readable by the moderation provider.
  *
- * Student uploads sit on this server's public disk, which in development is
- * localhost and in production may sit behind a private network — either way
- * OpenAI cannot fetch them by URL. Passing an unreachable URL would mean the
- * image is quietly never inspected, which is the exact failure this system
- * exists to prevent, so local files are read and inlined as data URIs.
+ * Student uploads sit on this server's media disk, which in development is
+ * localhost and in production is deliberately private — either way the
+ * provider cannot fetch them by URL. Passing an unreachable URL would mean
+ * the image is quietly never inspected, which is the exact failure this
+ * system exists to prevent, so local files are read and inlined as data URIs.
+ *
+ * That failure had in fact happened. This class read from `disk('public')`
+ * while uploads moved to the private media disk, so `exists()` was false for
+ * every upload and `toDataUri` returned null — and the caller drops nulls
+ * silently, so every image posted to the app went to the provider as an
+ * empty list. Nothing logged, nothing failed, no image was ever checked.
+ * Hence both the disk being read from `MediaItem::disk()` rather than named
+ * here, and the warning on the miss: the next time this breaks it will say so.
  */
 class MediaInliner
 {
@@ -35,20 +44,28 @@ class MediaInliner
         }
 
         try {
-            if (! Storage::disk('public')->exists($path)) {
+            $disk = Storage::disk(MediaItem::disk());
+
+            if (! $disk->exists($path)) {
+                // An upload we resolved to a key but cannot read is the
+                // silent-bypass case, not an ordinary miss.
+                Log::warning('moderation.inline_missing', ['url' => $url, 'path' => $path]);
+
                 return null;
             }
-            if (Storage::disk('public')->size($path) > self::MAX_BYTES) {
+            if ($disk->size($path) > self::MAX_BYTES) {
+                Log::warning('moderation.inline_too_large', ['url' => $url, 'bytes' => $disk->size($path)]);
+
                 return null;
             }
-            $mime = Storage::disk('public')->mimeType($path) ?: '';
+            $mime = $disk->mimeType($path) ?: '';
             if (! in_array($mime, self::IMAGE_MIMES, true)) {
                 // Videos and documents are not sent to the image endpoint;
                 // VideoModerator handles those by extracting frames first.
                 return null;
             }
 
-            return 'data:'.$mime.';base64,'.base64_encode(Storage::disk('public')->get($path));
+            return 'data:'.$mime.';base64,'.base64_encode($disk->get($path));
         } catch (\Throwable $e) {
             Log::warning('moderation.inline_failed', ['url' => $url, 'message' => $e->getMessage()]);
 
@@ -56,16 +73,32 @@ class MediaInliner
         }
     }
 
-    /** Absolute path on the public disk, or null when it is not ours. */
+    /** Storage key on the media disk, or null when the URL is not ours. */
     public static function localPathFor(string $url): ?string
     {
         $path = parse_url($url, PHP_URL_PATH) ?: $url;
         $path = ltrim((string) $path, '/');
 
-        foreach (['storage/', 'api/v1/media/'] as $prefix) {
-            if (str_starts_with($path, $prefix)) {
-                return substr($path, strlen($prefix));
-            }
+        // `/api/v1/media/{id}/file` addresses a database row, not a file.
+        // Trimming the prefix yields the row's id, which is not a storage
+        // key and never existed on any disk — the stored key lives on the
+        // row, so it has to be looked up. Soft-deleted rows are included:
+        // media withheld pending review is exactly what needs inspecting.
+        if (preg_match('#^api/v1/media/([^/]+)/file$#', $path, $m)) {
+            return MediaItem::withTrashed()->whereKey($m[1])->value('file_path');
+        }
+
+        if (str_starts_with($path, 'storage/')) {
+            return substr($path, strlen('storage/'));
+        }
+
+        // Anything else carrying a host belongs to somebody else, and its
+        // path is not a key on our disk. Returning one here sent every
+        // remote image down the local branch, where it missed and was
+        // dropped — so a hosted image was never inspected either, and the
+        // pass-through below could not be reached at all.
+        if (is_string(parse_url($url, PHP_URL_HOST))) {
+            return null;
         }
 
         // A bare relative key such as "media/abc.jpg".

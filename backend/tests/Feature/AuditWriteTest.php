@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\MediaItem;
 use App\Models\AdminAuditLog;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
@@ -33,7 +34,7 @@ class AuditWriteTest extends TestCase
 
     public function test_a_successful_media_rename_is_audited(): void
     {
-        Storage::fake('public');
+        Storage::fake(MediaItem::disk());
         $this->actingAsRole();
 
         $created = $this->post('/api/v1/media', [

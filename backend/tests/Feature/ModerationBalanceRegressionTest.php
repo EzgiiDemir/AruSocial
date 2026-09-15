@@ -58,7 +58,7 @@ class ModerationBalanceRegressionTest extends TestCase
 
     public function test_normal_image_fixtures_are_approved_without_a_configured_semantic_provider(): void
     {
-        Storage::fake('public');
+        Storage::fake(MediaItem::disk());
         $this->actingAsUser();
 
         foreach (['selfie.jpg', 'landscape.jpg', 'food.jpg', 'pet.jpg'] as $name) {
@@ -78,7 +78,7 @@ class ModerationBalanceRegressionTest extends TestCase
      */
     public function test_normal_post_with_image_and_url_is_visible_on_timeline(): void
     {
-        Storage::fake('public');
+        Storage::fake(MediaItem::disk());
         $this->actingAsUser();
 
         $image = $this->post('/api/v1/media/mine', [
@@ -178,7 +178,7 @@ class ModerationBalanceRegressionTest extends TestCase
 
     public function test_visual_policy_blocks_are_not_stored_publicly(): void
     {
-        Storage::fake('public');
+        Storage::fake(MediaItem::disk());
         $user = $this->actingAsUser();
         config(['services.moderation.openai_key' => 'sk-test-key']);
 
@@ -207,7 +207,7 @@ class ModerationBalanceRegressionTest extends TestCase
 
     public function test_media_provider_error_never_strikes_or_bans(): void
     {
-        Storage::fake('public');
+        Storage::fake(MediaItem::disk());
         $user = $this->actingAsUser();
         config(['services.moderation.openai_key' => 'sk-test-key']);
         Http::fake(['api.openai.com/*' => Http::response('timeout', 504)]);

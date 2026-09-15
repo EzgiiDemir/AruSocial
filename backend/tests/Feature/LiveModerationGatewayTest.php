@@ -57,7 +57,7 @@ class LiveModerationGatewayTest extends TestCase
             'services.moderation.openai_key' => '',
             'services.local_moderation.binary' => '',
         ]);
-        Storage::fake('public');
+        Storage::fake(MediaItem::disk());
     }
 
     /**

@@ -19,7 +19,7 @@ class SelfHostedModerationIntegrationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        Storage::fake('public');
+        Storage::fake(MediaItem::disk());
         config([
             'moderation.enabled' => true,
             'moderation.base_url' => 'http://moderation.test:8080',
@@ -168,7 +168,7 @@ class SelfHostedModerationIntegrationTest extends TestCase
         ])->assertStatus(400)->assertJsonPath('error.code', 'CONTENT_BLOCKED');
 
         $this->assertSame(0, MediaItem::withoutGlobalScopes()->count());
-        Storage::disk('public')->assertDirectoryEmpty('media');
+        Storage::disk(MediaItem::disk())->assertDirectoryEmpty('media');
     }
 
     /** @param list<string> $categories */

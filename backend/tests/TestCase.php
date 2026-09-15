@@ -113,14 +113,42 @@ abstract class TestCase extends BaseTestCase
     }
 
     /**
-     * JPEG magic bytes without requiring the GD extension (Windows PHP often
-     * ships without it). Size check in MediaController runs before magic.
+     * A real, decodable 1x1 JPEG — not just the magic bytes.
+     *
+     * This used to be a JFIF header followed by 64 'A's, which satisfies
+     * every signature check and is not an image: nothing can decode it.
+     * That was fine while the only checks read the header, and stopped
+     * being fine when the upload gate started reading pixel dimensions to
+     * refuse decompression bombs — because a file that cannot be measured
+     * is exactly what a corrupt upload looks like.
+     *
+     * Kept as a literal because this server has neither GD nor Imagick, so
+     * there is nothing available to generate one with.
      */
     protected function fakeJpeg(string $name = 'shot.jpg'): UploadedFile
     {
-        return UploadedFile::fake()->createWithContent(
-            $name,
-            "\xFF\xD8\xFF\xE0\x00\x10JFIF\x00".str_repeat('A', 64),
+        return UploadedFile::fake()->createWithContent($name, self::jpegBytes());
+    }
+
+    /** The bytes behind {@see fakeJpeg}, for tests that need them directly. */
+    protected static function jpegBytes(): string
+    {
+        return (string) base64_decode(
+            '/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8U'
+            .'HRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA'
+            .'/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEA'
+            .'AD8AKp//2Q==',
+            true,
+        );
+    }
+
+    /** A real, decodable 1x1 PNG, for tests that need a second format. */
+    protected static function pngBytes(): string
+    {
+        return (string) base64_decode(
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQ'
+            .'DwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+            true,
         );
     }
 

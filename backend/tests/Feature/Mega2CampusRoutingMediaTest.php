@@ -228,7 +228,7 @@ class Mega2CampusRoutingMediaTest extends TestCase
      */
     public function test_pending_media_queue_review_and_approve(): void
     {
-        Storage::fake('public');
+        Storage::fake(MediaItem::disk());
         Storage::fake('local');
         $this->actingAsRole('contentEditor');
         $path = 'media/held.jpg';
@@ -285,7 +285,7 @@ class Mega2CampusRoutingMediaTest extends TestCase
 
     public function test_duplicate_queue_resolve_is_conflict(): void
     {
-        Storage::fake('public');
+        Storage::fake(MediaItem::disk());
         Storage::fake('local');
         $item = MediaItem::create([
             'id' => 'media-dup-resolve',
@@ -333,7 +333,7 @@ class Mega2CampusRoutingMediaTest extends TestCase
 
     public function test_poster_draft_creates_draft_event_never_published(): void
     {
-        Storage::fake('public');
+        Storage::fake(MediaItem::disk());
         Storage::fake('local');
         config(['services.groq.key' => 'test-key']);
 

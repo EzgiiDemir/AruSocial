@@ -61,7 +61,7 @@ class RejectedCredentialsDegradeTest extends TestCase
 
     public function test_an_ordinary_image_still_publishes_when_the_key_is_refused(): void
     {
-        Storage::fake('public');
+        Storage::fake(MediaItem::disk());
         $this->actingAsUser();
         $this->credentialsRejected();
 

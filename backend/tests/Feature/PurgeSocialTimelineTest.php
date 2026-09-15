@@ -31,16 +31,54 @@ class PurgeSocialTimelineTest extends TestCase
 
     private User $author;
 
+    /**
+     * The backup deliberately lands on the real filesystem rather than on a
+     * disk, because a purge that only backs up to something `Storage::fake`
+     * can swallow is not a backup. That makes it this test's job to point the
+     * command somewhere disposable: without this, every run left a real
+     * `storage/app/backups/social-timeline-*` folder behind in the working
+     * app, and forty-one of them had accumulated before anyone noticed.
+     */
+    private string $backupDir;
+
     protected function setUp(): void
     {
         parent::setUp();
         Storage::fake(MediaItem::disk());
+        $this->backupDir = sys_get_temp_dir().'/purge-timeline-test-'.Str::random(8);
 
         $this->author = User::create([
             'name' => 'Author',
             'email' => 'author@arucad.edu.tr',
             'password' => bcrypt('x'),
         ]);
+    }
+
+    protected function tearDown(): void
+    {
+        if (is_dir($this->backupDir)) {
+            $files = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator($this->backupDir, \FilesystemIterator::SKIP_DOTS),
+                \RecursiveIteratorIterator::CHILD_FIRST,
+            );
+            foreach ($files as $file) {
+                $file->isDir() ? rmdir($file->getPathname()) : unlink($file->getPathname());
+            }
+            rmdir($this->backupDir);
+        }
+
+        parent::tearDown();
+    }
+
+    /**
+     * Every invocation goes through here so none can forget `--backup-dir`.
+     */
+    private function purge(array $options = []): \Illuminate\Testing\PendingCommand
+    {
+        return $this->artisan(
+            'social:purge-timeline',
+            $options + ['--backup-dir' => $this->backupDir],
+        );
     }
 
     private function makePost(string $id, string $status = 'approved'): FeedPost
@@ -87,7 +125,7 @@ class PurgeSocialTimelineTest extends TestCase
     {
         $this->makePost('post-1');
 
-        $this->artisan('social:purge-timeline')
+        $this->purge()
             ->expectsOutputToContain('Dry run')
             ->assertSuccessful();
 
@@ -101,7 +139,7 @@ class PurgeSocialTimelineTest extends TestCase
         $this->makePost('post-1');
         $this->makePost('post-2');
 
-        $this->artisan('social:purge-timeline', ['--force' => true])->assertSuccessful();
+        $this->purge(['--force' => true])->assertSuccessful();
 
         $this->assertSame(0, FeedPost::withoutGlobalScopes()->count());
     }
@@ -115,7 +153,7 @@ class PurgeSocialTimelineTest extends TestCase
         $this->makePost('post-pending', 'pending');
         $this->makePost('post-rejected', 'rejected');
 
-        $this->artisan('social:purge-timeline', ['--force' => true])->assertSuccessful();
+        $this->purge(['--force' => true])->assertSuccessful();
 
         $this->assertSame(0, FeedPost::withoutGlobalScopes()->count());
     }
@@ -138,7 +176,7 @@ class PurgeSocialTimelineTest extends TestCase
             'created_at' => now(),
         ]);
 
-        $this->artisan('social:purge-timeline', ['--force' => true])->assertSuccessful();
+        $this->purge(['--force' => true])->assertSuccessful();
 
         $this->assertSame(0, DB::table('post_comments')->count());
         $this->assertSame(0, DB::table('post_likes')->count());
@@ -155,7 +193,7 @@ class PurgeSocialTimelineTest extends TestCase
             'created_at' => now(),
         ]);
 
-        $this->artisan('social:purge-timeline', ['--force' => true])
+        $this->purge(['--force' => true])
             ->expectsOutputToContain('No orphaned rows left behind')
             ->assertSuccessful();
     }
@@ -172,7 +210,7 @@ class PurgeSocialTimelineTest extends TestCase
 
         $this->assertTrue(Storage::disk(MediaItem::disk())->exists($path));
 
-        $this->artisan('social:purge-timeline', ['--force' => true])->assertSuccessful();
+        $this->purge(['--force' => true])->assertSuccessful();
 
         $this->assertNull(MediaItem::find($media->id));
         $this->assertFalse(Storage::disk(MediaItem::disk())->exists($path));
@@ -188,7 +226,7 @@ class PurgeSocialTimelineTest extends TestCase
         $media->used_in = ['place-cover-1'];
         $media->save();
 
-        $this->artisan('social:purge-timeline', ['--force' => true])->assertSuccessful();
+        $this->purge(['--force' => true])->assertSuccessful();
 
         $this->assertNotNull(MediaItem::find($media->id));
         $this->assertTrue(Storage::disk(MediaItem::disk())->exists($path));
@@ -216,7 +254,7 @@ class PurgeSocialTimelineTest extends TestCase
             'created_at' => now(),
         ]);
 
-        $this->artisan('social:purge-timeline', ['--force' => true])->assertSuccessful();
+        $this->purge(['--force' => true])->assertSuccessful();
 
         $this->assertSame(1, ModerationEvent::count(),
             'The record of what was decided about a student must not be erased.');
@@ -233,7 +271,7 @@ class PurgeSocialTimelineTest extends TestCase
             'created_at' => now(),
         ]);
 
-        $this->artisan('social:purge-timeline', ['--force' => true])->assertSuccessful();
+        $this->purge(['--force' => true])->assertSuccessful();
 
         $this->assertSame(1, Story::withoutGlobalScopes()->count());
     }
@@ -242,7 +280,7 @@ class PurgeSocialTimelineTest extends TestCase
     {
         $this->makePost('post-1');
 
-        $this->artisan('social:purge-timeline', ['--force' => true])->assertSuccessful();
+        $this->purge(['--force' => true])->assertSuccessful();
 
         $this->assertNotNull(User::find($this->author->id));
     }
@@ -251,7 +289,7 @@ class PurgeSocialTimelineTest extends TestCase
 
     public function test_a_backup_is_written_before_anything_is_deleted(): void
     {
-        $dir = storage_path('app/testing-backups-'.Str::random(6));
+        $dir = $this->backupDir;
         [, , $path] = $this->mediaBackedPost('post-1');
 
         PostComment::create([
@@ -262,10 +300,7 @@ class PurgeSocialTimelineTest extends TestCase
             'created_at' => now(),
         ]);
 
-        $this->artisan('social:purge-timeline', [
-            '--force' => true,
-            '--backup-dir' => $dir,
-        ])->assertSuccessful();
+        $this->purge(['--force' => true])->assertSuccessful();
 
         $folders = glob($dir.'/social-timeline-*');
         $this->assertCount(1, $folders);
@@ -302,7 +337,7 @@ class PurgeSocialTimelineTest extends TestCase
     {
         $this->makePost('post-1');
 
-        $this->artisan('social:purge-timeline', ['--force' => true])->assertSuccessful();
+        $this->purge(['--force' => true])->assertSuccessful();
 
         $this->assertDatabaseHas('admin_audit_log', [
             'action' => 'purge',
@@ -312,7 +347,7 @@ class PurgeSocialTimelineTest extends TestCase
 
     public function test_an_empty_timeline_is_a_no_op(): void
     {
-        $this->artisan('social:purge-timeline', ['--force' => true])
+        $this->purge(['--force' => true])
             ->expectsOutputToContain('already empty')
             ->assertSuccessful();
     }

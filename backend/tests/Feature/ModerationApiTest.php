@@ -243,7 +243,7 @@ class ModerationApiTest extends TestCase
 
     public function test_reviewer_rejection_of_owned_media_records_a_strike(): void
     {
-        Storage::fake('public');
+        Storage::fake(MediaItem::disk());
         $student = $this->seedUser();
         $item = MediaItem::create([
             'id' => 'media-owned-pending',

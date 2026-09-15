@@ -25,7 +25,7 @@ class VideoRemovalE2ETest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        Storage::fake('public');
+        Storage::fake(MediaItem::disk());
         config([
             'services.moderation.openai_key' => '',
             'services.local_moderation.binary' => '',

@@ -15,7 +15,7 @@ class PersonalGalleryTest extends TestCase
 
     public function test_student_can_upload_list_and_delete_own_gallery_media(): void
     {
-        Storage::fake('public');
+        Storage::fake(MediaItem::disk());
         $me = $this->actingAsUser();
 
         $created = $this->post('/api/v1/media/mine', [
@@ -41,7 +41,7 @@ class PersonalGalleryTest extends TestCase
 
     public function test_gallery_list_is_isolated_per_user(): void
     {
-        Storage::fake('public');
+        Storage::fake(MediaItem::disk());
         $other = User::create(['name' => 'Other', 'email' => 'other@arucad.edu.tr', 'password' => bcrypt('x')]);
         $this->actingAsUser($other);
         $this->post('/api/v1/media/mine', [
@@ -54,7 +54,7 @@ class PersonalGalleryTest extends TestCase
 
     public function test_cannot_delete_another_users_personal_media(): void
     {
-        Storage::fake('public');
+        Storage::fake(MediaItem::disk());
         $other = User::create(['name' => 'Other', 'email' => 'other@arucad.edu.tr', 'password' => bcrypt('x')]);
         $this->actingAsUser($other);
         $id = $this->post('/api/v1/media/mine', [
@@ -76,7 +76,7 @@ class PersonalGalleryTest extends TestCase
 
     public function test_admin_media_upload_does_not_set_user_id(): void
     {
-        Storage::fake('public');
+        Storage::fake(MediaItem::disk());
         $this->actingAsRole('contentEditor');
         $id = $this->post('/api/v1/media', [
             'file' => $this->fakeJpeg('lib.jpg'),

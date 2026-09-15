@@ -7,8 +7,10 @@ import 'package:arucad_campus_prototype/core/l10n/app_strings.dart';
 import 'package:arucad_campus_prototype/core/models/campus_models.dart';
 import 'package:arucad_campus_prototype/core/services/contracts.dart';
 import 'package:arucad_campus_prototype/core/models/story_framing.dart';
+import 'package:arucad_campus_prototype/core/models/story_overlay.dart';
 import 'package:arucad_campus_prototype/core/services/photo_picker_service.dart';
 import 'package:arucad_campus_prototype/features/social/story_framing_editor.dart';
+import 'package:arucad_campus_prototype/features/social/story_overlay_layer.dart';
 import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
 import 'package:arucad_campus_prototype/features/widgets/campus_widgets.dart';
 import 'package:arucad_campus_prototype/features/widgets/media_frame.dart';
@@ -134,6 +136,10 @@ class _ComposeStorySheetState extends State<_ComposeStorySheet> {
   /// baked into the bytes, so the original photo is never destroyed and
   /// the author can change their mind.
   StoryFraming _framing = const StoryFraming();
+
+  /// Captions placed on the photo. Positions are fractions of the frame,
+  /// so where they are put here is where they land on every phone.
+  final List<StoryOverlay> _overlays = [];
   PostVisibility _visibility = PostVisibility.everyone;
 
   bool _useGradient = false;
@@ -220,10 +226,13 @@ class _ComposeStorySheetState extends State<_ComposeStorySheet> {
       imageBytes: _pickedBytes,
       backgroundColorValue: isPhoto ? null : _activeSolid.toARGB32(),
       style: isPhoto
-          ? _framing.toStyle({
-              if (_taggedPeople.isNotEmpty)
-                'taggedPeople': List<String>.from(_taggedPeople),
-            })
+          ? StoryOverlay.listToStyle(
+              _framing.toStyle({
+                if (_taggedPeople.isNotEmpty)
+                  'taggedPeople': List<String>.from(_taggedPeople),
+              }),
+              _overlays,
+            )
           : _buildStyle(),
       visibility: _visibility,
     ));
@@ -270,11 +279,34 @@ class _ComposeStorySheetState extends State<_ComposeStorySheet> {
               // gets published, rather than an approximation of it.
               SizedBox(
                 height: 360,
-                child: StoryFramingEditor(
-                  bytes: _pickedBytes!,
-                  framing: _framing,
-                  onChanged: (next) => setState(() => _framing = next),
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: StoryFramingEditor(
+                        bytes: _pickedBytes!,
+                        framing: _framing,
+                        onChanged: (next) => setState(() => _framing = next),
+                      ),
+                    ),
+                    // The guide is only drawn while composing: it shows
+                    // where the progress bar and reply box will cover the
+                    // photo, so a caption is not placed under them and
+                    // discovered to be unreadable after publishing.
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: StoryOverlayLayer(
+                          overlays: _overlays,
+                          showSafeArea: true,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
+              ),
+              const SizedBox(height: 8),
+              _OverlayEditor(
+                overlays: _overlays,
+                onChanged: () => setState(() {}),
               ),
               const SizedBox(height: 8),
               Align(
@@ -283,6 +315,7 @@ class _ComposeStorySheetState extends State<_ComposeStorySheet> {
                   onPressed: () => setState(() {
                     _pickedBytes = null;
                     _framing = const StoryFraming();
+                    _overlays.clear();
                   }),
                   icon: const Icon(Icons.close, size: 18),
                   label: Text(strings.t('social_remove_photo')),
@@ -769,4 +802,166 @@ BoxDecoration storyBackgroundDecoration({
   return BoxDecoration(
     color: Color(backgroundColorValue ?? ArucadColors.blue.toARGB32()),
   );
+}
+
+/// Adding and placing text on a story photo.
+///
+/// Position is a pair of sliders rather than a drag gesture, because the
+/// preview above is already a drag surface for framing the photo, and one
+/// area cannot sensibly mean two things. Both are fractions of the frame,
+/// which is what the sliders produce directly.
+class _OverlayEditor extends StatelessWidget {
+  const _OverlayEditor({required this.overlays, required this.onChanged});
+
+  final List<StoryOverlay> overlays;
+  final VoidCallback onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = AppLocale.of(context);
+    final atLimit = overlays.length >= StoryOverlay.maxPerStory;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var i = 0; i < overlays.length; i++)
+          _OverlayRow(
+            overlay: overlays[i],
+            onChanged: (next) {
+              // Clamped on every edit, not only on save, so the preview
+              // cannot show a caption somewhere it will not be published.
+              overlays[i] = next.clampedToSafeArea();
+              onChanged();
+            },
+            onRemove: () {
+              overlays.removeAt(i);
+              onChanged();
+            },
+          ),
+        if (atLimit)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Text(strings.t('story_overlay_limit'),
+                style: const TextStyle(color: ArucadColors.muted, fontSize: 12)),
+          )
+        else
+          TextButton.icon(
+            onPressed: () {
+              overlays.add(const StoryOverlay(text: '').clampedToSafeArea());
+              onChanged();
+            },
+            icon: const Icon(Icons.title, size: 18),
+            label: Text(strings.t('story_overlay_add')),
+          ),
+      ],
+    );
+  }
+}
+
+class _OverlayRow extends StatelessWidget {
+  const _OverlayRow({
+    required this.overlay,
+    required this.onChanged,
+    required this.onRemove,
+  });
+
+  final StoryOverlay overlay;
+  final void Function(StoryOverlay) onChanged;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = AppLocale.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Expanded(
+              child: TextFormField(
+                initialValue: overlay.text,
+                style: const TextStyle(fontSize: 13),
+                decoration: InputDecoration(
+                  isDense: true,
+                  labelText: strings.t('story_overlay_text'),
+                ),
+                onChanged: (value) => onChanged(overlay.copyWith(text: value)),
+              ),
+            ),
+            IconButton(
+              tooltip: strings.t('compose_remove_photo'),
+              onPressed: onRemove,
+              icon: const Icon(Icons.delete_outline, size: 20),
+            ),
+          ]),
+          Row(children: [
+            SizedBox(
+              width: 58,
+              child: Text(strings.t('story_overlay_size'),
+                  style: const TextStyle(fontSize: 11.5)),
+            ),
+            Expanded(
+              child: Slider(
+                value: overlay.fontScale,
+                min: StoryOverlay.minFontScale,
+                max: StoryOverlay.maxFontScale,
+                onChanged: (v) => onChanged(overlay.copyWith(fontScale: v)),
+              ),
+            ),
+          ]),
+          Row(children: [
+            SizedBox(
+              width: 58,
+              child: Text(strings.t('story_overlay_position'),
+                  style: const TextStyle(fontSize: 11.5)),
+            ),
+            Expanded(
+              child: Slider(
+                value: overlay.x,
+                onChanged: (v) => onChanged(overlay.copyWith(x: v)),
+              ),
+            ),
+            Expanded(
+              child: Slider(
+                value: overlay.y,
+                onChanged: (v) => onChanged(overlay.copyWith(y: v)),
+              ),
+            ),
+          ]),
+          Wrap(
+            spacing: 8,
+            children: [
+              for (final color in const <int>[
+                0xFFFFFFFF, 0xFF000000, 0xFFE8B04B, 0xFF1B4A9C, 0xFF7B2D26,
+              ])
+                GestureDetector(
+                  onTap: () => onChanged(overlay.copyWith(color: color)),
+                  child: Container(
+                    width: 44,
+                    height: 44,
+                    alignment: Alignment.center,
+                    child: Container(
+                      width: 24,
+                      height: 24,
+                      decoration: BoxDecoration(
+                        color: Color(color),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: overlay.color == color
+                              ? ArucadColors.primary
+                              : Colors.black26,
+                          width: overlay.color == color ? 3 : 1,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }

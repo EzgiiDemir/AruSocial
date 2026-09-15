@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Http\Requests\Concerns\FailsWithApiValidation;
+use App\Support\ImageDimensions;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Str;
@@ -85,6 +86,47 @@ class StoreMediaRequest extends FormRequest
                 'max:'.$maxKb,
             ],
         ];
+    }
+
+    /**
+     * The pixel-count check, which the byte-size rule above cannot make.
+     *
+     * A decompression bomb is a *small* file: a single-colour PNG at
+     * 50,000 x 50,000 is a few kilobytes on disk and about ten gigabytes
+     * once decoded. `max:` sees a small file and waves it through, and the
+     * first thing to actually decode it is what falls over.
+     *
+     * Runs after the rules so it only ever sees something already
+     * established to be an image of an accepted type.
+     */
+    public function withValidator($validator): void
+    {
+        $validator->after(function ($validator) {
+            $file = $this->file('file');
+
+            if ($file === null || is_array($file) || ! $file->isValid()) {
+                return;
+            }
+            if ($validator->errors()->isNotEmpty()) {
+                return;
+            }
+
+            $dimensions = ImageDimensions::read($file);
+
+            // Unmeasurable is not this check's business. "Claims to be a
+            // JPEG but is not one" is already answered by MediaController's
+            // magic-byte check with INVALID_FILE_CONTENTS, which is a more
+            // specific answer than a validation error and is what clients
+            // are already written against. Adding a second, vaguer refusal
+            // here would only make a spoofed upload harder to explain.
+            if ($dimensions === null) {
+                return;
+            }
+
+            if ($reason = $dimensions->rejectionReason()) {
+                $validator->errors()->add('file', $reason);
+            }
+        });
     }
 
     public function messages(): array

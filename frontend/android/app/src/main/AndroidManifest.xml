@@ -17,7 +17,11 @@
       both declare CAMERA and request it at runtime.
     -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
-    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"/>
+    <!-- READ_MEDIA_VIDEO was removed on 15 September 2026. Video was
+         taken out of the product the day before, so the app asked for
+         access to the user's videos and then had nothing to do with
+         them. An unused permission is a store-review flag and, more
+         plainly, access nobody had a reason to grant. -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>

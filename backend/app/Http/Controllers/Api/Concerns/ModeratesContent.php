@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Concerns;
 
 use App\Models\User;
 use App\Services\Moderation\ContentModerator;
+use App\Services\Moderation\MediaInliner;
 use App\Services\Moderation\ModerationNotice;
 use App\Services\Moderation\ModerationOutcome;
 use Illuminate\Http\JsonResponse;
@@ -27,6 +28,23 @@ use Illuminate\Support\Str;
 trait ModeratesContent
 {
     /**
+     * Flatten the string fields of a validated nested payload for one
+     * contextual moderation decision. IDs, booleans and numeric metadata
+     * are ignored; arrays such as CMS blocks/options are traversed.
+     */
+    protected function moderationText(array $values): string
+    {
+        $parts = [];
+        array_walk_recursive($values, static function (mixed $value) use (&$parts): void {
+            if (is_string($value) && trim($value) !== '') {
+                $parts[] = trim($value);
+            }
+        });
+
+        return implode("\n", $parts);
+    }
+
+    /**
      * Returns a JSON error response when the submission must not proceed,
      * or null when it may.
      *
@@ -44,8 +62,8 @@ trait ModeratesContent
             return $this->moderationError($outcome);
         }
 
-        // Warned / review / support publish, but the author still needs to
-        // be told — ApiResponds::ok() picks this up and puts it in meta.
+        // Warnings may publish; review/support outcomes return a non-public
+        // response and are never converted into visible records here.
         ModerationNotice::remember($outcome);
 
         return null;
@@ -82,7 +100,7 @@ trait ModeratesContent
             if ($url === null || trim($url) === '') {
                 continue;
             }
-            $inlined = \App\Services\Moderation\MediaInliner::toDataUri($url);
+            $inlined = MediaInliner::toDataUri($url);
             if ($inlined !== null) {
                 $out[] = $inlined;
             }

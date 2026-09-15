@@ -204,8 +204,12 @@ class ModerationApiTest extends TestCase
     {
         $user = $this->seedUser();
 
-        $political = $this->postJson('/api/v1/feed', [
+        $this->postJson('/api/v1/feed', [
             'text' => 'CHP ve AKP arasındaki tartışma bu sabah yine gündemdeydi.',
+        ])->assertOk();
+
+        $political = $this->postJson('/api/v1/feed', [
+            'text' => 'Genel seçimlerde oy verin, AKP kazanmalı.',
         ]);
         $political->assertStatus(400)->assertJsonPath('error.code', 'CONTENT_BLOCKED');
         $this->assertStringContainsString('siyasi', (string) $political->json('error.message'));
@@ -306,7 +310,7 @@ class ModerationApiTest extends TestCase
         $user = $this->seedUser();
         $post = FeedPost::create([
             'id' => 'post-1', 'author_id' => $user->id, 'name' => $user->name, 'text' => 'hi',
-            'meta' => 'now', 'created_at' => now(),
+            'meta' => 'now', 'created_at' => now(), 'moderation_status' => 'approved',
         ]);
 
         $response = $this->postJson("/api/v1/feed/{$post->id}/comments", ['text' => 'bu piç bir yorum']);
@@ -323,7 +327,7 @@ class ModerationApiTest extends TestCase
         );
     }
 
-    public function test_local_image_validation_accepts_a_valid_image_and_marks_it_for_review(): void
+    public function test_local_image_preflight_accepts_a_structurally_valid_image(): void
     {
         $user = $this->seedUser();
         $response = $this->postJson('/api/v1/moderation/check-image', [
@@ -333,7 +337,7 @@ class ModerationApiTest extends TestCase
 
         $response->assertOk();
         $this->assertTrue($response->json('data.allowed'));
-        $this->assertTrue($response->json('data.reviewRequired'));
+        $this->assertFalse($response->json('data.reviewRequired'));
         $this->assertSame(0, $user->fresh()->strikes);
     }
 

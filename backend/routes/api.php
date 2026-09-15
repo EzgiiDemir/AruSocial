@@ -1,28 +1,29 @@
 <?php
 
+use App\Http\Controllers\Api\AcademicYearController;
+use App\Http\Controllers\Api\AccountDeletionController;
+use App\Http\Controllers\Api\AchievementController;
 use App\Http\Controllers\Api\Admin\AchievementDefinitionController;
 use App\Http\Controllers\Api\Admin\AppealReviewController;
-use App\Http\Controllers\Api\Admin\ModerationCaseController;
-use App\Http\Controllers\Api\AppealController;
 use App\Http\Controllers\Api\Admin\EmailController as AdminEmailController;
 use App\Http\Controllers\Api\Admin\EventController as AdminEventController;
 use App\Http\Controllers\Api\Admin\EventPosterDraftController;
 use App\Http\Controllers\Api\Admin\FeedModerationController;
+use App\Http\Controllers\Api\Admin\ModerationCaseController;
 use App\Http\Controllers\Api\Admin\ModerationEventsController;
 use App\Http\Controllers\Api\Admin\ModerationQueueController;
 use App\Http\Controllers\Api\Admin\ReportController as AdminReportController;
-use App\Http\Controllers\Api\Admin\WordpressVersionController;
 use App\Http\Controllers\Api\Admin\SettingsController as AdminSettingsController;
 use App\Http\Controllers\Api\Admin\StatsController as AdminStatsController;
 use App\Http\Controllers\Api\Admin\SystemHealthController;
-use App\Http\Controllers\Api\AchievementController;
-use App\Http\Controllers\Api\AcademicYearController;
+use App\Http\Controllers\Api\Admin\WordpressVersionController;
 use App\Http\Controllers\Api\AiController;
+use App\Http\Controllers\Api\AppealController;
+use App\Http\Controllers\Api\ApplicationQuestionController;
 use App\Http\Controllers\Api\AppointmentController;
 use App\Http\Controllers\Api\AskConversationController;
 use App\Http\Controllers\Api\AuditLogController;
 use App\Http\Controllers\Api\AuthController;
-use App\Http\Controllers\Api\EntraAuthController;
 use App\Http\Controllers\Api\CareerController;
 use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\CheckinController;
@@ -31,6 +32,7 @@ use App\Http\Controllers\Api\ClubMemberController;
 use App\Http\Controllers\Api\ConsultationController;
 use App\Http\Controllers\Api\ContentRevisionController;
 use App\Http\Controllers\Api\DirectoryController;
+use App\Http\Controllers\Api\EntraAuthController;
 use App\Http\Controllers\Api\EventController;
 use App\Http\Controllers\Api\FeedController;
 use App\Http\Controllers\Api\FoodVenueController;
@@ -39,28 +41,29 @@ use App\Http\Controllers\Api\LeaderboardController;
 use App\Http\Controllers\Api\MediaController;
 use App\Http\Controllers\Api\ModerationController;
 use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\OnboardingStepController;
 use App\Http\Controllers\Api\PageController;
-use App\Http\Controllers\Api\ApplicationQuestionController;
 use App\Http\Controllers\Api\ParticipationApplicationController;
 use App\Http\Controllers\Api\PlaceController;
+use App\Http\Controllers\Api\PolicyConsentController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\PushTokenController;
 use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\RoutingController;
 use App\Http\Controllers\Api\SavedPostController;
 use App\Http\Controllers\Api\ServiceController;
-use App\Http\Controllers\Api\OnboardingStepController;
-use App\Http\Controllers\Api\TourProxyController;
 use App\Http\Controllers\Api\ShuttleController;
-use App\Http\Controllers\Api\WeatherController;
 use App\Http\Controllers\Api\SocialGraphController;
 use App\Http\Controllers\Api\SportController;
 use App\Http\Controllers\Api\StaffController;
 use App\Http\Controllers\Api\StoryController;
 use App\Http\Controllers\Api\SurveyController;
+use App\Http\Controllers\Api\TourProxyController;
 use App\Http\Controllers\Api\Trainer\ApplicationController as TrainerApplicationController;
 use App\Http\Controllers\Api\Trainer\EventController as TrainerEventController;
 use App\Http\Controllers\Api\Trainer\RosterController as TrainerRosterController;
+use App\Http\Controllers\Api\TranslationController;
+use App\Http\Controllers\Api\WeatherController;
 use Illuminate\Support\Facades\Route;
 
 // Connection diagnostics (see HealthController). Kept out of the main
@@ -71,6 +74,10 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('v1')->middleware(['throttle:api', 'sentry-context'])->group(function () {
     Route::get('/', [HealthController::class, 'index']);
     Route::get('/health', [HealthController::class, 'index']);
+
+    // Public on purpose: the sign-in screen needs its own words before
+    // anyone has a token, and nothing here is user-specific.
+    Route::get('/translations', [TranslationController::class, 'index']);
     Route::get('/media/{id}/file', [MediaController::class, 'file']);
     // A short-lived signed URL is issued only in the moderator queue.  It
     // lets a reviewer inspect pending material without ever making that
@@ -109,6 +116,20 @@ Route::prefix('v1')->middleware(['throttle:api', 'auth:sanctum', 'not-banned', '
 
     Route::get('/me', [ProfileController::class, 'me']);
     Route::post('/me/profile', [ProfileController::class, 'updateBio']);
+    // Which version of the privacy policy and moderation notice this
+    // account has accepted. The app blocks on `required` before letting
+    // anyone into the feed; the row is the record that survives a
+    // reinstall, which a device-local flag never was.
+    // Deleting your own account, which both app stores require to be
+    // possible from inside the app. Throttled: it asks for a password,
+    // so it is also a place someone could guess one.
+    Route::get('/me/deletion-preview', [AccountDeletionController::class, 'preview']);
+    Route::post('/me/delete', [AccountDeletionController::class, 'destroy'])
+        ->middleware('throttle:6,1');
+
+    Route::get('/me/policy-consent', [PolicyConsentController::class, 'show']);
+    Route::post('/me/policy-consent', [PolicyConsentController::class, 'store']);
+
     Route::get('/me/settings', [ProfileController::class, 'settings']);
     Route::post('/me/settings', [ProfileController::class, 'updateSettings']);
     Route::get('/me/quests', [ProfileController::class, 'quests']);

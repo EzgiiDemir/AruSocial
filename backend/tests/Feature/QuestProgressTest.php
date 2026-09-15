@@ -11,7 +11,7 @@ use Tests\TestCase;
 
 class QuestProgressTest extends TestCase
 {
-    use RefreshDatabase, CreatesPlaces;
+    use CreatesPlaces, RefreshDatabase;
 
     public function test_distinct_checkins_progress_counts_unique_places_and_caps_at_target(): void
     {

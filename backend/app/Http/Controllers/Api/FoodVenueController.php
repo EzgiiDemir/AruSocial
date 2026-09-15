@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Api\Concerns\ApiResponds;
+use App\Http\Controllers\Api\Concerns\ModeratesContent;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\UpsertFoodMenuRequest;
 use App\Http\Requests\UpsertFoodVenueRequest;
@@ -15,7 +16,7 @@ use Illuminate\Support\Str;
 
 class FoodVenueController extends Controller
 {
-    use ApiResponds;
+    use ApiResponds, ModeratesContent;
 
     private function toJson(FoodVenue $v): array
     {
@@ -41,6 +42,9 @@ class FoodVenueController extends Controller
 
     public function upsert(UpsertFoodVenueRequest $request): JsonResponse
     {
+        if ($blocked = $this->moderationBlock($this->currentUser(), $this->moderationText($request->validated()), 'catalog', 'admin.foodVenue.upsert')) {
+            return $blocked;
+        }
         $id = $request->input('id');
         $name = $request->input('name');
 
@@ -69,8 +73,13 @@ class FoodVenueController extends Controller
 
     public function upsertMenu(UpsertFoodMenuRequest $request, string $venueId): JsonResponse
     {
+        if ($blocked = $this->moderationBlock($this->currentUser(), $this->moderationText($request->validated()), 'catalog', 'admin.foodMenu.upsert')) {
+            return $blocked;
+        }
         $venue = FoodVenue::find($venueId);
-        if (! $venue) return $this->fail(404, 'FOOD_VENUE_NOT_FOUND', 'Food venue not found.');
+        if (! $venue) {
+            return $this->fail(404, 'FOOD_VENUE_NOT_FOUND', 'Food venue not found.');
+        }
         $date = $request->input('date');
 
         // menu_date is a date cast; firstOrNew on the raw string misses the

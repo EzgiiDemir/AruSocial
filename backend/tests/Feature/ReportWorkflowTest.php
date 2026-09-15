@@ -7,8 +7,6 @@ use App\Models\ModerationCase;
 use App\Models\ModerationReport;
 use App\Models\User;
 use App\Models\UserViolation;
-use App\Services\Moderation\Workflow\AccountEnforcementPolicy;
-use App\Services\Moderation\Workflow\ReportReason;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
@@ -26,9 +24,9 @@ class ReportWorkflowTest extends TestCase
     use RefreshDatabase;
 
     /** actingAsUser() takes a model, so each extra reporter is made here. */
-    private function makeUser(string $email): \App\Models\User
+    private function makeUser(string $email): User
     {
-        return \App\Models\User::firstOrCreate(
+        return User::firstOrCreate(
             ['email' => $email],
             ['name' => explode('@', $email)[0], 'password' => bcrypt('x')],
         );

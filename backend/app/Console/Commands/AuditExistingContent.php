@@ -28,13 +28,13 @@ class AuditExistingContent extends Command
 
     public function handle(): int
     {
-        $engine = new TextPolicyEngine();
+        $engine = new TextPolicyEngine;
         $offenders = [];
 
         // Only what is actually visible. Content already hidden by a
         // previous run is not a finding — re-listing it would mean the
         // audit never reports clean and stops being worth running.
-        foreach (FeedPost::query()->where('workflow_status', '!=', 'rejected')->get() as $post) {
+        foreach (FeedPost::includingUnmoderated()->where('workflow_status', '!=', 'rejected')->get() as $post) {
             $verdict = $engine->evaluate((string) $post->text);
             if ($verdict->blocksPublication()) {
                 $offenders[] = ['post', $post, $verdict];

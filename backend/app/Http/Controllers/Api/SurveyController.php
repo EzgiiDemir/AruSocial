@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Api\Concerns\ApiResponds;
+use App\Http\Controllers\Api\Concerns\ModeratesContent;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\UpsertSurveyRequest;
 use App\Http\Requests\VoteSurveyRequest;
@@ -19,7 +20,7 @@ use Illuminate\Support\Str;
 // docs/EKSIKLER.md §8.
 class SurveyController extends Controller
 {
-    use ApiResponds;
+    use ApiResponds, ModeratesContent;
 
     private function toJson(Survey $s, ?int $meId = null): array
     {
@@ -75,6 +76,14 @@ class SurveyController extends Controller
 
     public function upsert(UpsertSurveyRequest $request): JsonResponse
     {
+        if ($blocked = $this->moderationBlock(
+            $this->currentUser(),
+            $this->moderationText($request->validated()),
+            'cms_survey',
+            'admin.survey.upsert',
+        )) {
+            return $blocked;
+        }
         $id = $request->input('id') ?: 'survey-'.Str::uuid();
         $question = $request->input('question');
         $options = $request->input('options', []);
@@ -116,8 +125,12 @@ class SurveyController extends Controller
     {
         $me = $this->currentUser();
         $survey = Survey::find($id);
-        if (! $survey) return $this->fail(404, 'SURVEY_NOT_FOUND', 'Survey not found.');
-        if (! $survey->active) return $this->fail(400, 'SURVEY_INACTIVE', 'This survey is no longer active.');
+        if (! $survey) {
+            return $this->fail(404, 'SURVEY_NOT_FOUND', 'Survey not found.');
+        }
+        if (! $survey->active) {
+            return $this->fail(400, 'SURVEY_INACTIVE', 'This survey is no longer active.');
+        }
 
         $optionIds = (array) $request->input('optionIds', []);
         if (! $survey->multiple_choice && count($optionIds) > 1) {

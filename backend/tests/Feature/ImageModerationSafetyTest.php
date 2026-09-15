@@ -5,10 +5,11 @@ namespace Tests\Feature;
 use App\Models\MediaItem;
 use App\Models\ModerationEvent;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use PHPUnit\Framework\Attributes\DataProvider;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 /**
@@ -254,7 +255,7 @@ class ImageModerationSafetyTest extends TestCase
         $this->scannerReturns(['normal' => 0.99, 'nsfw' => 0.01]);
 
         $this->post('/api/v1/media/mine', [
-            'file' => \Illuminate\Http\UploadedFile::fake()
+            'file' => UploadedFile::fake()
                 ->createWithContent('broken.jpg', 'MZ'.str_repeat('A', 400)),
         ], ['Accept' => 'application/json'])->assertStatus(400);
 

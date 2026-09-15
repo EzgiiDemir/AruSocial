@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Place;
 use App\Support\SchemaColumnCache;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
@@ -52,7 +53,7 @@ class LegacySchemaCompatTest extends TestCase
     public function test_checkin_feed_post_omits_workflow_status_when_column_missing(): void
     {
         $this->actingAsUser();
-        $place = \App\Models\Place::create([
+        $place = Place::create([
             'id' => 'legacy-place',
             'name' => 'Legacy Place',
             'category' => 'Studio',

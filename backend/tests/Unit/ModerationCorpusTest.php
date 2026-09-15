@@ -21,7 +21,7 @@ class ModerationCorpusTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->engine = new TextPolicyEngine();
+        $this->engine = new TextPolicyEngine;
     }
 
     /** @return list<array<string, mixed>> */

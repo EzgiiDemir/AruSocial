@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'package:arucad_campus_prototype/core/config/place_catalog.dart';
+import 'package:arucad_campus_prototype/core/config/place_tour.dart';
 import 'package:arucad_campus_prototype/core/config/poi_config.dart';
 import 'package:arucad_campus_prototype/core/config/shuttle_config.dart';
 import 'package:arucad_campus_prototype/core/l10n/app_strings.dart';
@@ -14,7 +15,9 @@ import 'package:arucad_campus_prototype/core/services/content_moderation.dart';
 import 'package:arucad_campus_prototype/core/services/directions_result.dart';
 import 'package:arucad_campus_prototype/core/services/chat_realtime_service.dart';
 import 'package:arucad_campus_prototype/core/services/location_service.dart';
+import 'package:arucad_campus_prototype/core/services/tour_launcher.dart';
 import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
+import 'package:arucad_campus_prototype/core/utils/relative_time.dart';
 import 'package:arucad_campus_prototype/features/guide/ask_arucad_bubble.dart';
 import 'package:arucad_campus_prototype/features/guide/guide_sheet.dart';
 import 'package:arucad_campus_prototype/features/home/shuttle_sheet.dart';
@@ -80,16 +83,27 @@ Future<void> showPlaceInfoSheet(
 
 // Real check-in entries come from the backend (`PlacePresence`); a place
 // with none simply shows an honest empty state instead of fabricated names.
-String _checkinEntryLabel(CampusCheckinEntry entry) {
+/// "AY · 5m ago checked in".
+///
+/// Was a Turkish sentence with its own inline elapsed-time arithmetic, so
+/// an English or Russian reader saw "AY · 5 dk önce check-in yaptı" and the
+/// minutes never moved while the sheet stayed open. The elapsed part is now
+/// [LiveTimeAgo], which is why this returns a widget rather than a string.
+Widget _checkinEntryLabel(BuildContext context, CampusCheckinEntry entry) {
+  final strings = AppLocale.of(context);
+  const style = TextStyle(fontSize: 13, color: ArucadColors.muted);
   final at = entry.checkedInAt;
-  if (at == null) return '${entry.initial} check-in yaptı';
-  final minutesAgo = DateTime.now().difference(at).inMinutes;
-  final when = minutesAgo <= 0
-      ? 'az önce'
-      : minutesAgo < 60
-          ? '$minutesAgo dk önce'
-          : '${(minutesAgo / 60).floor()} sa önce';
-  return '${entry.initial} · $when check-in yaptı';
+
+  if (at == null) {
+    return Text('${entry.initial} ${strings.t('map_checkin_by')}',
+        style: style);
+  }
+
+  return Row(mainAxisSize: MainAxisSize.min, children: [
+    Text('${entry.initial} · ', style: style),
+    LiveTimeAgo(at, style: style),
+    Text(' ${strings.t('map_checkin_by')}', style: style),
+  ]);
 }
 
 List<String> _floorPlanFor(String category) {
@@ -409,11 +423,17 @@ class _MapPreviewLegend extends StatelessWidget {
             Text(AppLocale.of(context).t('clm_zones'),
                 style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
             const SizedBox(width: 9),
-            _DensityDot(color: ArucadColors.campusGreen, label: 'Sakin'),
+            _DensityDot(
+                color: ArucadColors.campusGreen,
+                label: AppLocale.of(context).t('clm_quiet')),
             const SizedBox(width: 6),
-            _DensityDot(color: ArucadColors.yellow, label: 'Orta'),
+            _DensityDot(
+                color: ArucadColors.yellow,
+                label: AppLocale.of(context).t('clm_moderate')),
             const SizedBox(width: 6),
-            _DensityDot(color: ArucadColors.danger, label: AppLocale.of(context).t('clm_busy')),
+            _DensityDot(
+                color: ArucadColors.danger,
+                label: AppLocale.of(context).t('clm_busy')),
           ]),
         ),
       );
@@ -473,8 +493,8 @@ class _MapInfoSheetState extends State<_MapInfoSheet> {
     final now = DateTime.now();
     return SafeArea(
       child: ConstrainedBox(
-        constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height * .78),
+        constraints:
+            BoxConstraints(maxHeight: MediaQuery.of(context).size.height * .78),
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
           child: Column(
@@ -538,7 +558,9 @@ class _MapInfoSheetState extends State<_MapInfoSheet> {
 
   IconData _weatherIcon(CampusWeather weather) {
     if (weather.code == 0) {
-      return weather.isDay ? Icons.wb_sunny_outlined : Icons.nightlight_outlined;
+      return weather.isDay
+          ? Icons.wb_sunny_outlined
+          : Icons.nightlight_outlined;
     }
     if (weather.code <= 3) return Icons.cloud_outlined;
     if (weather.code <= 48) return Icons.foggy;
@@ -560,9 +582,8 @@ class _ShuttleLineRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final next = nextDeparture(route.departures, now);
-    final back = route.returns == null
-        ? null
-        : nextDeparture(route.returns!, now);
+    final back =
+        route.returns == null ? null : nextDeparture(route.returns!, now);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -571,11 +592,11 @@ class _ShuttleLineRow extends StatelessWidget {
           width: 10,
           height: 10,
           margin: const EdgeInsets.only(top: 5, right: 10),
-          decoration:
-              BoxDecoration(color: route.color, shape: BoxShape.circle),
+          decoration: BoxDecoration(color: route.color, shape: BoxShape.circle),
         ),
         Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(route.name,
                 style: const TextStyle(
                     fontWeight: FontWeight.w800, fontSize: 13.5)),
@@ -584,8 +605,7 @@ class _ShuttleLineRow extends StatelessWidget {
               back == null
                   ? 'Sıradaki ${next.label} · ${formatCountdown(next.until)}'
                   : 'Gidiş ${next.label} · Dönüş ${back.label}',
-              style: const TextStyle(
-                  color: ArucadColors.muted, fontSize: 11.5),
+              style: const TextStyle(color: ArucadColors.muted, fontSize: 11.5),
             ),
             const SizedBox(height: 2),
             Text(
@@ -661,8 +681,9 @@ class _MapControlButton extends StatelessWidget {
               const Icon(Icons.info_outline,
                   size: 16, color: ArucadColors.primary),
               const SizedBox(width: 5),
-              const Text('Harita bilgisi',
-                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
+              Text(AppLocale.of(context).t('clm_map_info'),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w800, fontSize: 12)),
               const SizedBox(width: 4),
               const Icon(Icons.expand_more,
                   size: 16, color: ArucadColors.muted),
@@ -894,8 +915,8 @@ class _PlaceInfoSheetState extends State<PlaceInfoSheet> {
                   Padding(
                     padding: EdgeInsets.only(bottom: 6),
                     child: Text(AppLocale.of(context).t('clm_no_checkins'),
-                        style: TextStyle(
-                            fontSize: 13, color: ArucadColors.muted)),
+                        style:
+                            TextStyle(fontSize: 13, color: ArucadColors.muted)),
                   )
                 else
                   for (final c in checkins)
@@ -905,10 +926,7 @@ class _PlaceInfoSheetState extends State<PlaceInfoSheet> {
                         const Icon(Icons.photo_camera_back_outlined,
                             size: 15, color: ArucadColors.muted),
                         const SizedBox(width: 6),
-                        Expanded(
-                            child: Text(_checkinEntryLabel(c),
-                                style: const TextStyle(
-                                    fontSize: 13, color: ArucadColors.muted))),
+                        Expanded(child: _checkinEntryLabel(context, c)),
                       ]),
                     ),
                 if (floors.isNotEmpty) ...[
@@ -988,7 +1006,7 @@ class _PlaceInfoSheetState extends State<PlaceInfoSheet> {
                         widget.onRequestAppointment!();
                       },
                       icon: const Icon(Icons.calendar_month_outlined),
-                      label: const Text('Ask ARUCAD\'a Sor'),
+                      label: const Text("Aicad'a Sor"),
                     ),
                   const SizedBox(height: 6),
                   Text(AppLocale.of(context).t('clm_collab_board'),
@@ -1022,7 +1040,8 @@ class _PlaceInfoSheetState extends State<PlaceInfoSheet> {
                           enabled: !_postingCollaboration,
                           decoration: InputDecoration(
                             isDense: true,
-                            hintText: AppLocale.of(context).t('clm_collab_hint'),
+                            hintText:
+                                AppLocale.of(context).t('clm_collab_hint'),
                           ),
                           onSubmitted: (_) => _postCollaboration(),
                         ),
@@ -1035,8 +1054,8 @@ class _PlaceInfoSheetState extends State<PlaceInfoSheet> {
                             ? const SizedBox(
                                 width: 16,
                                 height: 16,
-                                child: CircularProgressIndicator(
-                                    strokeWidth: 2))
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2))
                             : const Icon(Icons.send_outlined),
                       ),
                     ]),
@@ -1084,21 +1103,31 @@ class _PlaceInfoSheetState extends State<PlaceInfoSheet> {
                   ],
                 ]),
                 const SizedBox(height: 10),
-                Row(children: [
-                  if (widget.onOpenDirectory != null) ...[
-                    const SizedBox(width: 10),
+                Wrap(spacing: 10, runSpacing: 8, children: [
+                  if (widget.place != null)
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        final tour = resolvePlaceTour(widget.place!);
+                        open360Tour(
+                          context,
+                          tour.url,
+                          tourTarget: tour.target,
+                          title: widget.place!.name,
+                        );
+                      },
+                      icon: const Icon(Icons.threesixty_rounded, size: 18),
+                      label: const Text('360° Tur'),
+                    ),
+                  if (widget.onOpenDirectory != null)
                     OutlinedButton.icon(
                       onPressed: widget.onOpenDirectory,
                       icon: const Icon(Icons.apartment_outlined, size: 18),
                       label: const Text('Binalar'),
                     ),
-                  ],
-                  if (widget.onDetails != null) ...[
-                    const SizedBox(width: 10),
+                  if (widget.onDetails != null)
                     OutlinedButton(
                         onPressed: widget.onDetails,
                         child: const Text('Detay')),
-                  ],
                 ]),
               ]),
         ),
@@ -1192,8 +1221,8 @@ class _CampusMapFullScreenState extends State<CampusMapFullScreen> {
           final matches = query.trim().isEmpty
               ? _places
               : _places
-                  .where((p) =>
-                      p.name.toLowerCase().contains(query.toLowerCase()))
+                  .where(
+                      (p) => p.name.toLowerCase().contains(query.toLowerCase()))
                   .toList();
           return SafeArea(
             child: Padding(
@@ -1217,7 +1246,9 @@ class _CampusMapFullScreenState extends State<CampusMapFullScreen> {
                   ),
                   Expanded(
                     child: matches.isEmpty
-                        ? Center(child: Text(AppLocale.of(context).t('clm_no_results')))
+                        ? Center(
+                            child:
+                                Text(AppLocale.of(context).t('clm_no_results')))
                         : ListView.builder(
                             itemCount: matches.length,
                             itemBuilder: (context, i) => ListTile(

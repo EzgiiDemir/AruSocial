@@ -33,25 +33,13 @@ class CampusDirectory360Sync
             throw new RuntimeException('CAMPUS_DIRECTORY_BASE_URL must be an absolute URL.');
         }
 
-        try {
-            $response = Http::acceptJson()
-                ->withToken($apiKey)
-                ->timeout(20)
-                ->retry(2, 250, throw: false)
-                ->withOptions(['verify' => (bool) config('services.campus_directory.verify_ssl', true)])
-                ->get($baseUrl.'/api/integration/locations');
-        } catch (ConnectionException $e) {
-            throw new RuntimeException('Could not reach the ARUCAD 360 directory.', previous: $e);
-        }
-
-        if (! $response->successful()) {
-            throw new RuntimeException('ARUCAD 360 directory returned HTTP '.$response->status().'.');
-        }
-
-        $payload = $response->json();
-        if (! is_array($payload) || ! is_array($payload['rooms'] ?? null)) {
-            throw new RuntimeException('ARUCAD 360 directory response has no rooms array.');
-        }
+        // Directory owns the hierarchy; locations owns navigation/location
+        // metadata. They currently return the same catalogue, but consuming
+        // both contracts prevents a future endpoint split from silently
+        // dropping coordinates, markers or 360 scene targets.
+        $directory = $this->fetchPayload($baseUrl, 'directory', $apiKey);
+        $locations = $this->fetchPayload($baseUrl, 'locations', $apiKey);
+        $payload = $this->mergePayloads($directory, $locations);
 
         return DB::transaction(function () use ($payload, $baseUrl): array {
             $peopleByRoom = [];
@@ -65,6 +53,7 @@ class CampusDirectory360Sync
             $roomsSynced = 0;
             $roomsWithTours = 0;
             $tourByBuilding = [];
+            $syncedEntryIds = [];
             foreach ($payload['rooms'] as $room) {
                 if (! is_array($room) || ! is_string($room['id'] ?? null)) {
                     continue;
@@ -85,15 +74,15 @@ class CampusDirectory360Sync
                 $tourTarget = is_string($navigation['tourTarget'] ?? null) ? $navigation['tourTarget'] : null;
                 $occupants = array_values(array_filter($peopleByRoom[$roomId] ?? []));
                 $entryId = '360-'.$roomId;
+                $syncedEntryIds[] = $entryId;
                 $existing = DirectoryEntry::find($entryId);
 
                 DirectoryEntry::updateOrCreate(['id' => $entryId], [
                     'building' => $building,
-                    // The upstream contract currently has no floor field.
-                    // Grouping such rooms under one honest, explicit level
-                    // keeps all 131 rooms reachable in the existing UI.
-                    'floor' => is_string($room['number'] ?? null) && $room['number'] !== ''
-                        ? $room['number'] : 'Tümü',
+                    // The live API currently supplies neither floor nor room
+                    // number. Never mislabel `number` as a floor: retain the
+                    // raw number separately and expose an honest bucket.
+                    'floor' => $this->localized($room['floor'] ?? null) ?: 'Kat belirtilmemiş',
                     'room' => $roomName !== '' ? $roomName : $roomId,
                     'occupant_name' => implode(', ', $occupants),
                     'occupant_role' => $this->localized(data_get($room, 'category.name')) ?: null,
@@ -101,6 +90,25 @@ class CampusDirectory360Sync
                     'related_service_id' => $existing?->related_service_id,
                     'tour_url' => $tourUrl,
                     'tour_target' => $tourTarget,
+                    'campus_id' => data_get($room, 'campus.id'),
+                    'campus_name' => $this->localized(data_get($room, 'campus.name')) ?: null,
+                    'building_id' => data_get($room, 'building.id'),
+                    'category_id' => data_get($room, 'category.id'),
+                    'category_name' => $this->localized(data_get($room, 'category.name')) ?: null,
+                    'room_number' => is_scalar($room['number'] ?? null)
+                        ? trim((string) $room['number']) ?: null : null,
+                    'notes' => $this->localized($room['notes'] ?? null) ?: null,
+                    'splat_scene_id' => is_string($navigation['splatSceneId'] ?? null)
+                        ? $navigation['splatSceneId'] : null,
+                    'splat_scene_url' => $this->absoluteTourUrl(
+                        $navigation['splatSceneUrl'] ?? null,
+                        $baseUrl,
+                    ),
+                    'location' => is_array($room['location'] ?? null)
+                        ? $room['location'] : null,
+                    'navigation_marker' => is_array($navigation['marker'] ?? null)
+                        ? $navigation['marker'] : null,
+                    'directory_synced_at' => now(),
                 ]);
 
                 $roomsSynced++;
@@ -111,6 +119,11 @@ class CampusDirectory360Sync
                     $tourByBuilding[$this->key($building)] ??= $tourUrl;
                 }
             }
+
+            $roomsRemoved = DirectoryEntry::query()
+                ->where('id', 'like', '360-%')
+                ->when($syncedEntryIds !== [], fn ($query) => $query->whereNotIn('id', $syncedEntryIds))
+                ->delete();
 
             $placesUpdated = 0;
             foreach ($payload['buildings'] ?? [] as $building) {
@@ -127,7 +140,11 @@ class CampusDirectory360Sync
                 $tourUrl = $this->absoluteTourUrl($navigation['tourUrl'] ?? null, $baseUrl)
                     ?? ($tourByBuilding[$this->key($name)] ?? null);
                 $tourTarget = is_string($navigation['tourTarget'] ?? null) ? $navigation['tourTarget'] : null;
-                $coordinates = $this->coordinates($building['coordinates'] ?? $building['location'] ?? null);
+                $coordinates = $this->coordinates(
+                    $building['coordinates']
+                        ?? $building['location']
+                        ?? data_get($building, 'navigation.marker'),
+                );
                 $places = $this->placesForDirectoryBuilding($name);
                 if ($places === [] && $coordinates !== null) {
                     Place::create([
@@ -212,6 +229,7 @@ class CampusDirectory360Sync
                 'buildings' => count($payload['buildings'] ?? []),
                 'roomsSynced' => $roomsSynced,
                 'roomsWithTours' => $roomsWithTours,
+                'roomsRemoved' => $roomsRemoved,
                 'placesUpdated' => $placesUpdated,
                 'serviceLinksUpdated' => $serviceLinksUpdated,
                 // Source audit: coords remain null upstream; this count
@@ -219,6 +237,54 @@ class CampusDirectory360Sync
                 'coordinatesReceived' => $this->coordinatesReceived($payload),
             ];
         });
+    }
+
+    private function fetchPayload(string $baseUrl, string $endpoint, string $apiKey): array
+    {
+        try {
+            $response = Http::acceptJson()
+                ->withToken($apiKey)
+                ->timeout(20)
+                ->retry(2, 250, throw: false)
+                ->withOptions(['verify' => (bool) config('services.campus_directory.verify_ssl', true)])
+                ->get($baseUrl.'/api/integration/'.$endpoint);
+        } catch (ConnectionException $e) {
+            throw new RuntimeException("Could not reach the ARUCAD 360 {$endpoint} endpoint.", previous: $e);
+        }
+        if (! $response->successful()) {
+            throw new RuntimeException("ARUCAD 360 {$endpoint} returned HTTP {$response->status()}.");
+        }
+        $payload = $response->json();
+        if (! is_array($payload) || ! is_array($payload['rooms'] ?? null)) {
+            throw new RuntimeException("ARUCAD 360 {$endpoint} response has no rooms array.");
+        }
+
+        return $payload;
+    }
+
+    /** Merge collections by authoritative upstream id; locations wins fields. */
+    private function mergePayloads(array $directory, array $locations): array
+    {
+        $merged = $directory;
+        foreach (['campuses', 'buildings', 'categories', 'rooms', 'people'] as $collection) {
+            $byId = [];
+            foreach ($directory[$collection] ?? [] as $item) {
+                if (is_array($item) && is_scalar($item['id'] ?? null)) {
+                    $byId[(string) $item['id']] = $item;
+                }
+            }
+            foreach ($locations[$collection] ?? [] as $item) {
+                if (! is_array($item) || ! is_scalar($item['id'] ?? null)) {
+                    continue;
+                }
+                $id = (string) $item['id'];
+                $byId[$id] = array_replace_recursive($byId[$id] ?? [], $item);
+            }
+            $merged[$collection] = array_values($byId);
+        }
+        $merged['generatedAt'] = $locations['generatedAt'] ?? $directory['generatedAt'] ?? null;
+
+        return $merged;
     }
 
     private function localized(mixed $value): string
@@ -481,7 +547,9 @@ class CampusDirectory360Sync
                 return false;
             }
 
-            return $this->coordinates($item['coordinates'] ?? $item['location'] ?? null) !== null;
+            return $this->coordinates(
+                $item['coordinates'] ?? $item['location'] ?? data_get($item, 'navigation.marker'),
+            ) !== null;
         }));
     }
 }

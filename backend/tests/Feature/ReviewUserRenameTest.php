@@ -10,7 +10,7 @@ use Tests\TestCase;
 
 class ReviewUserRenameTest extends TestCase
 {
-    use RefreshDatabase, SignsInChatUsers, CreatesPlaces;
+    use CreatesPlaces, RefreshDatabase, SignsInChatUsers;
 
     public function test_renaming_the_author_updates_the_display_name_not_user_id(): void
     {

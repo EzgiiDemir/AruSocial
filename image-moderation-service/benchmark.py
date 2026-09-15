@@ -64,15 +64,18 @@ def distribution(scores: list[float]) -> str:
     for value in scores:
         if value < 0.10:
             buckets[0] += 1
-        elif value < 0.35:
+        elif value < 0.20:
             buckets[1] += 1
-        elif value < 0.60:
+        elif value < 0.50:
             buckets[2] += 1
         elif value < 0.85:
             buckets[3] += 1
         else:
             buckets[4] += 1
-    labels = ["<0.10", "0.10-0.35", "0.35-0.60", "0.60-0.85", ">=0.85"]
+    # Boundaries straddle the deployed thresholds, so the shape of each
+    # population can be read against the lines that actually decide:
+    # below 0.20 publishes, 0.20-0.50 is held, 0.50 and up is blocked.
+    labels = ["<0.10", "0.10-0.20", "0.20-0.50", "0.50-0.85", ">=0.85"]
     return "  ".join(f"{l}:{c}" for l, c in zip(labels, buckets))
 
 
@@ -85,8 +88,16 @@ def main() -> int:
     # creates a second copy of it on disk for no benefit.
     parser.add_argument("--manifest", default="",
                         help="JSON: {'safe': [paths], 'unsafe': [paths]}")
-    parser.add_argument("--review", type=float, default=0.35)
-    parser.add_argument("--block", type=float, default=0.85)
+    # Defaults track the DEPLOYED policy in backend/config/moderation.php.
+    # They used to be the pre-calibration 0.35/0.85, which quietly made
+    # this script measure a policy nothing runs: against the real 0.20/0.50
+    # every unsafe file is blocked, but the report claimed 8 of them were
+    # merely "held". A benchmark that scores a different policy than
+    # production is worse than no benchmark, because it produces confident
+    # numbers about the wrong system. Change these only together with the
+    # config, and say so in MODERATION_COVERAGE.md.
+    parser.add_argument("--review", type=float, default=0.20)
+    parser.add_argument("--block", type=float, default=0.50)
     parser.add_argument("--json", default="")
     parser.add_argument("--worst", type=int, default=8,
                         help="how many worst offenders to name per label")

@@ -16,6 +16,7 @@ import '../models/content_block.dart';
 import '../models/content_revision.dart';
 import '../models/media_item.dart';
 import '../models/moderation_appeal.dart';
+import '../models/moderation_case.dart';
 import '../models/event_participant.dart';
 import '../models/inbox_notification.dart';
 import '../models/email_log.dart';
@@ -326,6 +327,45 @@ abstract class CampusRepository {
   Future<PageSlice<MediaItem>> getModerationQueue(
       {int page = 1, int perPage = 20});
   Future<void> resolveModerationQueueItem(String id, {required String action});
+
+  // --- Moderator case review -------------------------------------------
+  //
+  // Cases are the queue a human actually works: content held because a
+  // classifier was unsure, or reported by a student. The endpoints have
+  // existed and been verified end to end for a while; nothing in the app
+  // could open one, which makes "held for review" indistinguishable from
+  // quietly deleted.
+
+  /// Open cases first, highest severity first.
+  Future<List<ModerationCase>> getModerationCases({String status = 'open'});
+
+  /// One case with its reports, model signals and the author's history.
+  Future<ModerationCaseDetail> getModerationCase(String id);
+
+  /// Record a decision.
+  ///
+  /// [contentDecision] is one of approve/remove/hold/escalate and
+  /// [accountAction] one of none/warn/restrict/suspend. They are separate
+  /// arguments because they are separate decisions: removing a post is
+  /// not a judgement about the person who wrote it, and merging them is
+  /// how a first mistake turns into a suspension.
+  Future<void> decideModerationCase(
+    String id, {
+    required String contentDecision,
+    String accountAction = 'none',
+    String note = '',
+  });
+
+  /// Appeals waiting on a second look.
+  Future<List<ModerationAppealReview>> getModerationAppeals(
+      {String status = 'open'});
+
+  /// [outcome] is `uphold` or `overturn`.
+  Future<void> decideModerationAppeal(
+    String id, {
+    required String outcome,
+    String note = '',
+  });
   Future<PageSlice<FeedPost>> getPendingPosts({int page = 1, int perPage = 20});
   Future<void> approvePendingPost(String id);
   Future<void> rejectPendingPost(String id, {String? reviewNote});
@@ -562,6 +602,7 @@ abstract class CampusRepository {
     required double fromLng,
     required double toLat,
     required double toLng,
+    TravelMode mode = TravelMode.walking,
   });
 
   Future<List<AdminPage>> getPages();

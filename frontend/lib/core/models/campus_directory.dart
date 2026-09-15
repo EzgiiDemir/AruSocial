@@ -50,6 +50,11 @@ class CampusRoom {
   final String? relatedServiceId;
   final String? tourUrl;
   final String? tourTarget;
+  final String? campusName;
+  final String? categoryName;
+  final String? roomNumber;
+  final String? notes;
+  final String? splatSceneUrl;
 
   const CampusRoom({
     required this.id,
@@ -61,6 +66,11 @@ class CampusRoom {
     this.relatedServiceId,
     this.tourUrl,
     this.tourTarget,
+    this.campusName,
+    this.categoryName,
+    this.roomNumber,
+    this.notes,
+    this.splatSceneUrl,
   });
 
   factory CampusRoom.fromJson(Map<String, dynamic> json) => CampusRoom(
@@ -73,6 +83,11 @@ class CampusRoom {
         relatedServiceId: json['relatedServiceId'] as String?,
         tourUrl: json['tourUrl'] as String?,
         tourTarget: json['tourTarget'] as String?,
+        campusName: json['campusName'] as String?,
+        categoryName: json['categoryName'] as String?,
+        roomNumber: json['roomNumber'] as String?,
+        notes: json['notes'] as String?,
+        splatSceneUrl: json['splatSceneUrl'] as String?,
       );
 
   String get title {

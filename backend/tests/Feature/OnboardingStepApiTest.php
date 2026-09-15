@@ -64,7 +64,7 @@ class OnboardingStepApiTest extends TestCase
         $this->assertSame('clubs', $updated['refId']);
 
         $this->postJson('/api/v1/admin/onboarding-steps/week5-extra/delete')->assertOk();
-        $this->assertDatabaseMissing('onboarding_steps', ['id' => 'week5-extra']);
+        $this->assertSoftDeleted('onboarding_steps', ['id' => 'week5-extra']);
     }
 
     public function test_step_write_requires_onboarding_manage_permission(): void

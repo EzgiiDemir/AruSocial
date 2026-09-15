@@ -8,21 +8,28 @@ use App\Models\ModerationEvent;
 use App\Models\User;
 use App\Services\Moderation\ModerationExemption;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 /**
- * The pipeline scans student content. It does not scan staff content.
+ * Staff are exempt where they publish *as the university*, and nowhere
+ * else.
  *
- * An announcement written by the university is institutional
- * communication, and holding it behind a classifier means ARUCAD cannot
- * reliably publish its own notices. The exemption is decided from the
- * server-side role assignment and nowhere else.
+ * An announcement written by ARUCAD is institutional communication, and
+ * holding it behind a classifier means the university cannot reliably
+ * publish its own notices. A member of staff writing a personal feed post
+ * or story is not doing that — they are posting as themselves, and are
+ * scanned like anyone else.
  *
- * What it deliberately does *not* exempt: bans, structural validation,
- * and accountability. Those are tested here too, because an exemption
- * that quietly widened into any of them would be the dangerous kind.
+ * The first version of this rule exempted staff on every surface, which
+ * meant hate speech published from the accounts university staff use
+ * daily. It was reported as "moderation has broken"; it was this. The
+ * split below is what that report cost, so it is tested from both sides:
+ * the institutional surface must stay exempt, and every social surface
+ * must not.
  */
 class StaffModerationExemptionTest extends TestCase
 {
@@ -40,7 +47,7 @@ class StaffModerationExemptionTest extends TestCase
             'moderation.image.base_url' => 'http://image-moderation.test',
             'moderation.image.thresholds' => ['nsfw' => ['review' => 0.20, 'block' => 0.50]],
         ]);
-        // If any staff upload were scanned, this would block it.
+        // Answers "unsafe" for anything actually scanned.
         Http::fake(['image-moderation.test/*' => Http::response([
             'success' => true, 'model' => 'm', 'model_version' => 'v',
             'scores' => ['nsfw' => 0.99, 'normal' => 0.01], 'latency_ms' => 5,
@@ -61,34 +68,78 @@ class StaffModerationExemptionTest extends TestCase
         ];
     }
 
-    #[\PHPUnit\Framework\Attributes\DataProvider('staffRoles')]
-    public function test_staff_text_is_not_scanned(string $role): void
+    // ---- personal surfaces: staff are scanned ----------------------
+
+    #[DataProvider('staffRoles')]
+    public function test_staff_personal_posts_are_scanned(string $role): void
     {
         $this->actingAsRole($role);
 
-        // Text the deterministic engine would certainly refuse from a
-        // student — quoted in an announcement about campus rules, say.
-        $this->postJson('/api/v1/feed', [
-            'text' => 'lanet zenci defol buradan',
-        ])->assertOk("{$role} was moderated");
+        $this->postJson('/api/v1/feed', ['text' => 'lanet zenci defol buradan'])
+            ->assertStatus(400)
+            ->assertJsonPath('error.code', 'CONTENT_BLOCKED');
 
-        $this->assertSame(1, FeedPost::includingUnmoderated()->count());
+        $this->assertSame(0, FeedPost::includingUnmoderated()->count(),
+            "{$role} bypassed moderation on a personal post");
     }
 
-    #[\PHPUnit\Framework\Attributes\DataProvider('staffRoles')]
-    public function test_staff_images_are_not_scanned(string $role): void
+    #[DataProvider('staffRoles')]
+    public function test_staff_personal_uploads_are_scanned(string $role): void
     {
         Storage::fake('local');
         $this->actingAsRole($role);
 
-        $created = $this->post('/api/v1/media/mine', [
-            'file' => $this->fakeJpeg('duyuru.jpg'),
+        $this->post('/api/v1/media/mine', [
+            'file' => $this->fakeJpeg('kisisel.jpg'),
+        ], ['Accept' => 'application/json'])
+            ->assertStatus(400);
+
+        $this->assertGreaterThan(0, count(Http::recorded()),
+            "{$role} bypassed the classifier on a personal upload");
+        $this->assertSame(0, MediaItem::count());
+    }
+
+    public function test_staff_stories_are_scanned(): void
+    {
+        $this->actingAsRole('trainer');
+
+        $this->postJson('/api/v1/stories', ['text' => 'lanet zenci defol'])
+            ->assertStatus(400)
+            ->assertJsonPath('error.code', 'CONTENT_BLOCKED');
+    }
+
+    // ---- institutional surfaces: staff are exempt ------------------
+
+    /**
+     * The shared media library is institutional. `$adminLibrary` comes
+     * from the route, never the request body, so a personal upload cannot
+     * claim to be a library one.
+     */
+    public function test_staff_library_uploads_are_exempt(): void
+    {
+        Storage::fake('local');
+        $this->actingAsRole('contentEditor');
+
+        $created = $this->post('/api/v1/media', [
+            'file' => $this->fakeJpeg('duyuru-gorseli.jpg'),
         ], ['Accept' => 'application/json'])->assertCreated()->json('data');
 
-        $this->assertSame('approved', $created['moderationStatus'],
-            "{$role} upload was held despite the exemption");
+        $this->assertSame('approved', $created['moderationStatus']);
         $this->assertSame(0, count(Http::recorded()),
-            "{$role} upload was sent to the classifier");
+            'A library upload was sent to the classifier.');
+    }
+
+    public function test_a_student_cannot_reach_the_library_route(): void
+    {
+        Storage::fake('local');
+        $this->actingAsUser();
+
+        // The exemption is scoped by surface, but the surface itself is
+        // still behind a permission — otherwise "post to the library"
+        // would be a bypass anyone could use.
+        $this->post('/api/v1/media', [
+            'file' => $this->fakeJpeg('deneme.jpg'),
+        ], ['Accept' => 'application/json'])->assertStatus(403);
     }
 
     // ---- what the exemption must NOT cover -------------------------
@@ -114,14 +165,14 @@ class StaffModerationExemptionTest extends TestCase
         $this->postJson('/api/v1/feed', ['text' => 'duyuru'])->assertStatus(403);
     }
 
-    /** A corrupt or enormous file is a problem whoever sent it. */
-    public function test_staff_uploads_still_pass_structural_validation(): void
+    /** A corrupt file is a problem whoever sent it. */
+    public function test_staff_library_uploads_still_pass_structural_validation(): void
     {
         Storage::fake('local');
         $this->actingAsRole('contentEditor');
 
-        $this->post('/api/v1/media/mine', [
-            'file' => \Illuminate\Http\UploadedFile::fake()
+        $this->post('/api/v1/media', [
+            'file' => UploadedFile::fake()
                 ->createWithContent('broken.jpg', 'MZ'.str_repeat('A', 400)),
         ], ['Accept' => 'application/json'])->assertStatus(400);
 
@@ -136,11 +187,20 @@ class StaffModerationExemptionTest extends TestCase
     {
         $staff = $this->actingAsRole('contentEditor');
 
-        $this->postJson('/api/v1/feed', ['text' => 'kampus duyurusu'])->assertOk();
+        $this->postJson('/api/v1/admin/places', [
+            'id' => 'place-duyuru',
+            'name' => 'Yeni Atolye',
+            'category' => 'Akademik',
+            'lat' => 35.33,
+            'lng' => 33.32,
+        ])->assertSuccessful();
 
-        $event = ModerationEvent::where('user_id', (string) $staff->id)->latest('created_at')->first();
+        $event = ModerationEvent::where('user_id', (string) $staff->id)
+            ->where('decided_by', 'exempt')
+            ->latest('created_at')
+            ->first();
+
         $this->assertNotNull($event, 'An exempt publication left no trace.');
-        $this->assertSame('exempt', $event->decided_by);
         $this->assertStringContainsString('contentEditor', (string) $event->excerpt);
     }
 
@@ -153,11 +213,28 @@ class StaffModerationExemptionTest extends TestCase
             ['name' => 'Ogrenci', 'password' => bcrypt('x')],
         );
 
-        $this->assertTrue(ModerationExemption::appliesTo($student),
-            'A student must be moderated.');
-        $this->assertTrue(ModerationExemption::appliesTo(null),
+        $this->assertTrue(ModerationExemption::appliesTo($student, 'admin.place.upsert'),
+            'A student must be moderated even on an institutional surface.');
+        $this->assertTrue(ModerationExemption::appliesTo(null, 'admin.place.upsert'),
             'An unattributed submission must be moderated.');
-        $this->assertFalse(ModerationExemption::appliesTo($this->actingAsRole('trainer')));
+
+        $trainer = $this->actingAsRole('trainer');
+        $this->assertFalse(ModerationExemption::appliesTo($trainer, 'admin.place.upsert'));
+        $this->assertTrue(ModerationExemption::appliesTo($trainer, 'feed.store'),
+            'Staff must be moderated on personal surfaces.');
+        $this->assertTrue(ModerationExemption::appliesTo($trainer, 'story.store'));
+    }
+
+    /**
+     * An unknown surface counts as personal. Defaulting to exempt is how
+     * a caller that forgot to pass one would open a hole in silence.
+     */
+    public function test_an_unknown_surface_is_moderated(): void
+    {
+        $trainer = $this->actingAsRole('trainer');
+
+        $this->assertTrue(ModerationExemption::appliesTo($trainer, ''));
+        $this->assertTrue(ModerationExemption::appliesTo($trainer, 'some.new.feature'));
     }
 
     /**
@@ -172,7 +249,6 @@ class StaffModerationExemptionTest extends TestCase
             ['name' => 'Yeni', 'password' => bcrypt('x')],
         );
 
-        // No role assignment row at all resolves to `student`.
-        $this->assertTrue(ModerationExemption::appliesTo($user));
+        $this->assertTrue(ModerationExemption::appliesTo($user, 'admin.place.upsert'));
     }
 }

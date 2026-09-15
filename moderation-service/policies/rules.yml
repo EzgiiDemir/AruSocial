@@ -1,0 +1,22 @@
+# High-precision fallback only. Contextual and semantic decisions belong to
+# Qwen3Guard; these exact phrases exist so an obvious violation is still
+# stopped when optional enrichments are unavailable.
+block_phrases:
+  - phrase: "kampüse bomba koyacağım"
+    category: "credible_threat"
+    severity: "critical"
+  - phrase: "çıplak fotoğraflarını yayarım"
+    category: "sextortion"
+    severity: "critical"
+  - phrase: "öğrenci portalı şifreni bana yolla"
+    category: "credential_theft"
+    severity: "critical"
+  - phrase: "sınav soruları elimde, isteyene satıyorum"
+    category: "academic_cheating"
+    severity: "high"
+  - phrase: "i will kill you tomorrow on campus"
+    category: "credible_threat"
+    severity: "critical"
+  - phrase: "я убью тебя завтра в кампусе"
+    category: "credible_threat"
+    severity: "critical"

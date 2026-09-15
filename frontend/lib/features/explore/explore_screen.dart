@@ -5,10 +5,13 @@ import 'package:flutter/material.dart';
 import 'package:arucad_campus_prototype/core/config/campus_life_config.dart';
 import 'package:arucad_campus_prototype/core/config/place_catalog.dart';
 import 'package:arucad_campus_prototype/core/l10n/app_strings.dart';
+import 'package:arucad_campus_prototype/core/models/academic_year.dart';
 import 'package:arucad_campus_prototype/core/models/campus_models.dart';
 import 'package:arucad_campus_prototype/core/services/contracts.dart';
 import 'package:arucad_campus_prototype/core/services/chat_realtime_service.dart';
 import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
+import 'package:arucad_campus_prototype/features/widgets/campus_widgets.dart';
+import 'package:arucad_campus_prototype/features/home/create_own_activity_screen.dart';
 import 'package:arucad_campus_prototype/features/explore/explore_calendar_models.dart';
 import 'package:arucad_campus_prototype/features/explore/explore_calendar_screen.dart';
 import 'package:arucad_campus_prototype/features/explore/explore_category_card.dart';
@@ -16,7 +19,6 @@ import 'package:arucad_campus_prototype/features/explore/explore_clubs_screen.da
 import 'package:arucad_campus_prototype/features/explore/explore_events_screen.dart';
 import 'package:arucad_campus_prototype/features/explore/explore_food_screen.dart';
 import 'package:arucad_campus_prototype/features/explore/explore_places_screen.dart';
-import 'package:arucad_campus_prototype/features/explore/popular_places_screen.dart';
 import 'package:arucad_campus_prototype/features/explore/explore_sports_screen.dart';
 import 'package:arucad_campus_prototype/features/home/campus_live_map.dart';
 import 'package:arucad_campus_prototype/features/services/career_hub_screen.dart';
@@ -68,6 +70,33 @@ class _ExploreScreenState extends State<ExploreScreen> {
   bool _refreshing = false;
   final _searchC = TextEditingController();
   String _query = '';
+  int _visibleEvents = kPageSize;
+  List<AcademicYear> _academicYears = const [];
+  String? _selectedYearId;
+
+  /// Forward-looking, and undated events stay in so seeded content is not
+  /// silently dropped — the same rule Home used when this list lived there.
+  List<CampusEvent> get _upcomingEvents {
+    final now = DateTime.now();
+    final start = DateTime(now.year, now.month, now.day);
+    final upcoming = _events.where((e) {
+      final date = e.eventDate;
+      if (date == null) return true;
+
+      return !date.isBefore(start);
+    }).toList();
+    upcoming.sort((a, b) {
+      final ad = a.eventDate;
+      final bd = b.eventDate;
+      if (ad == null && bd == null) return 0;
+      if (ad == null) return 1;
+      if (bd == null) return -1;
+
+      return ad.compareTo(bd);
+    });
+
+    return upcoming.isNotEmpty ? upcoming : _events;
+  }
 
   /// Matches across everything the hub can open, so one box answers
   /// "where is X" whether X is a building, an event, a club or a team.
@@ -176,6 +205,19 @@ class _ExploreScreenState extends State<ExploreScreen> {
     _load();
   }
 
+  /// Refetches only the events; the rest of the hub does not depend on the
+  /// selected year, so a full `_load()` would flicker every other section.
+  Future<void> _changeYear(String? yearId) async {
+    setState(() {
+      _selectedYearId = yearId;
+      _visibleEvents = kPageSize;
+    });
+    try {
+      final events = await widget.repository.getEvents(academicYearId: yearId);
+      if (mounted) setState(() => _events = events);
+    } catch (_) {}
+  }
+
   Future<void> _load() async {
     Future<T> one<T>(Future<T> future, T fallback) async {
       try {
@@ -187,8 +229,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
     final places =
         await one(widget.repository.getPlaces(), const <CampusPlace>[]);
-    final events =
-        await one(widget.repository.getEvents(), const <CampusEvent>[]);
+    final events = await one(
+        widget.repository.getEvents(academicYearId: _selectedYearId),
+        const <CampusEvent>[]);
+    final years = await one(
+        widget.repository.getAcademicYears(), const <AcademicYear>[]);
     final clubs = await one(widget.repository.getClubs(), const <CampusClub>[]);
     final sports =
         await one(widget.repository.getSports(), const <CampusSport>[]);
@@ -205,6 +250,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
     setState(() {
       _places = places;
       _events = events;
+      _academicYears = years;
       _clubs = clubs;
       _sports = sports;
       _placesCount = places.length;
@@ -216,29 +262,6 @@ class _ExploreScreenState extends State<ExploreScreen> {
       _loading = false;
     });
     if (me != null) unawaited(_startRealtime(me));
-  }
-
-  bool _isToday(DateTime date) {
-    final now = DateTime.now();
-    return date.year == now.year &&
-        date.month == now.month &&
-        date.day == now.day;
-  }
-
-  int get _todayEventsCount => _events
-      .where((e) => e.eventDate != null && _isToday(e.eventDate!))
-      .length;
-
-  /// Most popular place by persistent all-time public check-ins.
-  CampusPlace? get _mostPopularPlace {
-    CampusPlace? best;
-    for (final place in _places) {
-      if (place.totalCheckins <= 0) continue;
-      if (best == null || place.totalCheckins > best.totalCheckins) {
-        best = place;
-      }
-    }
-    return best;
   }
 
   Future<void> _startRealtime(CampusUser me) async {
@@ -319,36 +342,28 @@ class _ExploreScreenState extends State<ExploreScreen> {
     final strings = AppLocale.of(context);
     Color accentAt(int i) => _hubAccents[i % _hubAccents.length];
 
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 760),
-        child: RefreshIndicator(
-          onRefresh: _load,
-          child: CustomScrollView(
+    return Column(
+      children: [
+        CampusPageHeader(
+          title: strings.t('nav_explore'),
+          actions: [
+            IconButton(
+              tooltip: strings.t('social_notifications'),
+              icon: const Icon(Icons.notifications_none_rounded),
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => NotificationsScreen(
+                      repository: widget.repository))),
+            ),
+          ],
+        ),
+        Expanded(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 760),
+              child: RefreshIndicator(
+                onRefresh: _load,
+                child: CustomScrollView(
             slivers: [
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 8, 4),
-                  child: Row(children: [
-                    Expanded(
-                      child: Text(strings.t('explore_title'),
-                          style: Theme.of(context)
-                              .textTheme
-                              .headlineSmall
-                              ?.copyWith(fontWeight: FontWeight.w900)),
-                    ),
-                    IconButton(
-                      tooltip: strings.t('social_notifications'),
-                      icon: const Icon(Icons.notifications_none_rounded),
-                      onPressed: () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                              builder: (_) => NotificationsScreen(
-                                  repository: widget.repository))),
-                    ),
-                  ]),
-                ),
-              ),
-
               // Search is a bar, not an icon that opens a sheet. Someone
               // looking for a room does not first have to discover that the
               // magnifier is where searching lives, and results appear under
@@ -509,121 +524,128 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     ]),
                   ),
                 ),
+                // Upcoming events, moved here from Home. Explore is where
+                // someone goes looking for something to do, so the list of
+                // what is actually on belongs on this page rather than in
+                // the middle of a timeline.
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
                   sliver: SliverToBoxAdapter(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(strings.t('explore_recommended'),
-                            style: const TextStyle(
-                                fontWeight: FontWeight.w900, fontSize: 15)),
-                        const SizedBox(height: 10),
-                        _RecommendationTile(
-                          icon: Icons.event_available_rounded,
-                          accent: ArucadColors.blue,
-                          title: strings.t('explore_recommend_today_events'),
-                          subtitle: _todayEventsCount > 0
-                              ? '$_todayEventsCount ${strings.t('explore_recommend_today_events_suffix')}'
-                              : strings
-                                  .t('explore_recommend_today_events_empty'),
-                          onTap: () => _openCalendar(),
+                        Row(children: [
+                          Expanded(
+                            child: Text(strings.t('home_today_events'),
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w900, fontSize: 15)),
+                          ),
+                          TextButton(
+                            onPressed: _openEvents,
+                            child: Text(strings.t('home_all')),
+                          ),
+                        ]),
+                        const SizedBox(height: 6),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: () async {
+                              final created =
+                                  await Navigator.of(context).push<bool>(
+                                MaterialPageRoute(
+                                  builder: (_) => CreateOwnActivityScreen(
+                                      repository: widget.repository),
+                                ),
+                              );
+                              if (created == true) _load();
+                            },
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor:
+                                  Theme.of(context).colorScheme.onSurface,
+                              side: BorderSide(
+                                  color:
+                                      Theme.of(context).colorScheme.onSurface,
+                                  width: 1.2),
+                              shape: const StadiumBorder(),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                            icon:
+                                const Icon(Icons.add_circle_outline, size: 18),
+                            label: Text(strings.t('home_create_activity')),
+                          ),
                         ),
-                        const SizedBox(height: 10),
-                        Builder(builder: (context) {
-                          final popular = _mostPopularPlace;
-                          return _RecommendationTile(
-                            icon: Icons.local_fire_department_rounded,
-                            accent: ArucadColors.campusGreen,
-                            title:
-                                strings.t('explore_recommend_popular_places'),
-                            subtitle: popular == null
-                                ? strings
-                                    .t('explore_recommend_popular_places_empty')
-                                : '${popular.name} · ${popular.totalCheckins} ${strings.t('explore_recommend_popular_suffix')}',
-                            onTap: () => Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => PopularPlacesScreen(
+                        if (_academicYears.length > 1) ...[
+                          const SizedBox(height: ArucadSpacing.sm),
+                          SizedBox(
+                            height: 34,
+                            child: ListView(
+                              scrollDirection: Axis.horizontal,
+                              children: [
+                                SelectableChip(
+                                  label: strings.t('home_all_years'),
+                                  selected: _selectedYearId == null,
+                                  onSelected: (_) => _changeYear(null),
+                                ),
+                                const SizedBox(width: 6),
+                                for (final year in _academicYears) ...[
+                                  SelectableChip(
+                                    label: year.label,
+                                    selected: _selectedYearId == year.id,
+                                    onSelected: (_) => _changeYear(year.id),
+                                  ),
+                                  const SizedBox(width: 6),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 12),
+                        if (_upcomingEvents.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 24),
+                            child: Center(
+                              child: Text(strings.t('home_no_events'),
+                                  style: const TextStyle(
+                                      color: ArucadColors.muted)),
+                            ),
+                          )
+                        else ...[
+                          for (int i = 0;
+                              i <
+                                  _visibleEvents.clamp(
+                                      0, _upcomingEvents.length);
+                              i++)
+                            Padding(
+                              padding: EdgeInsets.only(top: i == 0 ? 0 : 10),
+                              child: EventCard(
+                                  event: _upcomingEvents[i],
+                                  accentColor: brandAccentAt(i),
                                   repository: widget.repository,
                                   mapProvider: widget.mapProvider,
-                                  analyticsTracker: widget.analyticsTracker,
-                                ),
-                              ),
+                                  analyticsTracker: widget.analyticsTracker),
                             ),
-                          );
-                        }),
+                          LoadMoreButton(
+                            shown:
+                                _visibleEvents.clamp(0, _upcomingEvents.length),
+                            total: _upcomingEvents.length,
+                            itemLabel: strings.t('home_event_item'),
+                            showCompleteLabel: false,
+                            onTap: () =>
+                                setState(() => _visibleEvents += kPageSize),
+                          ),
+                        ],
                       ],
                     ),
                   ),
                 ),
               ],
             ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Searches everything the Explore hub already has in memory. No network
-/// call: the hub loads places, events, clubs and sports on entry, so typing
-/// filters instantly instead of waiting on a round trip per keystroke.
-
-class _RecommendationTile extends StatelessWidget {
-  final IconData icon;
-  final Color accent;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-
-  const _RecommendationTile({
-    required this.icon,
-    required this.accent,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: ArucadColors.paper,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          child: Row(children: [
-            Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                  color: accent.withValues(alpha: .12),
-                  borderRadius: BorderRadius.circular(12)),
-              child: Icon(icon, color: accent, size: 20),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w800, fontSize: 13.5)),
-                  const SizedBox(height: 2),
-                  Text(subtitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          color: ArucadColors.muted, fontSize: 11.5)),
-                ],
+                ),
               ),
             ),
-            const Icon(Icons.chevron_right, color: ArucadColors.muted),
-          ]),
+          ),
         ),
-      ),
+      ],
     );
   }
 }

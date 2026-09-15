@@ -1,7 +1,12 @@
 *.log
 .DS_Store
 .env
-.env.backup
+# `.env.backup` alone did not cover `.env.backup-pre-pgsql`, and a copy of
+# .env carries every live secret — the OpenAI key, the directory API key,
+# the database password. Any suffix, not one filename.
+.env.backup*
+.env.bak*
+.env.local
 .env.production
 .phpactor.json
 .phpunit.result.cache
@@ -15,8 +20,11 @@
 /auth.json
 /node_modules
 /public/build
+/public/css/filament
 /public/fonts-manifest.dev.json
+/public/fonts/filament
 /public/hot
+/public/js/filament
 /public/storage
 /storage/*.key
 /storage/pail

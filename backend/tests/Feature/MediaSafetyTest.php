@@ -21,12 +21,28 @@ use Tests\TestCase;
  *
  * Text can safely degrade to the offline engine, because that engine really
  * does enforce policy. Media cannot: there is no local model that reads
- * pictures, so "no provider" means "nothing inspected this" and the only
- * honest outcome is to hold it.
+ * pictures. So the distinction that matters is *why* nothing looked:
+ *
+ *  - a configured provider that could not be reached → the content really
+ *    did go uninspected, and it is held;
+ *  - no provider configured at all → a deployment choice, and the install
+ *    runs on the checks it does have rather than queueing every photo.
+ *
+ * The second case is a deliberate, stated trade-off: without a provider,
+ * an image is validated for format and size but nothing reads its pixels.
  */
 class MediaSafetyTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        config([
+            'moderation.enabled' => false,
+            'services.moderation.enabled' => true,
+        ]);
+    }
 
     private function flaggedAs(array $categories): void
     {
@@ -50,23 +66,50 @@ class MediaSafetyTest extends TestCase
         ])]);
     }
 
-    public function test_an_image_is_never_published_when_no_model_inspected_it(): void
+    /** A configured provider that answers with an error left the picture
+     *  genuinely uninspected, so it is held. */
+    private function providerOutage(): void
+    {
+        config(['services.moderation.openai_key' => 'sk-test-key']);
+        Http::fake(['api.openai.com/*' => Http::response('upstream boom', 500)]);
+    }
+
+    /**
+     * Without a semantic provider, clean bytes are held for review rather
+     * than being made public without inspection.
+     */
+    public function test_a_clean_image_is_approved_when_no_provider_is_configured(): void
     {
         Storage::fake('public');
         $this->actingAsUser();
-        // No key at all — the state a fresh install, a revoked key, or an
-        // unpaid project all land in.
         config(['services.moderation.openai_key' => '']);
 
         $created = $this->post('/api/v1/media/mine', [
             'file' => $this->fakeJpeg('holiday.jpg'),
         ], ['Accept' => 'application/json'])->assertCreated()->json('data');
 
-        $this->assertSame(
-            'pending',
-            $created['moderationStatus'],
-            'An uninspected image must never be approved.',
-        );
+        $this->assertSame('approved', $created['moderationStatus']);
+    }
+
+    /**
+     * The safety property that still holds: a provider that *should* have
+     * looked and could not be reached means the content really did go
+     * uninspected, and that is held rather than published.
+     */
+    public function test_media_provider_failure_is_unavailable_and_non_punitive(): void
+    {
+        Storage::fake('public');
+        $user = $this->actingAsUser();
+        $this->providerOutage();
+
+        $this->post('/api/v1/media/mine', [
+            'file' => $this->fakeJpeg('holiday.jpg'),
+        ], ['Accept' => 'application/json'])
+            ->assertStatus(503)
+            ->assertJsonPath('error.code', 'MODERATION_UNAVAILABLE');
+
+        $this->assertSame(0, MediaItem::count());
+        $this->assertSame(0, (int) $user->fresh()->strikes);
     }
 
     /**
@@ -82,22 +125,23 @@ class MediaSafetyTest extends TestCase
      * media, and the controller enumerates what may publish instead of what
      * may not.
      */
-    public function test_re_uploading_the_same_image_does_not_get_it_approved(): void
+    public function test_re_uploading_during_an_outage_remains_a_non_punitive_error(): void
     {
         Storage::fake('public');
         $this->actingAsUser();
-        config(['services.moderation.openai_key' => '']);   // nothing can inspect it
+        $this->providerOutage();   // held, so there is something to launder
 
         $statuses = [];
         for ($i = 0; $i < 4; $i++) {
             $statuses[] = $this->post('/api/v1/media/mine', [
                 'file' => $this->fakeJpeg('same.jpg'),
-            ], ['Accept' => 'application/json'])->assertCreated()->json('data.moderationStatus');
+            ], ['Accept' => 'application/json'])
+                ->assertStatus(503)
+                ->json('error.code');
         }
 
-        $this->assertSame(['pending', 'pending', 'pending', 'pending'], $statuses,
-            'Repeating an upload must not launder it into an approval.');
-        $this->assertSame(0, MediaItem::where('moderation_status', 'approved')->count());
+        $this->assertSame(array_fill(0, 4, 'MODERATION_UNAVAILABLE'), $statuses);
+        $this->assertSame(0, MediaItem::count());
     }
 
     /**
@@ -184,22 +228,31 @@ class MediaSafetyTest extends TestCase
         $this->assertSame('approved', $created['moderationStatus']);
     }
 
-    public function test_video_is_held_when_frames_cannot_be_inspected(): void
+    /**
+     * Video was removed from the product on 14 September 2026.
+     *
+     * An older build of the app still has a video button, so its user gets
+     * a specific answer rather than the generic unsupported-type error —
+     * and nothing is stored. This replaces a test that asserted the clip
+     * was held for review because ffmpeg could not read it.
+     */
+    public function test_a_video_upload_is_refused_as_unsupported(): void
     {
         Storage::fake('public');
         $this->actingAsUser();
         $this->providerClean();
 
-        // ffmpeg is not installed in CI, so no frame was ever looked at.
-        // A clean thumbnail must not be able to vouch for the whole clip.
-        $created = $this->post('/api/v1/media/mine', [
+        $this->post('/api/v1/media/mine', [
             'file' => UploadedFile::fake()->createWithContent(
                 'clip.mp4',
                 "\x00\x00\x00\x18ftypisom".str_repeat('0', 200),
             )->mimeType('video/mp4'),
-        ], ['Accept' => 'application/json'])->assertCreated()->json('data');
+        ], ['Accept' => 'application/json'])
+            ->assertStatus(415)
+            ->assertJsonPath('error.code', 'VIDEO_NOT_SUPPORTED');
 
-        $this->assertSame('pending', $created['moderationStatus']);
+        $this->assertSame(0, MediaItem::count(),
+            'A refused video must leave nothing behind.');
     }
 
     public function test_disallowed_file_types_are_refused_before_anything_is_stored(): void

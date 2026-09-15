@@ -415,7 +415,17 @@ void main() {
       await tester.tapAt(const Offset(8, 8));
       await tester.pump(const Duration(milliseconds: 300));
     }
-    await tester.ensureVisible(find.text('Haritayı Aç'));
+    // Personalised/social sections intentionally precede the large map on
+    // phones, so the lazily-built map header may not exist in the first
+    // viewport yet. Scroll the Home list until it is materialised.
+    for (var i = 0;
+        i < 6 && find.text('Haritayı Aç').evaluate().isEmpty;
+        i++) {
+      await tester.drag(
+          find.byType(ListView).first, const Offset(0, -420));
+      await tester.pump();
+    }
+    expect(find.text('Haritayı Aç'), findsOneWidget);
     await tester.tap(find.text('Haritayı Aç'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));

@@ -28,6 +28,19 @@ class RoutingService
      */
     public static function walkingRoute(float $fromLat, float $fromLng, float $toLat, float $toLng): ?array
     {
+        return self::route($fromLat, $fromLng, $toLat, $toLng, 'walking');
+    }
+
+    public static function route(
+        float $fromLat,
+        float $fromLng,
+        float $toLat,
+        float $toLng,
+        string $mode = 'walking',
+    ): ?array
+    {
+        $mode = in_array($mode, ['walking', 'driving', 'transit'], true)
+            ? $mode : 'walking';
         $configured = rtrim((string) config('services.routing.base_url'), '/');
         if ($configured === '') {
             return null;
@@ -42,7 +55,8 @@ class RoutingService
         // rounded to ~1m precision so trivial float jitter still hits the
         // same cache entry.
         $key = sprintf(
-            'routing.walk.%s.%.5F.%.5F.%.5F.%.5F',
+            'routing.%s.%s.%.5F.%.5F.%.5F.%.5F',
+            $mode,
             $configured,
             $fromLat,
             $fromLng,
@@ -50,16 +64,18 @@ class RoutingService
             $toLng,
         );
 
-        return Cache::remember($key, now()->addHours(6), fn () => self::fetchWalkingRoute($fromLat, $fromLng, $toLat, $toLng, $configured));
+        return Cache::remember($key, now()->addHours(6), fn () => self::fetchRoute(
+            $fromLat, $fromLng, $toLat, $toLng, $configured, $mode,
+        ));
     }
 
     /**
      * @return array{points: list<array{lat: float, lng: float}>, distanceMeters: float, durationSeconds: float, steps: list<array{instruction: string, distanceMeters: float, durationSeconds: float}>}|null
      */
-    private static function fetchWalkingRoute(float $fromLat, float $fromLng, float $toLat, float $toLng, string $configured): ?array
+    private static function fetchRoute(float $fromLat, float $fromLng, float $toLat, float $toLng, string $configured, string $mode): ?array
     {
         $verifySsl = (bool) config('services.routing.verify_ssl', true);
-        $attempts = self::endpointAttempts($configured);
+        $attempts = self::endpointAttempts($configured, $mode);
         if ($attempts === []) {
             return null;
         }
@@ -144,7 +160,7 @@ class RoutingService
      *
      * @return list<array{0: string, 1: string}>
      */
-    private static function endpointAttempts(string $configured): array
+    private static function endpointAttempts(string $configured, string $mode): array
     {
         $host = strtolower((string) parse_url($configured, PHP_URL_HOST));
         $isPublicOsrm = $host === self::PUBLIC_OSRM_HOST;
@@ -161,7 +177,7 @@ class RoutingService
             $out[] = [$base, $profile];
         };
 
-        if ($allowPublicFallback) {
+        if ($mode === 'walking' && $allowPublicFallback) {
             // Pedestrian geometry first — better campus footpaths than the
             // public OSRM demo's driving graph.
             $push(self::FOSSGIS_FOOT_BASE, 'driving');
@@ -170,7 +186,10 @@ class RoutingService
         if ($isPublicOsrm) {
             $push($configured, 'driving');
         } else {
-            foreach (['foot', 'walking', 'driving'] as $profile) {
+            $profiles = $mode === 'walking'
+                ? ['foot', 'walking', 'driving']
+                : ['driving'];
+            foreach ($profiles as $profile) {
                 $push($configured, $profile);
             }
         }

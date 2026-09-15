@@ -122,7 +122,9 @@ class DatabaseSeeder extends Seeder
 
         $event1 = Event::create([
             'id' => 'event-bahar-senligi', 'title' => 'Bahar Şenliği', 'time' => '14:00',
-            'place_name' => 'Garden', 'place_id' => 'place-garden', 'category' => 'Etkinlik',
+            // CampusCatalogSeeder intentionally migrates the legacy
+            // `place-garden` row to the verified permanent catalogue id.
+            'place_name' => 'The Garden', 'place_id' => 'the-garden', 'category' => 'Etkinlik',
             'attendees' => 128, 'xp' => 50, 'audience' => 'Tümü', 'organizer' => 'Öğrenci Konseyi',
             'organizer_email' => 'ogrenci.konseyi@arucad.edu.tr', 'academic_year_id' => '2025-2026',
             'description' => 'Yıllık bahar şenliği — canlı müzik, stantlar ve yarışmalar.',
@@ -225,5 +227,10 @@ class DatabaseSeeder extends Seeder
         foreach (['15 Mayıs', '22 Mayıs', '29 Mayıs'] as $i => $label) {
             SurveyOption::create(['id' => 'opt-'.Str::uuid(), 'survey_id' => $survey->id, 'label' => $label, 'sort_order' => $i]);
         }
+
+        // Test/demo environments must open with visible content in every
+        // student-facing area. These records use stable `demo-*` ids and do
+        // not replace the verified campus catalogue or synced 360 directory.
+        $this->call(DemoCampusLifeSeeder::class);
     }
 }

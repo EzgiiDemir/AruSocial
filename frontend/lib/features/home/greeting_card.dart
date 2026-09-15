@@ -91,22 +91,22 @@ class GreetingCard extends StatelessWidget {
     final storm = code >= 95;
 
     if (hour >= 22 || hour < 5) {
-      return [const Color(0xE60A1330), const Color(0x990A1330)];
+      return [const Color(0xB30A1330), const Color(0x660A1330)];
     }
     if (storm || raining) {
-      return [const Color(0xCC1F2A3A), const Color(0x8A1F2A3A)];
+      return [const Color(0x991F2A3A), const Color(0x591F2A3A)];
     }
     if (hour >= 18) {
       // Sunset: warm at the top, deepening towards the text.
-      return [const Color(0xCC3A2352), const Color(0x8A12203F)];
+      return [const Color(0x993A2352), const Color(0x5912203F)];
     }
     if (code >= 1 && code <= 48) {
       // Cloud or fog — the photo is flatter, so it needs less help.
-      return [const Color(0xB3122040), const Color(0x59122040)];
+      return [const Color(0x80122040), const Color(0x40122040)];
     }
 
     // Clear day: the brightest the photo ever is, so the heaviest scrim.
-    return [const Color(0xBF0A1330), const Color(0x660A1330)];
+    return [const Color(0x8C0A1330), const Color(0x400A1330)];
   }
 
   @override
@@ -116,93 +116,121 @@ class GreetingCard extends StatelessWidget {
     final name = firstName(userName);
     final greeting = strings.t(greetingKeyFor(at));
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(20),
-      child: Stack(children: [
-        Positioned.fill(
-          child: Image.asset(
-            'assets/images/arkin-yaratici-sanatlar-ve-tasarim-universitesi.jpg',
-            fit: BoxFit.cover,
-            // Falls back to a brand gradient rather than a broken-image box,
-            // so a missing asset still looks deliberate.
-            errorBuilder: (_, __, ___) => const DecoratedBox(
+    // The card is a fixed-height hero over a photograph, so its content
+    // cannot push it taller — but every label inside scales with the
+    // system font setting, and at 2x the column overflowed the 210px box
+    // by 272 pixels.
+    //
+    // Capped rather than redesigned, the same trade the bottom nav bar
+    // already makes for the same reason (see `_RootNavigationBar`): text
+    // that grows without bound inside a fixed frame does not help anyone,
+    // because it gets clipped. The cap applies to this card only — the
+    // rest of the app honours the setting in full.
+    final scaler = MediaQuery.textScalerOf(context)
+        .clamp(minScaleFactor: 1.0, maxScaleFactor: 1.3);
+
+    // And the frame grows with the text it holds. Capping alone still
+    // overflowed by 34px, because 210 was only ever right for 1x — the
+    // photo simply crops a little more, which is a far better outcome
+    // than clipping the greeting.
+    final height = 210 * scaler.scale(1.0);
+
+    return MediaQuery(
+      data: MediaQuery.of(context).copyWith(textScaler: scaler),
+      child: SizedBox(
+        height: height,
+        child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: Stack(children: [
+          Positioned.fill(
+            child: Image.asset(
+              'assets/images/arkin-yaratici-sanatlar-ve-tasarim-universitesi.jpg',
+              fit: BoxFit.cover,
+              // Falls back to a brand gradient rather than a broken-image box,
+              // so a missing asset still looks deliberate.
+              errorBuilder: (_, __, ___) => const DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Color(0xFF1B2A6B), ArucadColors.primary],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Positioned.fill(
+            child: DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [Color(0xFF1B2A6B), ArucadColors.primary],
+                  colors: _scrim(at),
                 ),
               ),
             ),
           ),
-        ),
-        Positioned.fill(
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: _scrim(at),
-              ),
-            ),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 22, 20, 18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                name.isEmpty ? greeting : '$greeting, $name',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 26,
-                  height: 1.15,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                strings.t(lineKeyFor(at)),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 13.5,
-                  height: 1.4,
-                ),
-              ),
-              const SizedBox(height: 18),
-              if (weather != null)
-                Align(
-                  alignment: Alignment.bottomRight,
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: .18),
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(
-                          color: Colors.white.withValues(alpha: .35)),
+          Positioned.fill(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 26, 20, 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.max,
+                children: [
+                  Text(
+                    name.isEmpty ? greeting : '$greeting, $name',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 26,
+                      height: 1.15,
+                      fontWeight: FontWeight.w900,
                     ),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(iconFor(weather, at), size: 17, color: Colors.white),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Girne · ${weather!.summary} · '
-                        '${weather!.temperatureC.round()}°C',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ]),
                   ),
+                  const SizedBox(height: 6),
+                  Text(
+                    strings.t(lineKeyFor(at)),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13.5,
+                      height: 1.4,
+                    ),
+                  ),
+                  const Spacer(),
+                  if (weather != null)
+                    Align(
+                      alignment: Alignment.bottomRight,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: .18),
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(
+                              color: Colors.white.withValues(alpha: .35)),
+                        ),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          Icon(iconFor(weather, at),
+                              size: 17, color: Colors.white),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Girne · ${weather!.summary} · '
+                            '${weather!.temperatureC.round()}°C',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ]),
+                      ),
+                    ),
+                  ],
                 ),
-            ],
-          ),
+              ),
+            ),
+          ]),
         ),
-      ]),
+      ),
     );
   }
 }

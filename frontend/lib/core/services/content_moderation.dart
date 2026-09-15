@@ -266,26 +266,17 @@ const _blockedTerms = <String, List<String>>{
     'reşit değilim buluşalım',
     'секретная встреча с ребёнком',
   ],
-  // Political campaigning/party content — named parties/titles only, never
-  // bare words like "seçim"/"hükümet", since campus club/council elections
-  // are a normal, unrelated topic on this platform (see ModerationService).
+  // Political campaigning/recruitment. Names and news references alone are
+  // intentionally absent; the server performs the contextual final check.
   'POL': [
-    'akp',
-    'chp',
-    'mhp',
-    'hdp',
-    'iyi parti',
-    'cumhurbaşkanı adayı',
-    'milletvekili adayı',
-    'genel seçimlerde oy',
-    'republican party',
-    'democratic party',
-    'presidential candidate',
-    'senate race',
-    'prime minister candidate',
-    'единая россия',
-    'государственная дума',
-    'выборы президента',
+    'genel seçimlerde oy verin',
+    'akp kazanmalı',
+    'chp kazanmalı',
+    'partimize katıl',
+    'vote republican',
+    'vote democratic',
+    'join our political party',
+    'голосуйте за единую россию',
   ],
 };
 
@@ -300,26 +291,47 @@ class ModerationResult {
 
 ModerationResult moderateText(String text) {
   final normalized = _normalize(text);
-  final compact = normalized.replaceAll(' ', '');
   for (final entry in _blockedTerms.entries) {
     for (final term in entry.value) {
       final normalizedTerm = _normalize(term);
       if (normalizedTerm.isEmpty) continue;
-      if (!normalized.contains(normalizedTerm) &&
-          !compact.contains(normalizedTerm.replaceAll(' ', ''))) {
-        continue;
-      }
-      if (entry.key == 'SELF') {
-        return const ModerationResult.block(
-            'Bu içerik kendine zarar riski taşıyor ve yayınlanamaz. '
-            'Lütfen yalnız kalma; bir yakınına ulaş veya 112 / yerel kriz hattından destek al.');
-      }
+
+      // The client is only a fast UX guard; the server owns contextual
+      // moderation. Profanity and self-harm words are particularly unsafe
+      // to decide here: casual exclamations/quotes need context, and a person
+      // asking for help must reach the server's support flow without being
+      // told they committed a violation.
+      if (entry.key == 'PROF' || entry.key == 'SELF') continue;
+      if (!_hasWholeExpression(normalized, normalizedTerm)) continue;
+
       final label = _categoryLabels[entry.key] ?? 'küfür veya saldırgan dil';
       return ModerationResult.block(
           'İçerik topluluk kurallarına aykırı olabilecek $label içeriyor. Lütfen düzenleyip tekrar dene.');
     }
   }
   return const ModerationResult.allow();
+}
+
+/// Whole token/phrase matching only. The former `compact.contains` check
+/// found banned character sequences inside unrelated words. Deliberately
+/// spaced single-word obfuscation is still recognised ("f u c k"), but
+/// ordinary substrings and partial words cannot enforce.
+bool _hasWholeExpression(String text, String term) {
+  if (' $text '.contains(' $term ')) return true;
+  if (term.contains(' ')) return false;
+
+  final tokens = text.split(' ');
+  for (var start = 0; start < tokens.length; start++) {
+    if (tokens[start].runes.length != 1) continue;
+    final buffer = StringBuffer();
+    for (var i = start; i < tokens.length && tokens[i].runes.length == 1; i++) {
+      buffer.write(tokens[i]);
+      final candidate = buffer.toString();
+      if (candidate == term) return true;
+      if (candidate.length >= term.length) break;
+    }
+  }
+  return false;
 }
 
 String _normalize(String value) {

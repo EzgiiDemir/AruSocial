@@ -11,7 +11,7 @@ use Tests\TestCase;
 
 class ReviewAuthorRelationTest extends TestCase
 {
-    use RefreshDatabase, SignsInChatUsers, CreatesPlaces;
+    use CreatesPlaces, RefreshDatabase, SignsInChatUsers;
 
     public function test_author_comes_from_the_user_relation_not_a_stored_string(): void
     {

@@ -20,6 +20,7 @@ import 'package:arucad_campus_prototype/core/models/event_participant.dart';
 import 'package:arucad_campus_prototype/core/models/inbox_notification.dart';
 import 'package:arucad_campus_prototype/core/models/media_item.dart';
 import 'package:arucad_campus_prototype/core/models/moderation_appeal.dart';
+import 'package:arucad_campus_prototype/core/models/moderation_case.dart';
 import 'package:arucad_campus_prototype/core/models/page_slice.dart';
 import 'package:arucad_campus_prototype/core/models/role_assignment.dart';
 import 'package:arucad_campus_prototype/core/models/staff_application.dart';
@@ -1636,6 +1637,7 @@ class RestCampusRepository implements CampusRepository {
     required double fromLng,
     required double toLat,
     required double toLng,
+    TravelMode mode = TravelMode.walking,
   }) async {
     try {
       final response = await client.post('/routing/directions', body: {
@@ -1643,6 +1645,7 @@ class RestCampusRepository implements CampusRepository {
         'fromLng': fromLng,
         'toLat': toLat,
         'toLng': toLng,
+        'mode': mode.name,
       });
       return WalkingRoute.fromJson(response['data'] as Map<String, dynamic>);
     } on ApiClientException catch (e) {
@@ -2288,6 +2291,63 @@ class RestCampusRepository implements CampusRepository {
       {required String action}) async {
     await client
         .post('/admin/moderation/queue/$id/resolve', body: {'action': action});
+  }
+
+  @override
+  Future<List<ModerationCase>> getModerationCases(
+      {String status = 'open'}) async {
+    final json = await client
+        .get('/admin/moderation/cases', query: {'status': status});
+    final data = json['data'];
+    return [
+      for (final row in (data as List? ?? []))
+        ModerationCase.fromJson(Map<String, dynamic>.from(row as Map))
+    ];
+  }
+
+  @override
+  Future<ModerationCaseDetail> getModerationCase(String id) async {
+    final json = await client.get('/admin/moderation/cases/$id');
+    return ModerationCaseDetail.fromJson(
+        Map<String, dynamic>.from(json['data'] as Map));
+  }
+
+  @override
+  Future<void> decideModerationCase(
+    String id, {
+    required String contentDecision,
+    String accountAction = 'none',
+    String note = '',
+  }) async {
+    await client.post('/admin/moderation/cases/$id/decide', body: {
+      'contentDecision': contentDecision,
+      'accountAction': accountAction,
+      if (note.isNotEmpty) 'note': note,
+    });
+  }
+
+  @override
+  Future<List<ModerationAppealReview>> getModerationAppeals(
+      {String status = 'open'}) async {
+    final json = await client
+        .get('/admin/moderation/appeals', query: {'status': status});
+    final data = json['data'];
+    return [
+      for (final row in (data as List? ?? []))
+        ModerationAppealReview.fromJson(Map<String, dynamic>.from(row as Map))
+    ];
+  }
+
+  @override
+  Future<void> decideModerationAppeal(
+    String id, {
+    required String outcome,
+    String note = '',
+  }) async {
+    await client.post('/admin/moderation/appeals/$id/decide', body: {
+      'outcome': outcome,
+      if (note.isNotEmpty) 'note': note,
+    });
   }
 
   @override

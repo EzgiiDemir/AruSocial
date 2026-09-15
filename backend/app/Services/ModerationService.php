@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\ModerationReport;
 use App\Models\User;
+use App\Services\Moderation\AccountEnforcement;
 use App\Services\Moderation\ModerationVerdict;
 use App\Services\Moderation\TextPolicyEngine;
 use Illuminate\Support\Str;
@@ -467,6 +468,17 @@ class ModerationService
 
     private static function recordStrike(User $user, string $reason): void
     {
+        // Content was still refused before we got here; this is only the
+        // account consequence. Skipping the increment too, rather than
+        // counting silently, is deliberate — a counter that keeps rising
+        // while enforcement is off would ban everyone the moment it came
+        // back on.
+        if (! AccountEnforcement::enabled()) {
+            AccountEnforcement::skip($user, "strike for: $reason");
+
+            return;
+        }
+
         $user->increment('strikes');
         $user->refresh();
         AuditLogger::log('system', 'moderation_strike', 'user', "{$user->name} ({$user->strikes}/".self::BAN_AFTER_STRIKES."): $reason");

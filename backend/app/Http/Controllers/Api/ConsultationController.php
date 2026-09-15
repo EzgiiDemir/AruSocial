@@ -95,6 +95,14 @@ class ConsultationController extends Controller
 
     public function upsert(UpsertConsultationRequest $request): JsonResponse
     {
+        if ($blocked = $this->moderationBlock(
+            $this->currentUser(),
+            $this->moderationText($request->validated()),
+            'consultation',
+            'admin.consultation.upsert',
+        )) {
+            return $blocked;
+        }
         $id = $request->input('id') ?: $this->newId('consult');
         $existing = Consultation::find($id);
         $isNew = $existing === null;

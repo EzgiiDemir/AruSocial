@@ -198,6 +198,10 @@ Auth column: `Public` · `Auth` · `perm:{key}`.
 | GET | `/api/v1/me/activity` | Auth | — | `{ id, kind, title, subtitle, meta, createdAt, xp }[]` (max 100) |
 | GET | `/api/v1/me/onboarding` | Auth | — | `{ done: string[], startedAt }` |
 | POST | `/api/v1/me/onboarding/{stepId}` | Auth | `{ completed }` | `{ completed }`; idempotent |
+| GET | `/api/v1/me/policy-consent` | Auth | — | `{ document, version, required, acceptedAt, acceptedLocale }` |
+| POST | `/api/v1/me/policy-consent` | Auth | `{ locale }` | same shape; idempotent |
+| GET | `/api/v1/me/deletion-preview` | Auth | — | `{ email, removes{}, retains{}, retentionReason }` |
+| POST | `/api/v1/me/delete` | Auth | `{ password }` | `{ deleted: true }`; irreversible |
 | GET | `/api/v1/onboarding-steps` | Auth | — | active `OnboardingStep[]`, ordered |
 | GET | `/api/v1/admin/onboarding-steps` | `perm:onboarding.manage` | — | all `OnboardingStep[]` (incl. inactive), ordered |
 | POST | `/api/v1/admin/onboarding-steps` | `perm:onboarding.manage` | `{ id, groupLabel, title, detail, actionKind?, refId?, sortOrder?, active? }` | upserted step; 400 `VALIDATION` |
@@ -212,6 +216,12 @@ Session: empty email/password → 422 `VALIDATION`. Domain mismatch → 403 `DOM
 `/me/onboarding` is the "First 30 Days" checklist's completion state (`onboarding_progress`: `user_id` + `step_id`, unique pair). The checklist content itself — `OnboardingStep`: `{ id, group, title, detail, actionKind, refId, sortOrder }` (`actionKind` one of `service`/`list`/`info`, mirroring `onboarding_config.dart`'s `OnboardingActionKind`) — is now real, admin-editable content in `onboarding_steps`, seeded from the same 13 ids the Dart const originally shipped so existing `onboarding_progress.step_id` rows keep resolving. Mock mode (no backend) still uses `onboarding_config.dart`'s const as its offline seed. `startedAt` is `users.created_at` (a real, cross-device "day 1"). `POST /me/onboarding/{stepId}` is idempotent both ways — marking an already-done step done again, or un-marking one never marked, are both no-ops.
 
 `/me/settings` is the shared privacy/personalization prefs (`locationVisibility` is `ghost`/`friends`/`community`/`public`; the other three are booleans). Defaults match the previous client defaults (ghost / nearby off / check-ins visible / personalization on). `POST /me/settings` is a partial update scoped to `currentUser()`.
+
+`/me/delete` is self-service account deletion, which Apple guideline 5.1.1(v) and Google Play's data-deletion policy both require to be possible from inside the app. It cascades: 39 foreign keys hang off `users`, so posts, stories, comments, likes, club memberships, onboarding progress, push tokens and consent records go with the row. This is also why accounts are deliberately not soft-deleted — a soft delete issues no DELETE and none of those cascades would fire. Moderation events, reports and appeals reference the user by a plain column with no foreign key and deliberately survive, as the Privacy Policy states. The password is required again even though the caller holds a valid token. `/me/deletion-preview` returns the counts so the confirmation screen can say what will happen. See `AccountDeletionTest`.
+
+`/me/policy-consent` is the record that a named account accepted a named version of the privacy policy and its Content and Moderation Notice. `version` is derived from the documents themselves — a short hash over all three translations (`PolicyDocuments::currentVersion`) — so editing any of them puts a new version in force and `required` becomes true again for everyone. The client deliberately cannot name a version: `POST` records whatever is currently being served, so a stale client cannot record consent to a policy that is no longer the policy. `locale` is which translation the student actually read. Accepting twice is a no-op and keeps the first timestamp. Deleting an account cascades its consent rows away.
+
+The app also holds a device-local acknowledgement so the notice can be shown before anyone signs in; that flag gates the login screen, and this endpoint is the record. See `PolicyConsentTest`.
 
 `GET /me/quests` `progress` is computed: `distinct_checkins` = distinct places the student has checked into, `event_joins` = rows in `event_joins`, `static` = the stored column. Capped at `target`.
 
@@ -703,7 +713,7 @@ Track in `docs/AUDIT_GERCEK_URUN.md`, not as live `/api/v1` paths.
 
 ---
 
-## Route inventory (canonical, 260)
+## Route inventory (canonical, 261)
 
 Machine-readable. One `METHOD /api/v1/...` per line. `tests/Feature/ApiContractInventoryTest.php` compares this list to `php artisan route:list --path=api` (HEAD omitted).
 
@@ -783,7 +793,9 @@ GET /api/v1/me/career-applications
 GET /api/v1/me/career-profile
 GET /api/v1/me/career-profile/cv
 GET /api/v1/me/consultation-applications
+GET /api/v1/me/deletion-preview
 GET /api/v1/me/onboarding
+GET /api/v1/me/policy-consent
 GET /api/v1/me/quests
 GET /api/v1/me/settings
 GET /api/v1/media
@@ -822,6 +834,7 @@ GET /api/v1/trainer/applications
 GET /api/v1/trainer/events
 GET /api/v1/trainer/events/{eventId}/participants
 GET /api/v1/trainer/roster
+GET /api/v1/translations
 GET /api/v1/weather
 POST /api/v1/admin/academic-years
 POST /api/v1/admin/academic-years/{id}/delete
@@ -932,7 +945,9 @@ POST /api/v1/me/applications/{id}/detail
 POST /api/v1/me/career-profile
 POST /api/v1/me/career-profile/cv
 POST /api/v1/me/career-profile/cv/delete
+POST /api/v1/me/delete
 POST /api/v1/me/onboarding/{stepId}
+POST /api/v1/me/policy-consent
 POST /api/v1/me/profile
 POST /api/v1/me/settings
 POST /api/v1/media

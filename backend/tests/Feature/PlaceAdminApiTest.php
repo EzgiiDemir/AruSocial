@@ -2,8 +2,8 @@
 
 namespace Tests\Feature;
 
-use App\Models\Place;
 use App\Events\CampusDataChanged;
+use App\Models\Place;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event as EventFacade;
 use Tests\TestCase;
@@ -27,8 +27,7 @@ class PlaceAdminApiTest extends TestCase
         ]);
         $create->assertStatus(201);
         $this->assertDatabaseHas('places', ['id' => 'place-1', 'name' => 'Test Place']);
-        EventFacade::assertDispatched(CampusDataChanged::class, fn (CampusDataChanged $change) =>
-            $change->resources === ['places'] && $change->action === 'created' && $change->id === 'place-1'
+        EventFacade::assertDispatched(CampusDataChanged::class, fn (CampusDataChanged $change) => $change->resources === ['places'] && $change->action === 'created' && $change->id === 'place-1'
         );
 
         $this->getJson('/api/v1/places')->assertOk()->assertJsonFragment(['id' => 'place-1']);
@@ -41,9 +40,8 @@ class PlaceAdminApiTest extends TestCase
         $this->assertDatabaseHas('places', ['id' => 'place-1', 'name' => 'Renamed Place']);
 
         $this->postJson('/api/v1/admin/places/place-1/delete')->assertOk();
-        $this->assertDatabaseMissing('places', ['id' => 'place-1']);
-        EventFacade::assertDispatched(CampusDataChanged::class, fn (CampusDataChanged $change) =>
-            $change->resources === ['places'] && $change->action === 'deleted' && $change->id === 'place-1'
+        $this->assertSoftDeleted('places', ['id' => 'place-1']);
+        EventFacade::assertDispatched(CampusDataChanged::class, fn (CampusDataChanged $change) => $change->resources === ['places'] && $change->action === 'deleted' && $change->id === 'place-1'
         );
     }
 

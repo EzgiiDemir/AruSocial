@@ -79,8 +79,8 @@ class LocalMediaClassifier
                 'score' => $highest,
             ];
         } catch (\Throwable) {
-            // A failed local model is fail-closed by the caller: media stays
-            // pending and never becomes public. Do not leak runner output.
+            // The caller converts a configured runner failure into a
+            // non-punitive MODERATION_UNAVAILABLE response.
             return self::unavailable();
         }
     }

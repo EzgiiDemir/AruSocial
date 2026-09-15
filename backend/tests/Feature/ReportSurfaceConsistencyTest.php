@@ -10,6 +10,7 @@ use App\Models\PostComment;
 use App\Models\Story;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 /**
@@ -112,7 +113,7 @@ class ReportSurfaceConsistencyTest extends TestCase
         ];
     }
 
-    #[\PHPUnit\Framework\Attributes\DataProvider('surfaces')]
+    #[DataProvider('surfaces')]
     public function test_a_report_records_the_reporter_and_a_reason_code(string $kind): void
     {
         $owner = $this->makeUser('owner@arucad.edu.tr');
@@ -139,7 +140,7 @@ class ReportSurfaceConsistencyTest extends TestCase
             "{$kind}: the report did not open a case");
     }
 
-    #[\PHPUnit\Framework\Attributes\DataProvider('surfaces')]
+    #[DataProvider('surfaces')]
     public function test_repeat_reports_are_deduplicated_on_every_surface(string $kind): void
     {
         $owner = $this->makeUser('owner@arucad.edu.tr');
@@ -169,7 +170,7 @@ class ReportSurfaceConsistencyTest extends TestCase
      * confirms the earlier report exists, which tells a reporter their
      * target can be probed and invites a second account.
      */
-    #[\PHPUnit\Framework\Attributes\DataProvider('surfaces')]
+    #[DataProvider('surfaces')]
     public function test_a_duplicate_is_indistinguishable_from_a_first_report(string $kind): void
     {
         $owner = $this->makeUser('owner@arucad.edu.tr');
@@ -193,7 +194,7 @@ class ReportSurfaceConsistencyTest extends TestCase
     }
 
     /** Report descriptions are user text and go through the same gate. */
-    #[\PHPUnit\Framework\Attributes\DataProvider('surfaces')]
+    #[DataProvider('surfaces')]
     public function test_an_abusive_report_description_is_refused(string $kind): void
     {
         $owner = $this->makeUser('owner@arucad.edu.tr');
@@ -217,7 +218,7 @@ class ReportSurfaceConsistencyTest extends TestCase
     }
 
     /** Reporting requires an account — it is not an anonymous channel. */
-    #[\PHPUnit\Framework\Attributes\DataProvider('surfaces')]
+    #[DataProvider('surfaces')]
     public function test_reporting_requires_authentication(string $kind): void
     {
         $owner = $this->makeUser('owner@arucad.edu.tr');

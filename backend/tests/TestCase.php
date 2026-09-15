@@ -5,6 +5,7 @@ namespace Tests;
 use App\Models\RoleAssignment;
 use App\Models\User;
 use App\Services\FcmClient;
+use App\Services\Moderation\ModerationNotice;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Illuminate\Http\UploadedFile;
 use Laravel\Sanctum\Sanctum;
@@ -43,7 +44,7 @@ abstract class TestCase extends BaseTestCase
         // The notice slot is static and survives between tests in one
         // process, so a leftover from an earlier case could otherwise show
         // up in an unrelated assertion.
-        \App\Services\Moderation\ModerationNotice::reset();
+        ModerationNotice::reset();
     }
 
     /**

@@ -244,6 +244,14 @@ class CareerController extends Controller
 
     public function upsertOpportunity(UpsertCareerOpportunityRequest $request): JsonResponse
     {
+        if ($blocked = $this->moderationBlock(
+            $this->currentUser(),
+            $this->moderationText($request->validated()),
+            'career_opportunity',
+            'admin.career.upsertOpportunity',
+        )) {
+            return $blocked;
+        }
         $id = $request->input('id') ?: $this->newId('career');
         $existing = CareerOpportunity::find($id);
         $isNew = $existing === null;

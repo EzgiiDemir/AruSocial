@@ -18,6 +18,17 @@
         </include>
     </source>
     <php>
+        <!--
+            Raised from PHP's 128M default when Filament arrived: it adds
+            ~109 packages to the autoloader, and PHPUnit runs the whole
+            suite in one process, so the run began dying part-way through
+            with "Premature end of PHP process" — a segfault, not a test
+            failure, and one that moved around depending on ordering.
+
+            Set here rather than in the machine's php.ini so it applies to
+            this suite only and travels with the repository.
+        -->
+        <ini name="memory_limit" value="512M"/>
         <env name="APP_ENV" value="testing"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
@@ -47,6 +58,18 @@
         <env name="OPENAI_API_KEY" value="" force="true"/>
         <env name="MODERATION_OPENAI_ENABLED" value="true" force="true"/>
         <env name="MODERATION_SERVICE_ENABLED" value="false" force="true"/>
+        <!-- The semantic text layer talks to a locally running service.
+             Forced off so the suite never depends on whether that process
+             happens to be up, and so a test asserting lexicon behaviour is
+             actually asserting lexicon behaviour. Tests that want it enable
+             it in-test with Http::fake. -->
+        <env name="TEXT_MODERATION_ENABLED" value="false" force="true"/>
+        <!-- Forced on so the suite always asserts production enforcement,
+             whatever a developer has switched off locally during a
+             moderation testing window. A test that silently adopts the
+             local .env stops being a regression net for the thing it
+             covers; a test needing it off sets the config in-test. -->
+        <env name="MODERATION_ENFORCEMENT_ENABLED" value="true" force="true"/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>

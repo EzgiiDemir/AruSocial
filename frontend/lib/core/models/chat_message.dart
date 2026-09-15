@@ -5,6 +5,9 @@
 class ChatThreadPeer {
   final String name;
   final String? avatarUrl;
+  final String? lastMessage;
+  final DateTime? lastMessageAt;
+  final int unreadCount;
   final bool muted;
   final bool archived;
   final bool restricted;
@@ -12,6 +15,9 @@ class ChatThreadPeer {
   const ChatThreadPeer({
     required this.name,
     this.avatarUrl,
+    this.lastMessage,
+    this.lastMessageAt,
+    this.unreadCount = 0,
     this.muted = false,
     this.archived = false,
     this.restricted = false,
@@ -20,6 +26,11 @@ class ChatThreadPeer {
   factory ChatThreadPeer.fromJson(Map<String, dynamic> json) => ChatThreadPeer(
         name: json['name'] as String,
         avatarUrl: json['avatarUrl'] as String?,
+        lastMessage: json['lastMessage'] as String?,
+        lastMessageAt: json['lastMessageAt'] == null
+            ? null
+            : DateTime.tryParse(json['lastMessageAt'] as String),
+        unreadCount: (json['unreadCount'] as num?)?.toInt() ?? 0,
         muted: json['muted'] as bool? ?? false,
         archived: json['archived'] as bool? ?? false,
         restricted: json['restricted'] as bool? ?? false,
@@ -58,8 +69,7 @@ class ChatThreadPrefs {
   factory ChatThreadPrefs.fromJsonList(List<dynamic> items) {
     final map = <String, ChatThreadPrefState>{};
     for (final item in items) {
-      final state =
-          ChatThreadPrefState.fromJson(item as Map<String, dynamic>);
+      final state = ChatThreadPrefState.fromJson(item as Map<String, dynamic>);
       if (state.peer.isNotEmpty) map[state.peer] = state;
     }
     return ChatThreadPrefs(map);

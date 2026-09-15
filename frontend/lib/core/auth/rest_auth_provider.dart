@@ -43,9 +43,11 @@ class RestAuthProvider implements AuthProvider {
     final idToken = provider.lastIdToken;
     if (!ok || idToken == null || idToken.isEmpty) return false;
 
-    final response = await client.post('/auth/entra', body: {'idToken': idToken});
+    final response =
+        await client.post('/auth/entra', body: {'idToken': idToken});
     final data = response['data'];
-    final token = data is Map<String, dynamic> ? data['token'] as String? : null;
+    final token =
+        data is Map<String, dynamic> ? data['token'] as String? : null;
     final user = data is Map<String, dynamic> ? data['user'] : null;
     final email = user is Map<String, dynamic>
         ? (user['email'] as String? ?? provider.currentEmail)
@@ -86,7 +88,8 @@ class RestAuthProvider implements AuthProvider {
     );
 
     final data = response['data'];
-    final token = data is Map<String, dynamic> ? data['token'] as String? : null;
+    final token =
+        data is Map<String, dynamic> ? data['token'] as String? : null;
     if (token == null || token.isEmpty) return false;
 
     await SessionStore.save(token: token, email: email, portal: portal);
@@ -117,7 +120,8 @@ class RestAuthProvider implements AuthProvider {
   Future<bool> restoreFromStore() async {
     final token = await SessionStore.token(portal: portal);
     if (token == null) return false;
-    _currentEmail = (await SessionStore.email(portal: portal))?.trim().toLowerCase();
+    _currentEmail =
+        (await SessionStore.email(portal: portal))?.trim().toLowerCase();
     try {
       await client.get('/me');
       return true;
@@ -166,5 +170,13 @@ class RestAuthProvider implements AuthProvider {
       await SessionStore.clear(portal: portal);
       _currentEmail = null;
     }
+  }
+
+  /// Drop a session the server has already rejected without making a
+  /// guaranteed-to-fail `/auth/logout` request. Used for 401/ACCOUNT_BANNED
+  /// responses; normal user-initiated logout still revokes server-side.
+  Future<void> discardRejectedSession() async {
+    await SessionStore.clear(portal: portal);
+    _currentEmail = null;
   }
 }

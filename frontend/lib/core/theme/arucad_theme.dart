@@ -6,14 +6,11 @@ class ArucadColors {
   /// colour. Red remains available for destructive actions and alerts.
   static const primary = Color(0xFF000F9F);
   static const red = Color(0xFFEA0029);
-  // Darkened from the original 0xFFFFD700: pure gold was too light to read
-  // against white/light surfaces (icons/text in this color nearly
-  // disappeared). This amber tone keeps the "yellow" identity but has real
-  // contrast; anything filled solid with it must use black content — see
-  // [onAccent].
-  static const yellow = Color(0xFFC79100);
+  // Current ARUCAD identity yellow; clearer than the old muddy/coffee tone.
+  // Solid controls still use [accentFill]/[onAccent] for text contrast.
+  static const yellow = Color(0xFFE9A319);
   static const blue = primary;
-  static const campusGreen = Color(0xFF28A745);
+  static const campusGreen = Color(0xFF266210);
   static const lavender = Color(0xFFC9BFE3);
   static const orange = Color(0xFFF7941D);
 
@@ -171,18 +168,15 @@ class ArucadShadows {
   ];
 }
 
-/// A native Android text face is deliberately used for interface copy. The
-/// bundled Montserrat subset did not cover every Turkish glyph consistently,
-/// which made accented characters fall back to a visibly different face.
+/// The two official ARUCAD type families bundled with the application.
+/// The assets are the complete official font files, including Turkish glyphs.
 class ArucadFonts {
-  static const montserrat = 'Roboto';
+  static const montserrat = 'Montserrat';
   static const oswald = 'Oswald';
 }
 
 /// Centralized text styles to follow ARUCAD's real official visual identity
-/// (brand guide: Montserrat primary). Oswald's narrow accented glyphs made
-/// Turkish text inconsistent on Android, so all user-facing copy shares the
-/// same Turkish-capable family.
+/// (brand guide: Montserrat primary, Oswald for display headings).
 class ArucadTextStyles {
   static TextTheme textTheme([Color? color]) {
     return TextTheme(
@@ -230,8 +224,7 @@ class ArucadTextStyles {
     );
   }
 
-  /// Display labels deliberately use Montserrat too: Turkish characters stay
-  /// visually consistent with the rest of the interface.
+  /// Display labels use Oswald; all supporting interface copy uses Montserrat.
   static TextStyle display({
     double fontSize = 14,
     FontWeight fontWeight = FontWeight.w700,
@@ -239,8 +232,8 @@ class ArucadTextStyles {
     double? letterSpacing,
   }) {
     return TextStyle(
-      fontFamily: ArucadFonts.montserrat,
-      fontFamilyFallback: const ['Roboto', 'Arial', 'sans-serif'],
+      fontFamily: ArucadFonts.oswald,
+      fontFamilyFallback: const [ArucadFonts.montserrat],
       fontSize: fontSize,
       fontWeight: fontWeight,
       color: color ?? ArucadColors.ink,
@@ -311,17 +304,20 @@ class ArucadTheme {
         bodySmall: ArucadTextStyles.textTheme(muted).bodySmall,
       ),
       appBarTheme: AppBarTheme(
-        backgroundColor: surface,
-        foregroundColor: ink,
-        iconTheme: IconThemeData(color: ink),
-        actionsIconTheme: IconThemeData(color: ink),
+        backgroundColor: ArucadColors.paper,
+        foregroundColor: ArucadColors.ink,
+        iconTheme: const IconThemeData(color: ArucadColors.ink),
+        actionsIconTheme: const IconThemeData(color: ArucadColors.ink),
         elevation: 0,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
+        toolbarHeight: 64,
         centerTitle: false,
-        titleTextStyle: TextStyle(
-            fontFamily: ArucadFonts.montserrat,
-            color: ink,
-            fontSize: 20,
-            fontWeight: FontWeight.w900),
+        titleTextStyle: const TextStyle(
+            fontFamily: ArucadFonts.oswald,
+            color: ArucadColors.ink,
+            fontSize: 22,
+            fontWeight: FontWeight.w700),
       ),
       cardTheme: CardThemeData(
         color: surface,
@@ -356,8 +352,9 @@ class ArucadTheme {
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: surface,
         elevation: 0,
-        indicatorColor: (isDark ? const Color(0xFF9AA7FF) : ArucadColors.primary)
-            .withValues(alpha: .18),
+        indicatorColor:
+            (isDark ? const Color(0xFF9AA7FF) : ArucadColors.primary)
+                .withValues(alpha: .18),
         iconTheme: WidgetStateProperty.resolveWith(
           (states) => IconThemeData(
               color: states.contains(WidgetState.selected)
@@ -395,7 +392,8 @@ class ArucadTheme {
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: isDark ? const Color(0xFF9AA7FF) : ArucadColors.primary,
+          foregroundColor:
+              isDark ? const Color(0xFF9AA7FF) : ArucadColors.primary,
           side: BorderSide(
               color: isDark ? const Color(0xFF788BFF) : ArucadColors.primary,
               width: 1.2),
@@ -406,7 +404,8 @@ class ArucadTheme {
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: isDark ? const Color(0xFF9AA7FF) : ArucadColors.primary,
+          foregroundColor:
+              isDark ? const Color(0xFF9AA7FF) : ArucadColors.primary,
           textStyle: buttonTextStyle,
         ).copyWith(overlayColor: _noHoverOverlay),
       ),

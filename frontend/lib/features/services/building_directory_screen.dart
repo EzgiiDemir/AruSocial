@@ -82,8 +82,8 @@ class _BuildingDirectoryScreenState extends State<BuildingDirectoryScreen> {
     final mapProvider = widget.mapProvider;
     final analytics = widget.analyticsTracker;
     if (mapProvider == null || analytics == null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(AppLocale.of(context).t('bd_use_map'))));
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(AppLocale.of(context).t('bd_use_map'))));
       return;
     }
     openCampusMapHub(
@@ -237,8 +237,13 @@ class _BuildingDirectoryScreenState extends State<BuildingDirectoryScreen> {
                       ListTile(
                         title: Text(room.title),
                         subtitle: Text([
-                          if (room.occupantRole != null) room.occupantRole!,
+                          if (room.categoryName != null) room.categoryName!,
+                          if (room.roomNumber != null) room.roomNumber!,
+                          if (room.occupantRole != null &&
+                              room.occupantRole != room.categoryName)
+                            room.occupantRole!,
                           if (room.occupantName.isNotEmpty) room.occupantName,
+                          if (room.notes != null) room.notes!,
                         ].where((s) => s.isNotEmpty).join(' · ')),
                         trailing:
                             Row(mainAxisSize: MainAxisSize.min, children: [

@@ -1,0 +1,3 @@
+# Small deterministic seed used by integration tests. Production should mount
+# a periodically refreshed URLhaus dump at this path.
+http://malware.test/steal

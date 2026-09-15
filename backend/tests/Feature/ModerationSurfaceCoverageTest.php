@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Club;
 use App\Models\Place;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -26,7 +27,19 @@ class ModerationSurfaceCoverageTest extends TestCase
     private function student(): User
     {
         $user = $this->actingAsUser();
-        config(['services.moderation.openai_key' => '']);
+        config([
+            'services.moderation.openai_key' => '',
+            // Every surface must refuse abuse on its own merits.
+            //
+            // These run in sequence against one account, so with the
+            // strike ladder live the first few blocks ban the user and
+            // every surface after that returns 403 — which this test
+            // counts as "did not publish". A surface with no moderation
+            // at all would pass that way, hidden behind someone else's
+            // enforcement. It did: the `profile bio` row was unverified
+            // for exactly this reason until the ban stopped masking it.
+            'moderation.enforcement.enabled' => false,
+        ]);
 
         return $user;
     }
@@ -57,7 +70,13 @@ class ModerationSurfaceCoverageTest extends TestCase
                 ['reason' => self::ABUSE]],
             'workshop post' => ['post', "/api/v1/places/{$place->id}/workshop/posts",
                 ['text' => self::ABUSE]],
-            'profile bio' => ['post', '/api/v1/me/profile', ['bio' => self::ABUSE]],
+            // Fields the endpoint actually accepts. This row used to send
+            // `bio`, which is not a request field or a column — it was
+            // silently discarded, so the 200 proved nothing, and the row
+            // only looked green because an earlier surface had already
+            // banned the account by the time it ran.
+            'profile bio' => ['post', '/api/v1/me/profile',
+                ['department' => self::ABUSE, 'clubs' => [self::ABUSE]]],
             'career profile' => ['post', '/api/v1/me/career-profile',
                 ['occupation' => self::ABUSE, 'expertise' => 'x']],
             'own activity' => ['post', '/api/v1/events/own',
@@ -131,7 +150,7 @@ class ModerationSurfaceCoverageTest extends TestCase
         // A real club, so the request gets past the existence check and
         // moderation is what answers. (Checking the target first is the
         // right order — there is nothing to publish to either way.)
-        \App\Models\Club::create([
+        Club::create([
             'id' => 'club-music', 'name' => 'Müzik Kulübü',
             'category' => 'Sanat', 'description' => '', 'members' => 0,
         ]);

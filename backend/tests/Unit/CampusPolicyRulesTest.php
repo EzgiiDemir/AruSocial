@@ -29,7 +29,7 @@ class CampusPolicyRulesTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->engine = new TextPolicyEngine();
+        $this->engine = new TextPolicyEngine;
     }
 
     public function test_campus_policy_violations_are_actioned(): void
@@ -58,7 +58,7 @@ class CampusPolicyRulesTest extends TestCase
             ['Here is her address, go find her', 'doxxing', ModerationVerdict::REMOVE],
 
             // Spam is a nuisance, not an attack — a warning, not a removal.
-            ['Bedava takipci icin link tikla kazan', 'spam_solicitation', ModerationVerdict::WARN],
+            ['Bedava takipci icin link tikla kazan', 'spam_solicitation', ModerationVerdict::REMOVE],
         ];
 
         $failures = [];
@@ -81,7 +81,7 @@ class CampusPolicyRulesTest extends TestCase
         $cases = [
             'Numarasi 05321234567, arayin ve sorun',
             'Call him on +90 532 123 45 67',
-            'TC kimlik 12345678901 paylasiyorum',
+            'TC kimlik 10000000146 paylasiyorum',
             'Para gonderin TR330006100519786457841326',
         ];
 

@@ -86,6 +86,7 @@ class AiControllerTest extends TestCase
 
         Http::assertSent(function ($request) {
             $messages = $request->data()['messages'];
+
             // system + the 3 forwarded turns.
             return count($messages) === 4
                 && $messages[1]['content'] === 'Kütüphane saat kaçta açılıyor?'

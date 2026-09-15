@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:video_player/video_player.dart';
 
-import 'package:arucad_campus_prototype/core/models/moderation_state.dart';
 import 'package:arucad_campus_prototype/core/models/media_item.dart';
 import 'package:arucad_campus_prototype/core/network/api_client.dart';
 import 'package:arucad_campus_prototype/core/services/contracts.dart';
@@ -13,10 +11,10 @@ String _mediaErrorMessage(Object error) {
     if (error.statusCode == 401) return 'Oturum gerekli.';
     if (error.statusCode == 403) return 'Bu islem icin yetkin yok.';
     if (error.code == 'FILE_TOO_LARGE') {
-      return 'Dosya boyutu limiti asildi (gorsel 8MB / video 64MB).';
+      return 'Dosya boyutu limiti asildi.';
     }
     if (error.code == 'UNSUPPORTED_FILE_TYPE') {
-      return 'JPEG/PNG/WEBP/GIF veya MP4/WEBM/MOV yuklenebilir.';
+      return 'JPEG/PNG/WEBP/GIF yuklenebilir.';
     }
     return error.message;
   }
@@ -235,32 +233,6 @@ class _MediaThumb extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (item.isVideo) {
-      return GestureDetector(
-        onTap: item.isRemote
-            ? () => Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => _VideoPlaybackScreen(url: item.displaySrc)))
-            : null,
-        child: Container(
-          color: ArucadColors.mist,
-          child: Stack(alignment: Alignment.center, children: [
-            const Icon(Icons.videocam_outlined,
-                size: 36, color: ArucadColors.muted),
-            Positioned(
-              bottom: 6,
-              left: 6,
-              // Was the raw backend string ("moderation_error"), which is
-              // a column name, not something a moderator should have to
-              // read. Same state, in their language.
-              child: ModerationStateBadge(
-                state: item.state,
-                showWhenPublished: true,
-              ),
-            ),
-          ]),
-        ),
-      );
-    }
     try {
       return mediaPreview(item.displaySrc);
     } catch (_) {
@@ -295,38 +267,18 @@ class _MediaLibraryTabState extends State<MediaLibraryTab> {
         _future = widget.repository.getMedia();
       });
 
+  /// Straight to the image picker.
+  ///
+  /// This used to open a chooser with Görsel and Video. With video removed
+  /// on 14 September 2026 the sheet had one option left, and a menu with a
+  /// single entry is a tap nobody needs.
   Future<void> _upload() async {
     final picker = ImagePicker();
-    final choice = await showModalBottomSheet<String>(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          ListTile(
-            leading: const Icon(Icons.image_outlined),
-            title: const Text('Görsel'),
-            onTap: () => Navigator.pop(ctx, 'image'),
-          ),
-          ListTile(
-            leading: const Icon(Icons.videocam_outlined),
-            title: const Text('Video'),
-            onTap: () => Navigator.pop(ctx, 'video'),
-          ),
-        ]),
-      ),
-    );
-    if (choice == null) return;
     try {
-      if (choice == 'video') {
-        final file = await picker.pickVideo(source: ImageSource.gallery);
-        if (file == null) return;
+      final picked = await picker.pickMultiImage(imageQuality: 80);
+      for (final file in picked) {
         final bytes = await file.readAsBytes();
         await widget.repository.uploadMedia(bytes, fileName: file.name);
-      } else {
-        final picked = await picker.pickMultiImage(imageQuality: 80);
-        for (final file in picked) {
-          final bytes = await file.readAsBytes();
-          await widget.repository.uploadMedia(bytes, fileName: file.name);
-        }
       }
     } catch (e) {
       if (mounted) {
@@ -469,70 +421,3 @@ class _MediaLibraryTabState extends State<MediaLibraryTab> {
   }
 }
 
-class _VideoPlaybackScreen extends StatefulWidget {
-  final String url;
-  const _VideoPlaybackScreen({required this.url});
-
-  @override
-  State<_VideoPlaybackScreen> createState() => _VideoPlaybackScreenState();
-}
-
-class _VideoPlaybackScreenState extends State<_VideoPlaybackScreen> {
-  late final VideoPlayerController _controller;
-  bool _ready = false;
-  Object? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = VideoPlayerController.networkUrl(Uri.parse(widget.url))
-      ..initialize().then((_) {
-        if (!mounted) return;
-        setState(() => _ready = true);
-        _controller.play();
-      }).catchError((e) {
-        if (mounted) setState(() => _error = e);
-      });
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Video')),
-      body: Center(
-        child: _error != null
-            ? Text('Oynatılamadı: $_error')
-            : !_ready
-                ? const CircularProgressIndicator()
-                : AspectRatio(
-                    aspectRatio: _controller.value.aspectRatio,
-                    child: Stack(alignment: Alignment.bottomCenter, children: [
-                      VideoPlayer(_controller),
-                      VideoProgressIndicator(_controller, allowScrubbing: true),
-                      IconButton(
-                        onPressed: () {
-                          setState(() {
-                            _controller.value.isPlaying
-                                ? _controller.pause()
-                                : _controller.play();
-                          });
-                        },
-                        icon: Icon(
-                          _controller.value.isPlaying
-                              ? Icons.pause
-                              : Icons.play_arrow,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ]),
-                  ),
-      ),
-    );
-  }
-}

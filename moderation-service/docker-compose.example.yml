@@ -1,0 +1,13 @@
+services:
+  moderation:
+    build: .
+    ports:
+      - "8080:8080"
+    env_file: .env
+    volumes:
+      - ./data:/app/data:ro
+    restart: unless-stopped
+
+  # Qwen3Guard is intentionally a separately sized inference process. Point
+  # QWEN_BASE_URL at an existing vLLM/SGLang deployment, or add it to the
+  # production compose stack according to the available GPU.

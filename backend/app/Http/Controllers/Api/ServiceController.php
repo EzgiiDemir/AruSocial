@@ -2,9 +2,10 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Api\Concerns\ApiResponds;
-use App\Http\Controllers\Controller;
 use App\Events\CampusDataChanged;
+use App\Http\Controllers\Api\Concerns\ApiResponds;
+use App\Http\Controllers\Api\Concerns\ModeratesContent;
+use App\Http\Controllers\Controller;
 use App\Http\Requests\UpsertServiceRequest;
 use App\Models\ServiceItem;
 use App\Services\AuditLogger;
@@ -13,7 +14,7 @@ use Illuminate\Http\Request;
 
 class ServiceController extends Controller
 {
-    use ApiResponds;
+    use ApiResponds, ModeratesContent;
 
     private function toJson(ServiceItem $s): array
     {
@@ -41,13 +42,25 @@ class ServiceController extends Controller
     public function show(string $id): JsonResponse
     {
         $service = ServiceItem::find($id);
-        if (! $service) return $this->fail(404, 'SERVICE_NOT_FOUND', 'Service not found.');
+        if (! $service) {
+            return $this->fail(404, 'SERVICE_NOT_FOUND', 'Service not found.');
+        }
 
         return $this->ok($this->toJson($service));
     }
 
     public function upsert(UpsertServiceRequest $request): JsonResponse
     {
+        if ($blocked = $this->moderationBlock(
+            $this->currentUser(),
+            $this->moderationText($request->safe()->only([
+                'title', 'description', 'contactPerson', 'topics', 'hours', 'body',
+            ])),
+            'catalog',
+            'admin.service.upsert',
+        )) {
+            return $blocked;
+        }
         $id = $request->input('id');
         $title = $request->input('title');
 

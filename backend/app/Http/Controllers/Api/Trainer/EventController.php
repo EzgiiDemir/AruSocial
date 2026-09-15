@@ -2,10 +2,11 @@
 
 namespace App\Http\Controllers\Api\Trainer;
 
+use App\Events\CampusDataChanged;
 use App\Http\Controllers\Api\Concerns\ApiResponds;
+use App\Http\Controllers\Api\Concerns\ModeratesContent;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\UpsertTrainerEventRequest;
-use App\Events\CampusDataChanged;
 use App\Models\Event;
 use App\Models\EventJoin;
 use App\Models\Place;
@@ -28,7 +29,7 @@ use Illuminate\Http\Request;
 // after-the-fact auditability.
 class EventController extends Controller
 {
-    use ApiResponds;
+    use ApiResponds, ModeratesContent;
 
     private function eventToJson(Event $e): array
     {
@@ -67,6 +68,15 @@ class EventController extends Controller
     {
         $staff = $this->staffOf($request);
         $id = $request->input('id');
+
+        if ($blocked = $this->moderationBlock(
+            $this->currentUser(),
+            $this->moderationText($request->safe()->only(['title', 'description'])),
+            'event',
+            'trainer.event.upsert',
+        )) {
+            return $blocked;
+        }
 
         // A supplied id must already belong to this trainer's own
         // department — 404 rather than 403 so existence of another

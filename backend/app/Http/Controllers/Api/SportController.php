@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Api\Concerns\ApiResponds;
+use App\Http\Controllers\Api\Concerns\ModeratesContent;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\UpsertSportRequest;
 use App\Models\Sport;
@@ -12,7 +13,7 @@ use Illuminate\Http\Request;
 
 class SportController extends Controller
 {
-    use ApiResponds;
+    use ApiResponds, ModeratesContent;
 
     private function toJson(Sport $s): array
     {
@@ -26,6 +27,9 @@ class SportController extends Controller
 
     public function upsert(UpsertSportRequest $request): JsonResponse
     {
+        if ($blocked = $this->moderationBlock($this->currentUser(), $this->moderationText($request->validated()), 'catalog', 'admin.sport.upsert')) {
+            return $blocked;
+        }
         $id = $request->input('id');
         $name = $request->input('name');
 

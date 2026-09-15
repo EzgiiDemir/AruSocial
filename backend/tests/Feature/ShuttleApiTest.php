@@ -56,7 +56,7 @@ class ShuttleApiTest extends TestCase
         $this->assertNull($updated['returns']);
 
         $this->postJson('/api/v1/admin/shuttle-routes/bandabuliya/delete')->assertOk();
-        $this->assertDatabaseMissing('shuttle_routes', ['id' => 'bandabuliya']);
+        $this->assertSoftDeleted('shuttle_routes', ['id' => 'bandabuliya']);
     }
 
     public function test_route_write_requires_shuttle_manage_permission(): void

@@ -11,7 +11,7 @@ use Tests\TestCase;
 
 class ReviewDuplicateRuleTest extends TestCase
 {
-    use RefreshDatabase, SignsInChatUsers, CreatesPlaces;
+    use CreatesPlaces, RefreshDatabase, SignsInChatUsers;
 
     public function test_the_product_allows_the_same_user_to_review_a_place_more_than_once(): void
     {

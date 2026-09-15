@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Mail\BulkAnnouncementMail;
 use App\Models\AdminAuditLog;
 use App\Models\EmailLog;
 use App\Services\EmailService;

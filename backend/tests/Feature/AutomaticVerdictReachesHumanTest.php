@@ -7,6 +7,8 @@ use App\Models\MediaItem;
 use App\Models\ModerationAppeal;
 use App\Models\ModerationCase;
 use App\Services\Moderation\Image\ImageModerationRunner;
+use App\Services\Moderation\Workflow\ReportReason;
+use App\Services\Moderation\Workflow\ReportService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
@@ -149,11 +151,11 @@ class AutomaticVerdictReachesHumanTest extends TestCase
     {
         [, $id] = $this->uploadAndScan(['normal' => 0.45, 'nsfw' => 0.55]);
 
-        app(\App\Services\Moderation\Workflow\ReportService::class)->report(
+        app(ReportService::class)->report(
             reporter: $this->actingAsUser(),
             targetType: 'image',
             targetId: $id,
-            reason: \App\Services\Moderation\Workflow\ReportReason::SexualContent,
+            reason: ReportReason::SexualContent,
         );
 
         $this->assertSame(1, ModerationCase::where('content_id', $id)->count(),
@@ -167,12 +169,12 @@ class AutomaticVerdictReachesHumanTest extends TestCase
 
         $before = (int) ModerationCase::where('content_id', $id)->value('priority');
 
-        app(\App\Services\Moderation\Workflow\ReportService::class)->report(
+        app(ReportService::class)->report(
             reporter: $this->actingAsUser(),
             targetType: 'image',
             targetId: $id,
             // Spam is the least urgent reason there is.
-            reason: \App\Services\Moderation\Workflow\ReportReason::Spam,
+            reason: ReportReason::Spam,
         );
 
         $this->assertLessThanOrEqual($before,

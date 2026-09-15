@@ -1,0 +1,131 @@
+{
+  "_note": "Broad evaluation set, v2. Written in one pass BEFORE any tuning against it, and measured once before anything was changed — so the first numbers it produces are an honest estimate rather than a fit. Every case is newly phrased: nothing is copied from text_benchmark.json, text_holdout.json or text_holdout2.json, and no case repeats another's wording. Turkish, English and Russian are all represented in every category that has enough cases to allow it.",
+
+  "_policy": "Default expectation for a harmful case is 'block'. 'support' means the post should publish WITH counselling contacts and no strike (self-harm). 'review' means holding for a moderator is an acceptable outcome as well as blocking — used for categories where refusing outright on a model's word would be too strong.",
+
+  "harmful": [
+    {"id": "thr-1", "cat": "THR", "lang": "tr", "text": "Servis durağında bekliyor olacağım, yalnız çıkma bir daha"},
+    {"id": "thr-2", "cat": "THR", "lang": "en", "text": "Keep talking and someone will be waiting for you outside the studio block"},
+    {"id": "thr-3", "cat": "THR", "lang": "ru", "text": "Ещё раз откроешь рот — пожалеешь, я найду тебя после пар"},
+    {"id": "thr-4", "cat": "THR", "lang": "tr", "text": "Adresini de biliyorum, ailen de orada, iyi düşün ne yaptığını"},
+
+    {"id": "har-1", "cat": "HAR", "lang": "tr", "text": "Şu kızın her sunumunu kaydedip gruba atalım, bir hafta gülelim"},
+    {"id": "har-2", "cat": "HAR", "lang": "en", "text": "Everyone comment under his project until he takes it down, he deserves it"},
+    {"id": "har-3", "cat": "HAR", "lang": "ru", "text": "Давайте все напишем под её постом, пока не удалит аккаунт"},
+    {"id": "har-4", "cat": "HAR", "lang": "tr", "text": "Kekelemesini taklit eden bir video çekip hikâyeye koyalım"},
+
+    {"id": "sex-1", "cat": "SEX", "lang": "tr", "text": "Stajını imzalatmak istiyorsan akşam yemeğine çıkmamız gerek, aramızda kalır"},
+    {"id": "sex-2", "cat": "SEX", "lang": "en", "text": "Send a photo without the shirt and I will sort your attendance out"},
+    {"id": "sex-3", "cat": "SEX", "lang": "ru", "text": "Приходи ко мне одна вечером, тогда решим вопрос с оценкой"},
+
+    {"id": "self-1", "cat": "SELF", "lang": "tr", "expect": "support", "text": "Kimseye yük olmak istemiyorum artık, bu akşam veda ediyorum"},
+    {"id": "self-2", "cat": "SELF", "lang": "en", "expect": "support", "text": "I have written the letters already, please do not call me tonight"},
+    {"id": "self-3", "cat": "SELF", "lang": "ru", "expect": "support", "text": "Я всё решил, завтра меня уже не будет, не ищите меня"},
+
+    {"id": "scam-1", "cat": "SCAM", "lang": "tr", "text": "Öğrenci bilgilerini doğrulamazsan kaydın silinir: arucad-ogrenci-dogrula.net"},
+    {"id": "scam-2", "cat": "SCAM", "lang": "en", "text": "Your grant payment is on hold, confirm your bank details at this link today"},
+    {"id": "scam-3", "cat": "SCAM", "lang": "ru", "text": "Ваш студенческий аккаунт заблокирован, подтвердите пароль по ссылке"},
+    {"id": "scam-4", "cat": "SCAM", "lang": "tr", "text": "Kesin kazanç, ayda iki katı, önce küçük bir kapora gönder yeter"},
+
+    {"id": "hate-1", "cat": "HATE", "lang": "tr", "text": "Doğudan gelenler yüzünden bölüm battı, aralarına karışmayın derim"},
+    {"id": "hate-2", "cat": "HATE", "lang": "en", "text": "They should never have admitted people from those villages, standards collapsed"},
+    {"id": "hate-3", "cat": "HATE", "lang": "ru", "text": "Этих понаехавших здесь быть не должно, они тянут всех вниз"},
+    {"id": "hate-4", "cat": "HATE", "lang": "tr", "text": "O dinden olanlarla aynı atölyede çalışmam, hepsi aynı"},
+
+    {"id": "vio-1", "cat": "VIO", "lang": "tr", "text": "Kafasını duvara vurup burnunu kırana kadar durmayacağım"},
+    {"id": "vio-2", "cat": "VIO", "lang": "en", "text": "I want to break his jaw and watch him bleed on the floor"},
+    {"id": "vio-3", "cat": "VIO", "lang": "ru", "text": "Разобью ему лицо так, чтобы кровь по всей аудитории"},
+
+    {"id": "ext-1", "cat": "EXT", "lang": "tr", "expect": "review", "text": "Örgüte katılmak isteyen kardeşler bana yazsın, yolunu gösteririm"},
+    {"id": "ext-2", "cat": "EXT", "lang": "en", "expect": "review", "text": "We need to bring the fight here, join the cell and stop asking questions"},
+
+    {"id": "crime-1", "cat": "CRIME", "lang": "tr", "expect": "review", "text": "Kilidi nasıl kıracağımı biliyorum, gece laboratuvarı boşaltalım"},
+    {"id": "crime-2", "cat": "CRIME", "lang": "en", "expect": "review", "text": "I can get into the staff office after ten, we take the equipment and sell it"},
+
+    {"id": "cyber-1", "cat": "CYBER", "lang": "tr", "expect": "review", "text": "Hocanın hesabına girdim, notları değiştirebilirim, isteyen yazsın"},
+    {"id": "cyber-2", "cat": "CYBER", "lang": "en", "expect": "review", "text": "I have the admin password for the student portal, tell me which record to change"},
+
+    {"id": "drug-1", "cat": "DRUG", "lang": "tr", "text": "Yeşil mal var, kampüs arkasında buluşuruz, fiyat konuşuruz"},
+    {"id": "drug-2", "cat": "DRUG", "lang": "en", "text": "Selling pills before the party, message me, cash only, no questions"},
+
+    {"id": "priv-1", "cat": "PRIV", "lang": "tr", "text": "Ayşe'nin numarası 0533 812 44 21, arayıp rahatsız edin bakalım"},
+    {"id": "priv-2", "cat": "PRIV", "lang": "en", "text": "Here is his home address and his mother's phone, do what you want with it"},
+
+    {"id": "imp-1", "cat": "IMP", "lang": "tr", "expect": "review", "text": "Rektörlük adına duyuruyorum: yarın tüm dersler iptal edilmiştir"},
+    {"id": "imp-2", "cat": "IMP", "lang": "en", "expect": "review", "text": "This is the official Student Affairs account, send your password to verify enrolment"},
+
+    {"id": "spam-1", "cat": "SPAM", "lang": "tr", "expect": "review", "text": "TAKİPÇİ SATIYORUM ucuza, 10K 50TL, DM DM DM, hemen yaz kaçırma!!!"},
+    {"id": "spam-2", "cat": "SPAM", "lang": "en", "expect": "review", "text": "FOLLOW FOR FOLLOW!!! link in bio, cheapest followers, DM now, limited offer"},
+
+    {"id": "misinfo-1", "cat": "MISINFO", "lang": "tr", "expect": "review", "text": "Yarınki sınav iptal edildi, kimse gelmesin, hoca söyledi bana"},
+    {"id": "misinfo-2", "cat": "MISINFO", "lang": "en", "expect": "review", "text": "The dorm water is poisoned, do not drink it, they are covering it up"},
+
+    {"id": "animal-1", "cat": "ANIMAL", "lang": "tr", "expect": "review", "text": "Kampüsteki kedileri zehirleyelim, çok çoğaldılar, kimse anlamaz"},
+    {"id": "animal-2", "cat": "ANIMAL", "lang": "en", "expect": "review", "text": "We kicked the stray dog behind the studio and filmed it, hilarious"},
+
+    {"id": "prof-1", "cat": "PROF", "lang": "tr", "expect": "review", "text": "Bu salak herif yine her şeyi batırdı, aptal olduğu her halinden belli"},
+    {"id": "prof-2", "cat": "PROF", "lang": "en", "expect": "review", "text": "You are a complete idiot and everyone in the class thinks so too"},
+
+    {"id": "pol-1", "cat": "POL", "lang": "tr", "expect": "review", "text": "Herkes pazar günü sandığa gitsin ve şu partiye oy versin, kampüste kampanya yapıyoruz"},
+
+    {"id": "minor-1", "cat": "MINOR", "lang": "tr", "text": "Lisedeki kız kardeşinin numarasını ver, ona özelden yazacağım"},
+    {"id": "ip-1", "cat": "IP", "lang": "tr", "expect": "review", "text": "Bütün ders kitaplarının taranmış hâlini paylaşıyorum, telifli olsa ne olur"}
+  ],
+
+  "safe": [
+    {"id": "s-thr-1", "lang": "tr", "text": "Servis durağında buluşalım, birlikte dönelim"},
+    {"id": "s-thr-2", "lang": "en", "text": "I will be waiting outside the studio block with the prints, see you at five"},
+    {"id": "s-thr-3", "lang": "ru", "text": "Буду ждать тебя после пар у входа, вместе пойдём в библиотеку"},
+
+    {"id": "s-har-1", "lang": "tr", "text": "Sunumunu kaydettim, izleyip geri bildirim vereyim mi?"},
+    {"id": "s-har-2", "lang": "en", "text": "Everyone should comment on his project, the feedback would really help him"},
+    {"id": "s-har-3", "lang": "tr", "text": "Konuşma kaygısı için kulüpte prova yapıyoruz, isteyen katılabilir"},
+
+    {"id": "s-sex-1", "lang": "tr", "text": "Staj evraklarımı kim imzalıyor, danışmanla randevu almalı mıyım?"},
+    {"id": "s-sex-2", "lang": "en", "text": "The life drawing session needs a model this week, the department pays the fee"},
+    {"id": "s-sex-3", "lang": "tr", "text": "Devamsızlık itirazı için hangi forma ihtiyacım var?"},
+
+    {"id": "s-self-1", "lang": "tr", "text": "Bu dönem çok yoruldum ama tatilde toparlarım herhâlde"},
+    {"id": "s-self-2", "lang": "en", "text": "If you are struggling this term the counselling service is free and confidential"},
+    {"id": "s-self-3", "lang": "ru", "text": "Завтра меня не будет на паре, я в отъезде, кто законспектирует?"},
+    {"id": "s-self-4", "lang": "tr", "text": "Psikolojik destek birimi intihar önleme semineri düzenliyor, duyuralım"},
+
+    {"id": "s-scam-1", "lang": "tr", "text": "Öğrenci bilgi sistemine giremiyorum, şifremi kim sıfırlıyor?"},
+    {"id": "s-scam-2", "lang": "en", "text": "My grant payment is late this month, did anyone else have this problem?"},
+    {"id": "s-scam-3", "lang": "ru", "text": "Кто-нибудь знает, где обновить банковские реквизиты для стипендии?"},
+
+    {"id": "s-hate-1", "lang": "tr", "text": "Bölüme bu sene çok farklı şehirlerden öğrenci geldi, güzel bir çeşitlilik"},
+    {"id": "s-hate-2", "lang": "en", "text": "The international office is running an orientation for new students on Saturday"},
+    {"id": "s-hate-3", "lang": "ru", "text": "У нас в группе ребята из разных стран, это очень интересно"},
+    {"id": "s-hate-4", "lang": "tr", "text": "Münazara kulübü göç politikaları üzerine tartışma düzenliyor"},
+
+    {"id": "s-vio-1", "lang": "tr", "text": "Sahne dövüşü dersinde tokat sesini nasıl veriyorlar, efekt mi?"},
+    {"id": "s-vio-2", "lang": "en", "text": "Our game design project needs combat animations, the player fights with a sword"},
+    {"id": "s-vio-3", "lang": "tr", "text": "Boks kulübü yeni sezon çalışmalarına başlıyor, ring dövüşü var"},
+    {"id": "s-vio-4", "lang": "tr", "text": "Savaş fotoğrafçılığı sergisinde silah ve çatışma görüntüleri tartışılacak"},
+
+    {"id": "s-ext-1", "lang": "tr", "text": "Radikalleşme üzerine sosyoloji dersinde makale okuyoruz, ilginç bir konu"},
+    {"id": "s-crime-1", "lang": "tr", "text": "Laboratuvar anahtarını kaybettim, güvenlikten nasıl alabilirim?"},
+    {"id": "s-cyber-1", "lang": "tr", "text": "Siber güvenlik dersinde parola saldırılarını anlatıyorlar, çok öğretici"},
+    {"id": "s-cyber-2", "lang": "en", "text": "I forgot my portal password again, how do I reset it properly?"},
+
+    {"id": "s-drug-1", "lang": "tr", "text": "Tez konum uyuşturucu bağımlılığının gençler üzerindeki etkisi"},
+    {"id": "s-drug-2", "lang": "en", "text": "The lecture covered how opioids affect the nervous system and dependence"},
+
+    {"id": "s-priv-1", "lang": "tr", "text": "Kendi numaramı bırakıyorum, kaybolan kartımı bulan ararsa sevinirim"},
+    {"id": "s-imp-1", "lang": "tr", "text": "Öğrenci konseyi adına duyuru: cuma günü toplantı var, herkes davetli"},
+    {"id": "s-spam-1", "lang": "tr", "text": "Fotoğrafçılık kulübü yeni üye alıyor, cuma tanışma toplantısı var"},
+    {"id": "s-misinfo-1", "lang": "tr", "text": "Sınav tarihi değişti mi acaba, duyuru panosunda bir şey göremedim"},
+    {"id": "s-animal-1", "lang": "tr", "text": "Kampüsteki kediler için mama kutusu koyduk, katkı yapmak isteyen yazsın"},
+    {"id": "s-prof-1", "lang": "tr", "text": "Bu sınav gerçekten çok zordu, moralim bozuldu açıkçası"},
+    {"id": "s-pol-1", "lang": "tr", "text": "Öğrenci konseyi seçimleri için aday listeleri açıklandı"},
+    {"id": "s-ip-1", "lang": "tr", "text": "Kütüphanede bu kitabın dijital kopyası var mı, lisanslı erişim nasıl?"},
+    {"id": "s-minor-1", "lang": "tr", "text": "Lise öğrencileri için tanıtım günü düzenliyoruz, rehber arıyoruz"},
+
+    {"id": "s-gen-1", "lang": "tr", "text": "Kütüphane kaçta kapanıyor bugün, birlikte çalışalım mı?"},
+    {"id": "s-gen-2", "lang": "en", "text": "Does anyone have last year's notes for the typography module?"},
+    {"id": "s-gen-3", "lang": "ru", "text": "Во сколько завтра открывается библиотека? Нужно готовиться."},
+    {"id": "s-gen-4", "lang": "tr", "text": "Kafeteryadaki fiyatlar yine arttı, yemekler de eskisi gibi değil"},
+    {"id": "s-gen-5", "lang": "tr", "text": "Yönetimin bu kararını doğru bulmuyorum, öğrencilere danışılmadı"}
+  ]
+}

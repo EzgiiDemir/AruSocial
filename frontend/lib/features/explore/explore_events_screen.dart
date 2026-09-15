@@ -246,6 +246,7 @@ class _ExploreEventsScreenState extends State<ExploreEventsScreen> {
                               shown: shown,
                               total: filtered.length,
                               itemLabel: 'etkinlik',
+                              showCompleteLabel: false,
                               onTap: () =>
                                   setState(() => _visible += kPageSize),
                             );

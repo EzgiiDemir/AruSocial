@@ -79,7 +79,7 @@ class ImageModerationService
     /**
      * Ask the ARUCAD-hosted local classifier for a semantic decision.
      * MediaController treats "not configured" as approve-after-magic-bytes and
-     * "configured but unavailable" as pending for a reviewer.
+     * "configured but unavailable" as MODERATION_UNAVAILABLE.
      *
      * @return array{available: bool, blocked: bool, categories: list<string>, score: float}
      */

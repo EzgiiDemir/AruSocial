@@ -2,9 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Models\FeedPost;
 use App\Models\ModerationEvent;
 use App\Services\Moderation\ContentModerator;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -18,6 +20,15 @@ use Tests\TestCase;
 class OpenAiModerationTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        config([
+            'moderation.enabled' => false,
+            'services.moderation.enabled' => true,
+        ]);
+    }
 
     private function withProvider(array $response, int $status = 200): void
     {
@@ -61,7 +72,7 @@ class OpenAiModerationTest extends TestCase
         ]);
 
         $response->assertStatus(400)->assertJsonPath('error.code', 'CONTENT_BLOCKED');
-        $this->assertSame(0, \App\Models\FeedPost::count(), 'Rejected content must never be written.');
+        $this->assertSame(0, FeedPost::count(), 'Rejected content must never be written.');
         $this->assertSame(1, (int) $user->fresh()->strikes);
     }
 
@@ -71,7 +82,7 @@ class OpenAiModerationTest extends TestCase
         $this->withProvider($this->clean());
 
         $this->postJson('/api/v1/feed', ['text' => 'Kütüphanede ders çalışıyoruz.'])->assertOk();
-        $this->assertSame(1, \App\Models\FeedPost::count());
+        $this->assertSame(1, FeedPost::count());
     }
 
     public function test_a_provider_outage_holds_content_instead_of_publishing_it(): void
@@ -83,7 +94,7 @@ class OpenAiModerationTest extends TestCase
         $response = $this->postJson('/api/v1/feed', ['text' => 'Tamamen normal bir gönderi.']);
 
         $response->assertStatus(503)->assertJsonPath('error.code', 'MODERATION_UNAVAILABLE');
-        $this->assertSame(0, \App\Models\FeedPost::count(), 'Unchecked content must not be published.');
+        $this->assertSame(0, FeedPost::count(), 'Unchecked content must not be published.');
     }
 
     /**
@@ -96,7 +107,7 @@ class OpenAiModerationTest extends TestCase
      * engine keeps enforcing meanwhile, which is the whole point of having
      * one.
      */
-    public function test_rejected_credentials_degrade_to_the_local_engine_rather_than_blocking_everyone(): void
+    public function test_rejected_credentials_degrade_to_the_local_engine(): void
     {
         $this->actingAsUser();
         config(['services.moderation.openai_key' => 'sk-revoked-key']);
@@ -104,16 +115,21 @@ class OpenAiModerationTest extends TestCase
             'error' => ['message' => 'Your API key has been invalidated.', 'code' => 'token_invalidated'],
         ], 401)]);
 
-        $this->postJson('/api/v1/feed', ['text' => 'Tamamen normal bir gönderi.'])
-            ->assertSuccessful();
+        $this->postJson('/api/v1/feed', ['text' => 'Tamamen normal bir gönderi.'])->assertOk();
+        $this->assertSame(1, FeedPost::count());
 
-        $this->assertSame(1, \App\Models\FeedPost::count());
+        // Degrading is not the same as switching moderation off.
+        $this->postJson('/api/v1/feed', ['text' => 'lanet zenci hepinizden nefret ediyorum'])
+            ->assertStatus(400)
+            ->assertJsonPath('error.code', 'CONTENT_BLOCKED');
+        $this->assertSame(1, FeedPost::count());
     }
 
     /**
      * A 429 is only transient when it is a real rate limit. A project with
      * no billing answers 429 with `invalid_request_error` on every single
-     * request, so retrying is hopeless and blocking on it is indefinite.
+     * request, so retrying is hopeless and blocking on it is indefinite —
+     * which is why it degrades to the local engine instead of holding.
      */
     public function test_a_quota_exhausted_429_degrades_to_the_local_engine(): void
     {
@@ -123,9 +139,9 @@ class OpenAiModerationTest extends TestCase
             'error' => ['message' => 'Too Many Requests', 'type' => 'invalid_request_error'],
         ], 429)]);
 
-        $this->postJson('/api/v1/feed', ['text' => 'Sabah dersi iptal olmuş.'])->assertSuccessful();
+        $this->postJson('/api/v1/feed', ['text' => 'Sabah dersi iptal olmuş.'])->assertOk();
 
-        $this->assertSame(1, \App\Models\FeedPost::count());
+        $this->assertSame(1, FeedPost::count());
     }
 
     /** The counterpart: a genuine rate limit does pass, so it still holds. */
@@ -141,7 +157,7 @@ class OpenAiModerationTest extends TestCase
             ->assertStatus(503)
             ->assertJsonPath('error.code', 'MODERATION_UNAVAILABLE');
 
-        $this->assertSame(0, \App\Models\FeedPost::count());
+        $this->assertSame(0, FeedPost::count());
     }
 
     public function test_abuse_is_still_refused_when_credentials_are_rejected(): void
@@ -154,7 +170,7 @@ class OpenAiModerationTest extends TestCase
             ->assertStatus(400)
             ->assertJsonPath('error.code', 'CONTENT_BLOCKED');
 
-        $this->assertSame(0, \App\Models\FeedPost::count());
+        $this->assertSame(0, FeedPost::count());
         $this->assertSame(1, (int) $user->fresh()->strikes);
     }
 
@@ -162,7 +178,7 @@ class OpenAiModerationTest extends TestCase
     {
         $user = $this->actingAsUser();
         config(['services.moderation.openai_key' => 'sk-test-key']);
-        Http::fake(['api.openai.com/*' => fn () => throw new \Illuminate\Http\Client\ConnectionException('down')]);
+        Http::fake(['api.openai.com/*' => fn () => throw new ConnectionException('down')]);
 
         $this->postJson('/api/v1/feed', ['text' => 'Normal bir gönderi.'])->assertStatus(503);
 
@@ -184,27 +200,75 @@ class OpenAiModerationTest extends TestCase
             ->assertStatus(400)
             ->assertJsonPath('error.code', 'CONTENT_BLOCKED');
 
-        $this->assertSame(0, \App\Models\FeedPost::count());
+        $this->assertSame(0, FeedPost::count());
         $this->assertSame(1, (int) $user->fresh()->strikes);
     }
 
-    public function test_scores_above_threshold_count_even_when_not_hard_flagged(): void
+    public function test_medium_provider_score_does_not_block_but_high_score_does(): void
     {
         $user = $this->actingAsUser();
         config(['services.moderation.openai_key' => 'sk-test-key']);
-        Http::fake(['api.openai.com/*' => Http::response([
-            'model' => 'omni-moderation-latest',
-            'results' => [[
-                'flagged' => false,
-                'categories' => ['sexual/minors' => false],
-                'category_scores' => ['sexual/minors' => 0.42],
-            ]],
-        ])]);
+        Http::fakeSequence('api.openai.com/*')
+            ->push([
+                'model' => 'omni-moderation-latest',
+                'results' => [[
+                    'flagged' => false,
+                    'categories' => ['sexual/minors' => false],
+                    'category_scores' => ['sexual/minors' => 0.42],
+                ]],
+            ])
+            ->push([
+                'model' => 'omni-moderation-latest',
+                'results' => [[
+                    'flagged' => false,
+                    'categories' => ['sexual/minors' => false],
+                    'category_scores' => ['sexual/minors' => 0.96],
+                ]],
+            ]);
 
-        $this->postJson('/api/v1/feed', ['text' => 'borderline text'])
+        $this->postJson('/api/v1/feed', ['text' => 'borderline text'])->assertOk();
+        $this->assertSame(0, (int) $user->fresh()->strikes);
+
+        $this->postJson('/api/v1/feed', ['text' => 'high confidence semantic fixture'])
+            ->assertStatus(400)->assertJsonPath('error.code', 'CONTENT_BLOCKED');
+        $this->assertSame(1, (int) $user->fresh()->strikes);
+    }
+
+    public function test_local_policy_block_wins_even_when_semantic_provider_is_clean(): void
+    {
+        $user = $this->actingAsUser();
+        $this->withProvider($this->clean());
+
+        $this->postJson('/api/v1/feed', ['text' => 'What the fuck is this?'])->assertOk();
+        $this->postJson('/api/v1/feed', ['text' => 'Fuck you, get out of here.'])
             ->assertStatus(400)
             ->assertJsonPath('error.code', 'CONTENT_BLOCKED');
+
+        $this->assertSame(1, FeedPost::count());
         $this->assertSame(1, (int) $user->fresh()->strikes);
+    }
+
+    public function test_clean_semantic_result_resolves_a_weak_local_match_to_allow(): void
+    {
+        $user = $this->actingAsUser();
+        $this->withProvider($this->clean());
+
+        $this->postJson('/api/v1/feed', ['text' => 'Salakça bir yazılım hatası olmuş.'])
+            ->assertOk();
+
+        $this->assertSame(1, FeedPost::count());
+        $this->assertSame(0, (int) $user->fresh()->strikes);
+    }
+
+    public function test_an_unknown_provider_category_cannot_create_a_strike(): void
+    {
+        $user = $this->actingAsUser();
+        $this->withProvider($this->flagged(['new-unsupported-category' => true]));
+
+        $this->postJson('/api/v1/feed', ['text' => 'Normal campus update.'])->assertOk();
+
+        $this->assertSame(1, FeedPost::count());
+        $this->assertSame(0, (int) $user->fresh()->strikes);
     }
 
     public function test_a_moderation_event_records_the_decision_for_audit(): void

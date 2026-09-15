@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../config/campus_sites.dart';
+
 /// Outcome of [LocationService.checkAndRequestPermission] — distinguishes
 /// "location services are off at the OS level" from the two denial states
 /// Geolocator's own [LocationPermission] enum already has, since callers
@@ -109,11 +111,61 @@ class LocationService {
       _lastKnownAt != null &&
       DateTime.now().difference(_lastKnownAt!) < lastKnownFreshFor;
 
-  static Position? _remember(Position? position) {
-    if (position != null) {
-      _lastKnown = position;
-      _lastKnownAt = DateTime.now();
+  /// Furthest a fix may sit from any ARUCAD site and still be believed.
+  ///
+  /// The three sites span Girne to Lefkoşa, about 20 km apart, so anyone
+  /// actually in Cyprus is comfortably inside this. It exists because a
+  /// browser with no GPS falls back to IP lookup, and that resolved a
+  /// student sitting in Girne to **Bangladesh** — the map drew a line
+  /// across Asia and the routing endpoint answered 502, because there is
+  /// no walking route from Dhaka to campus.
+  static const plausibleRadiusMeters = 150000.0;
+
+  /// An IP-derived fix reports accuracy in the tens of kilometres. A real
+  /// GPS or WiFi fix is orders of magnitude better, so this separates the
+  /// two without needing to know which API produced it.
+  static const plausibleAccuracyMeters = 20000.0;
+
+  /// Whether a fix is worth acting on.
+  ///
+  /// Deliberately not "is the student on campus": someone at home in
+  /// Lefkoşa is legitimately 25 km away and their distance-to-campus is
+  /// real information. This only rejects fixes that cannot be a person
+  /// who is in Cyprus at all.
+  static bool isPlausible(Position position) {
+    if (position.accuracy > plausibleAccuracyMeters) return false;
+
+    for (final site in campusSites) {
+      final metres = Geolocator.distanceBetween(
+        position.latitude,
+        position.longitude,
+        site.lat,
+        site.lng,
+      );
+      if (metres <= plausibleRadiusMeters) return true;
     }
+    return false;
+  }
+
+  /// The last fix that was rejected as implausible, so a screen can say
+  /// "we could not place you" instead of silently showing nothing.
+  static Position? _lastRejected;
+
+  static Position? get lastRejected => _lastRejected;
+
+  static Position? _remember(Position? position) {
+    if (position == null) return null;
+
+    // Dropped rather than cached. A wrong position is worse than none:
+    // it produces confident nonsense — a route across a continent, a
+    // "nearest place" that is 5000 km away, a check-in that cannot work.
+    if (!isPlausible(position)) {
+      _lastRejected = position;
+      return null;
+    }
+
+    _lastKnown = position;
+    _lastKnownAt = DateTime.now();
     return position;
   }
 
@@ -154,9 +206,16 @@ class LocationService {
     }
   }
 
+  /// Implausible fixes are filtered out of the stream rather than passed
+  /// on. Subscribers draw the user's position directly from this, so one
+  /// bad IP-derived fix would jump the marker to another continent and
+  /// then jump back.
   Stream<Position> positionStream({LocationSettings? settings}) =>
       Geolocator.getPositionStream(
         locationSettings:
             settings ?? const LocationSettings(accuracy: LocationAccuracy.high),
-      ).map((position) => _remember(position)!);
+      )
+          .map(_remember)
+          .where((position) => position != null)
+          .cast<Position>();
 }

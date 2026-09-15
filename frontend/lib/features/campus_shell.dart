@@ -70,6 +70,7 @@ class _CampusShellState extends State<CampusShell> {
 
   Future<void> _loadSettings() async {
     try {
+      final localLanguage = await AppSettingsStore.savedLanguage();
       final settings = await widget.repository.getUserSettings();
       if (!mounted) return;
       final lang = settings.preferredLanguage;
@@ -78,11 +79,13 @@ class _CampusShellState extends State<CampusShell> {
         _nearbyDiscoverable = settings.nearbyDiscoverable;
         _personalization = settings.personalization;
         _isPrivateProfile = settings.isPrivateProfile;
-        if (lang == 'TR' || lang == 'EN' || lang == 'RU') {
+        if (localLanguage == null &&
+            (lang == 'TR' || lang == 'EN' || lang == 'RU')) {
           _language = lang;
         }
       });
-      if (lang == 'TR' || lang == 'EN' || lang == 'RU') {
+      if (localLanguage == null &&
+          (lang == 'TR' || lang == 'EN' || lang == 'RU')) {
         widget.onLanguageChanged?.call(lang);
         await AppSettingsStore.setLanguage(lang);
       }
@@ -127,6 +130,7 @@ class _CampusShellState extends State<CampusShell> {
     return AppLocale(
       language: lang,
       child: Scaffold(
+        backgroundColor: ArucadColors.paper,
         body: SafeArea(
           // Each tab gets its own RepaintBoundary: without one, an
           // animation or scroll inside the active tab (or a setState up
@@ -134,90 +138,94 @@ class _CampusShellState extends State<CampusShell> {
           // paint for every offstage tab in the IndexedStack too, which is
           // exactly the kind of invisible per-navigation cost that adds up
           // to "everything feels slow."
-          child: IndexedStack(
-            index: _index,
-            children: [
-              _lazyTab(
-                0,
-                HomeScreen(
-                  user: widget.user,
-                  repository: widget.repository,
-                  mapProvider: widget.mapProvider,
-                  analyticsTracker: widget.analyticsTracker,
-                  onExplore: () => _openTab(1),
-                  onQuests: () =>
-                      _openTab(4, settingsSection: SettingsSection.activity),
-                  onAI: () => _openTab(3),
-                  onSocial: () => _openTab(2),
-                  onLogout: _confirmLogout,
-                  initialVisibility: _visibility,
-                  showForYou: _personalization,
-                ),
-              ),
-              _lazyTab(
-                1,
-                ExploreScreen(
-                  repository: widget.repository,
-                  mapProvider: widget.mapProvider,
-                  analyticsTracker: widget.analyticsTracker,
-                  onAI: () => _openTab(3),
-                  initialVisibility: _visibility,
-                ),
-              ),
-              _lazyTab(
-                  2,
-                  SocialShell(
+          child: ColoredBox(
+            color: ArucadColors.canvas,
+            child: IndexedStack(
+              index: _index,
+              children: [
+                _lazyTab(
+                  0,
+                  HomeScreen(
+                    user: widget.user,
                     repository: widget.repository,
                     mapProvider: widget.mapProvider,
                     analyticsTracker: widget.analyticsTracker,
-                  )),
-              _lazyTab(
-                3,
-                AskArucadScreen(
-                  repository: widget.repository,
-                  mapProvider: widget.mapProvider,
-                  analyticsTracker: widget.analyticsTracker,
+                    onExplore: () => _openTab(1),
+                    onQuests: () =>
+                        _openTab(4, settingsSection: SettingsSection.activity),
+                    onAI: () => _openTab(3),
+                    onSocial: () => _openTab(2),
+                    onLogout: _confirmLogout,
+                    initialVisibility: _visibility,
+                    showForYou: _personalization,
+                  ),
                 ),
-              ),
-              _lazyTab(
-                4,
-                ProfileScreen(
-                  user: widget.user,
-                  onLogout: _confirmLogout,
-                  repository: widget.repository,
-                  mapProvider: widget.mapProvider,
-                  analyticsTracker: widget.analyticsTracker,
-                  role: widget.role,
-                  language: _language,
-                  locationVisibility: _visibility,
-                  nearbyDiscoverable: _nearbyDiscoverable,
-                  personalization: _personalization,
-                  isPrivateProfile: _isPrivateProfile,
-                  initialSection: _settingsSection,
-                  onLanguage: _changeLanguage,
-                  onLocationVisibility: (value) {
-                    setState(() => _visibility = value);
-                    widget.repository
-                        .updateUserSettings(locationVisibility: value.name);
-                  },
-                  onNearbyDiscoverable: (value) {
-                    setState(() => _nearbyDiscoverable = value);
-                    widget.repository
-                        .updateUserSettings(nearbyDiscoverable: value);
-                  },
-                  onPersonalization: (value) {
-                    setState(() => _personalization = value);
-                    widget.repository
-                        .updateUserSettings(personalization: value);
-                  },
-                  onPrivateProfile: (value) {
-                    setState(() => _isPrivateProfile = value);
-                    widget.repository
-                        .updateUserSettings(isPrivateProfile: value);
-                  },
+                _lazyTab(
+                  1,
+                  ExploreScreen(
+                    repository: widget.repository,
+                    mapProvider: widget.mapProvider,
+                    analyticsTracker: widget.analyticsTracker,
+                    onAI: () => _openTab(3),
+                    initialVisibility: _visibility,
+                  ),
                 ),
-              ),
-            ],
+                _lazyTab(
+                    2,
+                    SocialShell(
+                      repository: widget.repository,
+                      mapProvider: widget.mapProvider,
+                      analyticsTracker: widget.analyticsTracker,
+                      onOpenSettings: () => _openTab(4),
+                    )),
+                _lazyTab(
+                  3,
+                  AskArucadScreen(
+                    repository: widget.repository,
+                    mapProvider: widget.mapProvider,
+                    analyticsTracker: widget.analyticsTracker,
+                  ),
+                ),
+                _lazyTab(
+                  4,
+                  ProfileScreen(
+                    user: widget.user,
+                    onLogout: _confirmLogout,
+                    repository: widget.repository,
+                    mapProvider: widget.mapProvider,
+                    analyticsTracker: widget.analyticsTracker,
+                    role: widget.role,
+                    language: _language,
+                    locationVisibility: _visibility,
+                    nearbyDiscoverable: _nearbyDiscoverable,
+                    personalization: _personalization,
+                    isPrivateProfile: _isPrivateProfile,
+                    initialSection: _settingsSection,
+                    onLanguage: _changeLanguage,
+                    onLocationVisibility: (value) {
+                      setState(() => _visibility = value);
+                      widget.repository
+                          .updateUserSettings(locationVisibility: value.name);
+                    },
+                    onNearbyDiscoverable: (value) {
+                      setState(() => _nearbyDiscoverable = value);
+                      widget.repository
+                          .updateUserSettings(nearbyDiscoverable: value);
+                    },
+                    onPersonalization: (value) {
+                      setState(() => _personalization = value);
+                      widget.repository
+                          .updateUserSettings(personalization: value);
+                    },
+                    onPrivateProfile: (value) {
+                      setState(() => _isPrivateProfile = value);
+                      widget.repository
+                          .updateUserSettings(isPrivateProfile: value);
+                    },
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
         bottomNavigationBar: _RootNavigationBar(
@@ -302,9 +310,6 @@ class _RootNavigationBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final surface = Theme.of(context).colorScheme.surface;
-    final onSurface = Theme.of(context).colorScheme.onSurface;
-
     // Five labels have to share the screen width, and the longest of them
     // ("Arucad'a Sor") is what decides whether the bar looks right. Two
     // things break it on a real phone that a default-settings simulator
@@ -330,93 +335,90 @@ class _RootNavigationBar extends StatelessWidget {
     return MediaQuery(
       data: MediaQuery.of(context).copyWith(textScaler: scaler),
       child: NavigationBarTheme(
-      data: NavigationBarThemeData(
-        backgroundColor: surface,
-        indicatorColor: ArucadColors.primary.withValues(alpha: .12),
-        iconTheme: WidgetStateProperty.resolveWith(
-          (states) => IconThemeData(
-            size: perTab < 68 ? 20 : 22,
-            color: states.contains(WidgetState.selected)
-                ? ArucadColors.primary
-                : onSurface,
+        data: NavigationBarThemeData(
+          backgroundColor: ArucadColors.primary,
+          indicatorColor: Colors.white.withValues(alpha: .18),
+          iconTheme: WidgetStateProperty.resolveWith(
+            (states) => IconThemeData(
+              size: perTab < 68 ? 20 : 22,
+              color: Colors.white,
+            ),
           ),
+          labelTextStyle: WidgetStateProperty.resolveWith((states) => TextStyle(
+                fontSize:
+                    states.contains(WidgetState.selected) ? base : base - 0.5,
+                fontWeight: states.contains(WidgetState.selected)
+                    ? FontWeight.w800
+                    : FontWeight.w600,
+                height: 1.1,
+                color: Colors.white,
+              )),
         ),
-        labelTextStyle: WidgetStateProperty.resolveWith((states) => TextStyle(
-              fontSize: states.contains(WidgetState.selected) ? base : base - 0.5,
-              fontWeight: states.contains(WidgetState.selected)
-                  ? FontWeight.w800
-                  : FontWeight.w600,
-              height: 1.1,
-              color: states.contains(WidgetState.selected)
-                  ? ArucadColors.primary
-                  : onSurface,
-            )),
-      ),
-      child: NavigationBar(
-        height: 70,
-        selectedIndex: selectedIndex,
-        onDestinationSelected: onDestinationSelected,
-        destinations: [
-          NavigationDestination(
-              icon: ArucadLineIcon(
-                  icon: ArucadLineIconKind.home,
-                  semanticLabel: strings.t('nav_home')),
-              selectedIcon: ArucadLineIcon(
-                  icon: ArucadLineIconKind.home,
-                  filled: true,
-                  color: ArucadColors.primary,
-                  semanticLabel: strings.t('nav_home')),
-              label: strings.t('nav_home')),
-          NavigationDestination(
-              icon: ArucadLineIcon(
-                  icon: ArucadLineIconKind.explore,
-                  semanticLabel: strings.t('nav_explore')),
-              selectedIcon: ArucadLineIcon(
-                  icon: ArucadLineIconKind.explore,
-                  color: ArucadColors.primary,
-                  semanticLabel: strings.t('nav_explore')),
-              label: strings.t('nav_explore')),
-          NavigationDestination(
-              icon: ArucadLineIcon(
-                  icon: ArucadLineIconKind.social,
-                  semanticLabel: strings.t('nav_social')),
-              selectedIcon: ArucadLineIcon(
-                  icon: ArucadLineIconKind.social,
-                  color: ArucadColors.primary,
-                  semanticLabel: strings.t('nav_social')),
-              label: strings.t('nav_social')),
-          NavigationDestination(
-              icon: ArucadLineIcon(
-                  icon: ArucadLineIconKind.ask,
-                  semanticLabel: strings.t('nav_ask')),
-              selectedIcon: ArucadLineIcon(
-                  icon: ArucadLineIconKind.ask,
-                  color: ArucadColors.primary,
-                  semanticLabel: strings.t('nav_ask')),
-              // "Arucad'a Sor" is the longest label by some margin and is
-              // what makes the bar overflow first. Rather than shrink every
-              // label until they are all hard to read, this one falls back
-              // to its short form once the space per tab (after the user's
-              // font-size setting) can no longer hold it. The full wording
-              // stays as the semantic label, so a screen reader still says
-              // "Arucad'a Sor".
-              label: _askLabel(context, strings, perTab)),
-          NavigationDestination(
-              icon: ArucadLineIcon(
-                  icon: ArucadLineIconKind.profile,
-                  semanticLabel: strings.t('nav_profile')),
-              selectedIcon: ArucadLineIcon(
-                  icon: ArucadLineIconKind.profile,
-                  color: ArucadColors.primary,
-                  semanticLabel: strings.t('nav_profile')),
-              // The tab carries the signed-in student's own first name
-              // rather than "Ayarlar" — it is their account, and a name is
-              // what makes the tab read as theirs. Falls back to the
-              // translated label when the name is not loaded yet, so the
-              // bar never shows an empty item.
-              label: _accountLabel),
-        ],
-      ),
+        child: NavigationBar(
+          height: 70,
+          selectedIndex: selectedIndex,
+          onDestinationSelected: onDestinationSelected,
+          destinations: [
+            NavigationDestination(
+                icon: ArucadLineIcon(
+                    icon: ArucadLineIconKind.home,
+                    semanticLabel: strings.t('nav_home')),
+                selectedIcon: ArucadLineIcon(
+                    icon: ArucadLineIconKind.home,
+                    filled: true,
+                    color: Colors.white,
+                    semanticLabel: strings.t('nav_home')),
+                label: strings.t('nav_home')),
+            NavigationDestination(
+                icon: ArucadLineIcon(
+                    icon: ArucadLineIconKind.explore,
+                    semanticLabel: strings.t('nav_explore')),
+                selectedIcon: ArucadLineIcon(
+                    icon: ArucadLineIconKind.explore,
+                    color: Colors.white,
+                    semanticLabel: strings.t('nav_explore')),
+                label: strings.t('nav_explore')),
+            NavigationDestination(
+                icon: ArucadLineIcon(
+                    icon: ArucadLineIconKind.social,
+                    semanticLabel: strings.t('nav_social')),
+                selectedIcon: ArucadLineIcon(
+                    icon: ArucadLineIconKind.social,
+                    color: Colors.white,
+                    semanticLabel: strings.t('nav_social')),
+                label: strings.t('nav_social')),
+            NavigationDestination(
+                icon: ArucadLineIcon(
+                    icon: ArucadLineIconKind.ask,
+                    semanticLabel: strings.t('nav_ask')),
+                selectedIcon: ArucadLineIcon(
+                    icon: ArucadLineIconKind.ask,
+                    color: Colors.white,
+                    semanticLabel: strings.t('nav_ask')),
+                // "Arucad'a Sor" is the longest label by some margin and is
+                // what makes the bar overflow first. Rather than shrink every
+                // label until they are all hard to read, this one falls back
+                // to its short form once the space per tab (after the user's
+                // font-size setting) can no longer hold it. The full wording
+                // stays as the semantic label, so a screen reader still says
+                // "Arucad'a Sor".
+                label: _askLabel(context, strings, perTab)),
+            NavigationDestination(
+                icon: ArucadLineIcon(
+                    icon: ArucadLineIconKind.profile,
+                    semanticLabel: strings.t('nav_profile')),
+                selectedIcon: ArucadLineIcon(
+                    icon: ArucadLineIconKind.profile,
+                    color: Colors.white,
+                    semanticLabel: strings.t('nav_profile')),
+                // The tab carries the signed-in student's own first name
+                // rather than "Ayarlar" — it is their account, and a name is
+                // what makes the tab read as theirs. Falls back to the
+                // translated label when the name is not loaded yet, so the
+                // bar never shows an empty item.
+                label: _accountLabel),
+          ],
+        ),
       ),
     );
   }

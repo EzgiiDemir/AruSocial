@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Api\Concerns\ApiResponds;
+use App\Http\Controllers\Api\Concerns\ModeratesContent;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\UpsertOnboardingStepRequest;
 use App\Models\OnboardingStep;
@@ -16,7 +17,7 @@ use Illuminate\Http\JsonResponse;
 // unaffected by this.
 class OnboardingStepController extends Controller
 {
-    use ApiResponds;
+    use ApiResponds, ModeratesContent;
 
     private function toJson(OnboardingStep $s): array
     {
@@ -53,6 +54,9 @@ class OnboardingStepController extends Controller
 
     public function upsert(UpsertOnboardingStepRequest $request): JsonResponse
     {
+        if ($blocked = $this->moderationBlock($this->currentUser(), $this->moderationText($request->validated()), 'cms_onboarding', 'admin.onboarding.upsert')) {
+            return $blocked;
+        }
         $id = $request->input('id');
         $isNew = ! OnboardingStep::where('id', $id)->exists();
         $step = OnboardingStep::updateOrCreate(['id' => $id], [

@@ -10,7 +10,7 @@ use Tests\TestCase;
 
 class ReviewIsolationTest extends TestCase
 {
-    use RefreshDatabase, SignsInChatUsers, CreatesPlaces;
+    use CreatesPlaces, RefreshDatabase, SignsInChatUsers;
 
     public function test_a_and_b_reviews_keep_separate_owners(): void
     {

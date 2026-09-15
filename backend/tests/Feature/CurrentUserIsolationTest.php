@@ -51,7 +51,7 @@ class CurrentUserIsolationTest extends TestCase
         $this->withToken($tokenB)->postJson('/api/v1/checkins', $this->checkinNear('p1'))->assertOk();
 
         $this->assertEquals(10, $b->fresh()->xp, "the check-in's XP belongs to B");
-        $this->assertEquals(0, $a->fresh()->xp, "A did nothing and must have earned nothing");
+        $this->assertEquals(0, $a->fresh()->xp, 'A did nothing and must have earned nothing');
         $this->assertDatabaseHas('checkins', ['place_id' => 'p1', 'user_id' => $b->id]);
         $this->assertDatabaseMissing('checkins', ['place_id' => 'p1', 'user_id' => $a->id]);
 

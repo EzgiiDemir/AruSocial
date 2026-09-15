@@ -10,7 +10,7 @@ use Tests\TestCase;
 
 class ReviewMutationOwnershipTest extends TestCase
 {
-    use RefreshDatabase, SignsInChatUsers, CreatesPlaces;
+    use CreatesPlaces, RefreshDatabase, SignsInChatUsers;
 
     public function test_b_cannot_edit_or_delete_a_review_there_is_no_mutation_route(): void
     {

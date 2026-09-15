@@ -4,13 +4,14 @@ namespace Tests\Feature;
 
 use App\Models\Review;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Schema;
 use Tests\Concerns\CreatesPlaces;
 use Tests\Concerns\SignsInChatUsers;
 use Tests\TestCase;
 
 class ReviewOwnershipTest extends TestCase
 {
-    use RefreshDatabase, SignsInChatUsers, CreatesPlaces;
+    use CreatesPlaces, RefreshDatabase, SignsInChatUsers;
 
     public function test_a_created_review_is_owned_by_the_signed_in_user(): void
     {
@@ -31,6 +32,6 @@ class ReviewOwnershipTest extends TestCase
         ]);
         $this->assertEquals(1, Review::count());
         $this->assertEquals($a->id, Review::value('user_id'));
-        $this->assertFalse(\Illuminate\Support\Facades\Schema::hasColumn('reviews', 'author'));
+        $this->assertFalse(Schema::hasColumn('reviews', 'author'));
     }
 }

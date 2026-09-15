@@ -2,9 +2,10 @@
 
 namespace Tests\Feature;
 
-use App\Models\Appointment;
+use App\Models\ParticipationApplication;
 use App\Models\StaffAvailabilitySlot;
 use App\Models\StaffProfile;
+use App\Models\User;
 use Illuminate\Contracts\Broadcasting\Factory as BroadcastFactory;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -109,7 +110,7 @@ class FinalHardeningAppointmentTest extends TestCase
             'subject' => 'Danışmanlık',
         ])->assertCreated();
 
-        $other = \App\Models\User::create([
+        $other = User::create([
             'name' => 'Other',
             'email' => 'other-final@arucad.edu.tr',
             'password' => bcrypt('x'),
@@ -136,7 +137,7 @@ class FinalHardeningAppointmentTest extends TestCase
             'subject' => 'Danışmanlık',
         ])->assertCreated()->json('data');
 
-        $other = \App\Models\User::create([
+        $other = User::create([
             'name' => 'Other',
             'email' => 'other-cancel@arucad.edu.tr',
             'password' => bcrypt('x'),
@@ -152,16 +153,16 @@ class FinalHardeningAppointmentTest extends TestCase
     {
         $owner = $this->actingAsUser();
         $this->seedStaffWithSlot();
-        \App\Models\ParticipationApplication::create([
+        ParticipationApplication::create([
             'id' => 'app-foreign',
             'user_id' => $owner->id,
             'target_type' => 'club',
             'target_id' => 'club-x',
-            'status' => \App\Models\ParticipationApplication::STATUS_DETAIL_FORM_PENDING,
+            'status' => ParticipationApplication::STATUS_DETAIL_FORM_PENDING,
             'submitted_at' => now(),
         ]);
 
-        $other = \App\Models\User::create([
+        $other = User::create([
             'name' => 'Other',
             'email' => 'other-app@arucad.edu.tr',
             'password' => bcrypt('x'),
@@ -202,7 +203,7 @@ class FinalHardeningAppointmentTest extends TestCase
 
     public function test_linked_staff_account_can_cancel_their_booking(): void
     {
-        $staffUser = \App\Models\User::create([
+        $staffUser = User::create([
             'name' => 'Advisor',
             'email' => 'advisor@arucad.edu.tr',
             'password' => bcrypt('x'),

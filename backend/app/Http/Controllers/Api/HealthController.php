@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Api\Concerns\ApiResponds;
 use App\Http\Controllers\Controller;
+use App\Services\Moderation\AccountEnforcement;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -28,7 +29,14 @@ class HealthController extends Controller
             'service' => 'arucad-campus-api',
             'version' => 'v1',
             'database' => $this->databaseStatus(),
-            'moderation' => $this->moderationStatus(),
+            'moderation' => $this->moderationStatus() + [
+                // Reported unconditionally. A deployment running with
+                // account enforcement switched off looks completely
+                // normal from the outside — content is still refused —
+                // so the only way to notice it was left off after a
+                // testing window is to be able to ask.
+                'enforcement' => AccountEnforcement::enabled() ? 'on' : 'off',
+            ],
         ]);
     }
 
@@ -37,7 +45,7 @@ class HealthController extends Controller
      *
      * Reported here because its absence is invisible everywhere else and
      * looks exactly like a content problem to a student: with the scanner
-     * down every photo and video upload correctly fails closed with a
+     * down every photo upload correctly fails closed with a
      * 503, so "Stories block everything" and "the classifier process is
      * not running" produce the same symptom. One field turns a confusing
      * outage into an obvious one.

@@ -14,7 +14,7 @@ use Tests\TestCase;
  */
 class WorkshopApiTest extends TestCase
 {
-    use RefreshDatabase, CreatesPlaces;
+    use CreatesPlaces, RefreshDatabase;
 
     public function test_a_place_with_no_workshop_data_returns_empty_lists(): void
     {
@@ -57,7 +57,7 @@ class WorkshopApiTest extends TestCase
 
         $this->postJson("/api/v1/admin/places/{$place->id}/workshop/equipment/{$created['id']}/delete")
             ->assertOk();
-        $this->assertDatabaseMissing('workshop_equipment_items', ['id' => $created['id']]);
+        $this->assertSoftDeleted('workshop_equipment_items', ['id' => $created['id']]);
     }
 
     public function test_equipment_write_requires_places_manage_permission(): void

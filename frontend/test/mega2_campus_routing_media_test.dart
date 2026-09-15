@@ -22,7 +22,8 @@ void main() {
 
   test('CampusBuilding/Floor/Room parse directory hierarchy JSON', () {
     expect(
-      CampusBuilding.fromJson({'id': 'A Blok', 'name': 'A Blok', 'entryCount': 3}).entryCount,
+      CampusBuilding.fromJson(
+          {'id': 'A Blok', 'name': 'A Blok', 'entryCount': 3}).entryCount,
       3,
     );
     expect(
@@ -59,22 +60,23 @@ void main() {
     expect(route.toRouteResult().steps.first, 'left turn');
   });
 
-  test('MediaItem parses mimeType and moderationStatus; isVideo from mime', () {
-    final video = MediaItem.fromJson({
+  // `isVideo` went with the rest of video support on 14 September 2026.
+  test('MediaItem parses mimeType and moderationStatus', () {
+    final item = MediaItem.fromJson({
       'id': 'm1',
-      'url': '/storage/media/video/clip.mp4',
-      'fileName': 'clip.mp4',
+      'url': '/storage/media/held.jpg',
+      'fileName': 'held.jpg',
       'uploadedAt': '2026-08-25T12:00:00.000Z',
       'uploadedBy': 'Editor',
-      'mimeType': 'video/mp4',
+      'mimeType': 'image/jpeg',
       'moderationStatus': 'pending',
       'usedIn': <String>[],
     });
-    expect(video.isVideo, isTrue);
-    expect(video.moderationStatus, 'pending');
+    expect(item.mimeType, 'image/jpeg');
+    expect(item.moderationStatus, 'pending');
   });
 
-  test('MockCampusRepository directory drill-down and video queue', () async {
+  test('MockCampusRepository directory drill-down and review queue', () async {
     final repo = MockCampusRepository();
     final buildings = await repo.getDirectoryBuildings();
     expect(buildings.map((b) => b.name), containsAll(['A Blok', 'Atelier']));
@@ -85,19 +87,22 @@ void main() {
     final rooms = await repo.getDirectoryRooms('A Blok', '1');
     expect(rooms, isNotEmpty);
 
-    expect(await repo.getWalkingRoute(
-      fromLat: 35.33,
-      fromLng: 33.32,
-      toLat: 35.34,
-      toLng: 33.31,
-    ), isNull);
+    expect(
+        await repo.getWalkingRoute(
+          fromLat: 35.33,
+          fromLng: 33.32,
+          toLat: 35.34,
+          toLng: 33.31,
+        ),
+        isNull);
 
-    final video = await repo.uploadMedia(Uint8List.fromList([1, 2, 3]), fileName: 'clip.mp4');
-    expect(video.moderationStatus, 'pending');
-    final queue = await repo.getModerationQueue();
-    expect(queue.items.map((m) => m.id), contains(video.id));
-
-    await repo.resolveModerationQueueItem(video.id, action: 'approved');
+    // The mock store used to mark video uploads pending, which is how this
+    // exercised the queue. With video gone an upload is approved straight
+    // away, so the queue is empty — which is the behaviour now worth
+    // pinning.
+    final photo = await repo.uploadMedia(Uint8List.fromList([1, 2, 3]),
+        fileName: 'photo.jpg');
+    expect(photo.moderationStatus, 'approved');
     expect((await repo.getModerationQueue()).items, isEmpty);
 
     final draft = await repo.draftEventFromPoster(
@@ -109,7 +114,8 @@ void main() {
     expect(draft.workflowStatus, 'draft');
   });
 
-  test('RestCampusRepository hits Mega-2 directory/routing/queue/poster paths', () async {
+  test('RestCampusRepository hits Mega-2 directory/routing/queue/poster paths',
+      () async {
     final calls = <http.Request>[];
     final mock = MockClient((request) async {
       calls.add(request);
@@ -175,9 +181,9 @@ void main() {
             'data': [
               {
                 'id': 'media-v',
-                'url': '/storage/media/video/a.mp4',
-                'fileName': 'a.mp4',
-                'mimeType': 'video/mp4',
+                'url': '/storage/media/a.jpg',
+                'fileName': 'a.jpg',
+                'mimeType': 'image/jpeg',
                 'uploadedAt': '2026-08-25T12:00:00.000Z',
                 'uploadedBy': 'Editor',
                 'moderationStatus': 'pending',
@@ -189,7 +195,8 @@ void main() {
           200,
         );
       }
-      if (path.contains('/admin/moderation/queue/') && path.endsWith('/resolve')) {
+      if (path.contains('/admin/moderation/queue/') &&
+          path.endsWith('/resolve')) {
         return http.Response(
           jsonEncode({
             'data': {'id': 'media-v', 'moderationStatus': 'approved'},
@@ -226,7 +233,8 @@ void main() {
           201,
         );
       }
-      return http.Response(jsonEncode({'data': {}, 'meta': {}, 'error': null}), 200);
+      return http.Response(
+          jsonEncode({'data': {}, 'meta': {}, 'error': null}), 200);
     });
 
     final repo = RestCampusRepository(
@@ -240,9 +248,18 @@ void main() {
         await repo.getWalkingRoute(
             fromLat: 35.33, fromLng: 33.32, toLat: 35.34, toLng: 33.31),
         isNull);
+    expect(
+        await repo.getWalkingRoute(
+          fromLat: 35.33,
+          fromLng: 33.32,
+          toLat: 35.34,
+          toLng: 33.31,
+          mode: TravelMode.transit,
+        ),
+        isNull);
 
     final queue = await repo.getModerationQueue();
-    expect(queue.items.single.isVideo, isTrue);
+    expect(queue.items.single.moderationStatus, 'pending');
     await repo.resolveModerationQueueItem('media-v', action: 'approved');
 
     final draft = await repo.draftEventFromPoster(
@@ -252,9 +269,21 @@ void main() {
     expect(draft.aiDraft, isTrue);
     expect(draft.draft, isTrue);
 
-    expect(calls.any((c) => c.url.path.endsWith('/directory/buildings')), isTrue);
-    expect(calls.any((c) => c.url.path.endsWith('/routing/directions')), isTrue);
-    expect(calls.any((c) => c.url.path.endsWith('/admin/moderation/queue')), isTrue);
-    expect(calls.any((c) => c.url.path.endsWith('/admin/events/draft-from-poster')), isTrue);
+    expect(
+        calls.any((c) => c.url.path.endsWith('/directory/buildings')), isTrue);
+    expect(
+        calls.any((c) => c.url.path.endsWith('/routing/directions')), isTrue);
+    final routingBodies = calls
+        .where((c) => c.url.path.endsWith('/routing/directions'))
+        .map((c) => jsonDecode(c.body) as Map<String, dynamic>)
+        .toList();
+    expect(routingBodies.first['mode'], 'walking');
+    expect(routingBodies.last['mode'], 'transit');
+    expect(calls.any((c) => c.url.path.endsWith('/admin/moderation/queue')),
+        isTrue);
+    expect(
+        calls
+            .any((c) => c.url.path.endsWith('/admin/events/draft-from-poster')),
+        isTrue);
   });
 }

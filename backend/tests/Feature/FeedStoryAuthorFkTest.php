@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Models\FeedPost;
 use App\Models\Story;
-use App\Models\User;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;

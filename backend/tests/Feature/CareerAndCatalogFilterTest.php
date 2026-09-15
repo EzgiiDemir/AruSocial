@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\CareerOpportunity;
 use App\Models\CareerProfile;
+use App\Models\Club;
 use App\Models\Event;
 use App\Models\Place;
 use App\Models\User;
@@ -81,7 +82,7 @@ class CareerAndCatalogFilterTest extends TestCase
         ]);
 
         $this->postJson('/api/v1/admin/career/opportunities/'.$created['id'].'/delete')->assertOk();
-        $this->assertDatabaseMissing('career_opportunities', ['id' => $created['id']]);
+        $this->assertSoftDeleted('career_opportunities', ['id' => $created['id']]);
     }
 
     public function test_student_cannot_write_career_opportunities(): void
@@ -129,8 +130,8 @@ class CareerAndCatalogFilterTest extends TestCase
 
     public function test_clubs_can_filter_by_community_category(): void
     {
-        \App\Models\Club::create(['id' => 'c-art', 'name' => 'Art', 'category' => 'Art']);
-        \App\Models\Club::create(['id' => 'c-com', 'name' => 'Charity', 'category' => 'Community']);
+        Club::create(['id' => 'c-art', 'name' => 'Art', 'category' => 'Art']);
+        Club::create(['id' => 'c-com', 'name' => 'Charity', 'category' => 'Community']);
         $this->actingAsUser();
 
         $data = $this->getJson('/api/v1/clubs?category=Community')->assertOk()->json('data');

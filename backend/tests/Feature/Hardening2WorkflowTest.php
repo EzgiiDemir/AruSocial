@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Appointment;
+use App\Models\CareerOpportunity;
 use App\Models\Club;
 use App\Models\ClubMember;
 use App\Models\ParticipationApplication;
@@ -47,7 +48,7 @@ class Hardening2WorkflowTest extends TestCase
     /** Stage 1 (Preview) + stage 2 (Detail, via the real token'd web form) — brings an application from creation to `under_review`, ready for a decision. */
     private function completeDetailForm(string $applicationId): void
     {
-        $app = \App\Models\ParticipationApplication::find($applicationId);
+        $app = ParticipationApplication::find($applicationId);
         $this->post("/forms/application/{$app->detail_form_token}", [])->assertOk();
     }
 
@@ -126,7 +127,7 @@ class Hardening2WorkflowTest extends TestCase
             'id' => 'staff-career', 'name' => 'Career Office', 'department' => 'Career',
             'title' => 'Career Staff', 'is_department_head' => false, 'active' => true,
         ]);
-        \App\Models\CareerOpportunity::create([
+        CareerOpportunity::create([
             'id' => 'career-1', 'title' => 'Internship', 'kind' => 'internship', 'organization' => 'x',
         ]);
         $this->actingAsUser();
@@ -198,6 +199,6 @@ class Hardening2WorkflowTest extends TestCase
             ->assertJsonFragment(['id' => 'ach-test']);
 
         $this->postJson('/api/v1/admin/achievements/ach-test/delete')->assertOk();
-        $this->assertDatabaseMissing('achievement_definitions', ['id' => 'ach-test']);
+        $this->assertSoftDeleted('achievement_definitions', ['id' => 'ach-test']);
     }
 }

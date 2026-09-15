@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Api\Concerns\ApiResponds;
+use App\Http\Controllers\Api\Concerns\ModeratesContent;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\UpsertPageRequest;
 use App\Models\AdminPage;
@@ -12,7 +13,7 @@ use Illuminate\Http\Request;
 
 class PageController extends Controller
 {
-    use ApiResponds;
+    use ApiResponds, ModeratesContent;
 
     private function toJson(AdminPage $p): array
     {
@@ -40,13 +41,23 @@ class PageController extends Controller
     public function show(string $slug): JsonResponse
     {
         $page = AdminPage::where('slug', $slug)->first();
-        if (! $page) return $this->fail(404, 'PAGE_NOT_FOUND', 'Page not found.');
+        if (! $page) {
+            return $this->fail(404, 'PAGE_NOT_FOUND', 'Page not found.');
+        }
 
         return $this->ok($this->toJson($page));
     }
 
     public function upsert(UpsertPageRequest $request): JsonResponse
     {
+        if ($blocked = $this->moderationBlock(
+            $this->currentUser(),
+            $this->moderationText($request->safe()->only(['title', 'blocks'])),
+            'cms_page',
+            'admin.page.upsert',
+        )) {
+            return $blocked;
+        }
         $id = $request->input('id');
         $title = $request->input('title');
         $slug = $request->input('slug');

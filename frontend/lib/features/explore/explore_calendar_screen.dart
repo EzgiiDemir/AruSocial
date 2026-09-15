@@ -203,6 +203,7 @@ class _ExploreCalendarScreenState extends State<ExploreCalendarScreen> {
                       shown: dayShown,
                       total: dayItems.length,
                       itemLabel: 'kayıt',
+                      showCompleteLabel: false,
                       onTap: () =>
                           setState(() => _visibleDayCount += kPageSize),
                     ),
@@ -413,9 +414,7 @@ class _MonthGrid extends StatelessWidget {
               borderRadius: BorderRadius.circular(10),
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: isSelected
-                      ? const Color(0x14000000)
-                      : null,
+                  color: isSelected ? const Color(0x14000000) : null,
                   borderRadius: BorderRadius.circular(10),
                   border: isSelected
                       ? Border.all(color: ArucadColors.ink, width: 1.2)
@@ -437,9 +436,8 @@ class _MonthGrid extends StatelessWidget {
                       Text(
                         '$dayNum',
                         style: TextStyle(
-                          fontWeight: isSelected
-                              ? FontWeight.w900
-                              : FontWeight.w600,
+                          fontWeight:
+                              isSelected ? FontWeight.w900 : FontWeight.w600,
                           color: ArucadColors.ink,
                           fontSize: 13,
                         ),
@@ -463,10 +461,10 @@ class _MonthGrid extends StatelessWidget {
                                 child: Text(
                                   _kindHint(kind),
                                   style: TextStyle(
-                                    color: kind ==
-                                            ExploreCalendarKind.application
-                                        ? ArucadColors.ink
-                                        : Colors.white,
+                                    color:
+                                        kind == ExploreCalendarKind.application
+                                            ? ArucadColors.ink
+                                            : Colors.white,
                                     fontSize: 8.5,
                                     fontWeight: FontWeight.w900,
                                     height: 1,

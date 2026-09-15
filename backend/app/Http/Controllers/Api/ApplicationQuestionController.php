@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Api\Concerns\ApiResponds;
+use App\Http\Controllers\Api\Concerns\ModeratesContent;
 use App\Http\Controllers\Controller;
 use App\Models\ApplicationQuestion;
 use Illuminate\Http\JsonResponse;
@@ -17,7 +18,7 @@ use Illuminate\Validation\Rule;
 // surface (Admin Panel → Applications → Sorular).
 class ApplicationQuestionController extends Controller
 {
-    use ApiResponds;
+    use ApiResponds, ModeratesContent;
 
     public function index(Request $request): JsonResponse
     {
@@ -63,6 +64,15 @@ class ApplicationQuestionController extends Controller
             'sortOrder' => ['integer'],
             'active' => ['boolean'],
         ]);
+
+        if ($blocked = $this->moderationBlock(
+            $this->currentUser(),
+            $this->moderationText($data),
+            'cms_form',
+            'admin.applicationQuestion.upsert',
+        )) {
+            return $blocked;
+        }
 
         $id = $data['id'] ?? 'aq-'.Str::uuid();
         $question = ApplicationQuestion::updateOrCreate(['id' => $id], [

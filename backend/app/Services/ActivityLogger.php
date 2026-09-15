@@ -11,7 +11,13 @@ class ActivityLogger
     // review, comment, like, report) — see campus_models.dart. There is
     // deliberately no "post created" kind; the reference MockCampusRepository
     // doesn't log one for createPost() either.
-    public static function log(int $userId, string $kind, string $title, string $subtitle, string $meta = 'az önce'): void
+    // `$meta` is a free-text note, and it defaults to empty on purpose. It
+    // used to default to the literal 'az önce' ("just now") and the app
+    // rendered it as the row's timestamp — so every entry in a student's
+    // history claimed to have happened moments ago, in Turkish, however old
+    // it was. The time now comes from `created_at`, rendered live in the
+    // reader's own language and time zone.
+    public static function log(int $userId, string $kind, string $title, string $subtitle, string $meta = ''): void
     {
         ActivityLog::create([
             'id' => 'activity-'.Str::uuid(),

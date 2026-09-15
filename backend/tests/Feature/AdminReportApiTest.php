@@ -4,7 +4,9 @@ namespace Tests\Feature;
 
 use App\Models\FeedPost;
 use App\Models\ModerationReport;
+use App\Models\Place;
 use App\Models\Review;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -12,10 +14,15 @@ class AdminReportApiTest extends TestCase
 {
     use RefreshDatabase;
 
+    private User $moderator;
+
     protected function setUp(): void
     {
         parent::setUp();
-        $this->actingAsRole('moderator');
+        // Held on to, because the fixtures below need a real author. A
+        // hardcoded author_id of 1 happened to exist under SQLite and
+        // violates the foreign key on PostgreSQL, which enforces it.
+        $this->moderator = $this->actingAsRole('moderator');
     }
 
     // Real bug fix: resolving a "post" report with action=removed used to
@@ -24,7 +31,7 @@ class AdminReportApiTest extends TestCase
     public function test_resolving_a_post_report_as_removed_actually_deletes_the_post(): void
     {
         $post = FeedPost::create([
-            'id' => 'post-1', 'author_id' => '1', 'name' => 'Test', 'text' => 'hi',
+            'id' => 'post-1', 'author_id' => $this->moderator->id, 'name' => 'Test', 'text' => 'hi',
             'meta' => 'now', 'created_at' => now(),
         ]);
         $report = ModerationReport::create([
@@ -42,7 +49,7 @@ class AdminReportApiTest extends TestCase
     public function test_resolving_a_post_report_as_dismissed_keeps_the_post(): void
     {
         $post = FeedPost::create([
-            'id' => 'post-1', 'author_id' => '1', 'name' => 'Test', 'text' => 'hi',
+            'id' => 'post-1', 'author_id' => $this->moderator->id, 'name' => 'Test', 'text' => 'hi',
             'meta' => 'now', 'created_at' => now(),
         ]);
         $report = ModerationReport::create([
@@ -57,7 +64,7 @@ class AdminReportApiTest extends TestCase
 
     public function test_resolving_a_place_report_as_removed_does_not_delete_the_real_place(): void
     {
-        \App\Models\Place::create(['id' => 'p1', 'name' => 'Garden', 'category' => 'Social', 'lat' => 1, 'lng' => 1]);
+        Place::create(['id' => 'p1', 'name' => 'Garden', 'category' => 'Social', 'lat' => 1, 'lng' => 1]);
         $report = ModerationReport::create([
             'id' => 'report-1', 'kind' => 'place', 'target_id' => 'p1',
             'target_label' => 'Garden', 'reason' => 'inaccurate', 'reported_at' => now(),
@@ -70,9 +77,9 @@ class AdminReportApiTest extends TestCase
 
     public function test_moderator_can_directly_delete_a_review(): void
     {
-        \App\Models\Place::create(['id' => 'p1', 'name' => 'Garden', 'category' => 'Social', 'lat' => 1, 'lng' => 1]);
+        Place::create(['id' => 'p1', 'name' => 'Garden', 'category' => 'Social', 'lat' => 1, 'lng' => 1]);
         $review = Review::create([
-            'id' => 'review-1', 'place_id' => 'p1', 'user_id' => 1,
+            'id' => 'review-1', 'place_id' => 'p1', 'user_id' => $this->moderator->id,
             'rating' => 5, 'comment' => 'great', 'meta' => 'now', 'created_at' => now(),
         ]);
 

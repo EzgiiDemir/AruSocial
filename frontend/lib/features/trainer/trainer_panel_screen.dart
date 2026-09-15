@@ -14,7 +14,7 @@ import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
 import 'package:arucad_campus_prototype/features/auth/access_denied_screen.dart';
 import 'package:arucad_campus_prototype/features/trainer/trainer_campus_ops_tab.dart';
 import 'package:arucad_campus_prototype/features/widgets/campus_widgets.dart'
-    show categoryAccent, BrandMark, EmailStatusRow;
+    show categoryAccent, CampusPageHeader, EmailStatusRow;
 import 'package:arucad_campus_prototype/features/widgets/language_toggle.dart';
 
 /// One entry in the Trainer Panel's sidebar — same WordPress-style grouped
@@ -156,69 +156,48 @@ class _TrainerTopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
-    final showRoleChip = width >= 480;
+    final showRoleChip = width >= 720;
     final strings = AdminLocale.of(context);
-    return Container(
-      color: ArucadColors.navy,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: SafeArea(
-        bottom: false,
-        child: Row(children: [
-          if (onOpenDrawer != null) ...[
-            IconButton(onPressed: onOpenDrawer, icon: const Icon(Icons.menu, color: Colors.white)),
-            const SizedBox(width: 4),
-          ] else ...[
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration:
-                  BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)),
-              child: const BrandMark(height: 22),
-            ),
-            const SizedBox(width: 14),
-            Container(width: 1, height: 22, color: Colors.white24),
-            const SizedBox(width: 14),
-          ],
-          Expanded(
-            child: Text(title,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.w900, fontSize: 17)),
-          ),
-          if (showRoleChip) ...[
-            const SizedBox(width: 10),
-            Flexible(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: .1), borderRadius: BorderRadius.circular(999)),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  const Icon(Icons.shield_outlined, size: 15, color: Colors.white),
-                  const SizedBox(width: 6),
-                  Flexible(
-                    child: Text('${user.name} · ${strings.t('trainer_role_chip')}',
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 1,
-                        style: const TextStyle(
-                            color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12)),
-                  ),
-                ]),
+    return CampusPageHeader(
+      title: title,
+      includeTopSafeArea: true,
+      leading: onOpenDrawer == null
+          ? null
+          : IconButton(onPressed: onOpenDrawer, icon: const Icon(Icons.menu)),
+      actions: [
+        if (showRoleChip)
+          Container(
+            constraints: const BoxConstraints(maxWidth: 260),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+                color: ArucadColors.mist,
+                borderRadius: BorderRadius.circular(999)),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(Icons.shield_outlined,
+                  size: 15, color: ArucadColors.primary),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text('${user.name} · ${strings.t('trainer_role_chip')}',
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                    style: const TextStyle(
+                        color: ArucadColors.ink,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12)),
               ),
-            ),
-          ],
-          const SizedBox(width: 8),
+            ]),
+          ),
           LanguageToggle(
             code: adminLanguageCode(language),
-            onDark: true,
+            onDark: false,
             onChanged: (code) => onLanguageChanged(adminLanguageFromCode(code)),
           ),
-          const SizedBox(width: 6),
           IconButton(
             onPressed: onLogout,
-            icon: const Icon(Icons.logout, color: Colors.white70),
+            icon: const Icon(Icons.logout, color: ArucadColors.muted),
             tooltip: strings.t('admin_logout'),
           ),
-        ]),
-      ),
+      ],
     );
   }
 }

@@ -6,6 +6,7 @@ use App\Models\ApplicationQuestion;
 use App\Models\Club;
 use App\Models\Event;
 use App\Models\ParticipationApplication;
+use App\Models\ServiceItem;
 use App\Models\StaffProfile;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -286,7 +287,7 @@ class ApplicationTwoStageFlowTest extends TestCase
             'id' => 'staff-pdr', 'name' => 'PDR', 'department' => 'Counseling',
             'is_department_head' => false, 'active' => true,
         ]);
-        \App\Models\ServiceItem::create([
+        ServiceItem::create([
             'id' => 'pdr', 'title' => 'PDR', 'category' => 'Wellbeing',
             'description' => 'x', 'contact' => 'a@b.c',
             'responsible_staff_id' => 'staff-pdr',

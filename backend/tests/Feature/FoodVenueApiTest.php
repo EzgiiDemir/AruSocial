@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Models\FoodDailyMenu;
-use App\Models\FoodVenue;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -58,7 +57,7 @@ class FoodVenueApiTest extends TestCase
         $this->assertDatabaseHas('food_venues', ['id' => 'food-cafe', 'name' => 'Renamed Cafe']);
 
         $this->postJson('/api/v1/admin/food-venues/food-cafe/delete')->assertOk();
-        $this->assertDatabaseMissing('food_venues', ['id' => 'food-cafe']);
+        $this->assertSoftDeleted('food_venues', ['id' => 'food-cafe']);
     }
 
     public function test_admin_can_upsert_and_delete_a_daily_menu_without_changing_its_id(): void
@@ -84,7 +83,7 @@ class FoodVenueApiTest extends TestCase
         $this->assertEquals(['Çorba', 'Pilav'], FoodDailyMenu::where('food_venue_id', 'food-garden')->value('items'));
 
         $this->postJson('/api/v1/admin/food-venues/food-garden/menus/2026-08-23/delete')->assertOk();
-        $this->assertDatabaseMissing('food_daily_menus', ['food_venue_id' => 'food-garden']);
+        $this->assertSoftDeleted('food_daily_menus', ['food_venue_id' => 'food-garden']);
     }
 
     public function test_a_student_cannot_write_food_venues(): void

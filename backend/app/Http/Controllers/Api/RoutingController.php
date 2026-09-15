@@ -26,12 +26,13 @@ class RoutingController extends Controller
         $fromLng = (float) $request->input('fromLng');
         $toLat = (float) $request->input('toLat');
         $toLng = (float) $request->input('toLng');
+        $mode = (string) $request->input('mode', 'walking');
 
         if (abs($fromLat) > 90 || abs($toLat) > 90 || abs($fromLng) > 180 || abs($toLng) > 180) {
             return $this->fail(400, 'INVALID_COORDINATE', 'Coordinates are out of range.');
         }
 
-        $route = RoutingService::walkingRoute($fromLat, $fromLng, $toLat, $toLng);
+        $route = RoutingService::route($fromLat, $fromLng, $toLat, $toLng, $mode);
         if ($route === null) {
             return $this->fail(502, 'ROUTING_UNAVAILABLE', 'Routing provider returned no route.');
         }
@@ -42,6 +43,7 @@ class RoutingController extends Controller
             'durationSeconds' => $route['durationSeconds'],
             'steps' => $route['steps'],
             'provider' => 'osrm',
+            'mode' => $mode,
         ]);
     }
 }

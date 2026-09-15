@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\MediaItem;
 use Illuminate\Console\Command;
+use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -127,8 +128,8 @@ class RelocateMediaToPrivateDisk extends Command
      * is not the same as worthless.
      */
     private function sweepOrphans(
-        \Illuminate\Contracts\Filesystem\Filesystem $source,
-        \Illuminate\Contracts\Filesystem\Filesystem $target,
+        Filesystem $source,
+        Filesystem $target,
         bool $dry,
     ): int {
         $known = MediaItem::query()->pluck('file_path')->filter()->flip();

@@ -41,7 +41,7 @@ class ApplicationQuestionAdminTest extends TestCase
         $this->assertCount(1, $list);
 
         $this->postJson("/api/v1/admin/application-questions/{$created['id']}/delete")->assertOk();
-        $this->assertDatabaseMissing('application_questions', ['id' => $created['id']]);
+        $this->assertSoftDeleted('application_questions', ['id' => $created['id']]);
     }
 
     public function test_upsert_with_an_existing_id_updates_in_place(): void

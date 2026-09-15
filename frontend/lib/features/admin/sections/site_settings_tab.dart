@@ -349,7 +349,7 @@ class _SiteSettingsTabState extends State<_SiteSettingsTab> {
             style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
         const SizedBox(height: 6),
         const Text(
-          'Görsel ve video yüklemeleri ARUCAD’ın yerel inceleme kuyruğuna alınır. '
+          'Görsel yüklemeleri ARUCAD’ın yerel inceleme kuyruğuna alınır. '
           'Onaylanana kadar öğrenci akışında yayınlanmaz; haricî moderasyon API anahtarı kullanılmaz.',
           style: TextStyle(color: ArucadColors.muted, fontSize: 12.5),
         ),

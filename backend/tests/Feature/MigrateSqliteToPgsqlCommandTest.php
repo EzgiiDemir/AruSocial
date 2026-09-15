@@ -70,8 +70,22 @@ class MigrateSqliteToPgsqlCommandTest extends TestCase
         $method = $reflection->getMethod('topologicalOrder');
         $method->setAccessible(true);
 
+        // Its own in-memory SQLite, migrated here. The connection named
+        // `sqlite` inherits DB_DATABASE, which is `:memory:` under
+        // phpunit.xml and `arucad_test` under phpunit.pgsql.xml — where it
+        // is read as a *file path* and the test died looking for it. The
+        // algorithm being checked is about the app's schema, not about
+        // which database the suite happens to be pointed at.
+        config(['database.connections.fk_probe' => [
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+            'prefix' => '',
+            'foreign_key_constraints' => true,
+        ]]);
+        Artisan::call('migrate', ['--database' => 'fk_probe', '--force' => true]);
+
         $tables = ['users', 'feed_posts', 'post_comments', 'post_likes', 'conversations', 'conversation_participants', 'messages'];
-        $order = $method->invoke($command, 'sqlite', $tables);
+        $order = $method->invoke($command, 'fk_probe', $tables);
 
         $this->assertSame(collect($tables)->sort()->values()->all(), collect($order)->sort()->values()->all(), 'topological sort must not drop or add tables');
         $position = array_flip($order);

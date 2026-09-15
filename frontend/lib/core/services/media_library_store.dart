@@ -23,13 +23,9 @@ class MediaLibraryStore {
     if (lower.endsWith('.png')) return 'image/png';
     if (lower.endsWith('.webp')) return 'image/webp';
     if (lower.endsWith('.gif')) return 'image/gif';
-    if (lower.endsWith('.mp4')) return 'video/mp4';
-    if (lower.endsWith('.webm')) return 'video/webm';
-    if (lower.endsWith('.mov') || lower.endsWith('.qt')) return 'video/quicktime';
     return 'image/jpeg';
   }
 
-  static bool _isVideoMime(String mime) => mime.startsWith('video/');
 
   static Future<List<MediaItem>> items() async {
     final prefs = await SharedPreferences.getInstance();
@@ -68,8 +64,8 @@ class MediaLibraryStore {
     required String uploadedBy,
   }) async {
     final mime = _mimeFor(fileName);
-    final pending = _isVideoMime(mime);
-    final prefix = pending ? 'data:video/mp4;base64,' : 'data:image/jpeg;base64,';
+
+    const prefix = 'data:image/jpeg;base64,';
     final item = MediaItem(
       id: 'media-${DateTime.now().microsecondsSinceEpoch}',
       dataUri: '$prefix${base64Encode(bytes)}',
@@ -77,7 +73,7 @@ class MediaLibraryStore {
       uploadedAt: DateTime.now(),
       uploadedBy: uploadedBy,
       mimeType: mime,
-      moderationStatus: pending ? 'pending' : 'approved',
+      moderationStatus: 'approved',
     );
     final current = await items();
     await _saveAll([...current, item]);
@@ -90,8 +86,8 @@ class MediaLibraryStore {
     required String uploadedBy,
   }) async {
     final mime = _mimeFor(fileName);
-    final pending = _isVideoMime(mime);
-    final prefix = pending ? 'data:video/mp4;base64,' : 'data:image/jpeg;base64,';
+
+    const prefix = 'data:image/jpeg;base64,';
     final item = MediaItem(
       id: 'media-${DateTime.now().microsecondsSinceEpoch}',
       dataUri: '$prefix${base64Encode(bytes)}',
@@ -99,7 +95,7 @@ class MediaLibraryStore {
       uploadedAt: DateTime.now(),
       uploadedBy: uploadedBy,
       mimeType: mime,
-      moderationStatus: pending ? 'pending' : 'approved',
+      moderationStatus: 'approved',
     );
     final current = await personalItems();
     await _savePersonal([...current, item]);

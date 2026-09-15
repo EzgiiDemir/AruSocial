@@ -76,11 +76,20 @@ class _ModerationTabState extends State<_ModerationTab> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        // Cases first: this is the queue that holds everything no
+        // classifier can decide, and it is the mitigation the coverage
+        // document points at for gore, weapons, hate symbols and the
+        // half of harmful text the semantic layer misses.
+        _ModerationCasesSection(
+          repository: widget.repository,
+          adminName: widget.adminName,
+        ),
+        const SizedBox(height: 26),
         const Text('Görsel inceleme kuyruğu',
             style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
         const SizedBox(height: 4),
         const Text(
-          'Tüm görsel ve video yüklemeleri, yayınlanmadan önce burada insan incelemesine alınır.',
+          'Tüm görsel yüklemeleri, yayınlanmadan önce burada insan incelemesine alınır.',
           style: TextStyle(color: ArucadColors.muted, fontSize: 12),
         ),
         const SizedBox(height: 10),
@@ -116,14 +125,8 @@ class _ModerationTabState extends State<_ModerationTab> {
                               child: SizedBox(
                                 width: 72,
                                 height: 72,
-                                child: item.isVideo
-                                    ? const ColoredBox(
-                                        color: ArucadColors.mist,
-                                        child: Icon(Icons.videocam_outlined,
-                                            color: ArucadColors.warning),
-                                      )
-                                    : mediaPreview(item.displaySrc,
-                                        cacheWidth: 240),
+                                child: mediaPreview(item.displaySrc,
+                                    cacheWidth: 240),
                               ),
                             ),
                             const SizedBox(width: 12),

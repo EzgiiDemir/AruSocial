@@ -89,8 +89,8 @@ class GroqAiService {
             'messages': [
               {
                 'role': 'system',
-                'content':
-                    _systemPrompt(places, events, clubs, sports, services, foodVenues),
+                'content': _systemPrompt(
+                    places, events, clubs, sports, services, foodVenues),
               },
               {'role': 'user', 'content': prompt},
             ],
@@ -103,8 +103,7 @@ class GroqAiService {
     if (res.statusCode != 200) {
       throw Exception('Groq ${res.statusCode}: ${res.body}');
     }
-    final data =
-        jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+    final data = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
     final choices = data['choices'] as List<dynamic>;
     final message = choices.first['message'] as Map<String, dynamic>;
     return stripAskArucadMarkdown(_groqMessageText(message));
@@ -140,11 +139,14 @@ class GroqAiService {
             'messages': [
               {
                 'role': 'system',
-                'content':
-                    _systemPrompt(places, events, clubs, sports, services, foodVenues),
+                'content': _systemPrompt(
+                    places, events, clubs, sports, services, foodVenues),
               },
               for (final turn in history)
-                {'role': turn.fromUser ? 'user' : 'assistant', 'content': turn.text},
+                {
+                  'role': turn.fromUser ? 'user' : 'assistant',
+                  'content': turn.text
+                },
             ],
             'temperature': 0.4,
             'max_tokens': 800,
@@ -155,8 +157,7 @@ class GroqAiService {
     if (res.statusCode != 200) {
       throw Exception('Groq ${res.statusCode}: ${res.body}');
     }
-    final data =
-        jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+    final data = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
     final choices = data['choices'] as List<dynamic>;
     final message = choices.first['message'] as Map<String, dynamic>;
     return stripAskArucadMarkdown(_groqMessageText(message));
@@ -174,13 +175,12 @@ class GroqAiService {
         '- ${p.name} (${p.category}): ${p.density}, ${p.distance} uzaklıkta, ${p.street}');
     final eventLines = events.map((e) =>
         '- ${e.title} @ ${e.placeName}, saat ${e.time}, ${e.attendees} katılımcı');
-    final clubLines = clubs
-        .map((c) => '- ${c.name} (${c.category}): ${c.description}');
+    final clubLines =
+        clubs.map((c) => '- ${c.name} (${c.category}): ${c.description}');
     final sportLines = sports.map((s) => '- ${s.name}: ${s.facility}');
     final serviceLines = services.map((s) {
-      final where = [s.building, s.floor, s.room]
-          .whereType<String>()
-          .join(', ');
+      final where =
+          [s.building, s.floor, s.room].whereType<String>().join(', ');
       return '- ${s.title} (${s.category}): ${s.description} '
           '${where.isNotEmpty ? 'Konum: $where. ' : ''}İletişim: ${s.contact}';
     });
@@ -189,8 +189,8 @@ class GroqAiService {
       return '- ${r.name}: duraklar ${r.stops.take(3).join(', ')}…, sıradaki kalkış ${next.label} '
           '(${formatCountdown(next.until)})';
     });
-    final tourLines = campusSites.map((s) =>
-        '- ${s.name}: ${s.description} 360° tur: ${s.tourUrl}');
+    final tourLines = campusSites
+        .map((s) => '- ${s.name}: ${s.description} 360° tur: ${s.tourUrl}');
     final today = DateTime.now();
     final foodLines = foodVenues.map((v) {
       final todayMenu = v.menuForDay(today);
@@ -202,7 +202,7 @@ class GroqAiService {
     });
 
     return '''
-Sen Ask ARUCAD'sın, ARUCAD (Girne/Kyrenia) kampüsünün yapay zekâ asistanısın.
+Sen Aicad'sın, ARUCAD (Girne/Kyrenia) kampüsünün yapay zekâ asistanısın.
 Öğrencilere kampüs, akademik, idari, sosyal ve günlük ihtiyaç konularında kısa,
 samimi ve doğru yanıt ver. Bilmediğin bir şeyi uydurma; emin değilsen bunu
 söyle. Cevabın somut olabildiğince: bir yer, kişi, e-posta, saat ya da bağlantı

@@ -119,7 +119,9 @@ class _GuideSheetState extends State<GuideSheet> {
     final result = await _getAnswer(value);
     if (!mounted) return;
     final place = _ctx.matchPlace(value) ?? _ctx.matchPlace(result);
-    final service = place == null ? (_ctx.matchService(value) ?? _ctx.matchService(result)) : null;
+    final service = place == null
+        ? (_ctx.matchService(value) ?? _ctx.matchService(result))
+        : null;
     final club = (place == null && service == null)
         ? (_ctx.matchClub(value) ?? _ctx.matchClub(result))
         : null;
@@ -138,8 +140,8 @@ class _GuideSheetState extends State<GuideSheet> {
 
   void _openClub(CampusClub club) {
     Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) =>
-            ClubDetailScreen(club: club, repository: widget.repository, events: _ctx.events)));
+        builder: (_) => ClubDetailScreen(
+            club: club, repository: widget.repository, events: _ctx.events)));
   }
 
   Future<void> _contactSport(CampusSport sport) async {
@@ -224,11 +226,10 @@ class _GuideSheetState extends State<GuideSheet> {
               Row(children: [
                 const CircleAvatar(
                     radius: 20,
-                    backgroundImage:
-                        AssetImage('assets/images/galatea.png')),
+                    backgroundImage: AssetImage('assets/images/galatea.png')),
                 const SizedBox(width: 12),
                 Expanded(
-                    child: Text('Ask ARUCAD',
+                    child: Text('Aicad',
                         style: Theme.of(context)
                             .textTheme
                             .titleLarge
@@ -251,7 +252,8 @@ class _GuideSheetState extends State<GuideSheet> {
                         autofocus: true,
                         onSubmitted: (v) => ask(v),
                         decoration: const InputDecoration(
-                            hintText: 'Kampüs, servis veya etkinlik hakkında sor...'))),
+                            hintText:
+                                'Kampüs, servis veya etkinlik hakkında sor...'))),
                 const SizedBox(width: 8),
                 FilledButton(
                     onPressed: () => ask(controller.text),
@@ -305,20 +307,29 @@ class _GuideSheetState extends State<GuideSheet> {
                               ],
                               if (matchedService != null) ...[
                                 const SizedBox(height: 14),
-                                if ([matchedService!.building, matchedService!.floor, matchedService!.room]
-                                    .whereType<String>()
-                                    .isNotEmpty)
+                                if ([
+                                  matchedService!.building,
+                                  matchedService!.floor,
+                                  matchedService!.room
+                                ].whereType<String>().isNotEmpty)
                                   Padding(
                                     padding: const EdgeInsets.only(bottom: 10),
                                     child: Text(
-                                      'Konum: ${[matchedService!.building, matchedService!.floor, matchedService!.room].whereType<String>().join(', ')}',
-                                      style: const TextStyle(color: ArucadColors.muted, fontSize: 12.5),
+                                      'Konum: ${[
+                                        matchedService!.building,
+                                        matchedService!.floor,
+                                        matchedService!.room
+                                      ].whereType<String>().join(', ')}',
+                                      style: const TextStyle(
+                                          color: ArucadColors.muted,
+                                          fontSize: 12.5),
                                     ),
                                   ),
                                 Row(children: [
                                   Expanded(
                                     child: FilledButton.icon(
-                                      onPressed: () => _contactService(matchedService!),
+                                      onPressed: () =>
+                                          _contactService(matchedService!),
                                       icon: const Icon(Icons.send_outlined),
                                       label: const Text('Ön Başvuru'),
                                     ),
@@ -326,7 +337,8 @@ class _GuideSheetState extends State<GuideSheet> {
                                   const SizedBox(width: 10),
                                   Expanded(
                                     child: OutlinedButton.icon(
-                                      onPressed: () => _openServiceDetails(matchedService!),
+                                      onPressed: () =>
+                                          _openServiceDetails(matchedService!),
                                       icon: const Icon(Icons.info_outline),
                                       label: const Text('Detaylar'),
                                     ),
@@ -349,7 +361,8 @@ class _GuideSheetState extends State<GuideSheet> {
                                 SizedBox(
                                   width: double.infinity,
                                   child: FilledButton.icon(
-                                    onPressed: () => _contactSport(matchedSport!),
+                                    onPressed: () =>
+                                        _contactSport(matchedSport!),
                                     icon: const Icon(Icons.mail_outline),
                                     label: const Text('Ön Başvuru / Katıl'),
                                   ),

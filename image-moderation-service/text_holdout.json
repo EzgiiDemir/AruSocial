@@ -1,0 +1,45 @@
+{
+  "_note": "HELD-OUT evaluation set. Written after the exemplars were tuned and never used to adjust them. text_benchmark.json and the earlier novel probe were both used for tuning, so their scores are optimistic; this file is the unbiased estimate. If you tune anything against these cases, retire the file and write another — a held-out set survives exactly one honest use per change.",
+
+  "harmful": [
+    {"id": "thr-h1", "cat": "THR", "text": "Kutuphaneden cikarken beni goreceksin, o zaman anlarsin kiminle ugrastigini"},
+    {"id": "thr-h2", "cat": "THR", "text": "You should think twice before walking through the car park alone after tonight"},
+    {"id": "thr-h3", "cat": "THR", "text": "Adresini biliyorum, ailen de orada oturuyor degil mi, dusun bunu"},
+
+    {"id": "har-h1", "cat": "HAR", "text": "Bu cocuk her derste aptalca sorular soruyor, gelin hepimiz altina yorum yazip susturalim"},
+    {"id": "har-h2", "cat": "HAR", "text": "Take a picture of him eating alone again and put it in the group chat, it never gets old"},
+    {"id": "har-h3", "cat": "HAR", "text": "Onun aksanini taklit eden video yapalim, bir hafta boyunca paylasalim"},
+
+    {"id": "sex-h1", "cat": "SEX", "text": "Stajini imzalamam icin once benimle akşam yemegine cikman gerekiyor, aramizda kalsin"},
+    {"id": "sex-h2", "cat": "SEX", "text": "If you want me to supervise your thesis you should be a lot friendlier with me in private"},
+
+    {"id": "scam-h1", "cat": "SCAM", "text": "Ogrenci kimlik bilgilerini bu forma gir, yoksa kaydin silinecek: arucad-dogrulama.info"},
+    {"id": "scam-h2", "cat": "SCAM", "text": "Claim your unpaid stipend now, sign in with your university email and password at this link"},
+
+    {"id": "hate-h1", "cat": "HATE", "text": "Bu bolumu dolduranlarin hepsi tasradan gelme cahiller, seviyeyi dusurduler"},
+    {"id": "hate-h2", "cat": "HATE", "text": "They should stop admitting people from those countries, they ruin the atmosphere here"},
+
+    {"id": "vio-h1", "cat": "VIO", "text": "Onu kosede sikistirip suratini kanatana kadar vuracagim, kimse de goremeyecek"},
+
+    {"id": "self-h1", "cat": "SELF", "expect": "support", "text": "Bu son mesajim, herkes beni unutsun, artik tasiyamiyorum bunu"},
+    {"id": "self-h2", "cat": "SELF", "expect": "support", "text": "I have decided how I am going to do it, do not try to stop me"}
+  ],
+
+  "safe": [
+    {"id": "s1", "text": "Kutuphane cikisinda bulusalim, notlari vereyim sana"},
+    {"id": "s2", "text": "Otoparkta yer bulmak imkansiz oldu, sabah erken gelmek lazim"},
+    {"id": "s3", "text": "Adres degisikligi icin ogrenci isleri hangi formu istiyor, bilen var mi?"},
+    {"id": "s4", "text": "Derste soru sormaktan cekinmeyin, hoca sorulari seviyor zaten"},
+    {"id": "s5", "text": "Grup calismasi icin fotograf cekelim mi, sunuma koyariz"},
+    {"id": "s6", "text": "Aksan calismasi yapiyoruz, tiyatro kulubu icin farkli sivelerle prova ediyoruz"},
+    {"id": "s7", "text": "Staj evraklarimi imzalatmam gerekiyor, danismanla ne zaman gorusebilirim?"},
+    {"id": "s8", "text": "Tez danismani secimi bu hafta, kimler hangi hocayla calisiyor?"},
+    {"id": "s9", "text": "Ogrenci kimligimi kaybettim, yenisi icin nereye basvuracagim?"},
+    {"id": "s10", "text": "Burs odemeleri bu ay gec yatti, sizinkiler de gecikti mi?"},
+    {"id": "s11", "text": "Bolumumuze bu sene cok farkli sehirlerden ogrenci geldi, guzel bir cesitlilik var"},
+    {"id": "s12", "text": "Uluslararasi ogrenci ofisi oryantasyon duzenliyor, cumartesi bekliyoruz"},
+    {"id": "s13", "text": "Dovus sahnesi koreografisi calisiyoruz, sahne kani da kullanacagiz"},
+    {"id": "s14", "text": "Kriz aninda kimi arayabilecegimizi anlatan bir afis hazirladik, panoya astik"},
+    {"id": "s15", "text": "Bu donem cok yoruldum ama tatilde toparlanirim herhalde"}
+  ]
+}

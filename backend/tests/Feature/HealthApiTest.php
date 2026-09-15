@@ -67,7 +67,13 @@ class HealthApiTest extends TestCase
         // by state (disabled reports only `image`, healthy adds the model
         // and policy versions, unreachable adds the url). What must hold
         // in every state is that nothing *unexpected* appears.
-        $allowed = ['image', 'url', 'model', 'modelVersion', 'policyVersion'];
+        // `enforcement` is one global word, 'on' or 'off', describing a
+        // config flag rather than any person: it says whether account
+        // consequences are switched on at all. Reported because a
+        // deployment left with them off after a testing window is
+        // otherwise undetectable from outside — content is still refused,
+        // so everything looks normal.
+        $allowed = ['image', 'url', 'model', 'modelVersion', 'policyVersion', 'enforcement'];
         $this->assertSame([], array_diff(array_keys($data['moderation']), $allowed),
             'health.moderation grew a field that has not been reviewed for leakage');
     }

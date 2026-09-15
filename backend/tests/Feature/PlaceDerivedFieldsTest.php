@@ -11,7 +11,7 @@ use Tests\TestCase;
 
 class PlaceDerivedFieldsTest extends TestCase
 {
-    use RefreshDatabase, CreatesPlaces;
+    use CreatesPlaces, RefreshDatabase;
 
     public function test_a_place_with_no_activity_is_quiet_with_zero_rating(): void
     {
@@ -136,11 +136,11 @@ class PlaceDerivedFieldsTest extends TestCase
 
         Review::create([
             'id' => 'r-1', 'place_id' => $place->id, 'user_id' => $me->id,
-            'rating' => 5, 'comment' => '', 'meta' => '', 'created_at' => now(),
+            'rating' => 5, 'comment' => '', 'meta' => '', 'created_at' => now(), 'moderation_status' => 'approved',
         ]);
         Review::create([
             'id' => 'r-2', 'place_id' => $place->id, 'user_id' => $me->id,
-            'rating' => 3, 'comment' => '', 'meta' => '', 'created_at' => now(),
+            'rating' => 3, 'comment' => '', 'meta' => '', 'created_at' => now(), 'moderation_status' => 'approved',
         ]);
 
         $this->assertEquals(4.0, $this->getJson("/api/v1/places/{$place->id}")->json('data.rating'));

@@ -30,14 +30,19 @@ class PolicyCoverageTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->engine = new TextPolicyEngine();
+        $this->engine = new TextPolicyEngine;
     }
 
     /** @return array<string, list<array{0: string, 1: string}>> category => [text, expected context] */
     private function categories(): array
     {
         return [
-            'profanity' => [['Siktir git buradan.', 'dismissal']],
+            // `directed_profanity`, not `dismissal`: the decision is
+            // unchanged (remove), but the reason is now the more precise
+            // one. "Siktir" is an imperative aimed at a person, and it is
+            // refused on its own rather than only when followed by "git"
+            // — which is the gap this context was added to close.
+            'profanity' => [['Siktir git buradan.', 'directed_profanity']],
             'harassment' => [['@ahmet sen tam bir aptalsın.', 'direct_attack']],
             'threats' => [['Bir daha karşıma çıkarsan yüzünü dağıtırım.', 'threat']],
             'hate_speech' => [
@@ -69,7 +74,7 @@ class PolicyCoverageTest extends TestCase
             'doxxing' => [['İşte adresi, gidin bulun', 'doxxing']],
             'pii' => [
                 ['Numarası 05321234567 arayın', 'pii_exposure'],
-                ['TC kimlik 12345678901 paylaşıyorum', 'pii_exposure'],
+                ['TC kimlik 10000000146 paylaşıyorum', 'pii_exposure'],
             ],
             'impersonation' => [
                 ['Ben rektörüm, hesabınıza para yatırın', 'impersonation'],
@@ -117,10 +122,10 @@ class PolicyCoverageTest extends TestCase
         $cases = [
             // Published, no strike, support offered.
             ['Kendimi öldürmek istiyorum', ModerationVerdict::REVIEW],
-            // A nuisance, not an attack.
-            ['Bedava takipçi için link tıkla kazan', ModerationVerdict::WARN],
-            // A human decides what is true.
-            ['Aşılar çip içeriyor, olmayın', ModerationVerdict::REVIEW],
+            // Ordinary advertising/link sharing is not automated spam.
+            ['Yeni sergimizi web sitemizden inceleyebilirsiniz', ModerationVerdict::ALLOW],
+            // Discussion is not a harmful misinformation call to action.
+            ['Aşı güvenliği hakkında akademik bir panel düzenleniyor', ModerationVerdict::ALLOW],
         ];
 
         $wrong = [];
@@ -185,9 +190,13 @@ class PolicyCoverageTest extends TestCase
             'siyahi arkadaşım çok iyi biri',           // identity, not hate
             'Kürt müziği dinliyorum',
             'Ders 204 numaralı sınıfta, dahili 1006',  // numbers, not PII
+            'Sipariş takip kodu 12345678901',          // invalid T.C. checksum
             'Terörle mücadele dersi aldım',            // academic subject
+            '13 yaşındaki kardeşimle sinemaya gittik', // minor, benign context
+            'Silahların tarihi üzerine belgesel izledim',
             'Kedimi veterinere götürdüm',
             'Siyaset bilimi bölümünde okuyorum',
+            'CHP ve AKP tartışması haberlerdeydi',      // reference, not propaganda
             'Kütüphanede sınava çalışıyorum',
         ];
 

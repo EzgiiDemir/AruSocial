@@ -49,7 +49,7 @@ class MediaUrl {
 
   static String _storageToApi(String url, String? origin) {
     final match =
-        RegExp(r'^(https?://[^/]+)?/storage/(media(?:/video)?/[^/?#]+)').firstMatch(url);
+        RegExp(r'^(https?://[^/]+)?/storage/(media/[^/?#]+)').firstMatch(url);
     if (match == null) return url;
     final base = match.group(2)!.split('/').last;
     final host = (origin != null && origin.isNotEmpty) ? origin : match.group(1);

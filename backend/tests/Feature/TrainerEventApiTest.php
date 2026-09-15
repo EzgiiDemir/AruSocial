@@ -2,13 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Events\CampusDataChanged;
 use App\Models\Event;
 use App\Models\Place;
+use App\Models\RoleAssignment;
 use App\Models\StaffProfile;
 use App\Models\User;
-use App\Events\CampusDataChanged;
-use Illuminate\Support\Facades\Event as EventFacade;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event as EventFacade;
 use Tests\TestCase;
 
 class TrainerEventApiTest extends TestCase
@@ -76,7 +77,7 @@ class TrainerEventApiTest extends TestCase
 
         // A second trainer, different department.
         $userB = User::create(['name' => 'Other Head', 'email' => 'other-head@arucad.edu.tr', 'password' => bcrypt('x')]);
-        \App\Models\RoleAssignment::create(['email' => $userB->email, 'role' => 'trainer', 'assigned_by' => 'test', 'assigned_at' => now()]);
+        RoleAssignment::create(['email' => $userB->email, 'role' => 'trainer', 'assigned_by' => 'test', 'assigned_at' => now()]);
         StaffProfile::create([
             'id' => 'staff-other-head', 'name' => 'Other Head', 'department' => 'Photography',
             'is_department_head' => true, 'active' => true, 'user_id' => $userB->id,
@@ -105,7 +106,7 @@ class TrainerEventApiTest extends TestCase
         $this->assertSame('V2', $update->json('data.title'));
 
         $this->postJson("/api/v1/trainer/events/{$event['id']}/delete")->assertOk();
-        $this->assertDatabaseMissing('events', ['id' => $event['id']]);
+        $this->assertSoftDeleted('events', ['id' => $event['id']]);
     }
 
     public function test_place_conflict_is_still_enforced_for_trainers(): void
@@ -163,7 +164,7 @@ class TrainerEventApiTest extends TestCase
         $event = $this->postJson('/api/v1/trainer/events', ['title' => 'A Event', 'placeId' => 'p1'])->json('data');
 
         $userB = User::create(['name' => 'Other Head', 'email' => 'other-head@arucad.edu.tr', 'password' => bcrypt('x')]);
-        \App\Models\RoleAssignment::create(['email' => $userB->email, 'role' => 'trainer', 'assigned_by' => 'test', 'assigned_at' => now()]);
+        RoleAssignment::create(['email' => $userB->email, 'role' => 'trainer', 'assigned_by' => 'test', 'assigned_at' => now()]);
         StaffProfile::create([
             'id' => 'staff-b-head', 'name' => 'Other Head', 'department' => 'Photography',
             'is_department_head' => true, 'active' => true, 'user_id' => $userB->id,

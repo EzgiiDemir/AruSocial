@@ -63,7 +63,7 @@ Future<void> showModerationNotice(
               ),
               child: const Text(
                 'Çıplaklık, cinsel içerik, şiddet, kan, nefret söylemi ve '
-                'taciz içeren görsel veya videolar ARUVERSE’te paylaşılamaz. '
+                'taciz içeren görseller ARUVERSE’te paylaşılamaz. '
                 'Paylaşmadan önce içeriğini kontrol et.',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 12, height: 1.45),

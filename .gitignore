@@ -21,6 +21,9 @@ local.properties
 # Runtime data, not source — see sql/README.md for how to recreate it.
 sql/database.sqlite
 sql/database.sqlite-*
+# `-*` catches the WAL/SHM siblings but not `database.sqlite.backup-<date>`,
+# which is a full copy of live student data.
+sql/database.sqlite.*
 # Timestamped copies taken before a `migrate:fresh` — same runtime data,
 # just older, so they don't belong in source control either.
 sql/backups/
@@ -46,3 +49,21 @@ backend/.env
 # redirected into the repo on this machine — build output, never source.
 .dart_appdata/
 .dart_localappdata/
+
+# --- Python moderation gateway ---
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# --- Vendored binaries and build output, never source ---
+#
+# `git add -A` was about to commit 592 MB of these: a 483 MB unpacked
+# ffmpeg distribution, Flutter's widget-preview cache, and the Node
+# packages for the moderation helper. None of it is authored here and all
+# of it is reproducible from a lock file or a download.
+node_modules/
+package-lock.json
+tools/ffmpeg-*/
+tools/ffmpeg*.zip
+frontend/.widget_preview/

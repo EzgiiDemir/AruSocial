@@ -9,6 +9,7 @@ import 'package:arucad_campus_prototype/core/services/upload_rules.dart';
 import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
 import 'package:arucad_campus_prototype/features/admin/admin_panel_screen.dart';
 import 'package:arucad_campus_prototype/features/home/campus_live_map.dart';
+import 'package:arucad_campus_prototype/features/legal/legal_document_screen.dart';
 import 'package:arucad_campus_prototype/features/profile/my_applications_screen.dart';
 import 'package:arucad_campus_prototype/features/quests/quests_screen.dart';
 import 'package:arucad_campus_prototype/features/services/appointment_booking_screen.dart';
@@ -311,37 +312,55 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             _selectSection(SettingsSection.values[i]),
                         labelType: NavigationRailLabelType.all,
                         minWidth: 116,
-                        useIndicator: true,
-                        indicatorColor:
-                            ArucadColors.primary.withValues(alpha: .16),
-                        unselectedIconTheme: IconThemeData(
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant),
-                        selectedIconTheme:
-                            const IconThemeData(color: ArucadColors.primary),
+                        // No pill behind the selected destination. The
+                        // indicator painted a blue block behind whichever
+                        // item was active, which fought the brand-coloured
+                        // icons for attention and read as a stuck hover
+                        // state. Selection is carried by the icon filling
+                        // in and the label going bold instead.
+                        useIndicator: false,
+                        // Icon colour is set per destination below, so the
+                        // rail's own themes must not override it. Only the
+                        // label colours are themed here.
                         unselectedLabelTextStyle: TextStyle(
                             color:
                                 Theme.of(context).colorScheme.onSurfaceVariant,
                             fontSize: 11),
-                        selectedLabelTextStyle: const TextStyle(
-                            color: ArucadColors.primary,
+                        selectedLabelTextStyle: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurface,
                             fontSize: 11,
                             fontWeight: FontWeight.w700),
                         destinations: [
-                          NavigationRailDestination(
-                              icon: const Icon(Icons.person_outline),
-                              selectedIcon: const Icon(Icons.person),
-                              label: Text(strings.t('settings_section_info'))),
-                          NavigationRailDestination(
-                              icon: const Icon(Icons.emoji_events_outlined),
-                              selectedIcon: const Icon(Icons.emoji_events),
-                              label:
-                                  Text(strings.t('settings_section_activity'))),
-                          NavigationRailDestination(
-                              icon: const Icon(Icons.tune_outlined),
-                              selectedIcon: const Icon(Icons.tune),
-                              label:
-                                  Text(strings.t('settings_section_system'))),
+                          // One ARUCAD identity colour each — blue, yellow,
+                          // green — so a destination is recognisable by its
+                          // colour before the label is read. Unselected
+                          // items keep the same hue at reduced opacity
+                          // rather than turning grey, which is what makes
+                          // the rail read as coloured at a glance.
+                          _railDestination(
+                            context,
+                            outlined: Icons.person_outline,
+                            filled: Icons.person,
+                            color: ArucadColors.primary,
+                            label: strings.t('settings_section_info'),
+                            selected: _section == SettingsSection.info,
+                          ),
+                          _railDestination(
+                            context,
+                            outlined: Icons.emoji_events_outlined,
+                            filled: Icons.emoji_events,
+                            color: ArucadColors.yellow,
+                            label: strings.t('settings_section_activity'),
+                            selected: _section == SettingsSection.activity,
+                          ),
+                          _railDestination(
+                            context,
+                            outlined: Icons.tune_outlined,
+                            filled: Icons.tune,
+                            color: ArucadColors.campusGreen,
+                            label: strings.t('settings_section_system'),
+                            selected: _section == SettingsSection.system,
+                          ),
                         ],
                       ),
                       const VerticalDivider(width: 1),
@@ -354,6 +373,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  /// A rail destination that keeps its own colour in both states.
+  ///
+  /// The icon is coloured here rather than through the rail's
+  /// `selectedIconTheme` / `unselectedIconTheme`, because those apply one
+  /// colour to every destination — which is exactly what made the whole
+  /// rail blue.
+  NavigationRailDestination _railDestination(
+    BuildContext context, {
+    required IconData outlined,
+    required IconData filled,
+    required Color color,
+    required String label,
+    required bool selected,
+  }) {
+    return NavigationRailDestination(
+      icon: Icon(outlined, color: color.withValues(alpha: .55)),
+      selectedIcon: Icon(filled, color: color),
+      label: Text(label),
     );
   }
 
@@ -499,6 +539,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       shown: shown,
                       total: items.length,
                       itemLabel: 'işlem',
+                      showCompleteLabel: false,
                       onTap: () =>
                           setState(() => _visibleActivity += kPageSize),
                     ),
@@ -614,6 +655,61 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ],
           ]),
         ),
+
+        // Safety and legal.
+        //
+        // These documents existed and `LegalDocumentScreen` existed, and
+        // nothing in the app referenced either — so the safety contact
+        // was published on the web and unreachable from the product.
+        // An app carrying user-generated content has to put the way to
+        // report abuse somewhere a person can actually find it, and
+        // "reachable" is the whole requirement.
+        const SizedBox(height: 12),
+        Card(
+          child: Column(children: [
+            ListTile(
+              leading: const Icon(Icons.shield_outlined,
+                  color: ArucadColors.primary),
+              title: Text(AppLocale.of(context).t('legal_safety')),
+              subtitle: Text(AppLocale.of(context).t('legal_safety_sub'),
+                  style: const TextStyle(fontSize: 12)),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => LegalDocumentScreen(
+                  title: AppLocale.of(context).t('legal_safety'),
+                  assetPath: 'assets/legal/safety.md',
+
+                ),
+              )),
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.gavel_outlined),
+              title: Text(AppLocale.of(context).t('legal_terms')),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => LegalDocumentScreen(
+                  title: AppLocale.of(context).t('legal_terms'),
+                  assetPath: 'assets/legal/terms.md',
+
+                ),
+              )),
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.lock_outline),
+              title: Text(AppLocale.of(context).t('legal_privacy')),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => LegalDocumentScreen(
+                  title: AppLocale.of(context).t('legal_privacy'),
+                  assetPath: 'assets/legal/privacy.md',
+
+                ),
+              )),
+            ),
+          ]),
+        ),
       ],
     );
   }
@@ -637,23 +733,28 @@ class _SettingsDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Same three identity colours as the wide-layout rail, so the menu
+    // looks like the same menu whichever width it is shown at.
     final items = [
       (
         SettingsSection.info,
         Icons.person_outline,
         Icons.person,
+        ArucadColors.primary,
         strings.t('settings_section_info')
       ),
       (
         SettingsSection.activity,
         Icons.emoji_events_outlined,
         Icons.emoji_events,
+        ArucadColors.yellow,
         strings.t('settings_section_activity')
       ),
       (
         SettingsSection.system,
         Icons.tune_outlined,
         Icons.tune,
+        ArucadColors.campusGreen,
         strings.t('settings_section_system')
       ),
     ];
@@ -666,23 +767,25 @@ class _SettingsDrawer extends StatelessWidget {
             child: ListView(
               padding: const EdgeInsets.symmetric(vertical: 12),
               children: [
-                for (final (section, icon, selectedIcon, label) in items)
+                for (final (section, icon, selectedIcon, color, label) in items)
                   ListTile(
-                    leading: Icon(section == selected ? selectedIcon : icon,
-                        color: section == selected
-                            ? ArucadColors.primary
-                            : scheme.onSurfaceVariant),
+                    leading: Icon(
+                      section == selected ? selectedIcon : icon,
+                      color: section == selected
+                          ? color
+                          : color.withValues(alpha: .55),
+                    ),
                     title: Text(label,
                         style: TextStyle(
-                            color: section == selected
-                                ? ArucadColors.primary
-                                : scheme.onSurface,
+                            color: scheme.onSurface,
                             fontWeight: section == selected
                                 ? FontWeight.w700
                                 : FontWeight.w500)),
                     selected: section == selected,
-                    selectedTileColor:
-                        ArucadColors.primary.withValues(alpha: .1),
+                    // No tinted block behind the active row. The filled
+                    // icon and bold label already say which one it is,
+                    // and the tint read as a hover state that had stuck.
+                    selectedTileColor: Colors.transparent,
                     onTap: () => onSelect(section),
                   ),
               ],

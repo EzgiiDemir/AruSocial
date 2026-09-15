@@ -36,9 +36,13 @@ class AppSettingsStore {
     await disableBiometric();
   }
 
-  static Future<String> language() async {
+  static Future<String?> savedLanguage() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_kLanguage) ?? 'TR';
+    return prefs.getString(_kLanguage);
+  }
+
+  static Future<String> language({String fallback = 'TR'}) async {
+    return await savedLanguage() ?? fallback;
   }
 
   static Future<void> setLanguage(String language) async {
@@ -56,6 +60,13 @@ class AppSettingsStore {
   static Future<void> setPrivacyNoticeAcknowledged() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_kPrivacyNoticeAck, true);
+  }
+
+  /// Used when the server reports that the policy has changed since this
+  /// account accepted it, so the notice is shown again.
+  static Future<void> clearPrivacyNoticeAcknowledged() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_kPrivacyNoticeAck);
   }
 
   /// Appearance is intentionally device-wide rather than account-scoped:

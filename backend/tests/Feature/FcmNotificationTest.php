@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Models\Notification as InboxNotification;
-use App\Models\PushToken;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Concerns\SignsInChatUsers;
 use Tests\TestCase;

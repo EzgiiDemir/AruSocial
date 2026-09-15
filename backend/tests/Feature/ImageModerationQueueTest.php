@@ -5,8 +5,8 @@ namespace Tests\Feature;
 use App\Jobs\ModerateImageJob;
 use App\Models\MediaItem;
 use App\Models\ModerationEvent;
+use App\Services\Moderation\Image\ImageModerationRunner;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
@@ -108,7 +108,7 @@ class ImageModerationQueueTest extends TestCase
         $this->scannerReturns(['normal' => 0.98, 'nsfw' => 0.02]);
 
         $created = $this->upload()->assertCreated()->json('data');
-        (new ModerateImageJob($created['id']))->handle(app(\App\Services\Moderation\Image\ImageModerationRunner::class));
+        (new ModerateImageJob($created['id']))->handle(app(ImageModerationRunner::class));
 
         $this->assertSame('approved', MediaItem::find($created['id'])->moderation_status);
     }
@@ -120,7 +120,7 @@ class ImageModerationQueueTest extends TestCase
         $this->scannerReturns(['normal' => 0.03, 'nsfw' => 0.97]);
 
         $created = $this->upload()->assertCreated()->json('data');
-        (new ModerateImageJob($created['id']))->handle(app(\App\Services\Moderation\Image\ImageModerationRunner::class));
+        (new ModerateImageJob($created['id']))->handle(app(ImageModerationRunner::class));
 
         $item = MediaItem::find($created['id']);
         $this->assertSame('blocked', $item->moderation_status);
@@ -138,7 +138,7 @@ class ImageModerationQueueTest extends TestCase
         $this->scannerReturns(['normal' => 0.03, 'nsfw' => 0.97]);
 
         $created = $this->upload()->assertCreated()->json('data');
-        $runner = app(\App\Services\Moderation\Image\ImageModerationRunner::class);
+        $runner = app(ImageModerationRunner::class);
 
         (new ModerateImageJob($created['id']))->handle($runner);
         $strikesAfterFirst = (int) $user->fresh()->strikes;
@@ -170,7 +170,7 @@ class ImageModerationQueueTest extends TestCase
 
         try {
             (new ModerateImageJob($created['id']))
-                ->handle(app(\App\Services\Moderation\Image\ImageModerationRunner::class));
+                ->handle(app(ImageModerationRunner::class));
             $this->fail('An unavailable scanner must not resolve the job quietly.');
         } catch (\RuntimeException) {
             // expected
@@ -208,7 +208,7 @@ class ImageModerationQueueTest extends TestCase
         $created = $this->upload()->assertCreated()->json('data');
 
         config(['moderation.image.enabled' => false]);
-        (new ModerateImageJob($created['id']))->handle(app(\App\Services\Moderation\Image\ImageModerationRunner::class));
+        (new ModerateImageJob($created['id']))->handle(app(ImageModerationRunner::class));
 
         $this->assertSame('pending', MediaItem::find($created['id'])->moderation_status);
     }
@@ -225,7 +225,7 @@ class ImageModerationQueueTest extends TestCase
 
         try {
             (new ModerateImageJob($created['id']))
-                ->handle(app(\App\Services\Moderation\Image\ImageModerationRunner::class));
+                ->handle(app(ImageModerationRunner::class));
         } catch (\RuntimeException) {
             // ERROR verdicts throw to trigger a retry.
         }

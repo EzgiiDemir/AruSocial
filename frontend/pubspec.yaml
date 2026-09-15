@@ -46,7 +46,6 @@ dependencies:
   collection: ^1.2.1
   sentry_flutter: ^9.27.0
   crypto: ^3.0.6
-  video_player: ^2.9.5
   pointer_interceptor: ^0.10.1+2
   webview_flutter: ^4.14.1
 

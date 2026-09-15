@@ -86,16 +86,6 @@ return [
         'cooldown_minutes' => (int) env('CHECKIN_COOLDOWN_MINUTES', 30),
     ],
 
-    // Student feed posts go to pending_review when true. Production
-    // defaults on; local/testing stay off so existing feed tests keep
-    // asserting immediate visibility.
-    'feed' => [
-        'require_approval' => filter_var(
-            env('FEED_REQUIRE_APPROVAL', env('APP_ENV') === 'production' ? 'true' : 'false'),
-            FILTER_VALIDATE_BOOLEAN
-        ),
-    ],
-
     /*
      * What a phone is allowed to upload.
      *
@@ -107,14 +97,15 @@ return [
      * upload cannot fill the disk or stall moderation.
      */
     'media_uploads' => [
+        // Images only. Video was removed from the product on 14 September
+        // 2026; MediaController answers an upload of one with an explicit
+        // VIDEO_NOT_SUPPORTED rather than a generic type error, because
+        // older builds of the app still have the button.
         'image_mimes' => ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'],
-        'video_mimes' => ['video/mp4', 'video/quicktime', 'video/webm'],
         'max_image_bytes' => (int) env('MEDIA_MAX_IMAGE_BYTES', 12 * 1024 * 1024),
-        'max_video_bytes' => (int) env('MEDIA_MAX_VIDEO_BYTES', 100 * 1024 * 1024),
         // Beyond this a still is almost certainly a scan or a screenshot of
         // something else, and it costs real time to inspect.
         'max_image_pixels' => (int) env('MEDIA_MAX_IMAGE_PIXELS', 50_000_000),
-        'max_video_seconds' => (int) env('MEDIA_MAX_VIDEO_SECONDS', 180),
     ],
 
     // ARUCAD-operated semantic image/video model. This is a local executable
@@ -141,7 +132,21 @@ return [
         // both means an existing deployment keeps working; the canonical
         // name wins when both are present.
         'openai_key' => env('OPENAI_API_KEY') ?: env('OPENAI_MODERATION_API_KEY'),
-        'model' => env('MODERATION_MODEL', 'omni-moderation-latest'),
+        /*
+         * OFF by default. Moderation is self-hosted.
+         *
+         * This defaulted to `true`, which meant a deployment that simply
+         * did not set the variable would start sending student posts and
+         * uploads to a third party — while the privacy notice states that
+         * content is never sent outside ARUCAD for moderation, and while
+         * the self-hosted classifiers do the work.
+         *
+         * A privacy claim that depends on an env var being remembered is
+         * not a privacy claim. Turning this on is now a deliberate act,
+         * and it needs the notice updated with it.
+         */
+        'enabled' => filter_var(env('MODERATION_OPENAI_ENABLED', 'false'), FILTER_VALIDATE_BOOLEAN),
+        'model' => env('OPENAI_MODERATION_MODEL', env('MODERATION_MODEL', 'omni-moderation-latest')),
         'endpoint' => env('MODERATION_ENDPOINT', 'https://api.openai.com/v1/moderations'),
         'timeout_seconds' => (int) env('MODERATION_TIMEOUT_SECONDS', 12),
 
@@ -150,28 +155,26 @@ return [
          * unchecked content, so submissions are held for human review
          * instead of being silently let through.
          */
-        'fail_open' => filter_var(env('MODERATION_FAIL_OPEN', 'false'), FILTER_VALIDATE_BOOLEAN),
+        'fail_closed' => filter_var(env('MODERATION_FAIL_CLOSED', 'true'), FILTER_VALIDATE_BOOLEAN),
 
         /*
-         * Per-category score thresholds. A category is treated as a
-         * violation when OpenAI flags it, or when its score crosses the
-         * threshold below — the score check catches content the model is
-         * confident about but does not hard-flag.
+         * Per-category HIGH-confidence score thresholds. Lower scores are
+         * evidence for contextual review, never an automatic removal.
          */
         'thresholds' => [
-            'sexual/minors' => (float) env('MODERATION_T_SEXUAL_MINORS', .05),
-            'harassment/threatening' => (float) env('MODERATION_T_HARASSMENT_THREAT', .30),
-            'hate/threatening' => (float) env('MODERATION_T_HATE_THREAT', .30),
-            'violence/graphic' => (float) env('MODERATION_T_VIOLENCE_GRAPHIC', .55),
-            'self-harm/instructions' => (float) env('MODERATION_T_SELF_HARM_INSTR', .30),
-            'self-harm/intent' => (float) env('MODERATION_T_SELF_HARM_INTENT', .40),
-            'sexual' => (float) env('MODERATION_T_SEXUAL', .60),
-            'hate' => (float) env('MODERATION_T_HATE', .50),
-            'harassment' => (float) env('MODERATION_T_HARASSMENT', .60),
-            'violence' => (float) env('MODERATION_T_VIOLENCE', .65),
-            'self-harm' => (float) env('MODERATION_T_SELF_HARM', .45),
-            'illicit' => (float) env('MODERATION_T_ILLICIT', .60),
-            'illicit/violent' => (float) env('MODERATION_T_ILLICIT_VIOLENT', .40),
+            'sexual/minors' => (float) env('MODERATION_T_SEXUAL_MINORS', .90),
+            'harassment/threatening' => (float) env('MODERATION_T_HARASSMENT_THREAT', .85),
+            'hate/threatening' => (float) env('MODERATION_T_HATE_THREAT', .85),
+            'violence/graphic' => (float) env('MODERATION_T_VIOLENCE_GRAPHIC', .90),
+            'self-harm/instructions' => (float) env('MODERATION_T_SELF_HARM_INSTR', .90),
+            'self-harm/intent' => (float) env('MODERATION_T_SELF_HARM_INTENT', .90),
+            'sexual' => (float) env('MODERATION_T_SEXUAL', .90),
+            'hate' => (float) env('MODERATION_T_HATE', .85),
+            'harassment' => (float) env('MODERATION_T_HARASSMENT', .90),
+            'violence' => (float) env('MODERATION_T_VIOLENCE', .90),
+            'self-harm' => (float) env('MODERATION_T_SELF_HARM', .90),
+            'illicit' => (float) env('MODERATION_T_ILLICIT', .90),
+            'illicit/violent' => (float) env('MODERATION_T_ILLICIT_VIOLENT', .90),
         ],
 
         /*
@@ -194,10 +197,6 @@ return [
          * ban stays an explicit administrator decision.
          */
         'repeat_last_penalty' => filter_var(env('MODERATION_REPEAT_LAST_PENALTY', 'true'), FILTER_VALIDATE_BOOLEAN),
-
-        /* Video: how many frames to sample across the clip. */
-        'video_frames' => (int) env('MODERATION_VIDEO_FRAMES', 5),
-        'ffmpeg_path' => env('FFMPEG_PATH', 'ffmpeg'),
 
         /* Privacy: keep the offending text only long enough to appeal. */
         'retain_excerpt_days' => (int) env('MODERATION_RETAIN_EXCERPT_DAYS', 30),

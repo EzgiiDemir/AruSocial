@@ -109,9 +109,11 @@ class _QuestsScreenState extends State<QuestsScreen> {
     return {
       'Explore': thisYear.where((a) => a.kind == ActivityKind.checkIn).length,
       'Connect': thisYear
-          .where((a) => a.kind == ActivityKind.comment || a.kind == ActivityKind.like)
+          .where((a) =>
+              a.kind == ActivityKind.comment || a.kind == ActivityKind.like)
           .length,
-      'Participate': thisYear.where((a) => a.kind == ActivityKind.eventJoin).length,
+      'Participate':
+          thisYear.where((a) => a.kind == ActivityKind.eventJoin).length,
       'Contribute': thisYear.where((a) => a.kind == ActivityKind.review).length,
     };
   }
@@ -159,53 +161,65 @@ class _QuestsScreenState extends State<QuestsScreen> {
                     itemBuilder: (context, i) => SelectableChip(
                       label: '${years[i]}',
                       selected: years[i] == _selectedYear,
-                      onSelected: (_) => setState(() => _selectedYear = years[i]),
+                      onSelected: (_) =>
+                          setState(() => _selectedYear = years[i]),
                     ),
                   ),
                 ),
               ],
               const SizedBox(height: 18),
               Card(
-                color: ArucadColors.primary,
+                color: ArucadColors.yellow,
                 child: Padding(
                   padding: const EdgeInsets.all(20),
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Row(children: [
-                      Expanded(
-                        child: Text('${strings.t('quests_year_score')} · $year',
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(children: [
+                          Expanded(
+                            child: Text(
+                                '${strings.t('quests_year_score')} · $year',
+                                style: const TextStyle(
+                                    color: ArucadColors.ink,
+                                    fontWeight: FontWeight.w800)),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: levelColor(widget.user.level),
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(color: Colors.white24),
+                            ),
+                            child: Text('LEVEL ${widget.user.level}',
+                                style: ArucadTextStyles.display(
+                                    color:
+                                        onAccent(levelColor(widget.user.level)),
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 11,
+                                    letterSpacing: .4)),
+                          ),
+                        ]),
+                        const SizedBox(height: 8),
+                        Text('${widget.user.xp} XP toplam',
                             style: const TextStyle(
-                                color: Colors.white70, fontWeight: FontWeight.w800)),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: levelColor(widget.user.level),
-                          borderRadius: BorderRadius.circular(999),
-                          border: Border.all(color: Colors.white24),
-                        ),
-                        child: Text('LEVEL ${widget.user.level}',
-                            style: ArucadTextStyles.display(
-                                color: onAccent(levelColor(widget.user.level)),
+                                color: ArucadColors.ink, fontSize: 12)),
+                        Text('$_yearXp XP',
+                            style: const TextStyle(
+                                fontSize: 34,
                                 fontWeight: FontWeight.w900,
-                                fontSize: 11,
-                                letterSpacing: .4)),
-                      ),
-                    ]),
-                    const SizedBox(height: 8),
-                    Text('${widget.user.xp} XP toplam',
-                        style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                    Text('$_yearXp XP',
-                        style: const TextStyle(
-                            fontSize: 34, fontWeight: FontWeight.w900, color: Colors.white)),
-                    const SizedBox(height: 10),
-                    LinearProgressIndicator(
-                        value: (_yearXp / _yearGoalXp).clamp(0, 1),
-                        backgroundColor: Colors.white24,
-                        color: Colors.white),
-                    const SizedBox(height: 8),
-                    Text('Hedef: $_yearGoalXp XP · her yıl başında sıfırlanır, geçmiş istatistiklerin kalır',
-                        style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                  ]),
+                                color: ArucadColors.ink)),
+                        const SizedBox(height: 10),
+                        LinearProgressIndicator(
+                            value: (_yearXp / _yearGoalXp).clamp(0, 1),
+                            backgroundColor: Colors.black12,
+                            color: ArucadColors.ink),
+                        const SizedBox(height: 8),
+                        Text(
+                            'Hedef: $_yearGoalXp XP · her yıl başında sıfırlanır, geçmiş istatistiklerin kalır',
+                            style: const TextStyle(
+                                color: ArucadColors.ink, fontSize: 12)),
+                      ]),
                 ),
               ),
               const SizedBox(height: 14),
@@ -216,18 +230,30 @@ class _QuestsScreenState extends State<QuestsScreen> {
                     child: Card(
                       child: Padding(
                         padding: const EdgeInsets.all(18),
-                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Row(children: [
-                            Expanded(child: Text(quest.title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18))),
-                            Text('+${quest.reward} XP', style: const TextStyle(fontWeight: FontWeight.w900, color: ArucadColors.yellow)),
-                          ]),
-                          const SizedBox(height: 6),
-                          Text(quest.subtitle),
-                          const SizedBox(height: 14),
-                          LinearProgressIndicator(value: quest.progress / quest.target.toDouble()),
-                          const SizedBox(height: 6),
-                          Text('${quest.progress}/${quest.target} tamamlandı'),
-                        ]),
+                        child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(children: [
+                                Expanded(
+                                    child: Text(quest.title,
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.w900,
+                                            fontSize: 18))),
+                                Text('+${quest.reward} XP',
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w900,
+                                        color: ArucadColors.yellow)),
+                              ]),
+                              const SizedBox(height: 6),
+                              Text(quest.subtitle),
+                              const SizedBox(height: 14),
+                              LinearProgressIndicator(
+                                  value:
+                                      quest.progress / quest.target.toDouble()),
+                              const SizedBox(height: 6),
+                              Text(
+                                  '${quest.progress}/${quest.target} tamamlandı'),
+                            ]),
                       ),
                     ),
                   )),
@@ -235,37 +261,47 @@ class _QuestsScreenState extends State<QuestsScreen> {
                   (unvisited.isNotEmpty || unjoined.isNotEmpty)) ...[
                 const SizedBox(height: 6),
                 Text(strings.t('quests_suggestions'),
-                    style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w900, fontSize: 16)),
                 const SizedBox(height: 8),
                 Card(
                   child: Column(children: [
                     for (final place in unvisited)
                       ListTile(
-                        leading: const Icon(Icons.explore_outlined, color: ArucadColors.primary),
+                        leading: const Icon(Icons.explore_outlined,
+                            color: ArucadColors.primary),
                         title: Text('${place.name} henüz gitmedin'),
-                        subtitle: Text(AppLocale.of(context).t('qs_checkin_reward')),
+                        subtitle:
+                            Text(AppLocale.of(context).t('qs_checkin_reward')),
                         trailing: const Icon(Icons.chevron_right),
-                        onTap: widget.mapProvider == null || widget.analyticsTracker == null
+                        onTap: widget.mapProvider == null ||
+                                widget.analyticsTracker == null
                             ? null
-                            : () => Navigator.of(context).push(MaterialPageRoute(
-                                builder: (_) => PlaceDetailScreen(
-                                    place: place,
-                                    repository: widget.repository,
-                                    mapProvider: widget.mapProvider!,
-                                    analyticsTracker: widget.analyticsTracker!))),
+                            : () => Navigator.of(context).push(
+                                MaterialPageRoute(
+                                    builder: (_) => PlaceDetailScreen(
+                                        place: place,
+                                        repository: widget.repository,
+                                        mapProvider: widget.mapProvider!,
+                                        analyticsTracker:
+                                            widget.analyticsTracker!))),
                       ),
                     for (final event in unjoined)
                       ListTile(
-                        leading: const Icon(Icons.event_available_outlined, color: ArucadColors.blue),
-                        title: Text('${event.title} var, katılmak ister misin?'),
-                        subtitle: Text('${event.placeName} · ${event.time} · +${event.xp} XP'),
+                        leading: const Icon(Icons.event_available_outlined,
+                            color: ArucadColors.blue),
+                        title:
+                            Text('${event.title} var, katılmak ister misin?'),
+                        subtitle: Text(
+                            '${event.placeName} · ${event.time} · +${event.xp} XP'),
                       ),
                   ]),
                 ),
                 const SizedBox(height: 18),
               ],
               Text(strings.t('quests_leaderboard'),
-                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w900, fontSize: 16)),
               const SizedBox(height: 8),
               TextField(
                 controller: _searchController,
@@ -284,8 +320,8 @@ class _QuestsScreenState extends State<QuestsScreen> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(
-                        color: ArucadColors.ink, width: 1.2),
+                    borderSide:
+                        const BorderSide(color: ArucadColors.ink, width: 1.2),
                   ),
                   suffixIcon: _search.isEmpty
                       ? null
@@ -308,13 +344,15 @@ class _QuestsScreenState extends State<QuestsScreen> {
                 final filtered = _search.isEmpty
                     ? _leaderboard
                     : _leaderboard
-                        .where((e) =>
-                            e.name.toLowerCase().contains(_search.toLowerCase()))
+                        .where((e) => e.name
+                            .toLowerCase()
+                            .contains(_search.toLowerCase()))
                         .toList();
                 // Ranks always reflect the full (unfiltered) standings, not
                 // the filtered list's position.
                 final ranks = {
-                  for (var i = 0; i < _leaderboard.length; i++) _leaderboard[i]: i + 1
+                  for (var i = 0; i < _leaderboard.length; i++)
+                    _leaderboard[i]: i + 1
                 };
                 final shown = _visibleLeaders.clamp(0, filtered.length);
                 return Column(children: [
@@ -388,7 +426,8 @@ class _CampusJourneyCard extends StatelessWidget {
         padding: const EdgeInsets.all(18),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('$year Campus Journey',
-              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+              style:
+                  const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
           const SizedBox(height: 4),
           const Text(
               'Skor XP\'yi ölçer; bu ise bu yıl kampüsü nasıl kullandığını gösterir.',
@@ -401,25 +440,31 @@ class _CampusJourneyCard extends StatelessWidget {
             for (final entry in counts.entries)
               Padding(
                 padding: const EdgeInsets.only(bottom: 10),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Row(children: [
-                    Expanded(
-                        child: Text(entry.key,
-                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13))),
-                    Text('${entry.value}',
-                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
-                  ]),
-                  const SizedBox(height: 4),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(999),
-                    child: LinearProgressIndicator(
-                      value: maxCount == 0 ? 0 : entry.value / maxCount,
-                      minHeight: 7,
-                      backgroundColor: ArucadColors.mist,
-                      color: _journeyCategoryColors[entry.key] ?? ArucadColors.primary,
-                    ),
-                  ),
-                ]),
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(children: [
+                        Expanded(
+                            child: Text(entry.key,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13))),
+                        Text('${entry.value}',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w800, fontSize: 13)),
+                      ]),
+                      const SizedBox(height: 4),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(999),
+                        child: LinearProgressIndicator(
+                          value: maxCount == 0 ? 0 : entry.value / maxCount,
+                          minHeight: 7,
+                          backgroundColor: ArucadColors.mist,
+                          color: _journeyCategoryColors[entry.key] ??
+                              ArucadColors.primary,
+                        ),
+                      ),
+                    ]),
               ),
         ]),
       ),
@@ -431,8 +476,7 @@ class _LeaderboardRow extends StatelessWidget {
   final int rank;
   final LeaderboardEntry entry;
   final VoidCallback? onTap;
-  const _LeaderboardRow(
-      {required this.rank, required this.entry, this.onTap});
+  const _LeaderboardRow({required this.rank, required this.entry, this.onTap});
 
   @override
   Widget build(BuildContext context) {

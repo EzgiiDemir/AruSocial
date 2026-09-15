@@ -20,9 +20,10 @@
   body {
     margin: 0; background: var(--bg); color: var(--ink);
     font: 13px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif;
-    display: grid; grid-template-columns: 210px 1fr 420px; height: 100vh;
+    display: grid; grid-template-columns: 210px minmax(0, 1fr) 420px;
+    height: 100dvh; min-height: 0; overflow: hidden;
   }
-  aside, section { overflow: auto; }
+  aside, section { min-height: 0; overflow: auto; }
   aside { border-right: 1px solid var(--line); background: var(--panel); }
   .side-title {
     padding: 14px 14px 8px; font-size: 11px; letter-spacing: .08em;
@@ -39,13 +40,22 @@
 
   main {
     display: flex; flex-direction: column; gap: 10px;
-    padding: 12px; overflow: hidden; min-width: 0;
+    padding: 12px; overflow: hidden; min-width: 0; min-height: 0;
   }
+  body.focus-mode {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+  }
+  body.focus-mode aside, body.focus-mode section { display: none; }
+  body.focus-mode main { grid-column: 1; grid-row: 1; }
   /* The stage owns the leftover height, so the frame can be centred and
      measured against a real box instead of the whole window. */
   #stage {
-    flex: 1; min-height: 0; display: flex;
-    align-items: center; justify-content: center;
+    flex: 1; min-height: 0; position: relative; overflow: hidden;
+    border: 1px solid var(--line); border-radius: 16px;
+    background:
+      radial-gradient(circle at 50% 35%, rgba(76,141,255,.09), transparent 36%),
+      #0b0e13;
   }
 
   /* Responsive: on a narrow window the side panels stop being columns and
@@ -55,30 +65,55 @@
     body { grid-template-columns: 170px 1fr 340px; }
   }
   @media (max-width: 1000px) {
-    body { grid-template-columns: 150px 1fr; grid-template-rows: 1fr 260px; }
+    body { grid-template-columns: 150px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) 260px; }
     section { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--line); }
   }
   @media (max-width: 700px) {
-    body { grid-template-columns: 1fr; grid-template-rows: auto 1fr 240px; }
+    body { grid-template-columns: minmax(0, 1fr); grid-template-rows: 52px minmax(280px, 1fr) minmax(150px, 30vh); }
     aside {
       border-right: 0; border-bottom: 1px solid var(--line);
-      display: flex; overflow-x: auto; align-items: center;
+      display: flex; overflow: hidden; align-items: stretch;
     }
-    aside .side-title, aside #rotate { display: none; }
-    .device { border-left: 0; border-bottom: 3px solid transparent; white-space: nowrap; }
+    aside .side-title { display: none; }
+    #devices { display: flex; overflow-x: auto; min-width: 0; scrollbar-width: none; }
+    #devices::-webkit-scrollbar, .bar::-webkit-scrollbar { display: none; }
+    .device { flex: none; border-left: 0; border-bottom: 3px solid transparent; white-space: nowrap; padding: 8px 12px; }
     .device.on { border-left: 0; border-bottom-color: var(--blue); }
     .device span { display: none; }
+    main { padding: 8px; gap: 7px; }
+    .bar { overflow-x: auto; flex: none; padding-bottom: 1px; scrollbar-width: none; }
+    .bar button, .status { flex: none; }
+    section { min-height: 0; }
+    .head { padding: 8px 10px; }
+    .filters { padding: 0 10px 7px; flex-wrap: nowrap; overflow-x: auto; }
   }
   .frame {
     background: #000; border-radius: 44px; padding: 12px;
     box-shadow: 0 0 0 2px #2b3240, 0 24px 60px rgba(0,0,0,.6);
-    position: relative; flex: none;
+    position: absolute; top: 50%; left: 50%; flex: none;
+    transform-origin: center center;
   }
   .notch {
     position: absolute; top: 22px; left: 50%; transform: translateX(-50%);
     width: 100px; height: 26px; background: #000; border-radius: 14px; z-index: 2;
   }
-  iframe { border: 0; border-radius: 34px; background: #fff; display: block; }
+  .screen { position: relative; overflow: hidden; border-radius: 34px; background: #fff; }
+  iframe {
+    position: absolute; left: 0; top: var(--safe-top, 0px);
+    border: 0; background: #fff; display: block;
+  }
+  .app-state {
+    position: absolute; inset: 0; z-index: 5; display: grid; place-items: center;
+    padding: 30px; text-align: center; color: #20242b; background: #f7f8fa;
+    font-size: 13px;
+  }
+  .app-state.hidden { display: none; }
+  .spinner {
+    width: 28px; height: 28px; margin: 0 auto 14px; border-radius: 50%;
+    border: 3px solid #dce1e8; border-top-color: var(--blue);
+    animation: spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
   .bar { display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: 12px; }
   button {
     background: #21262d; color: var(--ink); border: 1px solid var(--line);
@@ -86,6 +121,13 @@
   }
   button:hover { background: #2b323d; }
   button.on { border-color: var(--blue); color: var(--blue); }
+  .status {
+    display: inline-flex; align-items: center; gap: 5px; padding: 4px 8px;
+    border: 1px solid var(--line); border-radius: 999px; white-space: nowrap;
+  }
+  .status::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--amber); }
+  .status.ok::before { background: var(--green); box-shadow: 0 0 8px rgba(63,185,80,.6); }
+  .status.bad::before { background: var(--red); }
 
   section { border-left: 1px solid var(--line); background: var(--panel); display: flex; flex-direction: column; }
   .head {
@@ -132,22 +174,30 @@
 <aside>
   <div class="side-title">Cihaz</div>
   <div id="devices"></div>
-  <div class="side-title" style="margin-top:8px">Görünüm</div>
-  <div style="padding:0 14px 16px">
-    <button id="rotate">Yatay / Dikey</button>
-  </div>
 </aside>
 
 <main>
   <div class="bar">
     <button id="reload">Yenile</button>
+    <button id="rotate">Döndür</button>
+    <button id="focus">Odak modu</button>
     <button id="auto" class="on">Otomatik yenile: açık</button>
+    <button id="audit">Responsive audit</button>
+    <button id="offline">Çevrimdışı: kapalı</button>
+    <span class="status" id="appStatus">Flutter bekleniyor</span>
+    <span class="status" id="apiStatus">API kontrol ediliyor</span>
+    <span class="status" id="wsStatus">Realtime kontrol ediliyor</span>
     <span id="dims"></span>
   </div>
   <div id="stage">
     <div class="frame" id="frame">
       <div class="notch"></div>
-      <iframe id="app" src="/" allow="geolocation *; camera *; microphone *"></iframe>
+      <div class="screen" id="screen">
+        <iframe id="app" src="/" allow="geolocation *; camera *; microphone *"></iframe>
+        <div class="app-state" id="appState">
+          <div><div class="spinner"></div><strong>Flutter başlatılıyor</strong><br>İlk açılış birkaç saniye sürebilir.</div>
+        </div>
+      </div>
     </div>
   </div>
 </main>
@@ -185,6 +235,8 @@ const DEVICES = [
 let current = 2, landscape = false;
 const app = document.getElementById('app');
 const frame = document.getElementById('frame');
+const screen = document.getElementById('screen');
+let fitScale = 1;
 
 function renderDevices() {
   document.getElementById('devices').innerHTML = DEVICES.map((d, i) =>
@@ -196,6 +248,8 @@ function renderDevices() {
 function applyDevice() {
   const [name, w, h] = DEVICES[current];
   const W = landscape ? h : w, H = landscape ? w : h;
+  const hasIsland = !landscape && /^iPhone (15|16)/.test(name);
+  const safeTop = landscape ? 0 : hasIsland ? 38 : name.includes('SE') ? 20 : 24;
 
   // The iframe is always the device's exact logical size, so the app lays
   // out against real numbers. Only the presentation is scaled, and only
@@ -203,16 +257,19 @@ function applyDevice() {
   // for no reason, and the scale is stated so nothing is misread as a
   // layout difference.
   app.style.width = W + 'px';
-  app.style.height = H + 'px';
+  app.style.height = (H - safeTop) + 'px';
+  screen.style.width = W + 'px';
+  screen.style.height = H + 'px';
+  screen.style.setProperty('--safe-top', safeTop + 'px');
 
   const stage = document.getElementById('stage');
-  const availH = stage.clientHeight - 24;
-  const availW = stage.clientWidth - 24;
-  const scale = Math.min(1, availH / (H + 24), availW / (W + 24));
+  const availH = Math.max(120, stage.clientHeight - 28);
+  const availW = Math.max(120, stage.clientWidth - 28);
+  const scale = Math.max(.12, Math.min(1, availH / (H + 24), availW / (W + 24)));
+  fitScale = scale;
 
-  frame.style.transform = `scale(${scale})`;
-  frame.style.transformOrigin = 'center center';
-  document.querySelector('.notch').style.display = landscape ? 'none' : 'block';
+  frame.style.transform = `translate(-50%, -50%) scale(${scale})`;
+  document.querySelector('.notch').style.display = hasIsland ? 'block' : 'none';
   document.getElementById('dims').textContent =
     `${name} · ${W}×${H} · ${scale === 1 ? '1:1' : Math.round(scale * 100) + '%'}`;
   renderDevices();
@@ -225,8 +282,14 @@ document.getElementById('devices').addEventListener('click', (e) => {
   applyDevice();
 });
 document.getElementById('rotate').onclick = () => { landscape = !landscape; applyDevice(); };
+document.getElementById('focus').onclick = function () {
+  const enabled = document.body.classList.toggle('focus-mode');
+  this.textContent = enabled ? 'Panelleri göster' : 'Odak modu';
+  this.classList.toggle('on', enabled);
+  requestAnimationFrame(applyDevice);
+};
 document.getElementById('reload').onclick = () => { app.src = app.src; };
-window.addEventListener('resize', applyDevice);
+window.addEventListener('resize', () => requestAnimationFrame(applyDevice));
 
 /* ------------------------------------------------------------ diagnostics */
 const KINDS = {
@@ -285,8 +348,24 @@ function esc(s) {
 }
 
 function add(kind, title, detail) {
+  const cause = {
+    moderation: 'İçerik güvenlik politikası veya hesap yaptırımı isteği reddetti.',
+    network: 'API erişilemedi, zaman aşımına uğradı veya başarısız HTTP yanıtı verdi.',
+    layout: 'Bir bileşen cihazın kullanılabilir görünüm alanını aşıyor.',
+    asset: 'İstenen font, görsel veya statik dosya sunucuda bulunamadı.',
+    runtime: 'Uygulama çalışma sırasında yakalanmamış bir hata üretti.',
+    ok: 'Kontrol başarıyla tamamlandı.',
+  }[kind] || 'Tanı kaydı oluşturuldu.';
+  const effect = {
+    moderation: 'Gönderi, yorum veya medya yayınlanmaz.',
+    network: 'Ekran güncel veriyi okuyamaz veya yapılan işlem kalıcılaşmaz.',
+    layout: 'Mobilde taşma, kırpılma ya da ulaşılamayan buton oluşabilir.',
+    asset: 'İkon, yazı veya harita etiketi eksik görünebilir.',
+    runtime: 'İlgili akış durabilir veya ekran kullanılamaz hâle gelebilir.',
+    ok: 'Kullanıcı akışı beklenen şekilde çalışıyor.',
+  }[kind] || 'Ayrıntıyı inceleyin.';
   entries.unshift({
-    kind, title, detail,
+    kind, title, detail: `Sebep: ${cause}\nEtki: ${effect}\n\n${detail}`,
     at: new Date().toLocaleTimeString('tr-TR'),
   });
   // Bounded so a repeating error cannot grow the page until it freezes.
@@ -373,10 +452,16 @@ const PROBE = String.raw`
   // Only API traffic is inspected, and only when it fails — a tile request
   // must pass through completely untouched.
   var nativeFetch = window.fetch;
+  var simOffline = false;
   window.fetch = function (input, init) {
     var url = typeof input === 'string' ? input : (input && input.url) || '';
     var method = ((init && init.method) || (input && input.method) || 'GET').toUpperCase();
     var t0 = performance.now();
+    if (simOffline && isApi(url)) {
+      var offlineError = new TypeError('Simülatör çevrimdışı modu: API isteği engellendi');
+      post('neterr', method + ' ' + short(url), String(offlineError));
+      return Promise.reject(offlineError);
+    }
     var p = nativeFetch.apply(this, arguments);
     if (!isApi(url)) return p;
     return p.then(function (res) {
@@ -404,6 +489,12 @@ const PROBE = String.raw`
   };
   XMLHttpRequest.prototype.send = function () {
     var xhr = this;
+    if (simOffline && isApi(xhr.__u)) {
+      post('neterr', xhr.__m + ' ' + short(xhr.__u),
+        'Simülatör çevrimdışı modu: XHR isteği engellendi');
+      setTimeout(function () { xhr.abort(); }, 0);
+      return;
+    }
     if (isApi(xhr.__u)) {
       xhr.addEventListener('loadend', function () {
         if (xhr.status >= 200 && xhr.status < 400) return;
@@ -420,11 +511,115 @@ const PROBE = String.raw`
     return send.apply(this, arguments);
   };
 
+  var selectorFor = function (el) {
+    if (el.id) return '#' + el.id;
+    var out = el.tagName.toLowerCase();
+    if (el.classList && el.classList.length) out += '.' + [].slice.call(el.classList, 0, 2).join('.');
+    return out;
+  };
+  var runResponsiveAudit = function () {
+    var vw = document.documentElement.clientWidth;
+    var vh = document.documentElement.clientHeight;
+    var issues = [];
+    [].slice.call(document.querySelectorAll('body *')).forEach(function (el) {
+      if (issues.length >= 40) return;
+      var tag = el.tagName.toLowerCase();
+      // Flutter paints the app to canvas. Its flt-* DOM is an accessibility
+      // mirror, not layout: it deliberately contains off-screen announcement
+      // nodes and full-width children for horizontal/vertical scrollables.
+      // Counting those as CSS overflow produced dozens of false positives
+      // even when the rendered mobile screen was correct. Real RenderFlex and
+      // constraint failures are still captured by the console error hook.
+      if (tag === 'flutter-view' || tag.indexOf('flt-') === 0 ||
+          (el.id && el.id.indexOf('flt-semantic-node-') === 0)) return;
+      var style = getComputedStyle(el);
+      if (style.display === 'none' || style.visibility === 'hidden') return;
+      var r = el.getBoundingClientRect();
+      if (r.width < 1 || r.height < 1) return;
+      var intendedScroller = /auto|scroll/.test(style.overflowX);
+      var intersectsViewport = r.bottom >= 0 && r.top <= vh;
+      if (intersectsViewport &&
+          (r.left < -2 || r.right > vw + 2 ||
+           (!intendedScroller && el.scrollWidth > el.clientWidth + 2))) {
+        issues.push(selectorFor(el) + ' · rect=' +
+          [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)].join(',') +
+          ' · scroll=' + el.scrollWidth + '×' + el.scrollHeight);
+      }
+    });
+    if (issues.length) {
+      post('layout', issues.length + ' responsive taşma adayı',
+        'Viewport: ' + vw + '×' + vh + '\n\n' + issues.join('\n'));
+    } else {
+      post('ready', 'Responsive audit temiz',
+        'Viewport ' + vw + '×' + vh + ': yatay taşma veya kırpılma bulunmadı.');
+    }
+  };
+
+  var announceFlutter = function () {
+    var root = document.querySelector('flutter-view, flt-glass-pane');
+    if (!root) return false;
+    post('appready', 'Flutter arayüzü hazır',
+      'Cihaz görünümü DOM içine yerleşti ve çizim katmanı oluşturuldu.');
+    return true;
+  };
+  if (!announceFlutter()) {
+    var bootObserver = new MutationObserver(function () {
+      if (announceFlutter()) bootObserver.disconnect();
+    });
+    bootObserver.observe(document.documentElement, { childList: true, subtree: true });
+  }
+
+  window.addEventListener('message', function (e) {
+    var m = e.data || {};
+    if (m.__simControl !== 1) return;
+    if (m.action === 'audit') runResponsiveAudit();
+    if (m.action === 'offline') {
+      simOffline = !!m.value;
+      post('ready', simOffline ? 'Çevrimdışı mod açıldı' : 'Çevrimdışı mod kapatıldı',
+        simOffline ? 'API istekleri cihaz bağlantısı kesilmiş gibi reddedilecek.' : 'API trafiği yeniden serbest.');
+    }
+  });
+
   post('ready', 'Simülatör bağlandı', 'Konsol, hata ve ağ trafiği izleniyor.');
 })();
 `;
 
 let injectedInto = null;
+let offline = false;
+let bootTimer = null;
+let appReadyLogged = false;
+const appState = document.getElementById('appState');
+
+function setStatus(id, text, state = '') {
+  const el = document.getElementById(id);
+  el.textContent = text;
+  el.classList.remove('ok', 'bad');
+  if (state) el.classList.add(state);
+}
+
+function showAppState(html) {
+  appState.innerHTML = html;
+  appState.classList.remove('hidden');
+}
+
+function markAppReady() {
+  clearTimeout(bootTimer);
+  appState.classList.add('hidden');
+  setStatus('appStatus', 'Flutter hazır', 'ok');
+}
+
+function detectFlutterReady() {
+  try {
+    const doc = app.contentWindow?.document;
+    if (!doc?.querySelector('flutter-view, flt-glass-pane')) return;
+    markAppReady();
+    if (!appReadyLogged) {
+      appReadyLogged = true;
+      add('ok', 'Flutter arayüzü hazır',
+        'Cihaz görünümü yüklendi; ekran artık gerçek mobil viewport ölçüleriyle çiziliyor.');
+    }
+  } catch {}
+}
 
 function inject() {
   const win = app.contentWindow;
@@ -442,8 +637,33 @@ function inject() {
 
 /* Re-injected on every load so the panel survives a rebuild reload. Polled
    quickly at first so the probe is in place before the app starts talking. */
-app.addEventListener('load', () => { injectedInto = null; inject(); });
-setInterval(inject, 150);
+app.addEventListener('load', () => {
+  injectedInto = null;
+  appReadyLogged = false;
+  setStatus('appStatus', 'Flutter başlatılıyor');
+  showAppState('<div><div class="spinner"></div><strong>Flutter başlatılıyor</strong><br>Uygulama çizim katmanı bekleniyor.</div>');
+  clearTimeout(bootTimer);
+  bootTimer = setTimeout(() => {
+    if (appState.classList.contains('hidden')) return;
+    setStatus('appStatus', 'Flutter açılamadı', 'bad');
+    showAppState('<div><strong>Uygulama görüntülenemedi</strong><br><br>Build eksik veya başlangıç hatası var. Sağdaki Çalışma zamanı kayıtlarını açın ve ardından Yenile’ye basın.</div>');
+    add('runtime', 'Flutter başlangıç zaman aşımı',
+      '15 saniye içinde flutter-view oluşturulmadı. Build çıktısı, index.html ve tarayıcı konsolu kontrol edilmeli.');
+  }, 15000);
+  inject();
+});
+setInterval(() => { inject(); detectFlutterReady(); }, 150);
+
+document.getElementById('audit').onclick = () => {
+  app.contentWindow?.postMessage({ __simControl: 1, action: 'audit' }, '*');
+};
+document.getElementById('offline').onclick = function () {
+  offline = !offline;
+  this.textContent = `Çevrimdışı: ${offline ? 'açık' : 'kapalı'}`;
+  this.classList.toggle('on', offline);
+  app.contentWindow?.postMessage(
+    { __simControl: 1, action: 'offline', value: offline }, '*');
+};
 
 const MODERATION_CODES =
   /CONTENT_BLOCKED|ACCOUNT_SUSPENDED|ACCOUNT_BANNED|MODERATION_UNAVAILABLE|INVALID_FILE_CONTENTS|FILE_TOO_LARGE|VIDEO_TOO_LONG|IMAGE_TOO_LARGE/i;
@@ -452,9 +672,18 @@ window.addEventListener('message', (e) => {
   const m = e.data;
   if (!m || m.__sim !== 1) return;
 
+  if (m.kind === 'appready') {
+    markAppReady();
+    if (!appReadyLogged) {
+      appReadyLogged = true;
+      add('ok', m.title, m.detail);
+    }
+    return;
+  }
   if (m.kind === 'ready')   return add('ok', m.title, m.detail);
   if (m.kind === 'console') return add(classify(m.detail), m.title, m.detail);
   if (m.kind === 'runtime') return add(classify(m.detail), m.title, m.detail);
+  if (m.kind === 'layout')  return add('layout', m.title, m.detail);
   if (m.kind === 'neterr') {
     return add('network', `${m.title} — bağlantı kurulamadı`,
       `${m.detail}\n\nSunucu çalışmıyor olabilir, ya da IP/port yanlış.`);
@@ -484,6 +713,50 @@ window.addEventListener('message', (e) => {
       `${code} · ${d.method} ${d.url}`, lines.join('\n'));
   }
 });
+
+/* -------------------------------------------------------- service health */
+const simParams = new URLSearchParams(location.search);
+const serviceHost = simParams.get('apiHost') || location.hostname || '127.0.0.1';
+const apiPort = Number(simParams.get('apiPort') || 4000);
+const reverbPort = Number(simParams.get('reverbPort') || 8091);
+
+async function checkApi() {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 4000);
+  try {
+    const response = await fetch(`http://${serviceHost}:${apiPort}/api/v1/health`, {
+      cache: 'no-store', signal: controller.signal,
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    setStatus('apiStatus', `API ${apiPort} hazır`, 'ok');
+  } catch (error) {
+    setStatus('apiStatus', `API ${apiPort} kapalı`, 'bad');
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function checkRealtime() {
+  let settled = false;
+  let socket;
+  const finish = (ok) => {
+    if (settled) return;
+    settled = true;
+    setStatus('wsStatus', ok ? `Realtime ${reverbPort} hazır` : `Realtime ${reverbPort} kapalı`, ok ? 'ok' : 'bad');
+    try { socket?.close(); } catch {}
+  };
+  try {
+    socket = new WebSocket(`ws://${serviceHost}:${reverbPort}/app/arucad-local-key?protocol=7&client=simulator&version=1.0&flash=false`);
+    socket.onmessage = () => finish(true);
+    socket.onerror = () => finish(false);
+    setTimeout(() => finish(false), 4000);
+  } catch { finish(false); }
+}
+
+checkApi();
+checkRealtime();
+setInterval(checkApi, 15000);
+setInterval(checkRealtime, 15000);
 
 /* Auto-reload polls the dev server's build id. Flutter's own hot restart
    already updates the iframe, so this is the fallback for a full rebuild. */

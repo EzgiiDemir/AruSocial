@@ -14,9 +14,8 @@ class ModerationController extends Controller
 
     private const MAX_BYTES = 8 * 1024 * 1024; // 8MB — matches MediaController's limit.
 
-    // Local structural validation only. Semantic moderation never leaves
-    // ARUCAD infrastructure: the actual upload is held in the local admin
-    // queue until a moderator approves it.
+    // Fast structural preflight only. The durable multipart upload runs the
+    // configured semantic path in MediaController.
     public function checkImage(CheckModerationImageRequest $request): JsonResponse
     {
         $base64 = $request->input('imageBase64');
@@ -31,12 +30,11 @@ class ModerationController extends Controller
         $mimeType = $request->input('mimeType', 'image/jpeg');
         $invalid = ImageModerationService::checkImageBytes($bytes, $mimeType);
         if ($invalid === null) {
-            // The base64 preflight has no durable file path for the local
-            // model runner. The real multipart upload is inspected again by
-            // MediaController, then always remains non-public until reviewed.
+            // This response is not a moderation verdict. The multipart
+            // upload is inspected again and applies ALLOW/BLOCK/ERROR.
             return $this->ok([
                 'allowed' => true,
-                'reviewRequired' => true,
+                'reviewRequired' => false,
                 'semanticModel' => 'checked_on_upload',
             ]);
         }

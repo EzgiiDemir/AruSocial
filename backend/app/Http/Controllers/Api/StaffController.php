@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Api\Concerns\ApiResponds;
+use App\Http\Controllers\Api\Concerns\ModeratesContent;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\UpsertStaffProfileRequest;
 use App\Models\StaffProfile;
@@ -14,7 +15,7 @@ use Illuminate\Support\Str;
 
 class StaffController extends Controller
 {
-    use ApiResponds;
+    use ApiResponds, ModeratesContent;
 
     public function index(Request $request): JsonResponse
     {
@@ -69,6 +70,9 @@ class StaffController extends Controller
 
     public function upsert(UpsertStaffProfileRequest $request): JsonResponse
     {
+        if ($blocked = $this->moderationBlock($this->currentUser(), $this->moderationText($request->validated()), 'directory_profile', 'admin.staff.upsert')) {
+            return $blocked;
+        }
         $id = $request->input('id') ?: 'staff-'.Str::uuid();
         $isNew = ! StaffProfile::where('id', $id)->exists();
 

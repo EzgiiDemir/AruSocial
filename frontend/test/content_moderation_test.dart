@@ -9,14 +9,15 @@ void main() {
     expect(moderateText('Я тебя убью').allowed, isFalse);
   });
 
-  test('fast moderation catches punctuation and leetspeak obfuscation', () {
-    expect(moderateText('f.u.c.k').allowed, isFalse);
-    expect(moderateText('s@l4k').allowed, isFalse);
+  test('fast moderation leaves context-sensitive profanity to the server', () {
+    expect(moderateText('What the fuck is this?').allowed, isTrue);
+    expect(moderateText('s@l4k').allowed, isTrue);
+    expect(moderateText('s3ni vur4c4gim').allowed, isFalse);
   });
 
   test('fast moderation blocks hate speech and sexual harassment phrases', () {
-    final hate = moderateText(
-        'Bu göçmenler insan değil, hepsini ülkeden sürmek lazım');
+    final hate =
+        moderateText('Bu göçmenler insan değil, hepsini ülkeden sürmek lazım');
     expect(hate.allowed, isFalse);
     expect(hate.reason, contains('nefret'));
 
@@ -29,24 +30,40 @@ void main() {
   test('mild campus exclamations stay allowed', () {
     expect(
         moderateText('Bugün stüdyoda harika bir gün geçirdim').allowed, isTrue);
-    expect(moderateText('Bu uygulama yine çöktü, lanet olsun.').allowed, isTrue);
+    expect(
+        moderateText('Bu uygulama yine çöktü, lanet olsun.').allowed, isTrue);
   });
 
   test(
       'political party campaigning is blocked but student council elections are allowed',
       () {
-    final political = moderateText(
-        'CHP ve AKP arasındaki tartışma bu sabah yine gündemdeydi.');
-    expect(political.allowed, isFalse);
-    expect(political.reason, contains('siyasi'));
+    expect(
+        moderateText(
+                'CHP ve AKP arasındaki tartışma bu sabah yine gündemdeydi.')
+            .allowed,
+        isTrue);
+
+    final propaganda =
+        moderateText('Genel seçimlerde oy verin, AKP kazanmalı.');
+    expect(propaganda.allowed, isFalse);
+    expect(propaganda.reason, contains('siyasi'));
 
     expect(
-        moderateText('Kulüp başkanlığı seçimi için adaylık başvuruları başladı.')
+        moderateText(
+                'Kulüp başkanlığı seçimi için adaylık başvuruları başladı.')
             .allowed,
         isTrue);
   });
 
-  test('stretched-letter evasion is still caught', () {
-    expect(moderateText('saaaalak davranma').allowed, isFalse);
+  test('normal multilingual and help-seeking content reaches the server', () {
+    for (final text in [
+      'Bugün arkadaşlarla kampüste kahve içtik.',
+      'Hello everyone, have a nice day!',
+      'Сегодня мы закончили новый проект.',
+      'Haber: https://example.edu/campus',
+      'Kendime zarar vermekten korkuyorum, yardıma ihtiyacım var.',
+    ]) {
+      expect(moderateText(text).allowed, isTrue, reason: text);
+    }
   });
 }

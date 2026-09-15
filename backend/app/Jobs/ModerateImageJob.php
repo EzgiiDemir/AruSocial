@@ -96,14 +96,11 @@ class ModerateImageJob implements ShouldQueue
         $owner = $item->user_id === null ? null : User::find($item->user_id);
         if ($owner !== null) {
             $notifier = app(ModerationNotifier::class);
-            $contentType = str_starts_with((string) $item->mime_type, 'video/')
-                ? 'video' : 'image';
-
             match ($verdict->decision) {
                 ImageVerdict::BLOCK => $notifier->contentRemoved(
-                    $owner, $contentType, $case?->id),
+                    $owner, 'image', $case?->id),
                 ImageVerdict::REVIEW => $notifier->contentUnderReview(
-                    $owner, $contentType, $case?->id),
+                    $owner, 'image', $case?->id),
                 // ALLOW is silent: telling someone their ordinary photo
                 // passed a check is noise, and it advertises that every
                 // upload is inspected.

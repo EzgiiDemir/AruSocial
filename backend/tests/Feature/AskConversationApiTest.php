@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\AskConversation;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -55,7 +56,7 @@ class AskConversationApiTest extends TestCase
         ]);
         $id = $this->postJson('/api/v1/ai/query', ['prompt' => 'Merhaba'])->json('data.conversationId');
 
-        $other = \App\Models\User::create([
+        $other = User::create([
             'name' => 'Other',
             'email' => 'ask-other@arucad.edu.tr',
             'password' => bcrypt('x'),

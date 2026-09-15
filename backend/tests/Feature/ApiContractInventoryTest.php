@@ -55,6 +55,17 @@ class ApiContractInventoryTest extends TestCase
         //     appeal endpoints (Phase 2).
         // +2: reporting a comment and reporting a story — neither was
         //     reportable at all before.
-        $this->assertCount(260, $fromLaravel);
+        // +1: GET /translations — the app fetches its own strings, so a
+        //     wording change no longer needs an App Store release. Public
+        //     by design: the sign-in screen needs its labels before anyone
+        //     has a token.
+        // +2: GET/POST /me/policy-consent — who accepted which version of
+        //     the privacy policy and its moderation notice. A device flag
+        //     was never a record of consent: it names nobody, carries no
+        //     version, and is gone after a reinstall.
+        // +2: GET /me/deletion-preview and POST /me/delete — self-service
+        //     account deletion, which both app stores require to be
+        //     possible from inside the app and which did not exist.
+        $this->assertCount(265, $fromLaravel);
     }
 }

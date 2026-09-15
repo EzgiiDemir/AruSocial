@@ -18,12 +18,32 @@
         </include>
     </source>
     <php>
+        <!-- Filament pulled in 109 packages; booting both panels plus the
+             app exceeds the 128M default and the run dies mid-suite with
+             an allocation failure that reads like a test crash. The
+             SQLite config already carried this and this one did not, so
+             the PostgreSQL job would have failed the same way in CI. -->
+        <ini name="memory_limit" value="512M"/>
         <env name="APP_ENV" value="testing"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null" force="true"/>
         <env name="GROQ_API_KEY" value="" force="true"/>
         <env name="CACHE_STORE" value="array"/>
+
+        <!-- These six were in phpunit.xml and not here, so the PostgreSQL CI
+             job has been testing a differently-configured application: image
+             and text moderation off, enforcement off, no OpenAI toggle. That
+             is not a database-parity check, and it is why roughly fifty
+             moderation and media tests failed here while passing on SQLite.
+             Kept in step with phpunit.xml deliberately — the only thing these
+             two configurations should differ in is the database. -->
+        <env name="IMAGE_MODERATION_ENABLED" value="false" force="true"/>
+        <env name="OPENAI_API_KEY" value="" force="true"/>
+        <env name="MODERATION_OPENAI_ENABLED" value="true" force="true"/>
+        <env name="MODERATION_SERVICE_ENABLED" value="false" force="true"/>
+        <env name="TEXT_MODERATION_ENABLED" value="false" force="true"/>
+        <env name="MODERATION_ENFORCEMENT_ENABLED" value="true" force="true"/>
         <env name="DB_CONNECTION" value="pgsql" force="true"/>
         <env name="DB_HOST" value="127.0.0.1" force="true"/>
         <env name="DB_PORT" value="5432" force="true"/>

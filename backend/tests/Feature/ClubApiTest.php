@@ -29,7 +29,7 @@ class ClubApiTest extends TestCase
         $this->getJson('/api/v1/clubs')->assertOk()->assertJsonFragment(['id' => 'club-1']);
 
         $this->postJson('/api/v1/admin/clubs/club-1/delete')->assertOk();
-        $this->assertDatabaseMissing('clubs', ['id' => 'club-1']);
+        $this->assertSoftDeleted('clubs', ['id' => 'club-1']);
     }
 
     public function test_club_upsert_requires_name(): void

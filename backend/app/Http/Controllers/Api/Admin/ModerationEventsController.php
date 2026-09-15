@@ -170,8 +170,7 @@ class ModerationEventsController extends Controller
             'thresholds' => (array) config('services.moderation.thresholds'),
             'model' => (string) config('services.moderation.model'),
             'providerConfigured' => trim((string) config('services.moderation.openai_key')) !== '',
-            'failOpen' => (bool) config('services.moderation.fail_open'),
-            'videoFrames' => (int) config('services.moderation.video_frames'),
+            'failClosed' => (bool) config('services.moderation.fail_closed', true),
         ]);
     }
 }

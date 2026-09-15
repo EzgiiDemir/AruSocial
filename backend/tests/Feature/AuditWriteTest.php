@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Models\AdminAuditLog;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 

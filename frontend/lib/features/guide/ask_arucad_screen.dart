@@ -20,6 +20,7 @@ import 'package:arucad_campus_prototype/features/place/place_detail_screen.dart'
 import 'package:arucad_campus_prototype/features/services/apply_bottom_sheet.dart';
 import 'package:arucad_campus_prototype/features/services/service_detail_screen.dart';
 import 'package:arucad_campus_prototype/features/services/sport_application_screen.dart';
+import 'package:arucad_campus_prototype/features/widgets/campus_widgets.dart';
 
 const _wideBreakpoint = 900.0;
 
@@ -46,6 +47,7 @@ class AskArucadScreen extends StatefulWidget {
 }
 
 class _AskArucadScreenState extends State<AskArucadScreen> {
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
   final _groq = GroqAiService();
   final _input = TextEditingController();
   final _scroll = ScrollController();
@@ -105,7 +107,7 @@ class _AskArucadScreenState extends State<AskArucadScreen> {
 
   AskArucadConversation _draftConversation() => AskArucadConversation(
         id: 'c${DateTime.now().microsecondsSinceEpoch}',
-        title: 'Yeni sohbet',
+        title: AppLocale.of(context).t('ask_new_chat'),
         messages: [],
         updatedAt: DateTime.now(),
       );
@@ -365,7 +367,6 @@ class _AskArucadScreenState extends State<AskArucadScreen> {
       scrollController: _scroll,
       inputController: _input,
       onSend: _send,
-      showMenuButton: !wide,
       matchedPlace: _matchedPlace,
       matchedService: _matchedService,
       matchedClub: _matchedClub,
@@ -387,19 +388,38 @@ class _AskArucadScreenState extends State<AskArucadScreen> {
     );
 
     return Scaffold(
+      key: _scaffoldKey,
       backgroundColor: Theme.of(context).colorScheme.surface,
       drawer: wide
           ? null
-          : Drawer(
-              backgroundColor: Theme.of(context).colorScheme.surface,
-              child: sidebar),
-      body: wide
-          ? Row(children: [
-              SizedBox(width: 280, child: sidebar),
-              const VerticalDivider(width: 1),
-              Expanded(child: chat),
-            ])
-          : chat,
+          : Drawer(backgroundColor: ArucadColors.paper, child: sidebar),
+      body: Column(
+        children: [
+          // Only on narrow layouts, where it carries the drawer button.
+          // On a wide screen the sidebar is already visible, so this was
+          // an empty header with no title and no leading widget —
+          // reserving a full toolbar of blank space above the chat for
+          // nothing at all.
+          if (!wide)
+            CampusPageHeader(
+              title: '',
+              leading: IconButton(
+                icon: const Icon(Icons.menu),
+                tooltip: MaterialLocalizations.of(context).openAppDrawerTooltip,
+                onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+              ),
+            ),
+          Expanded(
+            child: wide
+                ? Row(children: [
+                    SizedBox(width: 280, child: sidebar),
+                    const VerticalDivider(width: 1),
+                    Expanded(child: chat),
+                  ])
+                : chat,
+          ),
+        ],
+      ),
     );
   }
 }
@@ -421,92 +441,89 @@ class _Sidebar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return ColoredBox(
-        color: scheme.surface,
-        child: SafeArea(
-          child: Column(children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
-              child: Row(children: [
-                const CircleAvatar(
-                    radius: 16,
-                    backgroundImage: AssetImage('assets/images/galatea.png')),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text('Ask ARUCAD',
-                      style: TextStyle(
-                          color: scheme.onSurface,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 15)),
+      color: ArucadColors.paper,
+      child: SafeArea(
+        child: Column(children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
+            child: Row(children: [
+              const CircleAvatar(
+                  radius: 16,
+                  backgroundImage: AssetImage('assets/images/galatea.png')),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text('Aicad',
+                    style: TextStyle(
+                        color: ArucadColors.ink,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 15)),
+              ),
+            ]),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            child: SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: onNewChat,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: ArucadColors.primary,
+                  side: const BorderSide(color: ArucadColors.primary),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
-              ]),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-              child: SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: onNewChat,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: scheme.onSurface,
-                    side: BorderSide(color: scheme.outlineVariant),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                  icon: const Icon(Icons.add, size: 18),
-                  label: Text(AppLocale.of(context).t('ask_new_chat')),
-                ),
+                icon: const Icon(Icons.add, size: 18),
+                label: Text(AppLocale.of(context).t('ask_new_chat')),
               ),
             ),
-            const SizedBox(height: 6),
-            Expanded(
-              child: conversations.isEmpty
-                  ? Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Text(
-                          'Henüz sohbet yok — bir soru sorarak başla.',
-                          style: TextStyle(
-                              color: scheme.onSurfaceVariant, fontSize: 12.5)),
-                    )
-                  : ListView.builder(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      itemCount: conversations.length,
-                      itemBuilder: (context, i) {
-                        final c = conversations[i];
-                        final selected = c.id == activeId;
-                        return Material(
-                          color: selected
-                              ? scheme.surfaceContainerHighest
-                              : Colors.transparent,
-                          child: ListTile(
-                            dense: true,
-                            leading: Icon(Icons.chat_bubble_outline,
-                                color: scheme.onSurfaceVariant, size: 18),
-                            title: Text(c.title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                    color: scheme.onSurface, fontSize: 13)),
-                            trailing: IconButton(
-                              iconSize: 16,
-                              icon: Icon(Icons.close,
-                                  color: scheme.onSurfaceVariant),
-                              onPressed: () => onDelete(c.id),
-                            ),
-                            onTap: () {
-                              onSelect(c);
-                              if (Scaffold.of(context).isDrawerOpen) {
-                                Navigator.of(context).pop();
-                              }
-                            },
+          ),
+          const SizedBox(height: 6),
+          Expanded(
+            child: conversations.isEmpty
+                ? Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Text(AppLocale.of(context).t('ask_empty'),
+                        style: TextStyle(
+                            color: ArucadColors.muted, fontSize: 12.5)),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    itemCount: conversations.length,
+                    itemBuilder: (context, i) {
+                      final c = conversations[i];
+                      final selected = c.id == activeId;
+                      return Material(
+                        color: selected
+                            ? ArucadColors.primary.withValues(alpha: .08)
+                            : Colors.transparent,
+                        child: ListTile(
+                          dense: true,
+                          leading: Icon(Icons.chat_bubble_outline,
+                              color: ArucadColors.primary, size: 18),
+                          title: Text(c.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                  color: ArucadColors.ink, fontSize: 13)),
+                          trailing: IconButton(
+                            iconSize: 16,
+                            icon: Icon(Icons.close, color: ArucadColors.muted),
+                            onPressed: () => onDelete(c.id),
                           ),
-                        );
-                      },
-                    ),
-            ),
-          ]),
-        ),
-      );
+                          onTap: () {
+                            onSelect(c);
+                            if (Scaffold.of(context).isDrawerOpen) {
+                              Navigator.of(context).pop();
+                            }
+                          },
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ]),
+      ),
+    );
   }
 }
 
@@ -517,7 +534,6 @@ class _ChatArea extends StatelessWidget {
   final ScrollController scrollController;
   final TextEditingController inputController;
   final ValueChanged<String> onSend;
-  final bool showMenuButton;
   final CampusPlace? matchedPlace;
   final CampusService? matchedService;
   final CampusClub? matchedClub;
@@ -536,7 +552,6 @@ class _ChatArea extends StatelessWidget {
     required this.scrollController,
     required this.inputController,
     required this.onSend,
-    required this.showMenuButton,
     this.matchedPlace,
     this.matchedService,
     this.matchedClub,
@@ -555,30 +570,6 @@ class _ChatArea extends StatelessWidget {
     return ColoredBox(
       color: Theme.of(context).colorScheme.surface,
       child: Column(children: [
-        SafeArea(
-          bottom: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 10, 16, 10),
-            child: Row(children: [
-              if (showMenuButton)
-                Builder(
-                  builder: (context) => IconButton(
-                    icon: const Icon(Icons.menu),
-                    onPressed: () => Scaffold.of(context).openDrawer(),
-                  ),
-                ),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Text(conversation?.title ?? 'Ask ARUCAD',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w900, fontSize: 16)),
-              ),
-            ]),
-          ),
-        ),
-        const Divider(height: 1),
         Expanded(
           child: messages.isEmpty
               ? _EmptyState(loading: loading, onSuggestion: onSend)
@@ -632,9 +623,8 @@ class _ChatArea extends StatelessWidget {
                   maxLines: 4,
                   textInputAction: TextInputAction.send,
                   onSubmitted: onSend,
-                  decoration: const InputDecoration(
-                    hintText:
-                        'Kampüs, ders, servis ya da etkinlik hakkında sor...',
+                  decoration: InputDecoration(
+                    hintText: AppLocale.of(context).t('ask_hint'),
                     isDense: true,
                   ),
                 ),
@@ -657,70 +647,71 @@ class _ChatArea extends StatelessWidget {
   }
 }
 
-const _suggestedPrompts = [
-  'Şu an en yoğun yer neresi?',
-  'Bugün hangi etkinlikler var?',
-  'Kütüphane nerede, saat kaçta kapanıyor?',
-  'Hangi kulüplere katılabilirim?',
-];
-
 class _EmptyState extends StatelessWidget {
   final bool loading;
   final ValueChanged<String> onSuggestion;
   const _EmptyState({required this.loading, required this.onSuggestion});
 
   @override
-  Widget build(BuildContext context) => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            const CircleAvatar(
-                radius: 28,
-                backgroundImage: AssetImage('assets/images/galatea.png')),
-            const SizedBox(height: 14),
-            const Text('Ask ARUCAD',
-                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20)),
-            const SizedBox(height: 6),
-            Text(
-                'Kampüsteki her şeyi sorabilirsin — yerler, etkinlikler, dersler, kulüpler, servisler.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    fontSize: 13)),
-            const SizedBox(height: 20),
-            if (loading)
-              const CircularProgressIndicator()
-            else ...[
-              FilledButton(
-                onPressed: () => onSuggestion(_suggestedPrompts[1]),
-                style: FilledButton.styleFrom(shape: const StadiumBorder()),
-                child: Text(_suggestedPrompts[1]),
-              ),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                alignment: WrapAlignment.center,
-                children: [
-                  for (final prompt in _suggestedPrompts
-                      .where((prompt) => prompt != _suggestedPrompts[1]))
-                    ActionChip(
-                      backgroundColor:
-                          ArucadColors.primary.withValues(alpha: .12),
-                      side: BorderSide.none,
-                      label: Text(prompt,
-                          style: const TextStyle(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w700,
-                              color: ArucadColors.primary)),
-                      onPressed: () => onSuggestion(prompt),
-                    ),
-                ],
-              ),
-            ],
-          ]),
-        ),
-      );
+  Widget build(BuildContext context) {
+    final strings = AppLocale.of(context);
+    final suggestedPrompts = [
+      strings.t('ask_prompt_busy'),
+      strings.t('ask_prompt_events'),
+      strings.t('ask_prompt_library'),
+      strings.t('ask_prompt_clubs'),
+    ];
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const CircleAvatar(
+              radius: 28,
+              backgroundImage: AssetImage('assets/images/galatea.png')),
+          const SizedBox(height: 14),
+          const Text('Aicad',
+              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20)),
+          const SizedBox(height: 6),
+          Text(strings.t('ask_intro'),
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontSize: 13)),
+          const SizedBox(height: 20),
+          if (loading)
+            const CircularProgressIndicator()
+          else ...[
+            FilledButton(
+              onPressed: () => onSuggestion(suggestedPrompts[1]),
+              style: FilledButton.styleFrom(shape: const StadiumBorder()),
+              child: Text(suggestedPrompts[1]),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              alignment: WrapAlignment.center,
+              children: [
+                for (final prompt in suggestedPrompts
+                    .where((prompt) => prompt != suggestedPrompts[1]))
+                  ActionChip(
+                    backgroundColor:
+                        ArucadColors.primary.withValues(alpha: .12),
+                    side: BorderSide.none,
+                    label: Text(prompt,
+                        style: const TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: ArucadColors.primary)),
+                    onPressed: () => onSuggestion(prompt),
+                  ),
+              ],
+            ),
+          ],
+        ]),
+      ),
+    );
+  }
 }
 
 class _MessageBubble extends StatelessWidget {
@@ -759,7 +750,8 @@ class _MessageBubble extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    color:
+                        Theme.of(context).colorScheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(18)),
                 child: Text(message.text,
                     style: TextStyle(

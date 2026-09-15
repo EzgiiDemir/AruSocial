@@ -17,7 +17,7 @@ class FeedModerationController extends Controller
 
     public function index(PaginatedListRequest $request): JsonResponse
     {
-        $query = FeedPost::with(['comments.user'])
+        $query = FeedPost::includingUnmoderated()->with(['comments.user'])
             ->withCount('likes')
             ->where('workflow_status', 'pending_review')
             ->orderByDesc('created_at')
@@ -43,14 +43,14 @@ class FeedModerationController extends Controller
 
     public function approve(string $id): JsonResponse
     {
-        $post = FeedPost::find($id);
+        $post = FeedPost::includingUnmoderated()->find($id);
         if (! $post) {
             return $this->fail(404, 'POST_NOT_FOUND', 'Post not found.');
         }
         if ($post->workflow_status !== 'pending_review') {
             return $this->fail(409, 'ALREADY_REVIEWED', 'This post is not awaiting review.');
         }
-        $post->update(['workflow_status' => 'published', 'review_note' => null]);
+        $post->update(['workflow_status' => 'published', 'review_note' => null, 'moderation_status' => 'approved']);
         AuditLogger::logAsCurrentUser('moderation', 'post', $post->id.' → published');
         $this->announce($post->id, 'published', ['feed', 'moderation']);
 
@@ -59,7 +59,7 @@ class FeedModerationController extends Controller
 
     public function reject(Request $request, string $id): JsonResponse
     {
-        $post = FeedPost::find($id);
+        $post = FeedPost::includingUnmoderated()->find($id);
         if (! $post) {
             return $this->fail(404, 'POST_NOT_FOUND', 'Post not found.');
         }
@@ -70,6 +70,7 @@ class FeedModerationController extends Controller
         $post->update([
             'workflow_status' => 'rejected',
             'review_note' => $note !== '' ? $note : 'rejected',
+            'moderation_status' => 'blocked',
         ]);
         AuditLogger::logAsCurrentUser('moderation', 'post', $post->id.' → rejected');
         $this->announce($post->id, 'rejected', ['moderation']);

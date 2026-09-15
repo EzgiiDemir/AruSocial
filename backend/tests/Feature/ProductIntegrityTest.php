@@ -8,9 +8,9 @@ use App\Models\Event;
 use App\Models\FeedPost;
 use App\Models\Place;
 use App\Models\SocialBlock;
+use App\Models\SocialFollow;
 use App\Models\StaffProfile;
 use App\Models\Story;
-use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Concerns\CreatesPlaces;
 use Tests\Concerns\SignsInChatUsers;
@@ -18,7 +18,7 @@ use Tests\TestCase;
 
 class ProductIntegrityTest extends TestCase
 {
-    use RefreshDatabase, CreatesPlaces, SignsInChatUsers;
+    use CreatesPlaces, RefreshDatabase, SignsInChatUsers;
 
     public function test_a_student_cannot_set_a_place_cover(): void
     {
@@ -73,9 +73,9 @@ class ProductIntegrityTest extends TestCase
         [$b, $tokenB] = $this->signInChatUser('Kullanıcı B', 'b@arucad.edu.tr');
         [$c, $tokenC] = $this->signInChatUser('Kullanıcı C', 'c@arucad.edu.tr');
 
-        \App\Models\SocialFollow::create(['follower_user_id' => $a->id, 'followed_user_id' => $b->id]);
-        \App\Models\SocialFollow::create(['follower_user_id' => $b->id, 'followed_user_id' => $a->id]);
-        \App\Models\SocialFollow::create(['follower_user_id' => $c->id, 'followed_user_id' => $a->id]);
+        SocialFollow::create(['follower_user_id' => $a->id, 'followed_user_id' => $b->id]);
+        SocialFollow::create(['follower_user_id' => $b->id, 'followed_user_id' => $a->id]);
+        SocialFollow::create(['follower_user_id' => $c->id, 'followed_user_id' => $a->id]);
 
         $postId = $this->withToken($tokenA)->postJson('/api/v1/feed', [
             'text' => 'sadece arkadaşlar',

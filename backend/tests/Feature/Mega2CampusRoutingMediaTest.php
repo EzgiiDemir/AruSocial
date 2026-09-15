@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Models\DirectoryEntry;
-use App\Models\Event;
 use App\Models\MediaItem;
 use App\Models\ModerationReport;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -176,6 +175,40 @@ class Mega2CampusRoutingMediaTest extends TestCase
         ])->assertOk()->assertJsonPath('data.distanceMeters', 40);
     }
 
+    public function test_driving_and_transit_use_the_road_graph_and_echo_mode(): void
+    {
+        config(['services.routing.base_url' => 'http://routing.test']);
+        $seen = [];
+        Http::fake(function ($request) use (&$seen) {
+            $seen[] = $request->url();
+
+            return Http::response([
+                'routes' => [[
+                    'distance' => 90,
+                    'duration' => 70,
+                    'geometry' => [
+                        'coordinates' => [[33.32, 35.33], [33.31, 35.34]],
+                    ],
+                    'legs' => [],
+                ]],
+            ], 200);
+        });
+        $this->actingAsUser();
+
+        foreach (['driving', 'transit'] as $mode) {
+            $this->postJson('/api/v1/routing/directions', [
+                'fromLat' => 35.33, 'fromLng' => 33.32,
+                'toLat' => 35.34, 'toLng' => 33.31,
+                'mode' => $mode,
+            ])->assertOk()->assertJsonPath('data.mode', $mode);
+        }
+
+        $this->assertNotEmpty($seen);
+        $this->assertTrue(collect($seen)->every(
+            fn ($url) => str_contains($url, '/route/v1/driving/'),
+        ));
+    }
+
     public function test_routing_rejects_invalid_coordinates(): void
     {
         config(['services.routing.base_url' => 'http://routing.test']);
@@ -188,42 +221,24 @@ class Mega2CampusRoutingMediaTest extends TestCase
     }
 
     /**
-     * A video whose frames could not actually be inspected is held, not
-     * published. Frame extraction needs ffmpeg; when it is unavailable (as
-     * in CI, and on the fake 200-byte clip below) nothing about the video's
-     * content has been checked, so auto-approving it would be exactly the
-     * "publish first, moderate later" gap the policy forbids.
+     * The fixture is an image because video was removed on 14 September
+     * 2026. The test is about the review queue, not about the file type —
+     * held media reaching a moderator, a signed preview link, and the
+     * resolve action — so it keeps its coverage with a photo.
      */
-    public function test_video_upload_is_held_for_review_when_frames_cannot_be_inspected(): void
-    {
-        Storage::fake('public');
-        $this->actingAsRole('contentEditor');
-
-        $created = $this->post('/api/v1/media', [
-            'file' => UploadedFile::fake()
-                ->createWithContent('clip.mp4', "\x00\x00\x00\x18ftypisom".str_repeat('0', 200))
-                ->mimeType('video/mp4'),
-        ], ['Accept' => 'application/json'])->assertCreated()->json('data');
-
-        $this->assertSame('pending', $created['moderationStatus']);
-        $this->assertSame('video/mp4', $created['mimeType']);
-        $this->assertDatabaseHas('media_items', [
-            'id' => $created['id'], 'moderation_status' => 'pending',
-        ]);
-    }
-
     public function test_pending_media_queue_review_and_approve(): void
     {
         Storage::fake('public');
+        Storage::fake('local');
         $this->actingAsRole('contentEditor');
-        $path = 'media/video/clip.mp4';
-        Storage::disk('public')->put($path, "\x00\x00\x00\x18ftypisom".str_repeat('0', 200));
+        $path = 'media/held.jpg';
+        Storage::disk(MediaItem::disk())->put($path, "\xFF\xD8\xFF\xE0".str_repeat('0', 200));
         $item = MediaItem::create([
-            'id' => 'media-pending-video',
+            'id' => 'media-pending-photo',
             'user_id' => null,
             'file_path' => $path,
-            'file_name' => 'clip.mp4',
-            'mime_type' => 'video/mp4',
+            'file_name' => 'held.jpg',
+            'mime_type' => 'image/jpeg',
             'size_bytes' => 200,
             'uploaded_at' => now(),
             'uploaded_by' => 'editor',
@@ -231,7 +246,7 @@ class Mega2CampusRoutingMediaTest extends TestCase
             'moderation_status' => 'pending',
         ]);
         ModerationReport::create([
-            'id' => 'report-pending-video',
+            'id' => 'report-pending-photo',
             'kind' => 'media',
             'target_id' => $item->id,
             'target_label' => $item->file_name,
@@ -271,12 +286,13 @@ class Mega2CampusRoutingMediaTest extends TestCase
     public function test_duplicate_queue_resolve_is_conflict(): void
     {
         Storage::fake('public');
+        Storage::fake('local');
         $item = MediaItem::create([
             'id' => 'media-dup-resolve',
             'user_id' => null,
-            'file_path' => 'media/video/dup.mp4',
-            'file_name' => 'dup.mp4',
-            'mime_type' => 'video/mp4',
+            'file_path' => 'media/dup.jpg',
+            'file_name' => 'dup.jpg',
+            'mime_type' => 'image/jpeg',
             'size_bytes' => 100,
             'uploaded_at' => now(),
             'uploaded_by' => 'editor',
@@ -318,6 +334,7 @@ class Mega2CampusRoutingMediaTest extends TestCase
     public function test_poster_draft_creates_draft_event_never_published(): void
     {
         Storage::fake('public');
+        Storage::fake('local');
         config(['services.groq.key' => 'test-key']);
 
         Http::fake([

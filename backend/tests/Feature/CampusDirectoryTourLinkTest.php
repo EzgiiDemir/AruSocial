@@ -89,7 +89,7 @@ class CampusDirectoryTourLinkTest extends TestCase
         // The state every pin was in: a real tour, but the default view.
         $titan = $this->place('titan', 'Titan', 'https://360.arucad.edu.tr/vista_export/Main/index.htm');
 
-        (new CampusDirectory360Sync())->sync();
+        (new CampusDirectory360Sync)->sync();
 
         $this->assertStringContainsString(
             'media-name=MG_INT_1',
@@ -110,7 +110,7 @@ class CampusDirectoryTourLinkTest extends TestCase
         $curated = $this->place('rodin', 'Rodin', null);
         $legacy = $this->place('place-rodin', 'Rodin', null);
 
-        (new CampusDirectory360Sync())->sync();
+        (new CampusDirectory360Sync)->sync();
 
         foreach ([$curated, $legacy] as $place) {
             $this->assertStringContainsString(
@@ -127,7 +127,7 @@ class CampusDirectoryTourLinkTest extends TestCase
         $curated = 'https://360.arucad.edu.tr/vista_export/Main/index.htm?media-name=CURATED#media-name=CURATED';
         $place = $this->place('titan', 'Titan', $curated);
 
-        (new CampusDirectory360Sync())->sync();
+        (new CampusDirectory360Sync)->sync();
 
         // The building pass may rebind to the room tour, but the result must
         // always still be a deep link — never a bare index.htm.
@@ -142,7 +142,7 @@ class CampusDirectoryTourLinkTest extends TestCase
     {
         $this->fakeDirectory();
 
-        $summary = (new CampusDirectory360Sync())->sync();
+        $summary = (new CampusDirectory360Sync)->sync();
 
         $this->assertSame(2, $summary['roomsSynced']);
         $this->assertSame(2, $summary['roomsWithTours']);

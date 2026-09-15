@@ -2,8 +2,8 @@
 
 namespace Tests\Feature;
 
-use App\Models\Story;
 use App\Models\MediaItem;
+use App\Models\Story;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Concerns\SignsInChatUsers;
 use Tests\TestCase;

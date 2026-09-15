@@ -51,15 +51,6 @@ class MediaItem {
 
   bool get isRemote => url != null && url!.isNotEmpty && !url!.startsWith('data:');
 
-  bool get isVideo {
-    final m = mimeType.toLowerCase();
-    if (m.startsWith('video/')) return true;
-    final lower = fileName.toLowerCase();
-    return lower.endsWith('.mp4') ||
-        lower.endsWith('.webm') ||
-        lower.endsWith('.mov') ||
-        lower.endsWith('.qt');
-  }
 
   MediaItem copyWith({
     List<String>? usedIn,

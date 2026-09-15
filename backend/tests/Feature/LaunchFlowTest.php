@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\StaffProfile;
+use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -23,7 +24,7 @@ class LaunchFlowTest extends TestCase
     {
         $this->app->instance('env', 'production');
         $this->expectException(\RuntimeException::class);
-        (new \Database\Seeders\DatabaseSeeder)->run();
+        (new DatabaseSeeder)->run();
     }
 
     public function test_admin_links_a_teacher_by_email_and_teacher_can_enter_own_portal(): void

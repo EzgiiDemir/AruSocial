@@ -60,8 +60,9 @@ class GuideContext {
     );
   }
 
-  List<CampusEvent> eventsAt(String placeName) =>
-      events.where((e) => e.placeName.toLowerCase() == placeName.toLowerCase()).toList();
+  List<CampusEvent> eventsAt(String placeName) => events
+      .where((e) => e.placeName.toLowerCase() == placeName.toLowerCase())
+      .toList();
 
   CampusPlace? matchPlace(String text) {
     final target = text.toLowerCase();
@@ -149,7 +150,8 @@ class GuideContext {
     }
     for (final event in events) {
       final hay = '${event.title} ${event.placeName}'.toLowerCase();
-      if ((event.title.length >= 4 && lower.contains(event.title.toLowerCase())) ||
+      if ((event.title.length >= 4 &&
+              lower.contains(event.title.toLowerCase())) ||
           (event.placeName.length >= 4 &&
               lower.contains(event.placeName.toLowerCase()) &&
               lower.contains('etkinlik'))) {
@@ -161,7 +163,8 @@ class GuideContext {
       }
     }
     if (lower.contains('etkinlik') && events.isNotEmpty) {
-      final listed = events.take(3).map((e) => '${e.title} · ${e.placeName}').join('; ');
+      final listed =
+          events.take(3).map((e) => '${e.title} · ${e.placeName}').join('; ');
       return 'Yakın etkinlikler: $listed.';
     }
     if (lower.contains('yemek') ||
@@ -185,9 +188,13 @@ class GuideContext {
     if (lower.contains('merhaba') ||
         lower.contains('selam') ||
         lower.contains('hello')) {
-      return 'Merhaba, ben Ask ARUCAD. Yer, etkinlik, kulüp, spor veya birim sorabilirsin.';
+      return 'Merhaba, ben Aicad. Yer, etkinlik, kulüp, spor veya birim sorabilirsin.';
     }
-    final names = places.take(5).map((p) => p.name).where((n) => n.trim().isNotEmpty).join(', ');
+    final names = places
+        .take(5)
+        .map((p) => p.name)
+        .where((n) => n.trim().isNotEmpty)
+        .join(', ');
     return 'Bunu kayıtta net eşleştiremedim.'
         '${names.isNotEmpty ? ' Denemek için bir yer adı yaz, örneğin: $names.' : ' Yer veya etkinlik adı ile tekrar sor.'}';
   }
@@ -223,9 +230,8 @@ bool _mentions(String haystack, String needle, {bool allowSuffix = false}) {
   final n = needle.trim().toLowerCase();
   if (n.length < 3) return false;
   final escaped = RegExp.escape(n);
-  final after = allowSuffix
-      ? '(?:[^\\p{L}\\p{N}]|\$|\\p{L}+)'
-      : '(?:[^\\p{L}\\p{N}]|\$)';
+  final after =
+      allowSuffix ? '(?:[^\\p{L}\\p{N}]|\$|\\p{L}+)' : '(?:[^\\p{L}\\p{N}]|\$)';
   return RegExp(
     '(?:^|[^\\p{L}\\p{N}])$escaped$after',
     unicode: true,

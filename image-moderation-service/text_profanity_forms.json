@@ -1,0 +1,80 @@
+{
+  "_note": "Bypass-resistance set for abusive language across TR/EN/RU. Written before the stems were extended. The 'safe' half is the important half: Turkish normalisation folds ş→s, so a stem like 'sik' endangers 'şikayet' (complaint) — one of the commonest words on a campus app — and 'göt' endangers 'götürmek' (to take). A profanity filter that refuses ordinary words gets switched off, and then it protects nobody.",
+
+  "harmful": [
+    {"id": "tr-1", "cat": "PROF", "lang": "tr", "text": "siktir git buradan"},
+    {"id": "tr-2", "cat": "PROF", "lang": "tr", "text": "siktir"},
+    {"id": "tr-3", "cat": "PROF", "lang": "tr", "text": "siktir lan"},
+    {"id": "tr-5", "cat": "PROF", "lang": "tr", "text": "sikerim seni"},
+    {"id": "tr-6", "cat": "PROF", "lang": "tr", "text": "sikik herif"},
+    {"id": "tr-10", "cat": "PROF", "lang": "tr", "text": "oç herif yine geldi"},
+    {"id": "tr-11", "cat": "PROF", "lang": "tr", "text": "yarrağımı ye"},
+    {"id": "tr-12", "cat": "PROF", "lang": "tr", "text": "orospu çocuğu"},
+    {"id": "tr-13", "cat": "PROF", "lang": "tr", "text": "s.i.k.t.i.r git"},
+    {"id": "tr-14", "cat": "PROF", "lang": "tr", "text": "s1kt1r lan"},
+    {"id": "tr-15", "cat": "PROF", "lang": "tr", "text": "göt veren herif"},
+
+    {"id": "en-1", "cat": "PROF", "lang": "en", "text": "fuck you"},
+    {"id": "en-2", "cat": "PROF", "lang": "en", "text": "fuck off"},
+    {"id": "en-3", "cat": "PROF", "lang": "en", "text": "fucking idiot"},
+    {"id": "en-4", "cat": "PROF", "lang": "en", "text": "fck you man"},
+    {"id": "en-5", "cat": "PROF", "lang": "en", "text": "fuk off"},
+    {"id": "en-6", "cat": "PROF", "lang": "en", "text": "stfu already"},
+    {"id": "en-7", "cat": "PROF", "lang": "en", "text": "you are a bitch"},
+    {"id": "en-8", "cat": "PROF", "lang": "en", "text": "shut up asshole"},
+    {"id": "en-9", "cat": "PROF", "lang": "en", "text": "f.u.c.k you"},
+    {"id": "en-10", "cat": "PROF", "lang": "en", "text": "what a bastard"},
+
+    {"id": "ru-1", "cat": "PROF", "lang": "ru", "text": "иди на хуй"},
+    {"id": "ru-3", "cat": "PROF", "lang": "ru", "text": "нахуй пошёл"},
+    {"id": "ru-6", "cat": "PROF", "lang": "ru", "text": "сука ты"},
+    {"id": "ru-8", "cat": "PROF", "lang": "ru", "text": "пиздец полный"},
+    {"id": "ru-9", "cat": "PROF", "lang": "ru", "text": "мудак ты редкий"},
+    {"id": "ru-10", "cat": "PROF", "lang": "ru", "text": "пидор конченый"}
+  ],
+
+  "safe": [
+    {"id": "s-tr-1", "lang": "tr", "text": "Bu konuda şikayet etmek istiyorum, nereye başvurmalıyım?"},
+    {"id": "s-tr-2", "lang": "tr", "text": "Şikayetçi olmak için dilekçe gerekiyor mu?"},
+    {"id": "s-tr-3", "lang": "tr", "text": "Şikayetlerinizi öğrenci konseyine iletebilirsiniz"},
+    {"id": "s-tr-4", "lang": "tr", "text": "Klasik müzik konseri cuma akşamı, herkes davetli"},
+    {"id": "s-tr-5", "lang": "tr", "text": "Psikoloji bölümünden arkadaşlarla ders çalışıyoruz"},
+    {"id": "s-tr-6", "lang": "tr", "text": "Psikolojik danışmanlık birimi randevu veriyor"},
+    {"id": "s-tr-7", "lang": "tr", "text": "Sikke koleksiyonu sergisi müzede açıldı"},
+    {"id": "s-tr-8", "lang": "tr", "text": "Hafif siklet boks maçı bu akşam yapılacak"},
+    {"id": "s-tr-9", "lang": "tr", "text": "Kitapları kütüphaneye götürmem gerekiyor"},
+    {"id": "s-tr-10", "lang": "tr", "text": "Beni de götürür müsün, arabayla mı gidiyorsun?"},
+    {"id": "s-tr-11", "lang": "tr", "text": "Malzemeleri atölyeye taşıdık, maliyeti de hesapladık"},
+    {"id": "s-tr-12", "lang": "tr", "text": "Fizik ve müzik dersleri aynı saatte çakışıyor"},
+    {"id": "s-tr-13", "lang": "tr", "text": "Bokserlerin antrenmanı salonda, izlemeye gelin"},
+
+    {"id": "s-en-1", "lang": "en", "text": "Take a picture of the prototype for the report"},
+    {"id": "s-en-2", "lang": "en", "text": "Pick up the pictures from the printer please"},
+    {"id": "s-en-3", "lang": "en", "text": "The shift starts at nine, bring a clean shirt"},
+    {"id": "s-en-4", "lang": "en", "text": "Dick Bruna illustrated the Miffy books"},
+    {"id": "s-en-5", "lang": "en", "text": "We analysed Dickens in the literature seminar"},
+    {"id": "s-en-6", "lang": "en", "text": "The class was a bit of a shambles but we finished"},
+    {"id": "s-en-7", "lang": "en", "text": "Scunthorpe is a town in Lincolnshire"},
+
+    {"id": "s-ru-1", "lang": "ru", "text": "Художник показал новую работу в галерее"},
+    {"id": "s-ru-2", "lang": "ru", "text": "Художественная школа объявила набор"},
+    {"id": "s-ru-3", "lang": "ru", "text": "Сукно для обивки можно купить в мастерской"},
+    {"id": "s-ru-4", "lang": "ru", "text": "Мудрость этого текста в его простоте"},
+    {"id": "s-ru-5", "lang": "ru", "text": "Блины на завтрак были очень вкусные"},
+    {"id": "s-ru-6", "lang": "ru", "text": "Хертфордшир находится в Англии"},
+
+    {"_note": "Swearing at a situation rather than at a person. Moved here from the harmful half, where they were mislabelled: the 150-case corpus deliberately publishes 'What the fuck is wrong with this system?', and these are the Turkish SMS spellings of exactly that.",
+     "id": "s-tr-14", "lang": "tr", "text": "amk ya yeter artık"},
+    {"id": "s-tr-15", "lang": "tr", "text": "aq neden böyle"}
+  ],
+
+  "_untargeted_note": "These publish, and that is a POLICY choice rather than a detection failure — the engine matches every one of these roots, then declines to act because nobody is being sworn at. The corpus (ModerationCorpusTest, 150 labelled cases) settles the same question the same way for 'What the fuck is wrong with this system?', 'Какого хуя эта система не работает?' and 'Amına koyayım böyle sistemin.' No rule can refuse the list below and still publish those three; they are the same speech act. If the university wants coarse language held regardless of target, that is one switch in decideFromWords() — and it will hold student complaints about the app along with it. Listed separately so the decision stays visible instead of hiding inside a pass rate.",
+  "untargeted_exclamation": [
+    {"id": "u-tr-1", "lang": "tr", "text": "sikeyim böyle işi"},
+    {"id": "u-tr-2", "lang": "tr", "text": "siktiğimin dersi"},
+    {"id": "u-ru-1", "lang": "ru", "text": "хуй"},
+    {"id": "u-ru-2", "lang": "ru", "text": "блять достало"},
+    {"id": "u-ru-3", "lang": "ru", "text": "бля что за хрень"},
+    {"id": "u-ru-4", "lang": "ru", "text": "ебать как надоело"}
+  ]
+}

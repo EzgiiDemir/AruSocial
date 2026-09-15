@@ -17,6 +17,7 @@
 param(
   [string]$ApiHost = "",
   [int]$ApiPort = 4000,
+  [int]$ReverbPort = 8091,
   [int]$Port = 5599
 )
 
@@ -24,26 +25,38 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
-# Default to this machine's LAN address so the simulated app talks to the
-# same backend a real phone would, rather than a loopback that only works
-# on this computer.
-if (-not $ApiHost) {
-  $ApiHost = (Get-NetIPAddress -AddressFamily IPv4 |
-    Where-Object { $_.IPAddress -notlike '127.*' -and $_.IPAddress -notlike '169.254.*' } |
-    Select-Object -First 1 -ExpandProperty IPAddress)
-}
+# This simulator and Laravel run on the same computer. Auto-selecting the
+# first Windows adapter can pick WSL/Hyper-V/VPN (for example 172.25.x.x),
+# producing a build that can never reach the API. A real phone remains
+# supported by explicitly passing -ApiHost with the computer's Wi-Fi IP.
 if (-not $ApiHost) { $ApiHost = "127.0.0.1" }
 
 $api = "http://${ApiHost}:${ApiPort}/api/v1"
 Write-Host "API      : $api" -ForegroundColor Cyan
+Write-Host "Realtime : ws://${ApiHost}:$ReverbPort" -ForegroundColor Cyan
 Write-Host "Simulator: http://localhost:$Port/simulator.html" -ForegroundColor Green
 
 function Build-App {
   Write-Host "[build] compiling..." -ForegroundColor DarkGray
-  & flutter build web --profile `
+  $previousErrorActionPreference = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
+  $output = & flutter build web --profile `
     --dart-define=API_BASE_URL=$api `
-    --dart-define=USE_REST_API=true 2>&1 |
-    Select-String -Pattern "Built|Error|error|Exception" | ForEach-Object { $_.Line }
+    --dart-define=USE_REST_API=true `
+    --dart-define=LOCK_API_BASE_URL=true `
+    --dart-define=REVERB_ENABLED=true `
+    --dart-define=REVERB_APP_KEY=arucad-local-key `
+    --dart-define=REVERB_HOST=$ApiHost `
+    --dart-define=REVERB_PORT=$ReverbPort `
+    --dart-define=REVERB_SCHEME=http 2>&1
+  $exitCode = $LASTEXITCODE
+  $ErrorActionPreference = $previousErrorActionPreference
+  $output |
+    Select-String -Pattern "Built|Error|error|Exception|Wasm" |
+    ForEach-Object { $_.Line }
+  if ($exitCode -ne 0) {
+    throw "Flutter web build failed with exit code $exitCode."
+  }
 }
 
 Build-App
@@ -57,7 +70,8 @@ $serve = Start-Process -PassThru -WindowStyle Hidden -FilePath "php" `
   -ArgumentList @("-S", "0.0.0.0:$Port", "-t", "build/web")
 
 Start-Sleep -Seconds 1
-Start-Process "http://localhost:$Port/simulator.html"
+$simulatorUrl = "http://localhost:$Port/simulator.html?apiHost=$ApiHost&apiPort=$ApiPort&reverbPort=$ReverbPort"
+Start-Process $simulatorUrl
 
 # Rebuild on save. A short settle window collapses the burst of events an
 # editor emits for a single save into one build.
@@ -67,7 +81,7 @@ $watcher.IncludeSubdirectories = $true
 $watcher.Filter = "*.dart"
 $watcher.EnableRaisingEvents = $true
 
-Write-Host "Watching lib/ — save a file to rebuild. Ctrl+C to stop." -ForegroundColor Yellow
+Write-Host "Watching lib/ - save a file to rebuild. Ctrl+C to stop." -ForegroundColor Yellow
 
 try {
   while ($true) {

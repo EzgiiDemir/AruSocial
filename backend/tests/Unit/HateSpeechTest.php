@@ -32,7 +32,7 @@ class HateSpeechTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->engine = new TextPolicyEngine();
+        $this->engine = new TextPolicyEngine;
     }
 
     public function test_slurs_are_removed_even_with_no_target(): void

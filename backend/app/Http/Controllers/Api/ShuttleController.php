@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Api\Concerns\ApiResponds;
+use App\Http\Controllers\Api\Concerns\ModeratesContent;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\UpsertShuttleRouteRequest;
 use App\Models\ShuttleRoute;
@@ -14,7 +15,7 @@ use Illuminate\Http\JsonResponse;
 // admin screen at all. Mock mode keeps that const as its offline seed only.
 class ShuttleController extends Controller
 {
-    use ApiResponds;
+    use ApiResponds, ModeratesContent;
 
     private function toJson(ShuttleRoute $r): array
     {
@@ -37,6 +38,9 @@ class ShuttleController extends Controller
 
     public function upsert(UpsertShuttleRouteRequest $request): JsonResponse
     {
+        if ($blocked = $this->moderationBlock($this->currentUser(), $this->moderationText($request->validated()), 'catalog', 'admin.shuttle.upsert')) {
+            return $blocked;
+        }
         $id = $request->input('id');
         $isNew = ! ShuttleRoute::where('id', $id)->exists();
         $route = ShuttleRoute::updateOrCreate(['id' => $id], [

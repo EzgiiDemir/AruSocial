@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:arucad_campus_prototype/core/models/geo_point.dart';
 
 /// Travel modes for in-app campus navigation.
-/// Walking uses straight-line geometry; car/bus use road routing when available.
+/// Walking prefers pedestrian routing; car/bus use the road graph. Every mode
+/// keeps an explicit straight-line estimate only as an offline fallback.
 enum TravelMode { walking, driving, transit }
 
 extension TravelModeInfo on TravelMode {
@@ -77,7 +78,8 @@ class WalkingRoute {
     final points = <GeoPoint>[];
     for (final p in rawPoints) {
       if (p is List && p.length >= 2) {
-        points.add(GeoPoint((p[0] as num).toDouble(), (p[1] as num).toDouble()));
+        points
+            .add(GeoPoint((p[0] as num).toDouble(), (p[1] as num).toDouble()));
       } else if (p is Map) {
         points.add(GeoPoint(
           (p['lat'] as num).toDouble(),

@@ -2,9 +2,10 @@
 
 namespace Tests\Feature;
 
-use App\Models\FeedPost;
-use App\Models\User;
 use App\Events\CampusDataChanged;
+use App\Models\User;
+use App\Services\Moderation\ContentModerator;
+use App\Services\Moderation\ModerationOutcome;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event as EventFacade;
 use Tests\TestCase;
@@ -13,7 +14,7 @@ class FeedWorkflowModerationTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_when_approval_is_required_a_new_post_is_hidden_from_others(): void
+    public function test_blanket_approval_flag_cannot_send_a_clean_post_to_review(): void
     {
         EventFacade::fake([CampusDataChanged::class]);
         config(['services.feed.require_approval' => true]);
@@ -21,14 +22,13 @@ class FeedWorkflowModerationTest extends TestCase
 
         $this->postJson('/api/v1/feed', ['text' => 'inceleme bekleyen gönderi'])
             ->assertOk()
-            ->assertJsonPath('data.workflowStatus', 'pending_review');
+            ->assertJsonPath('data.workflowStatus', 'published');
 
         $this->assertDatabaseHas('feed_posts', [
             'author_id' => $author->id,
-            'workflow_status' => 'pending_review',
+            'workflow_status' => 'published',
         ]);
-        EventFacade::assertDispatched(CampusDataChanged::class, fn (CampusDataChanged $change) =>
-            $change->resources === ['moderation'] && $change->action === 'submitted_for_review'
+        EventFacade::assertDispatched(CampusDataChanged::class, fn (CampusDataChanged $change) => $change->resources === ['feed'] && $change->action === 'created'
         );
 
         $feed = $this->getJson('/api/v1/feed')->json('data');
@@ -41,36 +41,21 @@ class FeedWorkflowModerationTest extends TestCase
         ]);
         $this->actingAsUser($other);
         $othersFeed = $this->getJson('/api/v1/feed')->json('data');
-        $this->assertFalse(collect($othersFeed)->contains(fn ($p) => $p['text'] === 'inceleme bekleyen gönderi'));
+        $this->assertTrue(collect($othersFeed)->contains(fn ($p) => $p['text'] === 'inceleme bekleyen gönderi'));
     }
 
-    public function test_admin_can_publish_a_pending_post(): void
+    public function test_review_outcome_is_not_persisted_or_visible(): void
     {
-        config(['services.feed.require_approval' => true]);
+        $this->mock(ContentModerator::class, function ($mock) {
+            $mock->shouldReceive('check')
+                ->once()
+                ->andReturn(ModerationOutcome::allowedWithReview());
+        });
         $author = $this->actingAsUser();
-        $this->postJson('/api/v1/feed', ['text' => 'bekleyen'])->assertOk();
-        $post = FeedPost::where('author_id', $author->id)->first();
+        $this->postJson('/api/v1/feed', ['text' => 'bekleyen'])
+            ->assertStatus(400)
+            ->assertJsonPath('error.code', 'MODERATION_PENDING');
 
-        $this->actingAsRole('superAdmin');
-        EventFacade::fake([CampusDataChanged::class]);
-        $this->getJson('/api/v1/admin/moderation/posts')
-            ->assertOk()
-            ->assertJsonPath('data.0.id', $post->id);
-
-        $this->postJson("/api/v1/admin/moderation/posts/{$post->id}/approve")->assertOk();
-        EventFacade::assertDispatched(CampusDataChanged::class, fn (CampusDataChanged $change) =>
-            $change->resources === ['feed', 'moderation']
-                && $change->action === 'published'
-                && $change->id === $post->id
-        );
-
-        $other = User::create([
-            'name' => 'Other',
-            'email' => 'other2@arucad.edu.tr',
-            'password' => bcrypt('x'),
-        ]);
-        $this->actingAsUser($other);
-        $feed = $this->getJson('/api/v1/feed')->json('data');
-        $this->assertTrue(collect($feed)->contains(fn ($p) => $p['id'] === $post->id));
+        $this->assertDatabaseMissing('feed_posts', ['author_id' => $author->id, 'text' => 'bekleyen']);
     }
 }

@@ -11,6 +11,7 @@ import '../core/auth/entra_auth_provider.dart';
 import '../core/auth/rest_auth_provider.dart';
 import '../core/auth/session_store.dart';
 import '../core/models/campus_models.dart';
+import '../core/legal/policy_consent.dart';
 import '../core/navigation/app_deep_link.dart';
 import '../core/network/api_client.dart';
 import '../core/services/audit_log_store.dart';
@@ -19,7 +20,9 @@ import '../core/services/location_service.dart';
 import '../core/services/mock_auth_provider.dart';
 import '../core/services/push_notification_service.dart';
 import '../core/services/push_payload.dart';
+import '../core/services/rest_campus_repository.dart';
 import '../core/l10n/app_strings.dart';
+import '../core/l10n/translation_store.dart';
 import '../core/theme/arucad_theme.dart';
 import '../features/admin/admin_panel_screen.dart';
 import '../features/auth/access_denied_screen.dart';
@@ -70,19 +73,55 @@ class ArucadCampusApp extends StatefulWidget {
 }
 
 class _ArucadCampusAppState extends State<ArucadCampusApp> {
-  String _language = 'TR';
+  late String _language;
 
   @override
   void initState() {
     super.initState();
-    AppSettingsStore.language().then((lang) {
-      if (mounted) setState(() => _language = lang);
+    _language = deviceLanguageCode(
+      WidgetsBinding.instance.platformDispatcher.locale,
+    );
+    AppSettingsStore.savedLanguage().then((lang) {
+      if (!mounted) return;
+      if (lang != null) {
+        setState(() => _language = lang);
+      } else {
+        unawaited(AppSettingsStore.setLanguage(_language));
+      }
+      unawaited(_syncTranslations());
     });
+
+    // Last night's download, applied before anything renders — otherwise
+    // the app shows bundled text and visibly swaps a moment later.
+    unawaited(TranslationStore.loadCached().then((_) {
+      if (mounted) setState(() {});
+    }));
+  }
+
+  /// Fetch anything published from the Admin panel since the last launch.
+  ///
+  /// Failure is silent by design: the bundled strings are a complete,
+  /// reviewed copy of the app, so being offline costs a student nothing
+  /// except last release's wording.
+  Future<void> _syncTranslations() async {
+    final base = widget.config.apiBaseUrl;
+    if (base.isEmpty) return;
+
+    final changed = await TranslationStore(baseUrl: base)
+        .refresh(languageFromCode(_language));
+
+    if (changed && mounted) {
+      setState(() {});
+    }
   }
 
   Future<void> _setLanguage(String language) async {
     setState(() => _language = language);
     await AppSettingsStore.setLanguage(language);
+
+    // The catalogue is fetched per language, so switching needs its own
+    // download rather than reusing the one already cached.
+    unawaited(_syncTranslations());
   }
 
   Locale get _locale => switch (_language) {
@@ -161,6 +200,15 @@ class _ArucadCampusAppState extends State<ArucadCampusApp> {
   }
 }
 
+/// First-launch locale selection. Unsupported device languages fall back to
+/// English; a user's explicit saved choice always overrides this in initState.
+String deviceLanguageCode(Locale locale) =>
+    switch (locale.languageCode.toLowerCase()) {
+      'tr' => 'TR',
+      'ru' => 'RU',
+      _ => 'EN',
+    };
+
 class _DemoSession extends StatefulWidget {
   final AppConfig config;
   final CampusRepository repository;
@@ -231,7 +279,8 @@ class _DemoSessionState extends State<_DemoSession>
     if (status == 'support') {
       final context = rootMessengerKey.currentContext;
       if (context != null) {
-        unawaited(showModerationNotice(context, message: message, code: status));
+        unawaited(
+            showModerationNotice(context, message: message, code: status));
 
         return;
       }
@@ -273,7 +322,10 @@ class _DemoSessionState extends State<_DemoSession>
         : 'Oturumunuz sona erdi. Lütfen tekrar giriş yapın.';
     _resetSessionUi(message: message);
     unawaited(_push.stopAndUnregister());
-    unawaited(widget.authProvider.signOut());
+    final auth = widget.authProvider;
+    unawaited(auth is RestAuthProvider
+        ? auth.discardRejectedSession()
+        : auth.signOut());
     if (code == 'ACCOUNT_BANNED') {
       unawaited(AppSettingsStore.disableBiometric());
     }
@@ -439,11 +491,30 @@ class _DemoSessionState extends State<_DemoSession>
     });
     unawaited(_push.start());
     unawaited(_ensureLocationPermission());
+    unawaited(_syncPolicyConsent());
     final pending = _pendingLink;
     _pendingLink = null;
     if (pending != null) {
       unawaited(_openDeepLink(pending));
     }
+  }
+
+  /// Reconciles the device's acceptance of the privacy notice with the
+  /// server's record, now that there is an account to attach it to.
+  ///
+  /// Runs unawaited: sign-in must not wait on it, and a failure must not
+  /// affect it. The worst case is that the record is written on the next
+  /// launch instead.
+  Future<void> _syncPolicyConsent() async {
+    final repository = widget.repository;
+    if (repository is! RestCampusRepository) return;
+
+    await syncPolicyConsent(
+      PolicyConsentClient(repository.client),
+      language: languageFromCode(widget.language),
+      deviceHasAccepted: AppSettingsStore.privacyNoticeAcknowledged,
+      forgetDeviceAcceptance: AppSettingsStore.clearPrivacyNoticeAcknowledged,
+    );
   }
 
   /// Requests location once at login. After first grant or clear denial
@@ -558,7 +629,10 @@ class _DemoSessionState extends State<_DemoSession>
     } on ApiClientException catch (e) {
       if (!mounted) return;
       if (e.code == 'ACCOUNT_BANNED' || e.code == 'AUTH_REQUIRED') {
-        unawaited(widget.authProvider.signOut());
+        final auth = widget.authProvider;
+        unawaited(auth is RestAuthProvider
+            ? auth.discardRejectedSession()
+            : auth.signOut());
       }
       if (e.code == 'ACCOUNT_BANNED') {
         unawaited(AppSettingsStore.disableBiometric());

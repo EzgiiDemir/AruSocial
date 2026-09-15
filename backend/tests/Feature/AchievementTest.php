@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\AchievementDefinition;
 use App\Models\Club;
 use App\Models\Event;
+use App\Models\ParticipationApplication;
 use App\Models\Place;
 use App\Models\User;
 use App\Models\UserAchievement;
@@ -94,7 +95,7 @@ class AchievementTest extends TestCase
         $this->seedDefinitions();
         $me = $this->actingAsUser();
         Club::create(['id' => 'club-1', 'name' => 'Club', 'category' => 'Art']);
-        \App\Models\ParticipationApplication::create([
+        ParticipationApplication::create([
             'id' => 'app-ach-club',
             'user_id' => $me->id,
             'target_type' => 'club',

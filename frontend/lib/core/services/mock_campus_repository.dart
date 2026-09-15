@@ -23,6 +23,7 @@ import '../models/content_revision.dart';
 import '../models/email_log.dart';
 import '../models/media_item.dart';
 import '../models/moderation_appeal.dart';
+import '../models/moderation_case.dart';
 import '../models/event_participant.dart';
 import '../models/inbox_notification.dart';
 import '../models/page_slice.dart';
@@ -1839,8 +1840,9 @@ class MockCampusRepository implements CampusRepository {
     String? department,
   }) async {
     return _appointments.where((a) {
-      if (staffProfileId != null && a.staffProfileId != staffProfileId)
+      if (staffProfileId != null && a.staffProfileId != staffProfileId) {
         return false;
+      }
       if (status != null && a.status != status) return false;
       if (q != null && q.isNotEmpty) {
         final hay =
@@ -2024,6 +2026,7 @@ class MockCampusRepository implements CampusRepository {
     required double fromLng,
     required double toLat,
     required double toLng,
+    TravelMode mode = TravelMode.walking,
   }) async {
     // Mock has no OSRM provider — honest null so UI uses straight-line fallback.
     return null;
@@ -2758,6 +2761,42 @@ class MockCampusRepository implements CampusRepository {
     }
   }
 
+  // Case review is a server-side workflow: cases are opened by the
+  // classifier and by reports, and decisions are recorded in an
+  // append-only audit log. There is nothing honest to simulate offline,
+  // so the mock returns an empty queue rather than inventing cases a
+  // moderator might act on.
+  @override
+  Future<List<ModerationCase>> getModerationCases(
+          {String status = 'open'}) async =>
+      const [];
+
+  @override
+  Future<ModerationCaseDetail> getModerationCase(String id) async =>
+      throw StateError('CASE_NOT_FOUND');
+
+  @override
+  Future<void> decideModerationCase(
+    String id, {
+    required String contentDecision,
+    String accountAction = 'none',
+    String note = '',
+  }) async =>
+      throw StateError('OFFLINE');
+
+  @override
+  Future<List<ModerationAppealReview>> getModerationAppeals(
+          {String status = 'open'}) async =>
+      const [];
+
+  @override
+  Future<void> decideModerationAppeal(
+    String id, {
+    required String outcome,
+    String note = '',
+  }) async =>
+      throw StateError('OFFLINE');
+
   @override
   Future<CampusEvent> draftEventFromPoster(Uint8List bytes,
       {required String fileName}) async {
@@ -3167,8 +3206,9 @@ class MockCampusRepository implements CampusRepository {
       {String? text, PostVisibility? visibility}) async {
     final index =
         _feed.indexWhere((p) => p.id == postId && p.authorId == _user.id);
-    if (index == -1)
+    if (index == -1) {
       throw Exception('Post not found or not owned by the current user.');
+    }
     if (text != null) assertTextAllowed(text);
     _feed[index] = _feed[index].copyWith(text: text, visibility: visibility);
     return _feed[index];
@@ -3297,7 +3337,7 @@ class MockCampusRepository implements CampusRepository {
             '${todayMenu.price != null ? ' · ${todayMenu.price}' : ''}';
       }
     }
-    return 'Ask ARUCAD olarak kampüs, yerler, etkinlikler, kulüpler, spor, yemek, hizmetler, rotalar ve görevler konusunda yardımcı olabilirim.';
+    return 'Aicad olarak kampüs, yerler, etkinlikler, kulüpler, spor, yemek, hizmetler, rotalar ve görevler konusunda yardımcı olabilirim.';
   }
 
   @override

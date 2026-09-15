@@ -18,6 +18,7 @@ class RoutingDirectionsRequest extends FormRequest
             'fromLng' => ['required', 'numeric'],
             'toLat' => ['required', 'numeric'],
             'toLng' => ['required', 'numeric'],
+            'mode' => ['sometimes', 'string', 'in:walking,driving,transit'],
         ];
     }
 }

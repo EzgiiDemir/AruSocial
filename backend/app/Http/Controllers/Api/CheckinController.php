@@ -86,6 +86,9 @@ class CheckinController extends Controller
                 'visibility' => 'everyone',
                 'post_type' => 'normal',
                 'official' => false,
+                // Place name and template are staff-controlled server data;
+                // still mark the generated public artifact explicitly.
+                'moderation_status' => 'approved',
                 'created_at' => now(),
             ];
             // Real fix for "check-in is slow": Schema::hasColumn() used to

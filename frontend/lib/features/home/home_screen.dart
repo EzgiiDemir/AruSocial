@@ -3,28 +3,27 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 
 import 'package:arucad_campus_prototype/core/config/campus_life_config.dart';
-import 'package:arucad_campus_prototype/core/models/academic_year.dart';
 import 'package:arucad_campus_prototype/core/l10n/app_strings.dart';
 import 'package:arucad_campus_prototype/core/models/campus_models.dart';
 import 'package:arucad_campus_prototype/core/models/campus_weather.dart';
 import 'package:arucad_campus_prototype/core/models/geo_point.dart';
 import 'package:arucad_campus_prototype/core/network/api_client.dart';
-import 'package:arucad_campus_prototype/core/services/campus_access_policy.dart';
 import 'package:arucad_campus_prototype/core/services/location_service.dart';
 import 'package:arucad_campus_prototype/core/services/chat_realtime_service.dart';
 import 'package:arucad_campus_prototype/core/services/contracts.dart';
 import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
 import 'package:arucad_campus_prototype/core/utils/relative_time.dart';
 import 'package:arucad_campus_prototype/features/home/campus_live_map.dart';
-import 'package:arucad_campus_prototype/features/home/create_own_activity_screen.dart';
 import 'package:arucad_campus_prototype/features/home/greeting_card.dart';
 import 'package:arucad_campus_prototype/features/home/survey_popup.dart';
 import 'package:arucad_campus_prototype/features/map/in_app_navigation_screen.dart';
 import 'package:arucad_campus_prototype/features/place/place_detail_screen.dart';
+import 'package:arucad_campus_prototype/features/explore/popular_places_screen.dart';
 import 'package:arucad_campus_prototype/features/services/service_detail_screen.dart';
 import 'package:arucad_campus_prototype/features/social/notifications_screen.dart';
 import 'package:arucad_campus_prototype/features/social/post_detail_screen.dart';
 import 'package:arucad_campus_prototype/features/widgets/campus_widgets.dart';
+import 'package:arucad_campus_prototype/features/widgets/recommendation_tile.dart';
 
 /// Home is a live timeline, not a map. The map is a real, useful service —
 /// it just isn't the *primary* experience anymore: it's one card away
@@ -67,11 +66,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   List<ActivityItem> _activity = const [];
   List<FeedPost> _feed = const [];
   List<CampusService> _services = const [];
-  List<AcademicYear> _academicYears = const [];
-  String? _selectedYearId;
   bool _loading = true;
   String? _loadError;
-  int _visibleEvents = kPageSize;
   Position? _myPosition;
   ChatRealtimeService? _realtime;
   StreamSubscription<List<String>>? _campusChanges;
@@ -93,6 +89,28 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       return bTime.compareTo(aTime);
     });
     return posts.take(3).toList(growable: false);
+  }
+
+  int get _todayEventsCount {
+    final now = DateTime.now();
+    return _events.where((event) {
+      final date = event.eventDate;
+      return date != null &&
+          date.year == now.year &&
+          date.month == now.month &&
+          date.day == now.day;
+    }).length;
+  }
+
+  CampusPlace? get _mostPopularPlace {
+    CampusPlace? best;
+    for (final place in _places) {
+      if (place.totalCheckins <= 0) continue;
+      if (best == null || place.totalCheckins > best.totalCheckins) {
+        best = place;
+      }
+    }
+    return best;
   }
 
   /// Prefer dated upcoming events so the home list stays forward-looking.
@@ -162,8 +180,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (_refreshingEvents) return;
     _refreshingEvents = true;
     try {
-      final events =
-          await widget.repository.getEvents(academicYearId: _selectedYearId);
+      final events = await widget.repository.getEvents();
       if (mounted) setState(() => _events = events);
     } catch (_) {
       // The current view stays usable; pull-to-refresh is the REST fallback.
@@ -239,7 +256,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     // login used to hit the client timeout while queued behind each other.
     try {
       final first = await Future.wait([
-        widget.repository.getEvents(academicYearId: _selectedYearId),
+        widget.repository.getEvents(),
         widget.repository.getPlaces(),
         widget.repository.getServices(),
       ]);
@@ -247,7 +264,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       final second = await Future.wait([
         widget.repository.getMyActivity(),
         widget.repository.getFeed(),
-        widget.repository.getAcademicYears(),
       ]);
       if (!mounted) return;
       setState(() {
@@ -256,7 +272,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         _services = first[2] as List<CampusService>;
         _activity = second[0] as List<ActivityItem>;
         _feed = second[1] as List<FeedPost>;
-        _academicYears = second[2] as List<AcademicYear>;
         _loading = false;
         _loadError = null;
       });
@@ -273,14 +288,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         _loadError = message;
       });
     }
-  }
-
-  Future<void> _changeYear(String? yearId) async {
-    setState(() => _selectedYearId = yearId);
-    try {
-      final events = await widget.repository.getEvents(academicYearId: yearId);
-      if (mounted) setState(() => _events = events);
-    } catch (_) {}
   }
 
   Future<void> _resolvePositionOnResume() async {
@@ -362,10 +369,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final byId = {for (final s in _services) s.id: s};
     final picked = <CampusService>[
       for (final id in _homeServiceIds)
-        if (byId[id] != null) byId[id]!,
+        if (byId[id] != null && _homeServiceIds.indexOf(id) < 4) byId[id]!,
     ];
     for (final s in _services) {
-      if (picked.length >= 6) break;
+      if (picked.length >= 4) break;
       if (!picked.contains(s)) picked.add(s);
     }
     return picked;
@@ -414,8 +421,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
     final strings = AppLocale.of(context);
     final pos = _myPosition;
-    final offCampus = pos != null &&
-        !CampusAccessPolicy.isNearAnyCampus(pos.latitude, pos.longitude);
     final nearest = _nearestPlace;
     final nearestMeters = nearest == null ? null : _distanceTo(nearest);
     // A recommendation is a place the student has not checked in to yet.
@@ -431,344 +436,271 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         })
         .take(3)
         .toList();
+    final unvisited = forYou.isEmpty ? null : forYou.first;
 
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 760),
-        child: RefreshIndicator(
-          onRefresh: _load,
-          child: ListView(
-            padding: const EdgeInsets.symmetric(
-                horizontal: ArucadSpacing.md, vertical: ArucadSpacing.sm),
-            children: [
-              const SizedBox(height: ArucadSpacing.sm),
-              Row(children: [
-                const Expanded(
-                  child: SizedBox(
-                    height: 36,
-                    child: BrandMark(height: 36),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                _ScoreChip(xp: widget.user.xp, onTap: widget.onQuests),
-                // Home is where people land, so the unread badge belongs
-                // here too — not only on Explore and Social, which they
-                // have to navigate to before they learn anything happened.
-                _NotificationBell(
-                  unread: _unreadNotifs,
-                  onTap: _openNotifications,
-                ),
-                IconButton(
-                  visualDensity: VisualDensity.compact,
-                  padding: EdgeInsets.zero,
-                  constraints:
-                      const BoxConstraints(minWidth: 40, minHeight: 40),
-                  onPressed: widget.onLogout,
-                  icon: const Icon(Icons.logout, color: ArucadColors.muted),
-                  tooltip: strings.t('common_logout'),
-                ),
-              ]),
-              if (offCampus) ...[
-                const SizedBox(height: ArucadSpacing.sm),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: ArucadColors.mist,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Row(children: [
-                    const Icon(Icons.location_off_outlined,
-                        size: 16, color: ArucadColors.muted),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(AppLocale.of(context).t('home_off_campus'),
-                          style: TextStyle(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant,
-                              fontSize: 12)),
+    return Column(
+      children: [
+        CampusPageHeader(
+          title: 'ARUVERSE',
+          leading: const SizedBox(
+            width: 32,
+            height: 32,
+            child: BrandMark(
+              height: 24,
+              showWordmark: false,
+            ),
+          ),
+          actions: [
+            _ScoreChip(xp: widget.user.xp, onTap: widget.onQuests),
+            _NotificationBell(
+              unread: _unreadNotifs,
+              onTap: _openNotifications,
+            ),
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+              onPressed: widget.onLogout,
+              icon: const Icon(Icons.logout, color: ArucadColors.ink),
+              tooltip: strings.t('common_logout'),
+            ),
+          ],
+        ),
+        Expanded(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 760),
+              child: RefreshIndicator(
+                onRefresh: _load,
+                child: ListView(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: ArucadSpacing.md, vertical: ArucadSpacing.sm),
+                  children: [
+                    const SizedBox(height: ArucadSpacing.lg),
+
+                    // GREETING — replaces the old feedback tile. Surveys still
+                    // reach students, but as a prompt when one is actually
+                    // waiting rather than as a permanent row asking for input.
+                    GreetingCard(
+                      userName: widget.user.name,
+                      weather: _weather,
                     ),
-                  ]),
-                ),
-              ],
-              const SizedBox(height: ArucadSpacing.lg),
+                    const SizedBox(height: ArucadSpacing.lg),
 
-              // GREETING — replaces the old feedback tile. Surveys still
-              // reach students, but as a prompt when one is actually
-              // waiting rather than as a permanent row asking for input.
-              GreetingCard(
-                userName: widget.user.name,
-                weather: _weather,
-              ),
-              const SizedBox(height: ArucadSpacing.lg),
-
-              // NEARBY
-              Text(strings.t('home_nearby'),
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w900, fontSize: 18)),
-              const SizedBox(height: ArucadSpacing.sm),
-              if (nearest == null)
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(18),
-                    child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(strings.t('home_nearby_empty'),
-                              style:
-                                  const TextStyle(color: ArucadColors.muted)),
-                          if (_upcomingEvents.isNotEmpty) ...[
-                            const SizedBox(height: 10),
-                            Text(
-                                strings
-                                    .t('home_events_today_count')
-                                    .replaceAll(
-                                        '{n}', '${_upcomingEvents.length}'),
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.w700)),
-                            const SizedBox(height: 12),
-                            OutlinedButton(
-                              onPressed: widget.onExplore,
-                              child: Text(strings.t('home_explore_today')),
-                            ),
-                          ],
-                        ]),
-                  ),
-                )
-              else
-                _NearbyCard(
-                  place: nearest,
-                  meters: nearestMeters,
-                  onGo: () => _navigateTo(nearest),
-                  onOpen: () => _openPlace(nearest),
-                ),
-              const SizedBox(height: ArucadSpacing.lg),
-
-              // CAMPUS PULSE
-              SectionHeader(
-                  title: strings.t('home_campus_pulse'),
-                  action: strings.t('home_open_map'),
-                  actionIcon: Icons.map_outlined,
-                  actionColor: Theme.of(context).colorScheme.onSurface,
-                  onTap: () => _openMap(context)),
-              const SizedBox(height: ArucadSpacing.sm),
-              SizedBox(
-                height: 260,
-                child: CampusLiveMap(
-                  places: _places,
-                  events: _events,
-                  repository: widget.repository,
-                  mapProvider: widget.mapProvider,
-                  analyticsTracker: widget.analyticsTracker,
-                  onOpenGalatea: widget.onAI,
-                  userLocation: pos == null
-                      ? null
-                      : GeoPoint(pos.latitude, pos.longitude),
-                  mapHeight: 260,
-                  initialVisibility: widget.initialVisibility,
-                ),
-              ),
-              const SizedBox(height: ArucadSpacing.lg),
-
-              // TODAY
-              SectionHeader(
-                  title: strings.t('home_today_events'),
-                  action: strings.t('home_all'),
-                  actionColor: Theme.of(context).colorScheme.onSurface,
-                  onTap: widget.onExplore),
-              const SizedBox(height: ArucadSpacing.sm),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () async {
-                    final created = await Navigator.of(context).push<bool>(
-                        MaterialPageRoute(
-                            builder: (_) => CreateOwnActivityScreen(
-                                repository: widget.repository)));
-                    if (created == true) _load();
-                  },
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Theme.of(context).colorScheme.onSurface,
-                    side: BorderSide(
-                        color: Theme.of(context).colorScheme.onSurface,
-                        width: 1.2),
-                    shape: const StadiumBorder(),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                  icon: const Icon(Icons.add_circle_outline, size: 18),
-                  label: Text(strings.t('home_create_activity')),
-                ),
-              ),
-              if (_academicYears.length > 1) ...[
-                const SizedBox(height: ArucadSpacing.sm),
-                SizedBox(
-                  height: 34,
-                  child: ListView(
-                    scrollDirection: Axis.horizontal,
-                    children: [
-                      SelectableChip(
-                        label: strings.t('home_all_years'),
-                        selected: _selectedYearId == null,
-                        onSelected: (_) => _changeYear(null),
-                      ),
-                      const SizedBox(width: 6),
-                      for (final year in _academicYears) ...[
-                        SelectableChip(
-                          label: year.label,
-                          selected: _selectedYearId == year.id,
-                          onSelected: (_) => _changeYear(year.id),
+                    // Restore the product's established Home information
+                    // hierarchy: location first, then the live campus map,
+                    // social activity, personalised suggestions and help.
+                    const SizedBox(height: ArucadSpacing.lg),
+                    Text(strings.t('home_nearby'),
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w900, fontSize: 18)),
+                    const SizedBox(height: ArucadSpacing.sm),
+                    if (nearest == null)
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(18),
+                          child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(strings.t('home_nearby_empty'),
+                                    style: const TextStyle(
+                                        color: ArucadColors.muted)),
+                                if (_upcomingEvents.isNotEmpty) ...[
+                                  const SizedBox(height: 10),
+                                  Text(
+                                      strings
+                                          .t('home_events_today_count')
+                                          .replaceAll('{n}',
+                                              '${_upcomingEvents.length}'),
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w700)),
+                                  const SizedBox(height: 12),
+                                  OutlinedButton(
+                                    onPressed: widget.onExplore,
+                                    child:
+                                        Text(strings.t('home_explore_today')),
+                                  ),
+                                ],
+                              ]),
                         ),
-                        const SizedBox(width: 6),
-                      ],
-                    ],
-                  ),
-                ),
-              ],
-              const SizedBox(height: ArucadSpacing.sm),
-              if (_upcomingEvents.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 24),
-                  child: Center(
-                      child: Text(strings.t('home_no_events'),
-                          style: Theme.of(context).textTheme.bodyLarge)),
-                )
-              else ...[
-                for (int i = 0;
-                    i < _visibleEvents.clamp(0, _upcomingEvents.length);
-                    i++)
-                  Padding(
-                    padding: EdgeInsets.only(top: i == 0 ? 0 : 10),
-                    child: EventCard(
-                        event: _upcomingEvents[i],
-                        accentColor: brandAccentAt(i),
+                      )
+                    else
+                      _NearbyCard(
+                        place: nearest,
+                        meters: nearestMeters,
+                        onGo: () => _navigateTo(nearest),
+                        onOpen: () => _openPlace(nearest),
+                      ),
+                    const SizedBox(height: ArucadSpacing.lg),
+                    SectionHeader(
+                        title: strings.t('home_campus_pulse'),
+                        action: strings.t('home_open_map'),
+                        actionIcon: Icons.map_outlined,
+                        actionColor: Theme.of(context).colorScheme.onSurface,
+                        onTap: () => _openMap(context)),
+                    const SizedBox(height: ArucadSpacing.sm),
+                    SizedBox(
+                      height: 260,
+                      child: CampusLiveMap(
+                        places: _places,
+                        events: _events,
                         repository: widget.repository,
                         mapProvider: widget.mapProvider,
-                        analyticsTracker: widget.analyticsTracker),
-                  ),
-                LoadMoreButton(
-                  shown: _visibleEvents.clamp(0, _upcomingEvents.length),
-                  total: _upcomingEvents.length,
-                  itemLabel: strings.t('home_event_item'),
-                  showCompleteLabel: false,
-                  onTap: () => setState(() => _visibleEvents += kPageSize),
-                ),
-              ],
+                        analyticsTracker: widget.analyticsTracker,
+                        onOpenGalatea: widget.onAI,
+                        userLocation: pos == null
+                            ? null
+                            : GeoPoint(pos.latitude, pos.longitude),
+                        mapHeight: 260,
+                        initialVisibility: widget.initialVisibility,
+                      ),
+                    ),
 
-              // SOCIAL NOW
-              if (_feed.isNotEmpty) ...[
-                const SizedBox(height: ArucadSpacing.lg),
-                SectionHeader(
-                    title: strings.t('home_campus_now'),
-                    action: strings.t('home_see_social'),
-                    actionColor: Theme.of(context).colorScheme.onSurface,
-                    onTap: widget.onSocial),
-                const SizedBox(height: ArucadSpacing.sm),
-                Card(
-                  child: Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                    child: Column(
-                      children: [
-                        for (final post in _latestSocialPosts)
-                          ListTile(
-                            dense: true,
+                    if (widget.showForYou &&
+                        (forYou.isNotEmpty ||
+                            _events.isNotEmpty ||
+                            _places.isNotEmpty)) ...[
+                      const SizedBox(height: ArucadSpacing.lg),
+                      Text(strings.t('home_for_you'),
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w900, fontSize: 18)),
+                      const SizedBox(height: ArucadSpacing.sm),
+                      RecommendationTile(
+                        icon: Icons.event_available_rounded,
+                        accent: ArucadColors.blue,
+                        title: strings.t('explore_recommend_today_events'),
+                        subtitle: _todayEventsCount > 0
+                            ? '$_todayEventsCount ${strings.t('explore_recommend_today_events_suffix')}'
+                            : strings.t('explore_recommend_today_events_empty'),
+                        onTap: widget.onExplore,
+                      ),
+                      const SizedBox(height: 10),
+                      Builder(builder: (context) {
+                        final popular = _mostPopularPlace;
+                        return RecommendationTile(
+                          icon: Icons.local_fire_department_rounded,
+                          accent: ArucadColors.campusGreen,
+                          title: strings.t('explore_recommend_popular_places'),
+                          subtitle: popular == null
+                              ? strings
+                                  .t('explore_recommend_popular_places_empty')
+                              : '${popular.name} · ${popular.totalCheckins} '
+                                  '${strings.t('explore_recommend_popular_suffix')}',
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => PopularPlacesScreen(
+                                repository: widget.repository,
+                                mapProvider: widget.mapProvider,
+                                analyticsTracker: widget.analyticsTracker,
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
+                      const SizedBox(height: 10),
+                      RecommendationTile(
+                        icon: Icons.explore_rounded,
+                        accent: ArucadColors.red,
+                        title: strings.t('home_recommend_unvisited'),
+                        subtitle: unvisited == null
+                            ? strings.t('home_recommend_unvisited_empty')
+                            : '${unvisited.name} · ${unvisited.category}',
+                        onTap: unvisited == null
+                            ? widget.onExplore
+                            : () => _openPlace(unvisited),
+                      ),
+                    ],
+
+                    // Social activity follows personalised recommendations.
+                    if (_feed.isNotEmpty) ...[
+                      const SizedBox(height: ArucadSpacing.lg),
+                      SectionHeader(
+                          title: strings.t('home_campus_now'),
+                          action: strings.t('home_see_social'),
+                          actionColor: Theme.of(context).colorScheme.onSurface,
+                          onTap: widget.onSocial),
+                      const SizedBox(height: ArucadSpacing.sm),
+                      for (var i = 0; i < _latestSocialPosts.length; i++) ...[
+                        if (i > 0) const SizedBox(height: 10),
+                        Material(
+                          color: ArucadColors.paper,
+                          borderRadius: BorderRadius.circular(16),
+                          child: ListTile(
+                            minTileHeight: 68,
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16)),
                             hoverColor: Colors.transparent,
+                            splashColor: Colors.transparent,
                             onTap: () => Navigator.of(context).push(
                               MaterialPageRoute(
                                 builder: (_) => PostDetailScreen(
-                                  post: post,
+                                  post: _latestSocialPosts[i],
                                   repository: widget.repository,
                                 ),
                               ),
                             ),
-                            leading: _CampusNowAvatar(post: post),
-                            title: Text('${post.name} ${post.displayText}',
-                                maxLines: 1, overflow: TextOverflow.ellipsis),
-                            subtitle: Text(
-                                formatRelativeTime(
-                                    post.createdAt ?? DateTime.now()),
-                                style: const TextStyle(fontSize: 11)),
+                            leading:
+                                _CampusNowAvatar(post: _latestSocialPosts[i]),
+                            title: Text(
+                                '${_latestSocialPosts[i].name} ${_latestSocialPosts[i].displayText}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: kListTitleSize)),
+                            subtitle: LiveTimeAgo(
+                                _latestSocialPosts[i].createdAt ??
+                                    DateTime.now(),
+                                style: const TextStyle(
+                                    color: ArucadColors.muted,
+                                    fontSize: kListSubtitleSize)),
                             trailing: const Icon(Icons.chevron_right_rounded,
-                                size: 18),
+                                color: ArucadColors.muted, size: 22),
                           ),
+                        ),
                       ],
-                    ),
-                  ),
-                ),
-              ],
-
-              // FOR YOU
-              if (widget.showForYou && forYou.isNotEmpty) ...[
-                const SizedBox(height: ArucadSpacing.lg),
-                Text(strings.t('home_for_you'),
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w900, fontSize: 18)),
-                const SizedBox(height: ArucadSpacing.sm),
-                for (int i = 0; i < forYou.length; i++)
-                  Padding(
-                    padding: EdgeInsets.only(top: i == 0 ? 0 : 10),
-                    child: TrendTile(
-                      icon: Icons.explore_outlined,
-                      leading: Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          color: brandAccentAt(i).withValues(alpha: .08),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Center(
-                          child: PlaceLineArtIcon(
-                            placeName: forYou[i].name,
-                            color: brandAccentAt(i),
-                            size: 34,
-                          ),
-                        ),
-                      ),
-                      title: forYou[i].name,
-                      subtitle: '${forYou[i].category} · henüz gitmedin',
-                      trailing: forYou[i].distance,
-                      accentColor: brandAccentAt(i),
-                      accentIconTextOnly: true,
-                      onTap: () => _openPlace(forYou[i]),
-                    ),
-                  ),
-              ],
-
-              // SERVICES / HELP SNAPSHOT
-              if (_homeServiceShortcuts.isNotEmpty) ...[
-                const SizedBox(height: ArucadSpacing.lg),
-                SectionHeader(
-                    title: strings.t('home_need_help'),
-                    action: strings.t('home_all_services'),
-                    actionColor: Theme.of(context).colorScheme.onSurface,
-                    onTap: widget.onExplore),
-                const SizedBox(height: ArucadSpacing.sm),
-                LayoutBuilder(builder: (context, constraints) {
-                  final itemWidth = (constraints.maxWidth - 10) / 2;
-                  return Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: [
-                      for (var i = 0; i < _homeServiceShortcuts.length; i++)
-                        _ServiceShortcut(
-                          width: itemWidth,
-                          service: _homeServiceShortcuts[i],
-                          onTap: () => Navigator.of(context).push(
-                              MaterialPageRoute(
-                                  builder: (_) => ServiceDetailScreen(
-                                      service: _homeServiceShortcuts[i],
-                                      repository: widget.repository))),
-                        ),
                     ],
-                  );
-                }),
-              ],
-              const SizedBox(height: ArucadSpacing.xl),
-            ],
+
+                    // SERVICES / HELP SNAPSHOT
+                    if (_homeServiceShortcuts.isNotEmpty) ...[
+                      const SizedBox(height: ArucadSpacing.lg),
+                      SectionHeader(
+                          title: strings.t('home_need_help'),
+                          action: strings.t('home_all_services'),
+                          actionColor: Theme.of(context).colorScheme.onSurface,
+                          onTap: widget.onExplore),
+                      const SizedBox(height: ArucadSpacing.sm),
+                      LayoutBuilder(builder: (context, constraints) {
+                        final itemWidth = (constraints.maxWidth - 10) / 2;
+                        return Wrap(
+                          spacing: 10,
+                          runSpacing: 10,
+                          children: [
+                            for (var i = 0;
+                                i < _homeServiceShortcuts.length;
+                                i++)
+                              _ServiceShortcut(
+                                width: itemWidth,
+                                service: _homeServiceShortcuts[i],
+                                icon: _serviceIcon(_homeServiceShortcuts[i]),
+                                accent: brandAccentAt(i),
+                                onTap: () => Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                        builder: (_) => ServiceDetailScreen(
+                                            service: _homeServiceShortcuts[i],
+                                            repository: widget.repository))),
+                              ),
+                          ],
+                        );
+                      }),
+                    ],
+                    const SizedBox(height: ArucadSpacing.xl),
+                  ],
+                ),
+              ),
+            ),
           ),
         ),
-      ),
+      ],
     );
   }
 
@@ -815,9 +747,9 @@ class _CampusNowAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     if (post.official) {
       return const CircleAvatar(
-        radius: 18,
+        radius: kListIconSize / 2,
         backgroundColor: ArucadColors.primary,
-        child: Icon(Icons.school_outlined, size: 18, color: Colors.white),
+        child: Icon(Icons.school_outlined, size: 22, color: Colors.white),
       );
     }
     final avatarUrl = post.authorAvatarUrl;
@@ -831,8 +763,8 @@ class _CampusNowAvatar extends StatelessWidget {
       ),
     );
     return SizedBox(
-      width: 36,
-      height: 36,
+      width: kListIconSize,
+      height: kListIconSize,
       child: ClipOval(
         child: avatarUrl == null || avatarUrl.isEmpty
             ? fallback
@@ -867,7 +799,7 @@ class _NotificationBell extends StatelessWidget {
         constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
         onPressed: onTap,
         icon: const Icon(Icons.notifications_none_rounded,
-            color: ArucadColors.muted),
+            color: ArucadColors.ink),
         tooltip: AppLocale.of(context).t('social_notifications'),
       ),
       if (unread > 0)
@@ -875,20 +807,19 @@ class _NotificationBell extends StatelessWidget {
           right: 4,
           top: 4,
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-            constraints: const BoxConstraints(minWidth: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+            constraints: const BoxConstraints(minWidth: 13, minHeight: 13),
             decoration: BoxDecoration(
               color: ArucadColors.red,
               borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: Colors.white, width: 1.5),
             ),
             child: Text(
               unread > 9 ? '9+' : '$unread',
               textAlign: TextAlign.center,
               style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 9.5,
-                  height: 1.2,
+                  fontSize: 8,
+                  height: 1.1,
                   fontWeight: FontWeight.w900),
             ),
           ),
@@ -905,7 +836,10 @@ class _ScoreChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final strings = AppLocale.of(context);
-    final compact = MediaQuery.sizeOf(context).width < 380;
+    // Every phone header uses the numeric-only score. The labelled variant
+    // belongs to tablet/desktop widths; at 393 px it competed with the brand,
+    // bell and logout button and could overflow with four-digit scores.
+    final compact = MediaQuery.sizeOf(context).width < 600;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(999),
@@ -913,18 +847,18 @@ class _ScoreChip extends StatelessWidget {
         padding:
             EdgeInsets.symmetric(horizontal: compact ? 8 : 12, vertical: 6),
         decoration: BoxDecoration(
-          color: ArucadColors.red,
+          color: ArucadColors.yellow,
           borderRadius: BorderRadius.circular(ArucadRadius.pill),
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          const Icon(Icons.bolt_rounded, size: 16, color: Colors.white),
+          const Icon(Icons.bolt_rounded, size: 16, color: ArucadColors.ink),
           const SizedBox(width: 4),
           Text(
             compact ? '$xp' : '${strings.t('home_score')} $xp',
             style: const TextStyle(
                 fontWeight: FontWeight.w900,
                 fontSize: 12,
-                color: Colors.white),
+                color: ArucadColors.ink),
           ),
         ]),
       ),
@@ -1013,38 +947,85 @@ class _ServiceShortcut extends StatelessWidget {
   final double width;
   final CampusService service;
   final VoidCallback onTap;
+  final IconData icon;
+  final Color accent;
   const _ServiceShortcut({
     required this.width,
     required this.service,
     required this.onTap,
+    required this.icon,
+    required this.accent,
   });
 
   @override
   Widget build(BuildContext context) => InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         child: Container(
           width: width,
-          height: 60,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          // Tall enough for the shared 44px icon chip plus a two-line
+          // title, so a long service name no longer clips.
+          constraints: const BoxConstraints(minHeight: 72),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.surface,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(16),
           ),
           child: Row(children: [
-            Icon(Icons.support_agent_outlined,
-                size: 18, color: Theme.of(context).colorScheme.onSurface),
-            const SizedBox(width: 8),
+            Container(
+              width: kListIconSize,
+              height: kListIconSize,
+              decoration: BoxDecoration(
+                  color: accent.withValues(alpha: .14), shape: BoxShape.circle),
+              child: Icon(icon, size: 22, color: accent),
+            ),
+            const SizedBox(width: 12),
             Expanded(
               child: Text(service.title,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                       fontWeight: FontWeight.w700,
-                      fontSize: 12.5,
+                      fontSize: kListTitleSize,
                       color: Theme.of(context).colorScheme.onSurface)),
             ),
           ]),
         ),
       );
+}
+
+IconData _serviceIcon(CampusService service) {
+  final value =
+      '${service.id} ${service.title} ${service.category}'.toLowerCase();
+  if (value.contains('pdr') ||
+      value.contains('wellbeing') ||
+      value.contains('psik')) {
+    return Icons.favorite_outline_rounded;
+  }
+  if (value.contains('öğrenci') ||
+      value.contains('ogrenci') ||
+      value.contains('student')) {
+    return Icons.school_rounded;
+  }
+  if (value.contains('it') ||
+      value.contains('teknik') ||
+      value.contains('tech')) {
+    return Icons.computer_rounded;
+  }
+  if (value.contains('library') || value.contains('kütüphane')) {
+    return Icons.local_library_rounded;
+  }
+  if (value.contains('yurt') || value.contains('konak')) {
+    return Icons.apartment_rounded;
+  }
+  if (value.contains('kariyer') || value.contains('career')) {
+    return Icons.work_outline_rounded;
+  }
+  if (value.contains('uluslararası') || value.contains('international')) {
+    return Icons.public_rounded;
+  }
+  if (value.contains('eriş') || value.contains('access')) {
+    return Icons.accessible_rounded;
+  }
+  return Icons.support_agent_rounded;
 }

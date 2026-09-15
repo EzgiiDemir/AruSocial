@@ -28,13 +28,17 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('approved video has a playback action; local preview cannot play a URL', (tester) async {
-    await tester.pumpWidget(const MaterialApp(home: Scaffold(body: FeedPostMedia(
-        imageUrl: 'https://example.test/media/video/test.mp4'))));
-    expect(find.text('Oynat'), findsOneWidget);
-    await tester.pumpWidget(const MaterialApp(home: Scaffold(body: FeedPostMedia(
-        bytesAreVideo: true))));
+  // Video was removed from the product on 14 September 2026. This replaces
+  // a test asserting a clip rendered a labelled tile with a playback
+  // action — there is no player to reach any more.
+  testWidgets('an image post renders its picture and nothing else',
+      (tester) async {
+    await tester.pumpWidget(const MaterialApp(
+        home: Scaffold(
+            body: FeedPostMedia(imageUrl: 'https://example.test/media/x.jpg'))));
+
     expect(find.text('Oynat'), findsNothing);
-    expect(find.text('Video paylaşılmaya hazır'), findsOneWidget);
+    expect(find.text('Video'), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 }

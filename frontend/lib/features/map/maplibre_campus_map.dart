@@ -7,52 +7,18 @@ import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:arucad_campus_prototype/core/models/geo_point.dart';
 import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
 
-/// OpenFreeMap Liberty — full-colour OSM streets (Google Maps–like roads,
-/// parks, water). Broken POI sprite layers are hidden after load so the
-/// console stays clean without switching to grey Positron.
+/// Official OpenFreeMap vector style. The temporary 256 px raster fallback
+/// became visibly soft on high-density phones and hid pedestrian/building
+/// detail that students need while navigating. Positron keeps the campus
+/// legible while MapLibre renders vectors sharply at every device scale.
+// Liberty preserves the natural land/water/road palette while retaining
+// stronger contrast than Positron. It is OpenFreeMap's full vector style,
+// so labels stay sharp at every zoom instead of being enlarged raster tiles.
 const _openFreeMapStyle = 'https://tiles.openfreemap.org/styles/liberty';
 
 /// OpenFreeMap serves these glyph stacks. MapLibre's default
 /// `Open Sans Regular, Arial Unicode MS Regular` 404s on their font host.
 const _openFreeMapTextFont = ['Noto Sans Regular'];
-
-/// OSM-Liberty's `poi_*` layer family asks for dozens of sprite ids
-/// (`office`, `gate`, `atm`, `bollard`, `swimming_pool`, …) that the
-/// OpenFreeMap `ofm_f384` sheet doesn't ship — every one logs its own
-/// "Image could not be loaded" console warning. Campus pins are our own
-/// annotations, never these layers, so matching the whole `poi` family by
-/// name instead of enumerating each broken layer id (which only ever grows
-/// as more OSM icon categories show up) hides all of them, permanently,
-/// without needing a new entry added by hand every time a fresh icon name
-/// turns up in the console.
-bool _isBrokenOsmSpriteLayer(String layerId) {
-  final id = layerId.toLowerCase();
-  // Hide every base-style symbol layer that pulls icons from the hosted
-  // OFM sprite sheet — dozens of ids (office, ferry_terminal, multi, …)
-  // are missing and spam the console with "Image could not be loaded" plus
-  // "Expected value to be of type number, but found null" parse errors.
-  return id.contains('poi') ||
-      id.contains('transit') ||
-      id.contains('ferry') ||
-      id.contains('aeroway') ||
-      id.contains('airport') ||
-      id.contains('railway') ||
-      id.contains('rail') ||
-      id.contains('station') ||
-      id.contains('bus') ||
-      id.contains('coach') ||
-      id.contains('entrance') ||
-      id.contains('barrier') ||
-      id.contains('oneway') ||
-      id.contains('shield') ||
-      id.contains('highway_name') ||
-      id.contains('road_label') ||
-      id.contains('housenum') ||
-      id.contains('building_number') ||
-      id.contains('road_shield') ||
-      id.contains('waterway') ||
-      id.contains('natural') && id.contains('icon');
-}
 
 LatLng _ll(GeoPoint p) => LatLng(p.lat, p.lng);
 
@@ -163,6 +129,7 @@ class CampusMapView extends StatefulWidget {
   final List<GeoPoint>? routePoints;
   final bool routeDashed;
   final Color routeColor;
+
   /// Device location rendered by our own annotation layer. Circle radii are
   /// screen pixels, so this stays a normal-size blue puck at every zoom.
   final GeoPoint? userLocation;
@@ -192,6 +159,7 @@ class _CampusMapViewState extends State<CampusMapView> {
   MapLibreMapController? _map;
   bool _styleReady = false;
   bool _pinReady = false;
+  bool _symbolFontReady = false;
   double _zoom = 16.4;
   final Map<String, VoidCallback> _markerTaps = {};
 
@@ -240,11 +208,10 @@ class _CampusMapViewState extends State<CampusMapView> {
   Future<void> _onStyleLoaded() async {
     _styleReady = true;
     _pinReady = false;
+    _symbolFontReady = false;
     final map = _map;
     if (map != null) {
       await _ensureCampusPin(map);
-      await _ensureBlankOsmSprites(map);
-      await _hideBrokenOsmPoiLayers(map);
       // Deliberately NOT forcing allow-overlap/ignore-placement here —
       // that used to force every campus label to render regardless of
       // collision, which is exactly what made labels run into each other
@@ -253,7 +220,6 @@ class _CampusMapViewState extends State<CampusMapView> {
       // detection on) lets MapLibre hide/thin out crowded labels the way
       // every other map does, instead of drawing all of them on top of
       // each other.
-      await _useOpenFreeMapFonts(map);
     }
     await _syncAnnotations();
   }
@@ -269,51 +235,6 @@ class _CampusMapViewState extends State<CampusMapView> {
     }
   }
 
-  /// 1×1 transparent placeholders for OFM sprite ids the hosted sheet
-  /// does not ship — stops web console spam if a symbol layer slips through.
-  Future<void> _ensureBlankOsmSprites(MapLibreMapController map) async {
-    const missing = {
-      'multi',
-      'ferry_terminal',
-      'ferry',
-      'office',
-      'gate',
-      'atm',
-      'bollard',
-      'swimming_pool',
-      'oneway',
-    };
-    final blank = await _blankSpritePng();
-    for (final id in missing) {
-      try {
-        await map.addImage(id, blank);
-      } catch (_) {}
-    }
-  }
-
-  Future<void> _hideBrokenOsmPoiLayers(MapLibreMapController map) async {
-    try {
-      final ids = await map.getLayerIds();
-      for (final id in ids) {
-        if (id is String && _isBrokenOsmSpriteLayer(id)) {
-          await map.setLayerVisibility(id, false);
-        }
-      }
-    } catch (_) {
-      // Style layer list is best-effort; campus annotations still render.
-    }
-  }
-
-  Future<void> _useOpenFreeMapFonts(MapLibreMapController map) async {
-    const fonts = _LayoutOnly({'text-font': _openFreeMapTextFont});
-    final ids = map.symbolManager?.layerIds ?? const <String>[];
-    for (final id in ids) {
-      try {
-        await map.setLayerProperties(id, fonts);
-      } catch (_) {}
-    }
-  }
-
   Future<void> _syncAnnotations() async {
     final map = _map;
     if (map == null) return;
@@ -321,6 +242,8 @@ class _CampusMapViewState extends State<CampusMapView> {
     await map.clearSymbols();
     await map.clearLines();
     _markerTaps.clear();
+
+    await _prepareWebSymbolFont(map);
 
     for (final dot in widget.contextDots) {
       await map.addCircle(_filledCircle(
@@ -434,6 +357,38 @@ class _CampusMapViewState extends State<CampusMapView> {
     }
   }
 
+  /// `SymbolOptions.fontNames` is ignored by maplibre_gl on web. Without a
+  /// layer-level override its generated symbol layer falls back to
+  /// `Open Sans Regular, Arial Unicode MS Regular`, a stack OpenFreeMap does
+  /// not host. Initialise the manager with an empty label (so no glyph is
+  /// requested), then set the real layer font before adding campus labels.
+  Future<void> _prepareWebSymbolFont(MapLibreMapController map) async {
+    if (_symbolFontReady || widget.markers.isEmpty) return;
+    try {
+      if (map.symbolManager == null) {
+        await map.addSymbol(SymbolOptions(
+          geometry: _ll(widget.markers.first.position),
+          iconImage: 'campus-pin',
+          iconOpacity: 0,
+          textField: '',
+        ));
+      }
+      final manager = map.symbolManager;
+      if (manager == null) return;
+      for (final layerId in manager.layerIds) {
+        await map.setLayerProperties(
+          layerId,
+          const SymbolLayerProperties(textFont: _openFreeMapTextFont),
+        );
+      }
+      await map.clearSymbols();
+      _symbolFontReady = true;
+    } catch (_) {
+      // Map labels remain non-fatal. A later annotation sync retries after
+      // the platform-specific symbol manager has completed initialisation.
+    }
+  }
+
   Future<void> _addDashedSegment(
       MapLibreMapController map, GeoPoint a, GeoPoint b) async {
     // MapLibre's simplified LineOptions annotation API has no dash-array
@@ -447,7 +402,8 @@ class _CampusMapViewState extends State<CampusMapView> {
       final segEnd = (t + dashFraction).clamp(0.0, 1.0);
       final segPoints = [
         GeoPoint(a.lat + (b.lat - a.lat) * t, a.lng + (b.lng - a.lng) * t),
-        GeoPoint(a.lat + (b.lat - a.lat) * segEnd, a.lng + (b.lng - a.lng) * segEnd),
+        GeoPoint(
+            a.lat + (b.lat - a.lat) * segEnd, a.lng + (b.lng - a.lng) * segEnd),
       ].map(_ll).toList();
       lines.add(_filledLine(
         geometry: segPoints,
@@ -516,18 +472,6 @@ class _CampusMapViewState extends State<CampusMapView> {
     final eased = t * t;
     return 2.4 + (base.clamp(6.0, 10.0) - 2.4) * eased;
   }
-}
-
-/// maplibre_gl's [setLayerProperties] serializes *all* fields as null unless
-/// we supply a JSON map ourselves. A one-key layout patch is the only safe
-/// way to set `text-font` without wiping the annotation layer.
-class _LayoutOnly implements LayerProperties {
-  const _LayoutOnly(this._json);
-  final Map<String, dynamic> _json;
-
-  @override
-  Map<String, dynamic> toJson({bool skipNulls = true}) =>
-      Map<String, dynamic>.from(_json);
 }
 
 CircleOptions _filledCircle({
@@ -622,19 +566,6 @@ Future<Uint8List> _campusPinPng() async {
     const Offset(size / 2, size / 2),
     4,
     Paint()..color = ArucadColors.primary,
-  );
-  final image = await recorder.endRecording().toImage(size, size);
-  final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
-  return bytes!.buffer.asUint8List();
-}
-
-Future<Uint8List> _blankSpritePng() async {
-  const size = 1;
-  final recorder = ui.PictureRecorder();
-  final canvas = Canvas(recorder, const Rect.fromLTWH(0, 0, 1, 1));
-  canvas.drawRect(
-    const Rect.fromLTWH(0, 0, 1, 1),
-    Paint()..color = const Color(0x00000000),
   );
   final image = await recorder.endRecording().toImage(size, size);
   final bytes = await image.toByteData(format: ui.ImageByteFormat.png);

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Api\Concerns\ApiResponds;
+use App\Http\Controllers\Api\Concerns\ModeratesContent;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\UpsertClubRequest;
 use App\Models\Club;
@@ -17,7 +18,7 @@ use Illuminate\Http\Request;
 // (see docs/EKSIKLER.md §1/§11).
 class ClubController extends Controller
 {
-    use ApiResponds;
+    use ApiResponds, ModeratesContent;
 
     private function toJson(Club $c): array
     {
@@ -45,13 +46,23 @@ class ClubController extends Controller
     public function show(string $id): JsonResponse
     {
         $club = Club::withCount('members')->find($id);
-        if (! $club) return $this->fail(404, 'CLUB_NOT_FOUND', 'Club not found.');
+        if (! $club) {
+            return $this->fail(404, 'CLUB_NOT_FOUND', 'Club not found.');
+        }
 
         return $this->ok($this->toJson($club));
     }
 
     public function upsert(UpsertClubRequest $request): JsonResponse
     {
+        if ($blocked = $this->moderationBlock(
+            $this->currentUser(),
+            $this->moderationText($request->safe()->only(['name', 'description', 'body'])),
+            'catalog',
+            'admin.club.upsert',
+        )) {
+            return $blocked;
+        }
         $id = $request->input('id');
         $name = $request->input('name');
 

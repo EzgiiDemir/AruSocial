@@ -54,6 +54,46 @@ class Settings(BaseSettings):
     violence_model_id: str = ""
     violence_model_revision: str = ""
 
+    # Second signal: CLIP scored against prompts (see clip_classifier.py).
+    #
+    # Added because the NSFW model above was measured missing three real
+    # uploads — a dark-background nude (0.0090), a phone photo of a
+    # monitor showing nudes (0.0005), and a gore image — all scoring below
+    # the safe set's own maximum, so no threshold could separate them.
+    #
+    # Measured on the same labelled set, with sculpture-aware benign
+    # prompts:
+    #
+    #   nudity   safe max 0.3749   unsafe min 0.7383   clean gap
+    #   gore     safe max 0.0339   true gore 0.7683    clean gap
+    #   at a 0.50 threshold, 0 of 50 safe campus photos are held
+    #
+    # weapon / hate_symbol / drugs / self_harm return scores too, but
+    # there are no lawful positive examples for them in this repository,
+    # so their recall is unmeasured. They are deliberately left without
+    # thresholds in Laravel: scored, recorded, and unable to decide
+    # anything until someone supplies test assets.
+    # Semantic text signal (see text_classifier.py). Self-hosted, because
+    # the remote moderation account has no quota and the project is
+    # deliberately not dependent on a paid API.
+    #
+    # Measured on text_benchmark.json: harmful margins min -0.0182,
+    # safe margins max -0.1295 — a +0.1113 gap — at 27 ms/text on CPU.
+    text_enabled: bool = True
+    text_model_id: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+    # Read from the resolved snapshot, not guessed. A hash invented from
+    # memory here took the whole service down with "Unrecognized model" —
+    # which at least proved the fail-closed path works, since /health
+    # reported 503 and every upload was refused rather than scored by a
+    # silently missing signal.
+    text_model_revision: str = "e8f8c211226b894fcb81acc59f3b34ba3efd5f42"
+
+    clip_enabled: bool = True
+    clip_model_id: str = "openai/clip-vit-base-patch32"
+    # Pinned for the same reason as the model above: a silently updated
+    # checkpoint invalidates every threshold calibrated against it.
+    clip_model_revision: str = "3d74acf9a28c67741b2f4f2ea7635f0aaf6f0268"
+
     # Loading the weights takes seconds; doing it per request would make
     # every upload pay for it. Preload at startup so /health only reports
     # ready once the model can actually answer.

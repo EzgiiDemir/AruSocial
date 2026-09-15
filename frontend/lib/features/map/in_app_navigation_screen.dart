@@ -128,7 +128,8 @@ class _InAppNavigationScreenState extends State<InAppNavigationScreen> {
     final strings = AppLocale.of(context);
     final meters = walking.distanceMeters;
     // Pace by selected mode even when geometry is road-network based.
-    final minutes = (meters / _mode.fallbackMetersPerMinute).ceil().clamp(1, 9999);
+    final minutes =
+        (meters / _mode.fallbackMetersPerMinute).ceil().clamp(1, 9999);
     final distance = meters >= 1000
         ? '${(meters / 1000).toStringAsFixed(1)} km'
         : '${meters.round()} m';
@@ -189,6 +190,7 @@ class _InAppNavigationScreenState extends State<InAppNavigationScreen> {
             fromLng: origin.lng,
             toLat: _destination.lat,
             toLng: _destination.lng,
+            mode: _mode,
           )
           // The provider is a best-effort public service. Past a few
           // seconds the straight line already on screen is the better
@@ -231,9 +233,10 @@ class _InAppNavigationScreenState extends State<InAppNavigationScreen> {
     // location live, so this is nearly always populated by the time
     // anyone opens navigation, and it turns a multi-second GPS wait into
     // an immediate first paint.
-    var origin = _origin ?? await const LocationService().lastKnownPosition().then(
-          (p) => p == null ? null : GeoPoint(p.latitude, p.longitude),
-        );
+    var origin = _origin ??
+        await const LocationService().lastKnownPosition().then(
+              (p) => p == null ? null : GeoPoint(p.latitude, p.longitude),
+            );
 
     if (origin != null) {
       unawaited(_applyRoute(origin));
@@ -255,11 +258,12 @@ class _InAppNavigationScreenState extends State<InAppNavigationScreen> {
 
   /// Re-runs the route once a current fix replaces a stale cached one.
   Future<void> _refineOrigin() async {
-    final position = await const LocationService().getCurrentPositionIfGranted();
+    final position =
+        await const LocationService().getCurrentPositionIfGranted();
     if (!mounted || position == null) return;
     final fresh = GeoPoint(position.latitude, position.longitude);
-    final drift = Geolocator.distanceBetween(
-        _origin?.lat ?? fresh.lat, _origin?.lng ?? fresh.lng, fresh.lat, fresh.lng);
+    final drift = Geolocator.distanceBetween(_origin?.lat ?? fresh.lat,
+        _origin?.lng ?? fresh.lng, fresh.lat, fresh.lng);
     // Only worth redrawing if the cached guess was actually off.
     if (drift > 25) await _applyRoute(fresh);
   }

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
 import 'app/app.dart';
@@ -23,6 +24,7 @@ import 'core/services/rest_campus_repository.dart';
 import 'core/services/site_settings_store.dart';
 import 'core/services/url_launcher_map_provider.dart';
 import 'core/services/push_bootstrap.dart';
+import 'core/theme/arucad_theme.dart';
 import 'package:firebase_core/firebase_core.dart';
 
 Future<void> main() async {
@@ -57,6 +59,13 @@ Future<void> main() async {
 
 Future<void> _runApp() async {
   WidgetsFlutterBinding.ensureInitialized();
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    statusBarColor: Colors.white,
+    statusBarIconBrightness: Brightness.dark,
+    statusBarBrightness: Brightness.light,
+    systemNavigationBarColor: ArucadColors.primary,
+    systemNavigationBarIconBrightness: Brightness.light,
+  ));
   configureUrlStrategy();
 
   // Real web split: visiting /admin (vs the normal / root) is a genuinely
@@ -133,6 +142,14 @@ Future<void> _mountApp({
 /// Returns the config unchanged when nothing is saved, so a normal install
 /// still uses whatever the build was configured with.
 Future<AppConfig> _withSavedApiOverride(AppConfig config) async {
+  // Simulator/repro builds must use the endpoint they were compiled with.
+  // Otherwise an old SharedPreferences value (often a stale Wi-Fi, VPN or
+  // Hyper-V address) silently wins and the status panel tests one server
+  // while the application talks to another.
+  const lockCompiledTarget =
+      bool.fromEnvironment('LOCK_API_BASE_URL', defaultValue: false);
+  if (lockCompiledTarget) return config;
+
   try {
     final host = (await AppSettingsStore.runtimeApiHost()).trim();
     if (host.isEmpty) return config;

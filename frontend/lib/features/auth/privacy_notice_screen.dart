@@ -108,24 +108,40 @@ class _PrivacyNoticeScreenState extends State<PrivacyNoticeScreen> {
   bool _ticked = false;
   bool _saving = false;
 
+  /// Whether each document has actually been read to the end.
+  ///
+  /// Tapping a link and coming straight back is not reading it, and the
+  /// consent recorded here is the university's evidence that a student was
+  /// told what the moderation does with their content. So the box cannot
+  /// be ticked until both documents have been scrolled through — a short
+  /// enough document counts as read as soon as it is opened, because there
+  /// is nothing below the fold to reach.
+  bool _privacyRead = false;
+  bool _guidelinesRead = false;
+
+  bool get _bothRead => _privacyRead && _guidelinesRead;
+
   AppLanguage get _language =>
       widget.language ??
       noticeLanguageFor(WidgetsBinding.instance.platformDispatcher.locale);
 
   Future<void> _accept() async {
-    if (!_ticked || _saving) return;
+    if (!_ticked || !_bothRead || _saving) return;
     setState(() => _saving = true);
     await widget.onAccept();
     if (mounted) setState(() => _saving = false);
   }
 
-  void _open(String assetPath, String title) {
+  void _open(String assetPath, String title, VoidCallback onRead) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => LegalDocumentScreen(
           title: title,
           assetPath: assetPath,
           language: _language,
+          onReadToEnd: () {
+            if (mounted) setState(onRead);
+          },
         ),
       ),
     );
@@ -184,13 +200,18 @@ class _PrivacyNoticeScreenState extends State<PrivacyNoticeScreen> {
                       _DocumentLinks(
                         privacyLabel: strings.t('consent_privacy_link'),
                         guidelinesLabel: strings.t('consent_guidelines_link'),
+                        readLabel: strings.t('consent_doc_read'),
+                        privacyRead: _privacyRead,
+                        guidelinesRead: _guidelinesRead,
                         onPrivacy: () => _open(
                           'assets/legal/privacy.md',
                           strings.t('consent_privacy_link'),
+                          () => _privacyRead = true,
                         ),
                         onGuidelines: () => _open(
                           'assets/legal/community-guidelines.md',
                           strings.t('consent_guidelines_link'),
+                          () => _guidelinesRead = true,
                         ),
                       ),
                     ],
@@ -205,9 +226,25 @@ class _PrivacyNoticeScreenState extends State<PrivacyNoticeScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      // Says why the box cannot be ticked yet. A disabled
+                      // control with no explanation reads as a bug.
+                      if (!_bothRead)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: Text(
+                            strings.t('consent_read_first'),
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 13.5,
+                              height: 1.4,
+                              color: ArucadColors.muted,
+                            ),
+                          ),
+                        ),
                       _ConsentCheckbox(
                         value: _ticked,
                         label: strings.t('consent_accept'),
+                        enabled: _bothRead,
                         onChanged: (value) =>
                             setState(() => _ticked = value ?? false),
                       ),
@@ -218,7 +255,8 @@ class _PrivacyNoticeScreenState extends State<PrivacyNoticeScreen> {
                           // Disabled, not hidden: a control that is there
                           // but will not act says "something is missing",
                           // where one that vanishes says "this is broken".
-                          onPressed: _ticked && !_saving ? _accept : null,
+                          onPressed:
+                              _ticked && _bothRead && !_saving ? _accept : null,
                           style: FilledButton.styleFrom(
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(14),
@@ -322,12 +360,18 @@ class _DocumentLinks extends StatelessWidget {
   const _DocumentLinks({
     required this.privacyLabel,
     required this.guidelinesLabel,
+    required this.readLabel,
+    required this.privacyRead,
+    required this.guidelinesRead,
     required this.onPrivacy,
     required this.onGuidelines,
   });
 
   final String privacyLabel;
   final String guidelinesLabel;
+  final String readLabel;
+  final bool privacyRead;
+  final bool guidelinesRead;
   final VoidCallback onPrivacy;
   final VoidCallback onGuidelines;
 
@@ -342,34 +386,74 @@ class _DocumentLinks extends StatelessWidget {
       spacing: 12,
       runSpacing: 2,
       children: [
-        _DocumentLink(label: privacyLabel, onTap: onPrivacy),
+        _DocumentLink(
+          label: privacyLabel,
+          onTap: onPrivacy,
+          read: privacyRead,
+          readLabel: readLabel,
+        ),
         const Text('•', style: TextStyle(color: ArucadColors.muted)),
-        _DocumentLink(label: guidelinesLabel, onTap: onGuidelines),
+        _DocumentLink(
+          label: guidelinesLabel,
+          onTap: onGuidelines,
+          read: guidelinesRead,
+          readLabel: readLabel,
+        ),
       ],
     );
   }
 }
 
 class _DocumentLink extends StatelessWidget {
-  const _DocumentLink({required this.label, required this.onTap});
+  const _DocumentLink({
+    required this.label,
+    required this.onTap,
+    required this.read,
+    required this.readLabel,
+  });
 
   final String label;
   final VoidCallback onTap;
+  final bool read;
+  final String readLabel;
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(6),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
-        child: Text(
-          label,
-          style: const TextStyle(
-            fontSize: 15.5,
-            fontWeight: FontWeight.w600,
-            color: ArucadColors.ink,
-            decoration: TextDecoration.underline,
+    return Semantics(
+      link: true,
+      // Announces the state too, so the tick is not information only a
+      // sighted reader gets.
+      label: read ? '$label, $readLabel' : label,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(6),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (read) ...[
+                const Icon(Icons.check_circle,
+                    size: 17, color: Color(0xFF2E7D4F)),
+                const SizedBox(width: 6),
+              ],
+              // Flexible, not bare: adding the tick to the row costs
+              // horizontal space, and the Russian labels are close to twice
+              // the width of the English ones. Without this the row
+              // overflows on a narrow phone.
+              Flexible(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 15.5,
+                    fontWeight: FontWeight.w600,
+                    color: ArucadColors.ink,
+                    decoration:
+                        read ? TextDecoration.none : TextDecoration.underline,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -386,16 +470,20 @@ class _ConsentCheckbox extends StatelessWidget {
     required this.value,
     required this.label,
     required this.onChanged,
+    this.enabled = true,
   });
 
   final bool value;
   final String label;
   final ValueChanged<bool?> onChanged;
 
+  /// False until both documents have been read.
+  final bool enabled;
+
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: () => onChanged(!value),
+      onTap: enabled ? () => onChanged(!value) : null,
       borderRadius: BorderRadius.circular(10),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 6),
@@ -407,7 +495,7 @@ class _ConsentCheckbox extends StatelessWidget {
               height: 26,
               child: Checkbox(
                 value: value,
-                onChanged: onChanged,
+                onChanged: enabled ? onChanged : null,
                 materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 visualDensity: VisualDensity.compact,
                 shape: RoundedRectangleBorder(
@@ -420,10 +508,10 @@ class _ConsentCheckbox extends StatelessWidget {
             Expanded(
               child: Text(
                 label,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 15.5,
                   height: 1.4,
-                  color: ArucadColors.ink,
+                  color: enabled ? ArucadColors.ink : ArucadColors.muted,
                 ),
               ),
             ),

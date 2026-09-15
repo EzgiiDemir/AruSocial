@@ -3214,6 +3214,160 @@ class AppStrings {
       AppLanguage.en: 'My location visibility',
       AppLanguage.ru: 'Видимость моего местоположения'
     },
+    // Reading the policies before consenting.
+    'legal_scroll_to_end': {
+      AppLanguage.tr: 'Sonuna kadar kaydır',
+      AppLanguage.en: 'Scroll to the end',
+      AppLanguage.ru: 'Прокрутите до конца'
+    },
+    'consent_read_first': {
+      AppLanguage.tr: 'Devam etmeden önce iki belgeyi de açıp sonuna kadar oku.',
+      AppLanguage.en: 'Open both documents and read them to the end before continuing.',
+      AppLanguage.ru: 'Откройте оба документа и прочитайте их до конца, прежде чем продолжить.'
+    },
+    'consent_doc_read': {
+      AppLanguage.tr: 'Okundu',
+      AppLanguage.en: 'Read',
+      AppLanguage.ru: 'Прочитано'
+    },
+
+    // Post framing, the carousel composer and alt text.
+    'story_overlay_add': {
+      AppLanguage.tr: 'Yazı ekle',
+      AppLanguage.en: 'Add text',
+      AppLanguage.ru: 'Добавить текст'
+    },
+    'story_overlay_text': {
+      AppLanguage.tr: 'Yazı',
+      AppLanguage.en: 'Text',
+      AppLanguage.ru: 'Текст'
+    },
+    'story_overlay_size': {
+      AppLanguage.tr: 'Boyut',
+      AppLanguage.en: 'Size',
+      AppLanguage.ru: 'Размер'
+    },
+    'story_overlay_position': {
+      AppLanguage.tr: 'Konum',
+      AppLanguage.en: 'Position',
+      AppLanguage.ru: 'Положение'
+    },
+    'story_overlay_limit': {
+      AppLanguage.tr: 'En fazla 12 yazı ekleyebilirsin.',
+      AppLanguage.en: 'You can add at most 12 pieces of text.',
+      AppLanguage.ru: 'Можно добавить не более 12 надписей.'
+    },
+    'story_paused': {
+      AppLanguage.tr: 'Duraklatıldı',
+      AppLanguage.en: 'Paused',
+      AppLanguage.ru: 'Пауза'
+    },
+    'frame_title': {
+      AppLanguage.tr: 'Çerçeve',
+      AppLanguage.en: 'Framing',
+      AppLanguage.ru: 'Кадрирование'
+    },
+    'frame_explain': {
+      AppLanguage.tr: 'Fotoğrafın kendisi değişmez. Sadece nasıl görüneceğini seçersin.',
+      AppLanguage.en: 'The photo itself never changes. You only choose how it is shown.',
+      AppLanguage.ru: 'Само фото не меняется. Вы выбираете только то, как оно показано.'
+    },
+    'frame_ratio': {
+      AppLanguage.tr: 'Oran',
+      AppLanguage.en: 'Ratio',
+      AppLanguage.ru: 'Соотношение'
+    },
+    'frame_ratio_original': {
+      AppLanguage.tr: 'Orijinal',
+      AppLanguage.en: 'Original',
+      AppLanguage.ru: 'Оригинал'
+    },
+    'frame_ratio_square': {
+      AppLanguage.tr: 'Kare (1:1)',
+      AppLanguage.en: 'Square (1:1)',
+      AppLanguage.ru: 'Квадрат (1:1)'
+    },
+    'frame_ratio_portrait': {
+      AppLanguage.tr: 'Dikey (4:5)',
+      AppLanguage.en: 'Portrait (4:5)',
+      AppLanguage.ru: 'Портрет (4:5)'
+    },
+    'frame_fit_mode': {
+      AppLanguage.tr: 'Doldur / sığdır',
+      AppLanguage.en: 'Fill / fit',
+      AppLanguage.ru: 'Заполнить / вписать'
+    },
+    'frame_fit_whole': {
+      AppLanguage.tr: 'Tümünü göster',
+      AppLanguage.en: 'Show all of it',
+      AppLanguage.ru: 'Показать целиком'
+    },
+    'frame_fit_fill': {
+      AppLanguage.tr: 'Çerçeveyi doldur',
+      AppLanguage.en: 'Fill the frame',
+      AppLanguage.ru: 'Заполнить кадр'
+    },
+    'frame_background': {
+      AppLanguage.tr: 'Arka plan',
+      AppLanguage.en: 'Background',
+      AppLanguage.ru: 'Фон'
+    },
+    'frame_background_color': {
+      AppLanguage.tr: 'Arka plan rengi',
+      AppLanguage.en: 'Background colour',
+      AppLanguage.ru: 'Цвет фона'
+    },
+    'frame_reset': {
+      AppLanguage.tr: 'Sıfırla',
+      AppLanguage.en: 'Reset',
+      AppLanguage.ru: 'Сбросить'
+    },
+    'frame_apply': {
+      AppLanguage.tr: 'Uygula',
+      AppLanguage.en: 'Apply',
+      AppLanguage.ru: 'Применить'
+    },
+    'compose_remove_photo': {
+      AppLanguage.tr: 'Kaldır',
+      AppLanguage.en: 'Remove',
+      AppLanguage.ru: 'Убрать'
+    },
+    'compose_move_up': {
+      AppLanguage.tr: 'Yukarı taşı',
+      AppLanguage.en: 'Move up',
+      AppLanguage.ru: 'Переместить вверх'
+    },
+    'compose_move_down': {
+      AppLanguage.tr: 'Aşağı taşı',
+      AppLanguage.en: 'Move down',
+      AppLanguage.ru: 'Переместить вниз'
+    },
+    'compose_alt_hint': {
+      AppLanguage.tr: 'Alternatif metin — görseli göremeyenler için',
+      AppLanguage.en: 'Alt text — for people who cannot see the image',
+      AppLanguage.ru: 'Альтернативный текст — для тех, кто не видит изображение'
+    },
+    'compose_not_an_image': {
+      AppLanguage.tr: 'Bu dosya bir görsel olarak açılamadı.',
+      AppLanguage.en: 'This file could not be opened as an image.',
+      AppLanguage.ru: 'Этот файл не удалось открыть как изображение.'
+    },
+    'compose_low_resolution': {
+      AppLanguage.tr: 'Bu fotoğraf düşük çözünürlüklü ve akışta bulanık görünebilir.',
+      AppLanguage.en: 'This photo is low resolution and may look blurry in the feed.',
+      AppLanguage.ru: 'Это фото низкого разрешения и может выглядеть размытым в ленте.'
+    },
+    'compose_add_more_photos': {
+      AppLanguage.tr: 'Fotoğraf ekle',
+      AppLanguage.en: 'Add a photo',
+      AppLanguage.ru: 'Добавить фото'
+    },
+    'post_share_failed': {
+      AppLanguage.tr: 'Gönderi paylaşılamadı.',
+      AppLanguage.en: 'The post could not be shared.',
+      AppLanguage.ru: 'Не удалось опубликовать запись.'
+    },
+
     'pr_admin_panel': {
       AppLanguage.tr: 'Yönetim paneli',
       AppLanguage.en: 'Admin panel',

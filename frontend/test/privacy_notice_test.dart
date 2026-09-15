@@ -64,6 +64,26 @@ void main() {
         home: PrivacyNoticeScreen(onAccept: () async {}, language: language),
       );
 
+  /// Opens each document, scrolls it to the bottom and comes back.
+  ///
+  /// This is what the consent gate now requires, so almost every test that
+  /// wants to reach the app has to do it. On the very tall test surface a
+  /// document may already fit without scrolling, which counts as read —
+  /// the drag is harmless in that case.
+  Future<void> readBothDocuments(WidgetTester tester) async {
+    for (final label in ['Privacy Policy', 'Community Guidelines']) {
+      await tester.tap(find.text(label));
+      await settle(tester);
+
+      // Far enough to reach the end of any of these documents.
+      await tester.drag(find.byType(ListView).last, const Offset(0, -20000));
+      await settle(tester);
+
+      await tester.pageBack();
+      await settle(tester);
+    }
+  }
+
   // ---- the part with legal weight ------------------------------------
 
   testWidgets('Continue does nothing until the box is ticked', (tester) async {
@@ -82,6 +102,7 @@ void main() {
 
   testWidgets('ticking the box and continuing opens the app', (tester) async {
     await show(tester, gate());
+    await readBothDocuments(tester);
 
     await tester.tap(find.byType(Checkbox));
     await settle(tester);
@@ -100,6 +121,7 @@ void main() {
   /// a phone, and this is the only control between a student and the app.
   testWidgets('tapping the label toggles the checkbox', (tester) async {
     await show(tester, gate());
+    await readBothDocuments(tester);
 
     await tester.tap(find.textContaining('I have read and agree'));
     await settle(tester);
@@ -109,6 +131,7 @@ void main() {
 
   testWidgets('acceptance survives a relaunch', (tester) async {
     await show(tester, gate());
+    await readBothDocuments(tester);
     await tester.tap(find.byType(Checkbox));
     await settle(tester);
     await tester.tap(find.byType(FilledButton));
@@ -118,6 +141,107 @@ void main() {
     await show(tester, gate());
 
     expect(find.text('Behind the gate'), findsOneWidget);
+  });
+
+  // ---- reading the documents before agreeing ---------------------------
+
+  /// The point of the whole gate: consent recorded from someone who tapped
+  /// a link and came straight back is not evidence that they were told
+  /// anything.
+  testWidgets('the box cannot be ticked before either document is read',
+      (tester) async {
+    await show(tester, gate());
+
+    expect(tester.widget<Checkbox>(find.byType(Checkbox)).onChanged, isNull,
+        reason: 'The box was tickable before anything had been read.');
+
+    await tester.tap(find.byType(Checkbox), warnIfMissed: false);
+    await settle(tester);
+
+    expect(tester.widget<Checkbox>(find.byType(Checkbox)).value, isFalse);
+    expect(tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
+        isNull);
+  });
+
+  testWidgets('reading only one document is not enough', (tester) async {
+    await show(tester, gate());
+
+    await tester.tap(find.text('Privacy Policy'));
+    await settle(tester);
+    await tester.drag(find.byType(ListView).last, const Offset(0, -20000));
+    await settle(tester);
+    await tester.pageBack();
+    await settle(tester);
+
+    expect(tester.widget<Checkbox>(find.byType(Checkbox)).onChanged, isNull,
+        reason: 'One document read should not unlock consent.');
+  });
+
+  testWidgets('reading both documents unlocks the box', (tester) async {
+    await show(tester, gate());
+    await readBothDocuments(tester);
+
+    expect(tester.widget<Checkbox>(find.byType(Checkbox)).onChanged, isNotNull);
+
+    // Still not through: reading is not the same as agreeing.
+    expect(tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
+        isNull);
+  });
+
+  testWidgets('a document that has been read is marked as read',
+      (tester) async {
+    await show(tester, gate());
+
+    expect(find.byIcon(Icons.check_circle), findsNothing);
+
+    await readBothDocuments(tester);
+
+    expect(find.byIcon(Icons.check_circle), findsNWidgets(2));
+  });
+
+  testWidgets('the screen says why the box is not yet tickable',
+      (tester) async {
+    await show(tester, screenIn(AppLanguage.en));
+
+    expect(
+      find.textContaining('read them to the end'),
+      findsOneWidget,
+      reason: 'A disabled control with no explanation reads as a bug.',
+    );
+  });
+
+  testWidgets('the explanation goes away once both are read', (tester) async {
+    await show(tester, gate());
+    await readBothDocuments(tester);
+
+    expect(find.textContaining('read them to the end'), findsNothing);
+  });
+
+  /// Only while a consent flow is waiting. Opened from Settings there is
+  /// nothing to unlock and the prompt would just be nagging.
+  testWidgets('the scroll prompt appears only when consent is waiting',
+      (tester) async {
+    await show(tester, screenIn(AppLanguage.en));
+    await tester.tap(find.text('Privacy Policy'));
+    await settle(tester);
+
+    expect(find.text('Scroll to the end'), findsOneWidget);
+
+    await tester.pageBack();
+    await settle(tester);
+
+    await show(
+      tester,
+      const MaterialApp(
+        home: LegalDocumentScreen(
+          title: 'Privacy Policy',
+          assetPath: 'assets/legal/privacy.md',
+          language: AppLanguage.en,
+        ),
+      ),
+    );
+
+    expect(find.text('Scroll to the end'), findsNothing);
   });
 
   // ---- what is on the screen -------------------------------------------

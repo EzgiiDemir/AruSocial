@@ -14,13 +14,14 @@ import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
 /// The back button is an ordinary [AppBar] leading, so the system back
 /// gesture and the on-screen control do the same thing and neither strands
 /// anyone on the document.
-class LegalDocumentScreen extends StatelessWidget {
+class LegalDocumentScreen extends StatefulWidget {
   const LegalDocumentScreen({
     super.key,
     required this.title,
     required this.assetPath,
     this.publicUrl,
     this.language,
+    this.onReadToEnd,
   });
 
   final String title;
@@ -38,6 +39,18 @@ class LegalDocumentScreen extends StatelessWidget {
   /// otherwise a document opened from there would arrive in a different
   /// language from the screen that linked to it.
   final AppLanguage? language;
+
+  /// Called once the reader has reached the bottom of the document.
+  ///
+  /// The consent screen uses this to decide whether someone has actually
+  /// been through the text, rather than only tapping a link and coming
+  /// straight back. It fires at most once, and fires immediately for a
+  /// document short enough to fit on screen — otherwise a short policy
+  /// would be impossible to finish reading.
+  final VoidCallback? onReadToEnd;
+
+  @override
+  State<LegalDocumentScreen> createState() => _LegalDocumentScreenState();
 
   /// The document in [language], falling back to the Turkish original.
   ///
@@ -67,9 +80,49 @@ class LegalDocumentScreen extends StatelessWidget {
     return source.loadString(assetPath);
   }
 
+}
+
+class _LegalDocumentScreenState extends State<LegalDocumentScreen> {
+  final _scroll = ScrollController();
+  bool _reachedEnd = false;
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  /// Within a line or so of the bottom counts as the bottom.
+  ///
+  /// Requiring the very last pixel makes this feel broken on a device
+  /// whose overscroll settles a fraction short.
+  static const _slack = 24.0;
+
+  void _markRead() {
+    if (_reachedEnd) return;
+    setState(() => _reachedEnd = true);
+    widget.onReadToEnd?.call();
+  }
+
+  bool _onScroll(ScrollNotification notification) {
+    final metrics = notification.metrics;
+    if (metrics.pixels >= metrics.maxScrollExtent - _slack) _markRead();
+
+    return false;
+  }
+
+  /// A document that does not scroll has already been read in full.
+  void _checkFitsWithoutScrolling() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scroll.hasClients) return;
+      if (_scroll.position.maxScrollExtent <= _slack) _markRead();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    final resolved = language ?? AppLocale.languageOf(context);
+    final resolved = widget.language ?? AppLocale.languageOf(context);
+    final strings = AppStrings(resolved);
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -93,21 +146,28 @@ class LegalDocumentScreen extends StatelessWidget {
         ),
       ),
       body: FutureBuilder<String>(
-        future: loadFor(assetPath, resolved),
+        future: LegalDocumentScreen.loadFor(widget.assetPath, resolved),
         builder: (context, snap) {
           if (!snap.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          return Align(
+          _checkFitsWithoutScrolling();
+
+          return Stack(
+            children: [
+              Align(
             alignment: Alignment.topCenter,
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 640),
-              child: ListView(
+              child: NotificationListener<ScrollNotification>(
+                onNotification: _onScroll,
+                child: ListView(
+                controller: _scroll,
                 padding: const EdgeInsets.fromLTRB(24, 8, 24, 48),
                 children: [
                   Text(
-                    title,
+                    widget.title,
                     style: const TextStyle(
                       fontSize: 28,
                       height: 1.15,
@@ -116,11 +176,11 @@ class LegalDocumentScreen extends StatelessWidget {
                       color: ArucadColors.ink,
                     ),
                   ),
-                  if (publicUrl != null && publicUrl!.isNotEmpty)
+                  if (widget.publicUrl != null && widget.publicUrl!.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(top: 8),
                       child: Text(
-                        '${AppStrings(resolved).t('legal_public_url')}: $publicUrl',
+                        '${strings.t('legal_public_url')}: ${widget.publicUrl}',
                         style: const TextStyle(
                           color: ArucadColors.muted,
                           fontSize: 12,
@@ -130,8 +190,21 @@ class LegalDocumentScreen extends StatelessWidget {
                   const SizedBox(height: 20),
                   ...LegalMarkdown.render(snap.data!),
                 ],
+                ),
               ),
             ),
+          ),
+              // Only while it matters: this screen is also opened from
+              // Settings, where nothing is waiting on the reader and a
+              // "scroll down" prompt would just be nagging.
+              if (widget.onReadToEnd != null && !_reachedEnd)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 16,
+                  child: Center(child: _ScrollCue(label: strings.t('legal_scroll_to_end'))),
+                ),
+            ],
           );
         },
       ),
@@ -272,6 +345,43 @@ class _Bullet extends StatelessWidget {
       decoration: const BoxDecoration(
         color: Color(0xFF9AA2B1),
         shape: BoxShape.circle,
+      ),
+    );
+  }
+}
+
+
+/// A nudge that the document has more below, shown only while a consent
+/// flow is waiting on it being read.
+class _ScrollCue extends StatelessWidget {
+  const _ScrollCue({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: ArucadColors.ink,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.arrow_downward, size: 15, color: Colors.white),
+            const SizedBox(width: 7),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

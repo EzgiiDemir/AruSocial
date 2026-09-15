@@ -10,7 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// store release, and is invisible to the panel's missing-translation
 /// warning — it looks complete while being permanently Turkish.
 ///
-/// This is a **ratchet, not a clean sweep.** There are already 395 of them,
+/// This is a **ratchet, not a clean sweep.** There are already 391 of them,
 /// and rewriting all 395 today would be a large, risky change unrelated to
 /// whatever else is in flight. So the count is recorded: it may fall, it
 /// may not rise. New screens are translated from the start, and the debt
@@ -19,10 +19,14 @@ import 'package:flutter_test/flutter_test.dart';
 /// When you fix some, run the test — it tells you the new number to put in
 /// [baseline].
 void main() {
-  /// Known hardcoded literals as of 14 September 2026.
+  /// Known hardcoded literals as of 15 September 2026.
+  ///
+  /// Fell from 395 when the post composer and framing editor were written
+  /// against the translation table from the start, and the old crop sheet
+  /// they replaced was deleted.
   ///
   /// Lower this when you fix some. Never raise it.
-  const baseline = 395;
+  const baseline = 391;
 
   /// `Text('four or more characters')`, single or double quoted.
   ///

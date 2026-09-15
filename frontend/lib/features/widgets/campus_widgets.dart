@@ -8,6 +8,7 @@ import 'package:arucad_campus_prototype/core/models/staff_application.dart';
 import 'package:arucad_campus_prototype/core/services/contracts.dart';
 import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
 import 'package:arucad_campus_prototype/core/theme/campus_density.dart';
+import 'package:arucad_campus_prototype/core/utils/relative_time.dart';
 import 'package:arucad_campus_prototype/features/home/event_detail_screen.dart';
 import 'package:arucad_campus_prototype/features/home/event_join_sheet.dart';
 
@@ -16,6 +17,82 @@ export 'package:arucad_campus_prototype/core/theme/campus_density.dart';
 /// Standard page size for every "show N, then load more" list in the app —
 /// dumping everything into one screen doesn't scale as real data grows.
 const kPageSize = 5;
+
+/// Identical, full-width page chrome for the application's primary sections.
+/// It stays on one row at phone widths, clips long titles safely, and keeps
+/// the tappable controls at least 44 px high.
+class CampusPageHeader extends StatelessWidget {
+  final String title;
+  final Widget? leading;
+  final List<Widget> actions;
+  final bool includeTopSafeArea;
+
+  const CampusPageHeader({
+    super.key,
+    required this.title,
+    this.leading,
+    this.actions = const [],
+    this.includeTopSafeArea = true,
+  });
+
+  static const double height = 56;
+
+  @override
+  Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 380;
+    final row = SizedBox(
+      width: double.infinity,
+      height: height,
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: compact ? 10 : 12),
+        child: Row(
+          children: [
+            if (leading != null) ...[
+              SizedBox(
+                height: 44,
+                child: Center(child: leading),
+              ),
+              SizedBox(width: compact ? 4 : 8),
+            ],
+            Expanded(
+              child: Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: ArucadFonts.oswald,
+                  color: ArucadColors.ink,
+                  fontSize: compact ? 20 : 22,
+                  fontWeight: FontWeight.w700,
+                  height: 1.1,
+                ),
+              ),
+            ),
+            if (actions.isNotEmpty) ...[
+              SizedBox(width: compact ? 4 : 8),
+              ...actions,
+            ],
+          ],
+        ),
+      ),
+    );
+
+    final content = IconTheme(
+      data: const IconThemeData(color: ArucadColors.ink),
+      child: DefaultTextStyle.merge(
+        style: const TextStyle(color: ArucadColors.ink),
+        child: row,
+      ),
+    );
+
+    return ColoredBox(
+      color: ArucadColors.paper,
+      child: includeTopSafeArea
+          ? SafeArea(bottom: false, child: content)
+          : content,
+    );
+  }
+}
 
 /// A [ChoiceChip] with guaranteed contrast: a solid brand fill
 /// with white (or ink, on yellow) text when selected.
@@ -141,17 +218,17 @@ class LoadMoreButton extends StatelessWidget {
 
 class BrandMark extends StatelessWidget {
   final double height;
-  const BrandMark({super.key, this.height = 30});
+  final bool showWordmark;
+  const BrandMark({
+    super.key,
+    this.height = 30,
+    this.showWordmark = true,
+  });
 
   @override
   Widget build(BuildContext context) {
-    // Real fix: the app's own product identity is "ARUVERSE" (see
-    // AppConfig.appName), not the ARUCAD institutional wordmark — the Home
-    // header had drifted onto the wrong asset. Follows the app's theme
-    // brightness since a dedicated dark-mode emblem exists. The wordmark
-    // next to the emblem was missing entirely — the icon alone doesn't
-    // name the product.
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    // ARUVERSE is the product identity. Keep the regular/light-mode emblem
+    // in every theme; only the surrounding header surface changes.
     return Align(
       alignment: Alignment.centerLeft,
       child: FittedBox(
@@ -162,23 +239,23 @@ class BrandMark extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Image.asset(
-              isDark
-                  ? 'assets/images/aruverse_emblem_dark.png'
-                  : 'assets/images/aruverse_emblem.png',
+              'assets/images/aruverse_emblem.png',
               height: height,
               filterQuality: FilterQuality.high,
             ),
-            SizedBox(width: height * 0.28),
-            Text(
-              'ARUVERSE',
-              style: TextStyle(
-                fontSize: height * 0.62,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 0.6,
-                height: 1,
-                color: isDark ? Colors.white : ArucadColors.ink,
+            if (showWordmark) ...[
+              SizedBox(width: height * 0.28),
+              Text(
+                'ARUVERSE',
+                style: TextStyle(
+                  fontSize: height * 0.62,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0.6,
+                  height: 1,
+                  color: ArucadColors.ink,
+                ),
               ),
-            ),
+            ],
           ],
         ),
       ),
@@ -212,8 +289,8 @@ class SearchCard extends StatelessWidget {
           const SizedBox(width: 12),
           Expanded(
               child: Text(AppLocale.of(context).t('home_search_hint'),
-                  style: TextStyle(
-                      fontSize: 15, color: scheme.onSurfaceVariant))),
+                  style:
+                      TextStyle(fontSize: 15, color: scheme.onSurfaceVariant))),
           Icon(Icons.arrow_forward_ios,
               size: 15, color: scheme.onSurfaceVariant),
         ]),
@@ -236,27 +313,26 @@ class MiniStat extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-            color: scheme.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(18)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-                color: scheme.surface, borderRadius: BorderRadius.circular(12)),
-            child: Icon(icon, size: 18, color: ArucadColors.primary),
-          ),
-          const SizedBox(height: 10),
-          Text(value,
-              style:
-                  const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
-          const SizedBox(height: 4),
-          Text(label,
-              style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
-        ]),
-      );
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+          color: scheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(18)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+              color: scheme.surface, borderRadius: BorderRadius.circular(12)),
+          child: Icon(icon, size: 18, color: ArucadColors.primary),
+        ),
+        const SizedBox(height: 10),
+        Text(value,
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+        const SizedBox(height: 4),
+        Text(label,
+            style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
+      ]),
+    );
   }
 }
 
@@ -276,24 +352,30 @@ class SectionHeader extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) => Row(children: [
-        Expanded(
-            child: Text(title,
-                style: const TextStyle(
-                    fontWeight: FontWeight.w900, fontSize: 18))),
-        if (actionIcon == null)
-          TextButton(
-              style: TextButton.styleFrom(foregroundColor: actionColor),
-              onPressed: onTap,
-              child: Text(action))
-        else
-          TextButton.icon(
-            style: TextButton.styleFrom(foregroundColor: actionColor),
-            onPressed: onTap,
-            icon: Icon(actionIcon, size: 16),
-            label: Text(action),
-          ),
-      ]);
+  Widget build(BuildContext context) {
+    // The action reads as a link, not a button: on web the default
+    // TextButton overlay painted a grey slab behind "Tümü" on hover,
+    // which looked like a stray box floating over the section.
+    final style = TextButton.styleFrom(
+      foregroundColor: actionColor,
+    ).copyWith(overlayColor: const WidgetStatePropertyAll(Colors.transparent));
+
+    return Row(children: [
+      Expanded(
+          child: Text(title,
+              style:
+                  const TextStyle(fontWeight: FontWeight.w900, fontSize: 18))),
+      if (actionIcon == null)
+        TextButton(style: style, onPressed: onTap, child: Text(action))
+      else
+        TextButton.icon(
+          style: style,
+          onPressed: onTap,
+          icon: Icon(actionIcon, size: 16),
+          label: Text(action),
+        ),
+    ]);
+  }
 }
 
 class TrendTile extends StatelessWidget {
@@ -327,8 +409,9 @@ class TrendTile extends StatelessWidget {
     return SizedBox(
       width: 220,
       child: Card(
-        color:
-            accentIconTextOnly ? Theme.of(context).colorScheme.surface : accent.withValues(alpha: .06),
+        color: accentIconTextOnly
+            ? Theme.of(context).colorScheme.surface
+            : accent.withValues(alpha: .06),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(22),
           side: accentIconTextOnly
@@ -500,7 +583,12 @@ class _EventCardState extends State<EventCard> {
     // The time badge and the join button are solid fills, so they use the
     // darkened variant that white text can sit on. `accent` itself stays
     // the original hue for outlines and text-on-white.
-    final fill = accentFill(accent);
+    // Keep the approved ARUCAD yellow visibly yellow. Darkening it until
+    // white text passes contrast turned the event control brown; yellow is
+    // already accessible with the ink foreground returned by onAccent.
+    final fill = accent == ArucadColors.yellow
+        ? ArucadColors.yellow
+        : accentFill(accent);
     final onFill = onAccent(fill);
     return Card(
       color: ArucadColors.paper,
@@ -610,35 +698,96 @@ class PlaceLineArt {
 /// canonical places (for example the alternate The Garden record).
 PlaceLineArt? placeLineArt(String name) {
   final n = name.toLowerCase();
-  if (n.contains('ana kampüs') || n.contains('ana kampus') ||
+  if (n.contains('ana kampüs') ||
+      n.contains('ana kampus') ||
       n.contains('main campus entrance')) {
-    return const PlaceLineArt('assets/images/places/01-main-campus-entrance.png', ArucadColors.campusGreen);
+    return const PlaceLineArt(
+        'assets/images/places/01-main-campus-entrance.png',
+        ArucadColors.campusGreen);
   }
   if (n.contains('rodin') && !n.contains('gallery')) {
-    return const PlaceLineArt('assets/images/places/02-rodin.png', ArucadColors.campusGreen);
+    return const PlaceLineArt(
+        'assets/images/places/02-rodin.png', ArucadColors.campusGreen);
   }
-  if (n.contains('falling man')) return const PlaceLineArt('assets/images/places/03-falling-man.png', ArucadColors.campusGreen);
-  if (n.contains('titan')) return const PlaceLineArt('assets/images/places/04-titan.png', ArucadColors.campusGreen);
-  if (n == 'eve' || n.contains(' eve')) return const PlaceLineArt('assets/images/places/05-eve.png', ArucadColors.campusGreen);
-  if (n.contains('daniele')) return const PlaceLineArt('assets/images/places/06-daniele.png', ArucadColors.campusGreen);
-  if (n.contains('eternal spring')) return const PlaceLineArt('assets/images/places/07-eternal-spring.png', ArucadColors.campusGreen);
-  if (n.contains('meditation')) return const PlaceLineArt('assets/images/places/08-meditation.png', ArucadColors.campusGreen);
-  if (n.contains('minotaur')) return const PlaceLineArt('assets/images/places/09-minotaur.png', ArucadColors.campusGreen);
-  if (n.contains('eternal idol')) return const PlaceLineArt('assets/images/places/10-eternal-idol.png', ArucadColors.campusGreen);
-  if (n.contains('kiss')) return const PlaceLineArt('assets/images/places/11-the-kiss.png', ArucadColors.orange);
-  if (n.contains('garden')) return const PlaceLineArt('assets/images/places/12-the-garden.png', ArucadColors.lavender);
-  if (n.contains('carpentry')) return const PlaceLineArt('assets/images/places/13-carpentry-studio.png', ArucadColors.campusGreen);
-  if (n.contains('arkin rodin')) return const PlaceLineArt('assets/images/places/14-arkin-rodin-collection-gallery.png', ArucadColors.campusGreen);
-  if (n.contains('dormitory')) return const PlaceLineArt('assets/images/places/15-arucad-dormitory.png', ArucadColors.campusGreen);
-  if (n.contains('bandabuliya')) return const PlaceLineArt('assets/images/places/16-nicosia-bandabuliya-campus.png', ArucadColors.campusGreen);
-  if (n.contains('art space')) return const PlaceLineArt('assets/images/places/17-arucad-art-space.png', ArucadColors.campusGreen);
-  if (n.contains('age of bronze')) return const PlaceLineArt('assets/images/places/18-age-of-bronze.png', ArucadColors.campusGreen);
+  if (n.contains('falling man')) {
+    return const PlaceLineArt(
+        'assets/images/places/03-falling-man.png', ArucadColors.campusGreen);
+  }
+  if (n.contains('titan')) {
+    return const PlaceLineArt(
+        'assets/images/places/04-titan.png', ArucadColors.campusGreen);
+  }
+  if (n == 'eve' || n.contains(' eve')) {
+    return const PlaceLineArt(
+        'assets/images/places/05-eve.png', ArucadColors.campusGreen);
+  }
+  if (n.contains('daniele')) {
+    return const PlaceLineArt(
+        'assets/images/places/06-daniele.png', ArucadColors.campusGreen);
+  }
+  if (n.contains('eternal spring')) {
+    return const PlaceLineArt(
+        'assets/images/places/07-eternal-spring.png', ArucadColors.campusGreen);
+  }
+  if (n.contains('meditation')) {
+    return const PlaceLineArt(
+        'assets/images/places/08-meditation.png', ArucadColors.campusGreen);
+  }
+  if (n.contains('minotaur')) {
+    return const PlaceLineArt(
+        'assets/images/places/09-minotaur.png', ArucadColors.campusGreen);
+  }
+  if (n.contains('eternal idol')) {
+    return const PlaceLineArt(
+        'assets/images/places/10-eternal-idol.png', ArucadColors.campusGreen);
+  }
+  if (n.contains('kiss')) {
+    return const PlaceLineArt(
+        'assets/images/places/11-the-kiss.png', ArucadColors.orange);
+  }
+  if (n.contains('garden')) {
+    return const PlaceLineArt(
+        'assets/images/places/12-the-garden.png', ArucadColors.lavender);
+  }
+  if (n.contains('carpentry')) {
+    return const PlaceLineArt('assets/images/places/13-carpentry-studio.png',
+        ArucadColors.campusGreen);
+  }
+  if (n.contains('arkin rodin')) {
+    return const PlaceLineArt(
+        'assets/images/places/14-arkin-rodin-collection-gallery.png',
+    ArucadColors.campusGreen);
+  }
+  if (n.contains('dormitory')) {
+    return const PlaceLineArt('assets/images/places/15-arucad-dormitory.png',
+        ArucadColors.campusGreen);
+  }
+  if (n.contains('bandabuliya')) {
+    return const PlaceLineArt(
+        'assets/images/places/16-nicosia-bandabuliya-campus.png',
+    ArucadColors.campusGreen);
+  }
+  if (n.contains('art space')) {
+    return const PlaceLineArt('assets/images/places/17-arucad-art-space.png',
+        ArucadColors.campusGreen);
+  }
+  if (n.contains('age of bronze')) {
+    return const PlaceLineArt(
+        'assets/images/places/18-age-of-bronze.png', ArucadColors.campusGreen);
+  }
   if (n.contains('art rooms')) {
     return const PlaceLineArt(
         'assets/images/places/19-art-rooms.png', ArucadColors.campusGreen);
   }
-  if (n.contains('iris')) return const PlaceLineArt('assets/images/places/20-iris-atelier-building.png', ArucadColors.campusGreen);
-  if (n.contains('workshops')) return const PlaceLineArt('assets/images/places/21-arucad-workshops.png', ArucadColors.campusGreen);
+  if (n.contains('iris')) {
+    return const PlaceLineArt(
+        'assets/images/places/20-iris-atelier-building.png',
+    ArucadColors.campusGreen);
+  }
+  if (n.contains('workshops')) {
+    return const PlaceLineArt('assets/images/places/21-arucad-workshops.png',
+        ArucadColors.campusGreen);
+  }
   return null;
 }
 
@@ -925,35 +1074,37 @@ class ActivityTile extends StatelessWidget {
   final ActivityItem item;
   const ActivityTile({super.key, required this.item});
 
-  (IconData, Color) _visual(ColorScheme scheme) => switch (item.kind) {
-        ActivityKind.checkIn => (Icons.verified_outlined, ArucadColors.blue),
-        ActivityKind.eventJoin => (
-            Icons.event_available_outlined,
-            ArucadColors.campusGreen
-          ),
-        ActivityKind.review => (Icons.star_outline, ArucadColors.yellow),
-        ActivityKind.comment => (
-            Icons.mode_comment_outlined,
-            scheme.onSurface
-          ),
-        ActivityKind.like => (Icons.favorite_outline, ArucadColors.primary),
-        ActivityKind.report => (Icons.flag_outlined, ArucadColors.warning),
+  IconData get _icon => switch (item.kind) {
+        ActivityKind.checkIn => Icons.verified_outlined,
+        ActivityKind.eventJoin => Icons.event_available_outlined,
+        ActivityKind.review => Icons.star_outline,
+        ActivityKind.comment => Icons.mode_comment_outlined,
+        ActivityKind.like => Icons.favorite_outline,
+        ActivityKind.report => Icons.flag_outlined,
       };
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final (icon, color) = _visual(scheme);
+    const color = ArucadColors.campusGreen;
     return ListTile(
       leading: CircleAvatar(
           backgroundColor: color.withValues(alpha: .14),
-          child: Icon(icon, color: color, size: 20)),
+          child: Icon(_icon, color: color, size: 20)),
       title:
           Text(item.title, style: const TextStyle(fontWeight: FontWeight.w800)),
       subtitle:
           Text(item.subtitle, maxLines: 2, overflow: TextOverflow.ellipsis),
-      trailing: Text(item.meta,
-          style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 11)),
+      // The live timestamp, not `item.meta`. `meta` was written once at
+      // creation and never updated — and its only value was ever the
+      // literal Turkish 'az önce', so every row in the history claimed to
+      // have happened just now, in one language, forever.
+      trailing: LiveTimeAgo(
+        item.timestamp,
+        style: const TextStyle(
+            color: ArucadColors.campusGreen,
+            fontSize: 11,
+            fontWeight: FontWeight.w700),
+      ),
     );
   }
 }

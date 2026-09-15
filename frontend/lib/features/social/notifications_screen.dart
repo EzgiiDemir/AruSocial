@@ -6,6 +6,7 @@ import 'package:arucad_campus_prototype/core/models/inbox_notification.dart';
 import 'package:arucad_campus_prototype/core/models/page_slice.dart';
 import 'package:arucad_campus_prototype/core/services/contracts.dart';
 import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
+import 'package:arucad_campus_prototype/core/utils/relative_time.dart';
 import 'package:arucad_campus_prototype/features/profile/my_applications_screen.dart';
 import 'package:arucad_campus_prototype/features/social/chat_screen.dart';
 import 'package:arucad_campus_prototype/features/social/post_detail_screen.dart';
@@ -72,7 +73,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 : ArucadColors.success,
             title: n.title,
             subtitle: n.body,
-            meta: n.createdAt == null ? '' : _relativeMeta(n.createdAt!),
+            meta: '',
+            metaAt: n.createdAt,
             read: n.read,
             kind: n.kind,
             actorName: n.actorName,
@@ -154,14 +156,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           Icons.assignment_turned_in_outlined,
         _ => Icons.notifications_outlined,
       };
-
-  String _relativeMeta(DateTime at) {
-    final diff = DateTime.now().difference(at);
-    if (diff.inMinutes < 1) return 'şimdi';
-    if (diff.inHours < 1) return '${diff.inMinutes}dk';
-    if (diff.inDays < 1) return '${diff.inHours}sa';
-    return '${diff.inDays}g';
-  }
 
   IconData _activityIcon(ActivityKind kind) => switch (kind) {
         ActivityKind.checkIn => Icons.verified_outlined,
@@ -406,9 +400,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                             .onSurface)),
                             subtitle: Text(item.subtitle,
                                 maxLines: 2, overflow: TextOverflow.ellipsis),
-                            trailing: Text(item.meta,
-                                style: const TextStyle(
-                                    color: ArucadColors.muted, fontSize: 11)),
+                            trailing: item.metaAt != null
+                                ? LiveTimeAgo(item.metaAt!,
+                                    style: const TextStyle(
+                                        color: ArucadColors.muted,
+                                        fontSize: 11))
+                                : Text(item.meta,
+                                    style: const TextStyle(
+                                        color: ArucadColors.muted,
+                                        fontSize: 11)),
                             onTap: item.onTap,
                           ),
                       LoadMoreButton(
@@ -435,6 +435,11 @@ class _NotificationItem {
   final String? title;
   final String subtitle;
   final String meta;
+
+  /// When set, the trailing label is a live relative timestamp that
+  /// updates itself rather than a string frozen at build time.
+  final DateTime? metaAt;
+
   final bool? read;
   final String kind;
   final String? actorName;
@@ -447,6 +452,7 @@ class _NotificationItem {
     this.title,
     required this.subtitle,
     required this.meta,
+    this.metaAt,
     this.read,
     required this.kind,
     this.actorName,

@@ -18,7 +18,9 @@ import 'package:arucad_campus_prototype/core/models/report_reason.dart';
 import 'package:arucad_campus_prototype/features/widgets/report_sheet.dart';
 import 'package:arucad_campus_prototype/features/place/place_detail_screen.dart';
 import 'package:arucad_campus_prototype/features/social/compose_post_sheet.dart';
+import 'package:arucad_campus_prototype/core/models/story_framing.dart';
 import 'package:arucad_campus_prototype/features/social/compose_story_sheet.dart';
+import 'package:arucad_campus_prototype/features/social/framed_story_image.dart';
 import 'package:arucad_campus_prototype/features/social/notifications_screen.dart';
 import 'package:arucad_campus_prototype/features/social/post_detail_screen.dart';
 import 'package:arucad_campus_prototype/features/social/social_profile_screen.dart';
@@ -1324,15 +1326,18 @@ class _StoryViewerScreenState extends State<_StoryViewerScreen> {
                 }
               },
               child: ClipRect(
-                child: story.imageBytes != null
+                // Rendered the way the author framed it. A story published
+                // by an older build carries no framing and falls back to
+                // fill-and-crop, which is what it was published as.
+                child: story.imageBytes != null || story.imageUrl != null
                     ? SizedBox.expand(
-                        child:
-                            Image.memory(story.imageBytes!, fit: BoxFit.cover))
-                    : story.imageUrl != null
-                        ? SizedBox.expand(
-                            child: CampusNetworkImage(story.imageUrl!,
-                                fit: BoxFit.cover))
-                        : Container(
+                        child: FramedStoryImage(
+                          framing: StoryFraming.fromStyle(story.style),
+                          bytes: story.imageBytes,
+                          url: story.imageUrl,
+                        ),
+                      )
+                    : Container(
                             decoration: storyBackgroundDecoration(
                               backgroundColorValue: story.backgroundColorValue,
                               style: story.style,
@@ -1706,7 +1711,7 @@ class _PostCard extends StatelessWidget {
                 ]),
               ],
               const SizedBox(height: 6),
-              Text(formatRelativeTime(post.createdAt ?? DateTime.now()),
+              LiveTimeAgo(post.createdAt ?? DateTime.now(),
                   style:
                       const TextStyle(color: _socialSecondary, fontSize: 13)),
               const SizedBox(height: 8),

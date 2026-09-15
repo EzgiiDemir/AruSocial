@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:arucad_campus_prototype/core/auth/app_settings_store.dart';
 import 'package:arucad_campus_prototype/core/l10n/app_strings.dart';
 import 'package:arucad_campus_prototype/core/models/campus_models.dart';
+import 'package:arucad_campus_prototype/core/models/report_reason.dart';
 import 'package:arucad_campus_prototype/core/services/content_moderation.dart';
 import 'package:arucad_campus_prototype/core/services/contracts.dart';
 import 'package:arucad_campus_prototype/core/services/photo_picker_service.dart';
@@ -17,8 +18,12 @@ import 'package:arucad_campus_prototype/features/widgets/campus_avatar.dart';
 import 'package:arucad_campus_prototype/features/widgets/campus_back_button.dart';
 import 'package:arucad_campus_prototype/features/widgets/campus_network_image.dart';
 import 'package:arucad_campus_prototype/features/widgets/campus_widgets.dart';
+import 'package:arucad_campus_prototype/features/widgets/report_sheet.dart';
 
-enum _ProfileSection { posts, saved, archives, locations }
+/// The four tabs the profile shows. There is deliberately no "liked" tab:
+/// what a student has liked is their own business, and it was the one
+/// section that published a reading history back at them.
+enum _ProfileSection { posts, archives, saved, locations }
 
 /// One screen, two modes: the signed-in student's own profile (editable,
 /// full bio) when [viewedUserName] is null, or a read-only view of a
@@ -34,11 +39,17 @@ class SocialProfileScreen extends StatefulWidget {
   /// When true (own profile inside SocialShell mobile), title sits next to ☰.
   final bool titleInShell;
 
+  /// Opens app settings. Null hides the gear, which is what a profile
+  /// reached from a post or a chat should do — settings belong to the
+  /// signed-in student, not to whoever they are looking at.
+  final VoidCallback? onOpenSettings;
+
   const SocialProfileScreen({
     super.key,
     required this.repository,
     this.viewedUserName,
     this.titleInShell = false,
+    this.onOpenSettings,
   });
 
   @override
@@ -59,11 +70,17 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
   List<FeedPost> _allFeed = const [];
   int _visibleCount = kPageSize;
   _ProfileSection _section = _ProfileSection.posts;
+
+  void _selectSection(_ProfileSection section) => setState(() {
+        _section = section;
+        _visibleCount = kPageSize;
+      });
   bool _locked = false;
   CampusUser? _viewedUser;
   int _followerCount = 0;
 
-  String get _displayName => isOwn ? (_me?.name ?? '') : (widget.viewedUserName ?? '');
+  String get _displayName =>
+      isOwn ? (_me?.name ?? '') : (widget.viewedUserName ?? '');
 
   @override
   void initState() {
@@ -73,69 +90,91 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
 
   Future<void> _load() async {
     try {
-    final futures = <Future>[
-      widget.repository.getFeed(),
-      widget.repository.getLeaderboard(),
-      widget.repository.getFollowing(),
-      widget.repository.getSavedPostIds(),
-    ];
-    if (isOwn) {
-      futures.addAll([
-        widget.repository.getMe(),
-        AppSettingsStore.avatarUrl(),
-        widget.repository.getMyActivity(),
-        widget.repository.getFollowers(),
-      ]);
-    }
-    final results = await Future.wait(futures);
-    if (!mounted || !context.mounted) return;
+      final futures = <Future>[
+        widget.repository.getFeed(),
+        widget.repository.getLeaderboard(),
+        widget.repository.getFollowing(),
+        widget.repository.getSavedPostIds(),
+      ];
+      if (isOwn) {
+        futures.addAll([
+          widget.repository.getMe(),
+          AppSettingsStore.avatarUrl(),
+          widget.repository.getMyActivity(),
+          widget.repository.getFollowers(),
+        ]);
+      }
+      final results = await Future.wait(futures);
+      if (!mounted || !context.mounted) return;
 
-    final feed = results[0] as List<FeedPost>;
-    final leaderboard = results[1] as List<LeaderboardEntry>;
-    final following = results[2] as Set<String>;
-    final savedIds = results[3] as Set<String>;
+      final feed = results[0] as List<FeedPost>;
+      final leaderboard = results[1] as List<LeaderboardEntry>;
+      final following = results[2] as Set<String>;
+      final savedIds = results[3] as Set<String>;
 
-    CampusUser? me;
-    List<ActivityItem> checkIns = const [];
-    CampusUser? viewed;
-    var locked = false;
-    var followerCount = 0;
-    if (isOwn) {
-      final baseUser = results[4] as CampusUser;
-      final avatarUrl = results[5] as String?;
-      checkIns = (results[6] as List<ActivityItem>)
-          .where((a) => a.kind == ActivityKind.checkIn)
-          .toList()
-        ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
-      me = baseUser.copyWith(avatarUrl: avatarUrl ?? baseUser.avatarUrl);
-      followerCount = (results[7] as Set<String>).length;
-    } else {
-      viewed = await widget.repository.getSocialUser(widget.viewedUserName!);
-      locked = viewed?.isLocked == true;
-      followerCount = viewed?.followerCount ?? 0;
-    }
+      CampusUser? me;
+      List<ActivityItem> checkIns = const [];
+      CampusUser? viewed;
+      var locked = false;
+      var followerCount = 0;
+      if (isOwn) {
+        final baseUser = results[4] as CampusUser;
+        final avatarUrl = results[5] as String?;
+        checkIns = (results[6] as List<ActivityItem>)
+            .where((a) => a.kind == ActivityKind.checkIn)
+            .toList()
+          ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+        me = baseUser.copyWith(avatarUrl: avatarUrl ?? baseUser.avatarUrl);
+        followerCount = (results[7] as Set<String>).length;
+      } else {
+        viewed = await widget.repository.getSocialUser(widget.viewedUserName!);
+        locked = viewed?.isLocked == true;
+        followerCount = viewed?.followerCount ?? 0;
+      }
 
-    final name = isOwn ? me!.name : widget.viewedUserName!;
-    setState(() {
-      _me = me;
-      _viewedUser = viewed;
-      _locked = locked;
-      _followerCount = followerCount;
-      _avatarOverride = me?.avatarUrl ?? viewed?.avatarUrl;
-      _peer = leaderboard.where((e) => e.name == name).firstOrNull;
-      _allFeed = feed;
-      _savedIds = savedIds;
-      _posts = locked
-          ? const []
-          : feed.where((p) => !p.official && p.name == name).toList();
-      _checkIns = checkIns;
-      _following = following;
-      _loading = false;
-    });
+      final name = isOwn ? me!.name : widget.viewedUserName!;
+      setState(() {
+        _me = me;
+        _viewedUser = viewed;
+        _locked = locked;
+        _followerCount = followerCount;
+        _avatarOverride = me?.avatarUrl ?? viewed?.avatarUrl;
+        _peer = leaderboard.where((e) => e.name == name).firstOrNull;
+        _allFeed = feed;
+        _savedIds = savedIds;
+        _posts = locked
+            ? const []
+            : feed.where((p) => !p.official && p.name == name).toList();
+        _checkIns = checkIns;
+        _following = following;
+        _loading = false;
+      });
     } catch (_) {
       if (!mounted || !context.mounted) return;
       setState(() => _loading = false);
     }
+  }
+
+  /// Report this person through the shared sheet, so the reason arrives
+  /// as a category the moderator queue can group and prioritise.
+  Future<void> _reportUser(BuildContext context) async {
+    ReportReason? chosen;
+
+    final sent = await showReportSheet(
+      context,
+      targetLabel: _displayName,
+      onSubmit: (submission) async {
+        chosen = submission.reason;
+        await widget.repository.reportUser(
+          _displayName,
+          submission.description,
+          reasonCode: submission.reason.code,
+        );
+      },
+    );
+
+    if (!sent || !context.mounted || chosen == null) return;
+    showReportSentMessage(context, chosen!);
   }
 
   Future<void> _editOwnPost(FeedPost post) async {
@@ -147,7 +186,8 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
         content: TextField(controller: textC, maxLines: 5, autofocus: true),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx), child: Text(AppLocale.of(context).t('act_cancel'))),
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(AppLocale.of(context).t('act_cancel'))),
           FilledButton(
               onPressed: () => Navigator.pop(ctx, textC.text.trim()),
               child: Text(AppLocale.of(context).t('act_save'))),
@@ -198,8 +238,8 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
       await _load();
     } catch (_) {
       if (!mounted || !context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(AppLocale.of(context).t('sp_archive_failed'))));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(AppLocale.of(context).t('sp_archive_failed'))));
     }
   }
 
@@ -213,8 +253,8 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
       await _load();
     } catch (_) {
       if (!mounted || !context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(AppLocale.of(context).t('sp_unarchive_failed'))));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(AppLocale.of(context).t('sp_unarchive_failed'))));
     }
   }
 
@@ -242,8 +282,7 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
           ),
           ListTile(
             leading: Icon(Icons.delete_outline, color: ArucadColors.danger),
-            title: Text('Sil',
-                style: TextStyle(color: ArucadColors.danger)),
+            title: Text('Sil', style: TextStyle(color: ArucadColors.danger)),
             onTap: () => Navigator.pop(ctx, 'delete'),
           ),
         ]),
@@ -318,7 +357,8 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
       ),
     );
     if (choice != '__pick__' || !mounted) return;
-    final bytes = await PhotoPickerService.pick(context, imageQuality: 70, maxWidth: 480);
+    final bytes =
+        await PhotoPickerService.pick(context, imageQuality: 70, maxWidth: 480);
     if (bytes == null) return;
 
     // Refused locally before spending an upload on it.
@@ -334,11 +374,10 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
       final item =
           await widget.repository.uploadMyMedia(bytes, fileName: 'avatar.jpg');
       final remote = item.url;
-      final persisted = (remote != null &&
-              remote.isNotEmpty &&
-              !remote.startsWith('data:'))
-          ? remote
-          : item.displaySrc;
+      final persisted =
+          (remote != null && remote.isNotEmpty && !remote.startsWith('data:'))
+              ? remote
+              : item.displaySrc;
       if (!persisted.startsWith('data:')) {
         await widget.repository.updateProfileBio(avatarUrl: persisted);
       }
@@ -361,7 +400,8 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
     final yearC = TextEditingController(text: me.year ?? '');
     final universityC = TextEditingController(text: me.university ?? '');
     final clubsC = TextEditingController(text: me.clubs.join('\n'));
-    final achievementsC = TextEditingController(text: me.achievements.join('\n'));
+    final achievementsC =
+        TextEditingController(text: me.achievements.join('\n'));
     final projectsC = TextEditingController(text: me.projects.join('\n'));
 
     final saved = await showModalBottomSheet<bool>(
@@ -369,7 +409,10 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
       isScrollControlled: true,
       builder: (ctx) => Padding(
         padding: EdgeInsets.only(
-            left: 20, right: 20, top: 20, bottom: MediaQuery.of(ctx).viewInsets.bottom + 20),
+            left: 20,
+            right: 20,
+            top: 20,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 20),
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -380,14 +423,18 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
               SizedBox(height: 16),
               TextField(
                   controller: departmentC,
-                  decoration: InputDecoration(labelText: AppLocale.of(context).t('sp_department'))),
+                  decoration: InputDecoration(
+                      labelText: AppLocale.of(context).t('sp_department'))),
               SizedBox(height: 10),
               TextField(
-                  controller: yearC, decoration: InputDecoration(labelText: AppLocale.of(context).t('sp_year'))),
+                  controller: yearC,
+                  decoration: InputDecoration(
+                      labelText: AppLocale.of(context).t('sp_year'))),
               SizedBox(height: 10),
               TextField(
                   controller: universityC,
-                  decoration: InputDecoration(labelText: AppLocale.of(context).t('sp_university'))),
+                  decoration: InputDecoration(
+                      labelText: AppLocale.of(context).t('sp_university'))),
               SizedBox(height: 10),
               TextField(
                 controller: clubsC,
@@ -423,12 +470,17 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
       ),
     );
     if (saved != true) return;
-    List<String> lines(TextEditingController c) =>
-        c.text.split('\n').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+    List<String> lines(TextEditingController c) => c.text
+        .split('\n')
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
     final edits = ProfileBioEdits(
-      department: departmentC.text.trim().isEmpty ? null : departmentC.text.trim(),
+      department:
+          departmentC.text.trim().isEmpty ? null : departmentC.text.trim(),
       year: yearC.text.trim().isEmpty ? null : yearC.text.trim(),
-      university: universityC.text.trim().isEmpty ? null : universityC.text.trim(),
+      university:
+          universityC.text.trim().isEmpty ? null : universityC.text.trim(),
       clubs: lines(clubsC),
       achievements: lines(achievementsC),
       projects: lines(projectsC),
@@ -464,12 +516,14 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
                   for (final name in _following)
                     ListTile(
                       leading: CampusAvatar(name: name, radius: 18),
-                      title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      title: Text(name,
+                          maxLines: 1, overflow: TextOverflow.ellipsis),
                       onTap: () {
                         Navigator.of(ctx).pop();
                         Navigator.of(context).push(MaterialPageRoute(
                             builder: (_) => SocialProfileScreen(
-                                repository: widget.repository, viewedUserName: name)));
+                                repository: widget.repository,
+                                viewedUserName: name)));
                       },
                     ),
                 ],
@@ -486,16 +540,27 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
     final publicPostCount =
         _posts.where((p) => p.visibility != PostVisibility.onlyMe).length;
 
+    // Your own profile inside the Social shell has no app bar.
+    //
+    // The shell already shows the title, so this bar had no title, no back
+    // button and one gear on the right — a full-height empty strip pinned
+    // above the content. The gear now sits beside the follower counts,
+    // where it is next to what it relates to and costs no vertical space.
+    //
+    // Someone else's profile keeps its bar: it carries their name, the way
+    // back, and the block/report menu.
+    final chromeless = widget.titleInShell && isOwn;
+
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(
+      backgroundColor: ArucadColors.canvas,
+      appBar: chromeless
+          ? null
+          : AppBar(
         backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
-        title: (widget.titleInShell && isOwn)
-            ? null
-            : Text(_displayName),
+        title: (widget.titleInShell && isOwn) ? null : Text(_displayName),
         leading: !isOwn ? const CampusBackButton() : null,
         actions: [
           if (!isOwn)
@@ -505,39 +570,17 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
                   await widget.repository.toggleBlock(_displayName);
                   if (!mounted || !context.mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('$_displayName engellendi / engel kaldırıldı')),
+                    SnackBar(
+                        content: Text(
+                            '$_displayName engellendi / engel kaldırıldı')),
                   );
                 } else if (v == 'report') {
-                  final ok = await showDialog<bool>(
-                    context: context,
-                    builder: (ctx) => AlertDialog(
-                      title: Text(AppLocale.of(context).t('act_report')),
-                      content: Text(
-                          '$_displayName kullanıcısını şikayet etmek istiyor musun?'),
-                      actions: [
-                        TextButton(
-                            onPressed: () => Navigator.pop(ctx, false),
-                            child: Text(AppLocale.of(context).t('act_cancel'))),
-                        FilledButton(
-                            onPressed: () => Navigator.pop(ctx, true),
-                            child: Text(AppLocale.of(context).t('act_report'))),
-                      ],
-                    ),
-                  );
-                  if (ok == true && mounted) {
-                    try {
-                      await widget.repository
-                          .reportUser(_displayName, 'Kullanıcı şikayeti');
-                    } catch (_) {
-                      if (!context.mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                          content: Text(AppLocale.of(context).t('act_report_failed'))));
-                      return;
-                    }
-                    if (!mounted || !context.mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                        content: Text(AppLocale.of(context).t('act_report_sent'))));
-                  }
+                  // The shared sheet replaces a yes/no dialog that filed
+                  // every complaint under the same hardcoded Turkish
+                  // string. A moderator could not tell harassment from
+                  // spam, and the same complaint in two languages arrived
+                  // as two unrelated things the queue could not group.
+                  await _reportUser(context);
                 }
               },
               itemBuilder: (context) => [
@@ -554,7 +597,9 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+          // Extra top padding only when there is no app bar above, so the
+          // avatar does not start against the status bar.
+          padding: EdgeInsets.fromLTRB(16, chromeless ? 20 : 12, 16, 32),
           children: [
             Row(children: [
               GestureDetector(
@@ -568,8 +613,10 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
                       child: Container(
                         padding: const EdgeInsets.all(4),
                         decoration: const BoxDecoration(
-                            color: ArucadColors.primary, shape: BoxShape.circle),
-                        child: const Icon(Icons.edit, size: 12, color: Colors.white),
+                            color: ArucadColors.primary,
+                            shape: BoxShape.circle),
+                        child: const Icon(Icons.edit,
+                            size: 12, color: Colors.white),
                       ),
                     ),
                 ]),
@@ -577,19 +624,48 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
               const SizedBox(width: 20),
               Expanded(
                 child: Row(children: [
-                  _StatColumn(label: AppLocale.of(context).t('sp_posts_count'), value: '$publicPostCount'),
+                  _StatColumn(
+                      label: AppLocale.of(context).t('sp_posts_count'),
+                      value: '$publicPostCount'),
                   SizedBox(width: 18),
-                  _StatColumn(label: AppLocale.of(context).t('sp_followers'), value: '$_followerCount'),
+                  _StatColumn(
+                      label: AppLocale.of(context).t('sp_followers'),
+                      value: '$_followerCount'),
                   if (isOwn) ...[
                     SizedBox(width: 18),
                     GestureDetector(
                       onTap: _showFollowingList,
-                      child: _StatColumn(label: 'Takip', value: '${_following.length}'),
+                      child: _StatColumn(
+                          label: AppLocale.of(context).t('sp_following'),
+                          value: '${_following.length}'),
+                    ),
+                    // Settings, beside the counts rather than in an app bar
+                    // of its own. Own profile only — there is nothing here
+                    // to configure about somebody else.
+                    const Spacer(),
+                    IconButton(
+                      tooltip: AppLocale.of(context).t('sp_open_settings'),
+                      icon: const Icon(Icons.settings_outlined),
+                      color: ArucadColors.slate,
+                      onPressed: widget.onOpenSettings,
                     ),
                   ],
                 ]),
               ),
             ]),
+            const SizedBox(height: 14),
+            Text(_displayName,
+                style: const TextStyle(
+                    color: ArucadColors.ink,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900)),
+            const SizedBox(height: 2),
+            Text(
+                '@${_displayName.toLowerCase().replaceAll(RegExp(r'[^a-z0-9çğıöşü]'), '')}',
+                style: const TextStyle(
+                    color: ArucadColors.muted,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600)),
             if (_locked) ...[
               const SizedBox(height: 14),
               Card(
@@ -600,8 +676,10 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
                     Icon(Icons.lock_outline, color: Colors.white),
                     SizedBox(width: 12),
                     Expanded(
-                      child: Text(AppLocale.of(context).t('sp_private'),
-                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                      child: Text(
+                        AppLocale.of(context).t('sp_private'),
+                        style: TextStyle(
+                            color: Colors.white, fontWeight: FontWeight.w600),
                       ),
                     ),
                   ]),
@@ -609,11 +687,15 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
               ),
             ],
             const SizedBox(height: 14),
-            if (!_locked && !isOwn && (_peer?.department != null || _viewedUser?.department != null))
+            if (!_locked &&
+                !isOwn &&
+                (_peer?.department != null || _viewedUser?.department != null))
               Padding(
                 padding: const EdgeInsets.only(bottom: 10),
                 child: Text(_peer?.department ?? _viewedUser!.department!,
-                    style: TextStyle(color: ArucadColors.muted, fontWeight: FontWeight.w600)),
+                    style: TextStyle(
+                        color: ArucadColors.muted,
+                        fontWeight: FontWeight.w600)),
               ),
             Row(children: [
               if (isOwn)
@@ -630,22 +712,27 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
                     onPressed: _toggleFollow,
                     style: _following.contains(_displayName)
                         ? FilledButton.styleFrom(
-                            backgroundColor: ArucadColors.mist, foregroundColor: ArucadColors.ink)
+                            backgroundColor: ArucadColors.mist,
+                            foregroundColor: ArucadColors.ink)
                         : null,
                     icon: Icon(
                         _following.contains(_displayName)
                             ? Icons.check
                             : Icons.person_add_alt_1_outlined,
                         size: 16),
-                    label: Text(_following.contains(_displayName) ? 'Takipte' : 'Takip Et'),
+                    label: Text(_following.contains(_displayName)
+                        ? 'Takipte'
+                        : 'Takip Et'),
                   ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) =>
-                            ChatThreadScreen(repository: widget.repository, peer: _displayName))),
+                    onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                            builder: (_) => ChatThreadScreen(
+                                repository: widget.repository,
+                                peer: _displayName))),
                     icon: Icon(Icons.chat_bubble_outline, size: 16),
                     label: Text('Mesaj'),
                   ),
@@ -661,7 +748,8 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
                 value: _me!.isPrivateProfile,
                 onChanged: (v) async {
                   try {
-                    await widget.repository.updateUserSettings(isPrivateProfile: v);
+                    await widget.repository
+                        .updateUserSettings(isPrivateProfile: v);
                     if (!mounted || !context.mounted) return;
                     setState(() => _me = _me!.copyWith(isPrivateProfile: v));
                   } catch (e) {
@@ -678,50 +766,54 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
               _StudentBioCard(user: _me!),
             ],
             const SizedBox(height: 18),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                SelectableChip(
+            // A segmented control on a soft track, not four loose buttons:
+            // Archive and Locations used to hide behind the settings popup,
+            // where nobody found them.
+            Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                // Not `mist`: it is the same value as `canvas`, so the
+                // track vanished into the page behind it. A faint tint of
+                // the brand navy reads as a track on both the grey page
+                // and the white cards.
+                color: ArucadColors.primary.withValues(alpha: .06),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Row(children: [
+                _ProfileTab(
                   label: AppLocale.of(context).t('sp_posts_tab'),
                   selected: _section == _ProfileSection.posts,
-                  onSelected: (_) => setState(() {
-                    _section = _ProfileSection.posts;
-                    _visibleCount = kPageSize;
-                  }),
+                  onTap: () => _selectSection(_ProfileSection.posts),
                 ),
                 if (isOwn) ...[
-                  SelectableChip(
-                    label: 'Kaydedilenler',
-                    selected: _section == _ProfileSection.saved,
-                    onSelected: (_) => setState(() {
-                      _section = _ProfileSection.saved;
-                      _visibleCount = kPageSize;
-                    }),
-                  ),
-                  SelectableChip(
-                    label: AppLocale.of(context).t('sp_archive_tab'),
+                  _ProfileTab(
+                    label: AppLocale.of(context).t('sp_archives_tab'),
                     selected: _section == _ProfileSection.archives,
-                    onSelected: (_) => setState(() {
-                      _section = _ProfileSection.archives;
-                      _visibleCount = kPageSize;
-                    }),
+                    onTap: () => _selectSection(_ProfileSection.archives),
+                  ),
+                  _ProfileTab(
+                    label: AppLocale.of(context).t('sp_saved_tab'),
+                    selected: _section == _ProfileSection.saved,
+                    onTap: () => _selectSection(_ProfileSection.saved),
                   ),
                 ],
-                SelectableChip(
-                  label: 'Konumlar',
+                _ProfileTab(
+                  label: AppLocale.of(context).t('sp_locations_tab'),
                   selected: _section == _ProfileSection.locations,
-                  onSelected: (_) => setState(() {
-                    _section = _ProfileSection.locations;
-                    _visibleCount = kPageSize;
-                  }),
+                  onTap: () => _selectSection(_ProfileSection.locations),
                 ),
-              ],
+              ]),
             ),
             const SizedBox(height: 14),
-            if (_locked && !isOwn)
-              const SizedBox.shrink()
-            else if (_section == _ProfileSection.locations) ...[
+            // A locked profile shows nothing, and an empty white panel is
+            // not nothing — so the card only exists when there is content
+            // for it to hold.
+            if (!(_locked && !isOwn))
+              _ProfileSectionCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+            if (_section == _ProfileSection.locations) ...[
               if (!isOwn || _checkIns.isEmpty)
                 Padding(
                   padding: EdgeInsets.symmetric(vertical: 24),
@@ -736,43 +828,42 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
                   children: [
                     for (final checkIn in _checkIns)
                       Chip(
-                        avatar: const Icon(Icons.location_on_outlined, size: 16),
-                        label: Text(checkIn.title.replaceFirst('Check-in: ', '')),
+                        avatar:
+                            const Icon(Icons.location_on_outlined, size: 16),
+                        label:
+                            Text(checkIn.title.replaceFirst('Check-in: ', '')),
                         labelStyle: const TextStyle(fontSize: 12.5),
                       ),
                   ],
                 ),
             ] else if (isOwn && _section == _ProfileSection.saved) ...[
               Builder(builder: (context) {
-                final saved = _allFeed
-                    .where((p) => _savedIds.contains(p.id))
-                    .toList();
-                if (saved.isEmpty) {
+                final selectedPosts =
+                    _allFeed.where((p) => _savedIds.contains(p.id)).toList();
+                if (selectedPosts.isEmpty) {
                   return Padding(
-                    padding: EdgeInsets.symmetric(vertical: 24),
+                    padding: const EdgeInsets.symmetric(vertical: 24),
                     child: Center(
                         child: Text(AppLocale.of(context).t('sp_no_saved'),
-                            style: TextStyle(color: ArucadColors.muted))),
+                            style:
+                                const TextStyle(color: ArucadColors.muted))),
                   );
                 }
                 return GridView.builder(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
-                  itemCount: saved.length,
-                  gridDelegate:
-                      const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 3,
-                          crossAxisSpacing: 6,
-                          mainAxisSpacing: 6),
+                  itemCount: selectedPosts.length,
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 3,
+                      crossAxisSpacing: 6,
+                      mainAxisSpacing: 6),
                   itemBuilder: (context, i) {
-                    final post = saved[i];
+                    final post = selectedPosts[i];
                     final image = post.imageBytes;
                     return GestureDetector(
-                      onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                              builder: (_) => PostDetailScreen(
-                                  post: post,
-                                  repository: widget.repository))),
+                      onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                          builder: (_) => PostDetailScreen(
+                              post: post, repository: widget.repository))),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(10),
                         child: image != null
@@ -796,7 +887,8 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
               }),
             ] else ...[
               Builder(builder: (context) {
-                final fromArchive = isOwn && _section == _ProfileSection.archives;
+                final fromArchive =
+                    isOwn && _section == _ProfileSection.archives;
                 final gridPosts = fromArchive
                     ? _posts
                         .where((p) => p.visibility == PostVisibility.onlyMe)
@@ -845,7 +937,8 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
                                           maxLines: 4,
                                           overflow: TextOverflow.ellipsis,
                                           textAlign: TextAlign.center,
-                                          style: const TextStyle(fontSize: 10.5)),
+                                          style:
+                                              const TextStyle(fontSize: 10.5)),
                                     ),
                         );
                         if (!isOwn) {
@@ -897,20 +990,22 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
                                       if (fromArchive)
                                         PopupMenuItem(
                                             value: 'unarchive',
-                                            child: Text(AppLocale.of(context).t('sp_unarchive')))
+                                            child: Text(AppLocale.of(context)
+                                                .t('sp_unarchive')))
                                       else
                                         PopupMenuItem(
                                             value: 'archive',
-                                            child: Text(AppLocale.of(context).t('sp_archive'))),
+                                            child: Text(AppLocale.of(context)
+                                                .t('sp_archive'))),
                                       PopupMenuItem(
                                           value: 'edit',
-                                          child: Text(AppLocale.of(context).t('act_edit'))),
+                                          child: Text(AppLocale.of(context)
+                                              .t('act_edit'))),
                                       const PopupMenuItem(
                                           value: 'delete',
                                           child: Text('Sil',
                                               style: TextStyle(
-                                                  color:
-                                                      ArucadColors.danger))),
+                                                  color: ArucadColors.danger))),
                                     ],
                                   ),
                                 ),
@@ -935,19 +1030,87 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
                 );
               }),
             ],
+                  ],
+                ),
+              ),
           ],
         ),
       ),
     );
   }
 }
+
+/// The white panel each profile tab's content sits on.
+///
+/// The grids used to sit straight on the grey page, so a row of thumbnails
+/// had no edge and the section had no boundary. A `Card` rather than a
+/// hand-rolled container on purpose: it takes its colour, radius and
+/// elevation from `ArucadTheme`'s `cardTheme`, which means white here,
+/// the dark surface in dark mode, and the same corner as every other card
+/// in the app without repeating the numbers.
+class _ProfileSectionCard extends StatelessWidget {
+  final Widget child;
+
+  const _ProfileSectionCard({required this.child});
+
+  @override
+  Widget build(BuildContext context) => Card(
+        clipBehavior: Clip.antiAlias,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: child,
+        ),
+      );
+}
+
+class _ProfileTab extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _ProfileTab({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) => Expanded(
+        child: Material(
+          color: selected ? ArucadColors.primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(999),
+          child: InkWell(
+            onTap: onTap,
+            hoverColor: Colors.transparent,
+            splashFactory: NoSplash.splashFactory,
+            overlayColor: WidgetStateProperty.all(Colors.transparent),
+            borderRadius: BorderRadius.circular(999),
+            child: SizedBox(
+              height: 38,
+              child: Center(
+                child: Text(label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: selected ? Colors.white : ArucadColors.ink,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 11.5,
+                    )),
+              ),
+            ),
+          ),
+        ),
+      );
+}
+
 class _StatColumn extends StatelessWidget {
   final String label;
   final String value;
   const _StatColumn({required this.label, required this.value});
 
   @override
-  Widget build(BuildContext context) => Column(mainAxisSize: MainAxisSize.min, children: [
+  Widget build(BuildContext context) =>
+      Column(mainAxisSize: MainAxisSize.min, children: [
         Text(value,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -978,36 +1141,41 @@ class _StudentBioCard extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.all(4),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            if (user.department != null) _BioLine(emoji: '🎓', text: user.department!),
-            if (user.year != null || user.university != null)
-              _BioLine(
-                  emoji: '📚',
-                  text: [
-                    if (user.year != null) user.year,
-                    if (user.university != null) user.university,
-                  ].join(' · ')),
-            if (user.clubs.isNotEmpty) _BioLine(emoji: '🏛️', text: user.clubs.join(' · ')),
-            if (user.achievements.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Text(AppLocale.of(context).t('sp_achievements'),
-                  style: TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 12.5,
-                      color: Theme.of(context).colorScheme.onSurface)),
-              const SizedBox(height: 4),
-              for (final a in user.achievements) _BioLine(emoji: '🏆', text: a),
-            ],
-            if (user.projects.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Text('Projeler',
-                  style: TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 12.5,
-                      color: Theme.of(context).colorScheme.onSurface)),
-              const SizedBox(height: 4),
-              for (final p in user.projects) _BioLine(emoji: '💻', text: p),
-            ],
-          ]),
+          if (user.department != null)
+            _BioLine(emoji: '🎓', text: user.department!),
+          if (user.year != null || user.university != null)
+            _BioLine(
+                emoji: '📚',
+                text: [
+                  if (user.year != null) user.year,
+                  if (user.university != null) user.university,
+                ].join(' · ')),
+          // Clubs — the groups this person joined — are deliberately not
+          // shown. Which societies somebody belongs to can be sensitive
+          // (a faith society, a political one, an LGBT+ one), and a
+          // profile is the one screen other students look at. The data is
+          // still on the account; it is simply not published here.
+          if (user.achievements.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(AppLocale.of(context).t('sp_achievements'),
+                style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12.5,
+                    color: Theme.of(context).colorScheme.onSurface)),
+            const SizedBox(height: 4),
+            for (final a in user.achievements) _BioLine(emoji: '🏆', text: a),
+          ],
+          if (user.projects.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text('Projeler',
+                style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12.5,
+                    color: Theme.of(context).colorScheme.onSurface)),
+            const SizedBox(height: 4),
+            for (final p in user.projects) _BioLine(emoji: '💻', text: p),
+          ],
+        ]),
       );
 }
 

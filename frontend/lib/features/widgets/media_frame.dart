@@ -100,13 +100,14 @@ class FramedMediaPreview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Align(
-      alignment: Alignment.centerLeft,
-      child: SizedBox(
-        height: maxHeight,
-        width: maxHeight * aspectRatio,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
+      alignment: Alignment.center,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: maxHeight),
+        child: AspectRatio(
+          aspectRatio: aspectRatio,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
             FramedMedia(aspectRatio: aspectRatio, child: child),
             if (onAdjust != null)
               Positioned(
@@ -135,7 +136,8 @@ class FramedMediaPreview extends StatelessWidget {
                   icon: const Icon(Icons.close, size: 16, color: Colors.white),
                 ),
               ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -167,7 +169,10 @@ Future<Uint8List> cropBytesToAspect(Uint8List bytes, double aspectRatio) async {
     src,
     Rect.fromLTWH(left.toDouble(), top.toDouble(), outW.toDouble(), outH.toDouble()),
     Rect.fromLTWH(0, 0, outW.toDouble(), outH.toDouble()),
-    Paint()..filterQuality = FilterQuality.medium,
+    // `high` rather than `medium`: this is the last resample a photo
+    // gets before it is stored, so it is the one place where the
+    // extra cost is worth paying.
+    Paint()..filterQuality = FilterQuality.high,
   );
   final picture = recorder.endRecording();
   final out = await picture.toImage(outW, outH);

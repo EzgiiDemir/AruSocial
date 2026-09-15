@@ -163,7 +163,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.transparent,
-        title: Text('${post.postType.emoji} ${post.postType.label(strings)}'),
+        title: Text(post.postType.label(strings)),
         leading: const CampusBackButton(),
       ),
       body: ColoredBox(
@@ -191,9 +191,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                             Text(post.name,
                                 style: const TextStyle(
                                     fontWeight: FontWeight.w900)),
-                            Text(
-                                formatRelativeTime(
-                                    post.createdAt ?? DateTime.now()),
+                            LiveTimeAgo(post.createdAt ?? DateTime.now(),
                                 style: const TextStyle(
                                     color: ArucadColors.muted, fontSize: 12)),
                           ]),

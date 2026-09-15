@@ -20,15 +20,15 @@ const _kRailBreakpoint = 768.0;
 class _NavItem {
   final IconData icon;
   final IconData selectedIcon;
-  final String label;
-  const _NavItem(this.icon, this.selectedIcon, this.label);
+  final String labelKey;
+  const _NavItem(this.icon, this.selectedIcon, this.labelKey);
 }
 
 const _navItems = [
-  _NavItem(Icons.home_outlined, Icons.home, 'Home'),
-  _NavItem(Icons.chat_bubble_outline, Icons.chat_bubble, 'Mesajlar'),
-  _NavItem(Icons.search, Icons.search, 'Arama'),
-  _NavItem(Icons.person_outline, Icons.person, 'Profil'),
+  _NavItem(Icons.home_outlined, Icons.home, 'nav_home'),
+  _NavItem(Icons.chat_bubble_outline, Icons.chat_bubble, 'social_messages'),
+  _NavItem(Icons.search, Icons.search, 'social_search'),
+  _NavItem(Icons.person_outline, Icons.person, 'nav_profile'),
 ];
 
 /// The Social tab's own internal shell — Home / Messages / Search / Profile
@@ -40,11 +40,17 @@ class SocialShell extends StatefulWidget {
   final MapProvider mapProvider;
   final AnalyticsTracker analyticsTracker;
 
+  /// Opens the app settings tab. Passed straight through to the profile
+  /// pane so its gear icon reaches the settings that already exist,
+  /// rather than being a second, parallel copy of them.
+  final VoidCallback? onOpenSettings;
+
   const SocialShell({
     super.key,
     required this.repository,
     required this.mapProvider,
     required this.analyticsTracker,
+    this.onOpenSettings,
   });
 
   @override
@@ -107,8 +113,8 @@ class _SocialShellState extends State<SocialShell> {
     return switch (index) {
       0 => s.t('social_title'),
       1 => s.t('chat_title'),
-      2 => 'Arama',
-      _ => 'Profil',
+      2 => s.t('social_search'),
+      _ => s.t('nav_profile'),
     };
   }
 
@@ -141,6 +147,7 @@ class _SocialShellState extends State<SocialShell> {
             SocialProfileScreen(
               repository: widget.repository,
               titleInShell: !isWide,
+              onOpenSettings: widget.onOpenSettings,
             )),
       ]);
 
@@ -172,7 +179,8 @@ class _SocialShellState extends State<SocialShell> {
                           Icon(_navItems[i].icon, color: socialNavAccentAt(i)),
                       selectedIcon: Icon(_navItems[i].selectedIcon,
                           color: socialNavAccentAt(i)),
-                      label: Text(_navItems[i].label)),
+                      label:
+                          Text(AppLocale.of(context).t(_navItems[i].labelKey))),
               ],
             ),
             Expanded(child: content),
@@ -186,42 +194,19 @@ class _SocialShellState extends State<SocialShell> {
         body: SafeArea(
           child: Column(
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 8, 14, 4),
-                child: Row(
-                  children: [
+              CampusPageHeader(
+                title: _titleForIndex(context, _index),
+                leading: _MenuButton(
+                    onTap: () => _scaffoldKey.currentState?.openDrawer()),
+                actions: [
+                  if (_index == 0)
                     _MenuButton(
-                        onTap: () => _scaffoldKey.currentState?.openDrawer()),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        _titleForIndex(context, _index),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context)
-                            .textTheme
-                            .headlineSmall
-                            ?.copyWith(
-                                fontWeight: FontWeight.w900,
-                                fontSize: 26,
-                                letterSpacing: -.5),
-                      ),
+                      icon: Icons.notifications_none_rounded,
+                      badgeCount: _unreadNotifications,
+                      tooltip: AppLocale.of(context).t('social_notifications'),
+                      onTap: _openNotifications,
                     ),
-                    // The feed tab's notifications action lives here, in
-                    // the same Row as ☰+title, rather than in a second row
-                    // SocialScreen used to draw below this one — see the
-                    // real-fix comment in social_screen.dart for why that
-                    // could never actually line up.
-                    if (_index == 0)
-                      _MenuButton(
-                        icon: Icons.notifications_none_rounded,
-                        badgeCount: _unreadNotifications,
-                        tooltip:
-                            AppLocale.of(context).t('social_notifications'),
-                        onTap: _openNotifications,
-                      ),
-                  ],
-                ),
+                ],
               ),
               Expanded(child: content),
             ],
@@ -239,9 +224,8 @@ class _NavDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return Drawer(
-      backgroundColor: scheme.surface,
+      backgroundColor: ArucadColors.paper,
       child: SafeArea(
         child: ListView(
           padding: const EdgeInsets.symmetric(vertical: 12),
@@ -254,14 +238,14 @@ class _NavDrawer extends StatelessWidget {
                       : _navItems[i].icon,
                   color: socialNavAccentAt(i),
                 ),
-                title: Text(_navItems[i].label,
+                title: Text(AppLocale.of(context).t(_navItems[i].labelKey),
                     style: TextStyle(
-                        color: scheme.onSurface,
+                        color: ArucadColors.ink,
                         fontWeight: i == selectedIndex
                             ? FontWeight.w700
                             : FontWeight.w500)),
                 selected: i == selectedIndex,
-                selectedTileColor: scheme.surfaceContainerHighest,
+                selectedTileColor: ArucadColors.primary.withValues(alpha: .08),
                 onTap: () => onSelect(i),
               ),
           ],
@@ -296,7 +280,7 @@ class _MenuButton extends StatelessWidget {
       constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
       style: IconButton.styleFrom(
         backgroundColor: Colors.transparent,
-        foregroundColor: Theme.of(context).colorScheme.onSurface,
+        foregroundColor: ArucadColors.ink,
         highlightColor: Colors.transparent,
         hoverColor: Colors.transparent,
         splashFactory: NoSplash.splashFactory,
@@ -305,11 +289,11 @@ class _MenuButton extends StatelessWidget {
         Icon(icon, size: 27),
         if (badgeCount > 0)
           Positioned(
-            right: -7,
-            top: -7,
+            right: -5,
+            top: -5,
             child: Container(
-              constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
-              padding: const EdgeInsets.symmetric(horizontal: 4),
+              constraints: const BoxConstraints(minWidth: 14, minHeight: 14),
+              padding: const EdgeInsets.symmetric(horizontal: 3),
               alignment: Alignment.center,
               decoration: const BoxDecoration(
                 color: ArucadColors.red,
@@ -319,7 +303,7 @@ class _MenuButton extends StatelessWidget {
                 badgeCount > 9 ? '9+' : '$badgeCount',
                 style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 10,
+                    fontSize: 8,
                     fontWeight: FontWeight.w800),
               ),
             ),

@@ -9,9 +9,9 @@ use App\Filament\Resources\CareerOpportunities\Pages\ListCareerOpportunities;
 use App\Filament\Resources\CareerOpportunities\Pages\ViewCareerOpportunity;
 use App\Filament\Resources\CareerOpportunities\Schemas\CareerOpportunityForm;
 use App\Filament\Resources\CareerOpportunities\Tables\CareerOpportunitiesTable;
+use App\Filament\Resources\TranslatedResource as Resource;
 use App\Models\CareerOpportunity;
 use BackedEnum;
-use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
@@ -25,7 +25,9 @@ class CareerOpportunityResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedBriefcase;
 
-    protected static string|UnitEnum|null $navigationGroup = 'panel.groups.people';
+    protected static string|UnitEnum|null $navigationGroup = 'panel.groups.operations';
+
+    protected static ?string $navigationLabel = 'panel.career.nav';
 
     protected static ?string $recordTitleAttribute = 'title';
 

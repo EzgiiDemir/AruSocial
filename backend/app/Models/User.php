@@ -28,29 +28,11 @@ class User extends Authenticatable implements FilamentUser
     // because that is what it promises the student.
     use HasApiTokens, HasFactory, Notifiable;
 
-    /**
-     * Who may open which Filament panel.
-     *
-     * Decided by the same `GranularPermissions` the JSON API already uses,
-     * not a second rule written for the panel. Two places deciding "is this
-     * person an admin" is two places to get it wrong, and the one that
-     * drifts is the one nobody is testing.
-     *
-     * The two panels are deliberately disjoint:
-     *
-     *   admin   — needs `viewAdmin`, which no trainer role satisfies
-     *   trainer — needs `events.manageOwnDepartment`, held only by trainers
-     *
-     * A super admin passes both, because `GranularPermissions` grants that
-     * role everything in one central place. Row-level scoping — *which*
-     * department a trainer may touch — is not decided here; that is
-     * `EnsureDepartmentHead`'s job and the resources' query scopes.
-     */
+    /** Everyone with at least one back-office capability uses the one admin panel. */
     public function canAccessPanel(Panel $panel): bool
     {
         return match ($panel->getId()) {
-            'admin' => GranularPermissions::allows($this, 'stats.view'),
-            'trainer' => GranularPermissions::allows($this, 'events.manageOwnDepartment'),
+            'admin' => GranularPermissions::canAccessAdminPanel($this),
             default => false,
         };
     }
@@ -85,6 +67,16 @@ class User extends Authenticatable implements FilamentUser
         'personalization',
         'is_private_profile',
         'preferred_language',
+        'account_status',
+        'phone',
+        'institution_id',
+        'job_title',
+        'timezone',
+        'campus',
+        'faculty',
+        'unit',
+        'building',
+        'mfa_required',
     ];
 
     protected $hidden = [
@@ -111,7 +103,13 @@ class User extends Authenticatable implements FilamentUser
             'check_in_visible' => 'boolean',
             'personalization' => 'boolean',
             'is_private_profile' => 'boolean',
+            'mfa_required' => 'boolean',
         ];
+    }
+
+    public function roleGrants(): HasMany
+    {
+        return $this->hasMany(RoleGrant::class);
     }
 
     public function isBanned(): bool

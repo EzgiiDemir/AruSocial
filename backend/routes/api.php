@@ -59,9 +59,6 @@ use App\Http\Controllers\Api\StaffController;
 use App\Http\Controllers\Api\StoryController;
 use App\Http\Controllers\Api\SurveyController;
 use App\Http\Controllers\Api\TourProxyController;
-use App\Http\Controllers\Api\Trainer\ApplicationController as TrainerApplicationController;
-use App\Http\Controllers\Api\Trainer\EventController as TrainerEventController;
-use App\Http\Controllers\Api\Trainer\RosterController as TrainerRosterController;
 use App\Http\Controllers\Api\TranslationController;
 use App\Http\Controllers\Api\WeatherController;
 use Illuminate\Support\Facades\Route;
@@ -504,26 +501,4 @@ Route::prefix('v1')->middleware(['throttle:api', 'auth:sanctum', 'not-banned', '
         Route::post('/admin/email/bulk', [AdminEmailController::class, 'bulk']);
     });
 
-    // Trainer Panel: department heads publishing events for their own
-    // department only. Two gates stack — `permission:events.manageOwnDepartment`
-    // answers "is this account provisioned as a trainer at all," then
-    // `department-head` (EnsureDepartmentHead) resolves which real
-    // department, from the StaffProfile linked to this account, never
-    // from client input.
-    Route::prefix('trainer')
-        ->middleware(['permission:events.manageOwnDepartment', 'department-head'])
-        ->group(function () {
-            Route::get('/events', [TrainerEventController::class, 'index']);
-            Route::post('/events', [TrainerEventController::class, 'upsert']);
-            Route::post('/events/{id}/delete', [TrainerEventController::class, 'destroy']);
-            Route::get('/events/{eventId}/participants', [TrainerEventController::class, 'participants']);
-            Route::post('/events/{eventId}/participants/{joinId}/approve', [TrainerEventController::class, 'approveParticipant']);
-
-            Route::get('/applications', [TrainerApplicationController::class, 'index']);
-            Route::post('/applications/{id}/approve', [TrainerApplicationController::class, 'approve']);
-            Route::post('/applications/{id}/reject', [TrainerApplicationController::class, 'reject']);
-            Route::post('/applications/{id}/revise', [TrainerApplicationController::class, 'revise']);
-
-            Route::get('/roster', [TrainerRosterController::class, 'index']);
-        });
 });

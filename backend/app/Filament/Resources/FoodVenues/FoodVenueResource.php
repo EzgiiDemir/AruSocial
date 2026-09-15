@@ -9,9 +9,9 @@ use App\Filament\Resources\FoodVenues\Pages\ListFoodVenues;
 use App\Filament\Resources\FoodVenues\Pages\ViewFoodVenue;
 use App\Filament\Resources\FoodVenues\Schemas\FoodVenueForm;
 use App\Filament\Resources\FoodVenues\Tables\FoodVenuesTable;
+use App\Filament\Resources\TranslatedResource as Resource;
 use App\Models\FoodVenue;
 use BackedEnum;
-use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
@@ -25,7 +25,9 @@ class FoodVenueResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedBuildingStorefront;
 
-    protected static string|UnitEnum|null $navigationGroup = 'panel.groups.campus';
+    protected static string|UnitEnum|null $navigationGroup = 'panel.groups.operations';
+
+    protected static ?string $navigationLabel = 'panel.food.nav';
 
     protected static ?string $recordTitleAttribute = 'name';
 

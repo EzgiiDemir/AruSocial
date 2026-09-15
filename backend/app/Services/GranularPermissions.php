@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\RoleAssignment;
+use App\Models\RoleGrant;
 use App\Models\User;
 
 // Who is allowed to do what, in one place.
@@ -30,6 +31,86 @@ use App\Models\User;
 // every key here is really checked on a real route.
 class GranularPermissions
 {
+    public const ACTIONS = [
+        'menu.view', 'list', 'read', 'create', 'update', 'translate', 'preview',
+        'submit', 'approve', 'publish', 'unpublish', 'archive', 'soft_delete',
+        'restore', 'permanent_delete', 'export', 'export_all', 'bulk_update',
+        'bulk_delete', 'manage_settings', 'view_logs',
+    ];
+
+    public const SCOPES = [
+        'self', 'own', 'assigned', 'own_department', 'own_club', 'own_faculty',
+        'own_building', 'campus', 'all',
+    ];
+
+    public const ROLES = [
+        'superAdmin', 'platformAdmin', 'it', 'clubsDirector', 'clubManager',
+        'sportsDirector', 'eventsDirector', 'careerServicesDirector',
+        'campusServicesDirector', 'studentAffairs', 'academicUnitManager',
+        'teacher', 'psychologicalCounselor', 'libraryManager', 'internationalOffice',
+        'dormitoryManager', 'helpCenterManager', 'foodServicesManager',
+        'contentEditor', 'translatorTr', 'translatorEn', 'translatorRu',
+        'moderator', 'analyst', 'trainer',
+    ];
+
+    public const RESOURCES = [
+        'pages.page', 'pages.block', 'media.item', 'social.post', 'social.comment',
+        'social.message', 'ai.prompt', 'ai.chat_history_metadata', 'ai.chat_history_content',
+        'users.user', 'users.role', 'map.place', 'map.building', 'map.coordinate',
+        'operations.application', 'operations.appointment', 'events.event', 'clubs.club',
+        'sports.sport', 'calendar.entry', 'services.service', 'career.opportunity',
+        'food.menu', 'surveys.survey', 'system.email_log', 'system.audit_log',
+        'system.integration', 'system.health', 'system.settings',
+    ];
+
+    public const RESOURCE_BY_LEGACY_PERMISSION = [
+        'events.manage' => 'events.event', 'clubs.manage' => 'clubs.club',
+        'places.manage' => 'map.place', 'sports.manage' => 'sports.sport',
+        'services.manage' => 'services.service', 'food.manage' => 'food.menu',
+        'directory.manage' => 'map.building', 'pages.manage' => 'pages.page',
+        'media.manage' => 'media.item', 'career.manage' => 'career.opportunity',
+        'surveys.manage' => 'surveys.survey', 'applications.manage' => 'operations.application',
+        'appointments.manage' => 'operations.appointment',
+    ];
+
+    private const ROLE_RESOURCES = [
+        'platformAdmin' => ['*'],
+        'it' => ['system.email_log', 'system.audit_log', 'system.integration', 'system.health', 'users.user'],
+        'clubsDirector' => ['clubs.club', 'events.event', 'operations.application', 'media.item', 'pages.page'],
+        'clubManager' => ['clubs.club', 'events.event', 'operations.application', 'media.item'],
+        'sportsDirector' => ['sports.sport', 'events.event', 'operations.application', 'calendar.entry'],
+        'eventsDirector' => ['events.event', 'operations.application', 'calendar.entry', 'media.item'],
+        'careerServicesDirector' => ['career.opportunity', 'operations.application', 'operations.appointment'],
+        'campusServicesDirector' => ['services.service', 'map.place', 'map.building', 'map.coordinate', 'food.menu'],
+        'studentAffairs' => ['users.user', 'operations.application', 'operations.appointment', 'pages.page'],
+        'academicUnitManager' => ['pages.page', 'events.event', 'calendar.entry', 'users.user'],
+        'teacher' => ['pages.page', 'events.event', 'clubs.club'],
+        'psychologicalCounselor' => ['operations.appointment'],
+        'libraryManager' => ['services.service', 'events.event', 'operations.appointment', 'pages.page'],
+        'internationalOffice' => ['pages.page', 'operations.application', 'operations.appointment'],
+        'dormitoryManager' => ['map.building', 'services.service', 'operations.application', 'operations.appointment', 'events.event'],
+        'helpCenterManager' => ['services.service'],
+        'foodServicesManager' => ['food.menu', 'services.service'],
+        'contentEditor' => ['pages.page', 'pages.block', 'media.item', 'events.event', 'clubs.club', 'sports.sport', 'services.service', 'career.opportunity', 'food.menu'],
+        'translatorTr' => ['pages.page', 'pages.block'], 'translatorEn' => ['pages.page', 'pages.block'], 'translatorRu' => ['pages.page', 'pages.block'],
+        'moderator' => ['social.post', 'social.comment'],
+        'analyst' => ['system.audit_log', 'system.email_log', 'events.event', 'clubs.club', 'sports.sport', 'operations.application'],
+        'trainer' => ['events.event'],
+    ];
+
+    private const ROLE_ACTIONS = [
+        'platformAdmin' => ['menu.view', 'list', 'read', 'create', 'update', 'translate', 'preview', 'submit', 'approve', 'publish', 'unpublish', 'archive', 'soft_delete', 'restore', 'export', 'export_all', 'bulk_update', 'bulk_delete', 'manage_settings', 'view_logs'],
+        'it' => ['menu.view', 'list', 'read', 'update', 'manage_settings', 'view_logs'],
+        'contentEditor' => ['menu.view', 'list', 'read', 'create', 'update', 'translate', 'preview', 'submit', 'archive', 'soft_delete', 'restore'],
+        'teacher' => ['menu.view', 'list', 'read', 'create', 'update', 'translate', 'preview', 'submit'],
+        'translatorTr' => ['menu.view', 'list', 'read', 'translate', 'preview'],
+        'translatorEn' => ['menu.view', 'list', 'read', 'translate', 'preview'],
+        'translatorRu' => ['menu.view', 'list', 'read', 'translate', 'preview'],
+        'moderator' => ['menu.view', 'list', 'read', 'update', 'approve', 'archive', 'view_logs'],
+        'analyst' => ['menu.view', 'list', 'read', 'preview', 'export', 'view_logs'],
+        'trainer' => ['menu.view', 'list', 'read', 'create', 'update', 'preview', 'submit'],
+    ];
+
     // One key per real admin section, mapped to the bucket that satisfies
     // it. Derived from what routes/api.php actually exposes — a key with no
     // endpoint behind it would be a promise nothing keeps.
@@ -73,17 +154,17 @@ class GranularPermissions
     private const ROLE_BUCKETS = [
         // Content CRUD: events, clubs, sports, services, food, directory,
         // pages, surveys, academic years, participation types, attendance.
-        'manageContent' => ['contentEditor', 'clubManager', 'studentAffairs', 'careerStaff'],
+        'manageContent' => ['platformAdmin', 'contentEditor', 'clubsDirector', 'clubManager', 'sportsDirector', 'eventsDirector', 'campusServicesDirector', 'studentAffairs', 'academicUnitManager', 'careerStaff', 'careerServicesDirector', 'libraryManager', 'internationalOffice', 'dormitoryManager', 'foodServicesManager'],
         // Career office + appointments + applications: career staff AND
         // trainers (department heads) in addition to the usual content roles.
-        'campusOps' => ['contentEditor', 'clubManager', 'studentAffairs', 'careerStaff', 'trainer'],
+        'campusOps' => ['platformAdmin', 'contentEditor', 'clubManager', 'studentAffairs', 'careerStaff', 'careerServicesDirector', 'eventsDirector', 'sportsDirector', 'trainer'],
         // Reviewing reported content and the moderation service settings.
-        'moderate' => ['moderator'],
+        'moderate' => ['platformAdmin', 'moderator'],
         // Roles and secrets — the most sensitive bucket, super admin only.
         'manageSiteSettings' => [],
         // Read-mostly admin surfaces (stats, audit log, email log), open to
         // anyone who can reach the Admin Panel at all.
-        'viewAdmin' => ['contentEditor', 'clubManager', 'studentAffairs', 'careerStaff', 'moderator'],
+        'viewAdmin' => ['platformAdmin', 'it', 'contentEditor', 'clubManager', 'studentAffairs', 'careerStaff', 'moderator', 'analyst'],
         // Trainer Panel — department heads/teachers/staff managing only
         // their own department's events, not the full admin surface.
         'manageOwnDepartment' => ['trainer'],
@@ -98,7 +179,8 @@ class GranularPermissions
 
     public static function isValidKey(string $key): bool
     {
-        return array_key_exists($key, self::KEYS);
+        return array_key_exists($key, self::KEYS)
+            || preg_match('/^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*\.('.implode('|', array_map(fn ($a) => preg_quote($a, '/'), self::ACTIONS)).')(?:\.('.implode('|', self::SCOPES).'))?$/', $key) === 1;
     }
 
     /**
@@ -129,6 +211,20 @@ class GranularPermissions
         $assignment = RoleAssignment::find($user->email);
         $role = $assignment?->role ?? 'student';
 
+        $grants = RoleGrant::query()->active()->where('user_id', $user->id)->get();
+
+        if ($grants->contains(fn (RoleGrant $grant) => in_array($permission, $grant->denied_permissions ?? [], true))) {
+            return false;
+        }
+
+        if ($grants->contains(fn (RoleGrant $grant) => $grant->role === self::SUPER_ROLE)) {
+            return true;
+        }
+
+        if ($grants->contains(fn (RoleGrant $grant) => self::grantAllows($grant, $permission))) {
+            return true;
+        }
+
         if ($role === self::SUPER_ROLE) {
             return true;
         }
@@ -140,10 +236,140 @@ class GranularPermissions
             return false;
         }
 
-        if (in_array($role, self::ROLE_BUCKETS[$bucket] ?? [], true)) {
+        return self::legacyAllows($user, $permission);
+    }
+
+    /**
+     * The application has one back-office panel. A role may enter it when
+     * it owns at least one real capability; resources still enforce their
+     * own actions and row-level scopes after entry.
+     */
+    public static function canAccessAdminPanel(User $user): bool
+    {
+        foreach (array_keys(self::KEYS) as $permission) {
+            if (self::allows($user, $permission)) {
+                return true;
+            }
+        }
+
+        foreach (self::RESOURCES as $resource) {
+            if (self::allows($user, "{$resource}.menu.view")) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public static function legacyAllows(User $user, string $permission): bool
+    {
+        $assignment = RoleAssignment::find($user->email);
+        $role = $assignment?->role ?? 'student';
+        if ($role === self::SUPER_ROLE) {
+            return true;
+        }
+        $bucket = self::KEYS[$permission] ?? null;
+        if ($bucket !== null && in_array($role, self::ROLE_BUCKETS[$bucket] ?? [], true)) {
             return true;
         }
 
         return in_array($permission, self::sanitize($assignment?->permissions ?? []), true);
+    }
+
+    public static function grantAllows(RoleGrant $grant, string $permission): bool
+    {
+        if ($grant->role === self::SUPER_ROLE) {
+            return true;
+        }
+        if ((str_contains($permission, '.publish') || str_contains($permission, '.unpublish')) && ! $grant->can_publish) {
+            return false;
+        }
+        if ((str_contains($permission, '.export') || str_contains($permission, '.export_all')) && ! $grant->can_export) {
+            return false;
+        }
+        if (str_starts_with($permission, 'ai.chat_history_content.') && ! $grant->sensitive_data_access) {
+            return false;
+        }
+        if (in_array($permission, $grant->permissions ?? [], true)) {
+            return true;
+        }
+
+        $resource = self::RESOURCE_BY_LEGACY_PERMISSION[$permission] ?? null;
+        if ($resource !== null) {
+            return self::roleHasResource($grant->role, $resource);
+        }
+
+        if ($permission === 'moderation.moderate') {
+            return in_array($grant->role, ['platformAdmin', 'moderator'], true);
+        }
+        if (in_array($permission, ['stats.view', 'activityLog.view'], true)) {
+            return in_array($grant->role, ['platformAdmin', 'it', 'analyst'], true);
+        }
+        if ($permission === 'users.manage') {
+            return false;
+        }
+
+        foreach (self::ACTIONS as $action) {
+            $suffix = '.'.$action;
+            if (! str_ends_with($permission, $suffix)) {
+                continue;
+            }
+            $canonicalResource = substr($permission, 0, -strlen($suffix));
+
+            return self::roleHasResource($grant->role, $canonicalResource)
+                && in_array($action, self::actionsForRole($grant->role), true);
+        }
+
+        return false;
+    }
+
+    private static function roleHasResource(string $role, string $resource): bool
+    {
+        $resources = self::ROLE_RESOURCES[$role] ?? [];
+
+        return in_array('*', $resources, true) || in_array($resource, $resources, true);
+    }
+
+    private static function actionsForRole(string $role): array
+    {
+        return self::ROLE_ACTIONS[$role] ?? [
+            'menu.view', 'list', 'read', 'create', 'update', 'translate', 'preview',
+            'submit', 'approve', 'publish', 'unpublish', 'archive', 'soft_delete',
+            'restore', 'export', 'bulk_update', 'manage_settings', 'view_logs',
+        ];
+    }
+
+    public static function roleOptions(): array
+    {
+        return collect(self::ROLES)->mapWithKeys(fn (string $role) => [$role => str($role)->headline()->toString()])->all();
+    }
+
+    public static function permissionOptions(): array
+    {
+        $options = collect(self::KEYS)->keys()->mapWithKeys(fn (string $key) => [$key => $key]);
+
+        foreach (self::RESOURCES as $resource) {
+            foreach (self::ACTIONS as $action) {
+                $key = "{$resource}.{$action}";
+                $options[$key] = $key;
+            }
+        }
+
+        return $options->all();
+    }
+
+    public static function actionPermission(User $user, string $legacyPermission, string $action): string
+    {
+        $resource = self::RESOURCE_BY_LEGACY_PERMISSION[$legacyPermission] ?? null;
+        $canonical = $resource ? "{$resource}.{$action}" : null;
+        if ($canonical !== null && ! self::legacyAllows($user, $legacyPermission)
+            && RoleGrant::query()->active()->where('user_id', $user->id)->exists()) {
+            return $canonical;
+        }
+        if ($canonical !== null && self::allows($user, $canonical)) {
+            return $canonical;
+        }
+
+        return $legacyPermission;
     }
 }

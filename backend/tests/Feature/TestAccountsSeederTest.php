@@ -41,4 +41,17 @@ class TestAccountsSeederTest extends TestCase
         $this->assertSame($trainer->id, $staff->user_id);
         $this->assertSame('ezgidemir825@gmail.com', $staff->email);
     }
+
+    public function test_reseeding_does_not_overwrite_a_password_changed_in_admin(): void
+    {
+        $this->seed(TestAccountsSeeder::class);
+
+        $trainer = User::where('email', 'trainer@arucad.edu.tr')->firstOrFail();
+        $trainer->update(['password' => 'kalici-sifre']);
+
+        $this->seed(TestAccountsSeeder::class);
+
+        $this->assertTrue(Hash::check('kalici-sifre', $trainer->fresh()->password));
+        $this->assertFalse(Hash::check('password', $trainer->fresh()->password));
+    }
 }

@@ -9,9 +9,9 @@ use App\Filament\Resources\Events\Pages\ListEvents;
 use App\Filament\Resources\Events\Pages\ViewEvent;
 use App\Filament\Resources\Events\Schemas\EventForm;
 use App\Filament\Resources\Events\Tables\EventsTable;
+use App\Filament\Resources\TranslatedResource as Resource;
 use App\Models\Event;
 use BackedEnum;
-use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
@@ -25,7 +25,9 @@ class EventResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedCalendarDays;
 
-    protected static string|UnitEnum|null $navigationGroup = 'panel.groups.campus';
+    protected static string|UnitEnum|null $navigationGroup = 'panel.groups.operations';
+
+    protected static ?string $navigationLabel = 'panel.events.nav';
 
     protected static ?string $recordTitleAttribute = 'title';
 

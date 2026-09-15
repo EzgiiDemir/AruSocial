@@ -24,7 +24,7 @@ class AdminPanelProvider extends PanelProvider
 {
     public function panel(Panel $panel): Panel
     {
-        return CampusPanel::configure($panel, Color::Amber)
+        return CampusPanel::configure($panel, Color::hex('#0067B1'))
             ->default()
             ->id('admin')
             ->path('admin')

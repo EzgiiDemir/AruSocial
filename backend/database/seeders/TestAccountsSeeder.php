@@ -29,13 +29,13 @@ class TestAccountsSeeder extends Seeder
         $domain = (string) config('auth.allowed_email_domain');
 
         // Plain student — no RoleAssignment row, defaults to 'student'.
-        $student = User::updateOrCreate(
+        $student = User::firstOrCreate(
             ['email' => "student{$domain}"],
             ['name' => 'Test Student', 'password' => self::PASSWORD],
         );
 
         // Full admin — every admin panel section.
-        $admin = User::updateOrCreate(
+        $admin = User::firstOrCreate(
             ['email' => "admin{$domain}"],
             ['name' => 'Test Admin', 'password' => self::PASSWORD],
         );
@@ -45,7 +45,7 @@ class TestAccountsSeeder extends Seeder
         );
 
         // Trainer — campus-domain account kept for tests/scripts.
-        $trainer = User::updateOrCreate(
+        $trainer = User::firstOrCreate(
             ['email' => "trainer{$domain}"],
             ['name' => 'Test Trainer', 'password' => self::PASSWORD],
         );
@@ -58,12 +58,12 @@ class TestAccountsSeeder extends Seeder
         $gmailStudentEmail = (string) env('TEST_STUDENT_EMAIL', 'ezgdemr02@gmail.com');
         $gmailTrainerEmail = (string) env('TEST_TRAINER_EMAIL', 'ezgidemir825@gmail.com');
 
-        $gmailStudent = User::updateOrCreate(
+        $gmailStudent = User::firstOrCreate(
             ['email' => $gmailStudentEmail],
             ['name' => 'Ezgi Student', 'password' => self::PASSWORD],
         );
 
-        $gmailTrainer = User::updateOrCreate(
+        $gmailTrainer = User::firstOrCreate(
             ['email' => $gmailTrainerEmail],
             ['name' => 'Ezgi Trainer', 'password' => self::PASSWORD],
         );

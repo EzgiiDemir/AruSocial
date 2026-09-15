@@ -9,9 +9,9 @@ use App\Filament\Resources\Places\Pages\ListPlaces;
 use App\Filament\Resources\Places\Pages\ViewPlace;
 use App\Filament\Resources\Places\Schemas\PlaceForm;
 use App\Filament\Resources\Places\Tables\PlacesTable;
+use App\Filament\Resources\TranslatedResource as Resource;
 use App\Models\Place;
 use BackedEnum;
-use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
@@ -32,7 +32,9 @@ class PlaceResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedMapPin;
 
-    protected static string|UnitEnum|null $navigationGroup = 'panel.groups.campus';
+    protected static string|UnitEnum|null $navigationGroup = 'panel.groups.campus_map';
+
+    protected static ?string $navigationLabel = 'panel.places.nav';
 
     protected static ?string $recordTitleAttribute = 'name';
 

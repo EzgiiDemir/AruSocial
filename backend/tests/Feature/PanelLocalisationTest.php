@@ -197,6 +197,24 @@ class PanelLocalisationTest extends TestCase
             ->assertDontSee('Latitude', false);
     }
 
+    public function test_sidebar_translates_resource_labels_and_groups_instead_of_showing_keys(): void
+    {
+        app()->setLocale('tr');
+
+        foreach (Filament::getPanel('admin')->getResources() as $resource) {
+            $label = $resource::getNavigationLabel();
+            $group = $resource::getNavigationGroup();
+
+            $this->assertStringNotContainsString('panel.', $label, $resource.' has a raw navigation label.');
+            $this->assertStringNotContainsString('_', $label, $resource.' has an internal key as its label.');
+
+            if (is_string($group)) {
+                $this->assertStringNotContainsString('panel.', $group, $resource.' has a raw navigation group.');
+                $this->assertStringNotContainsString('_', $group, $resource.' has an internal key as its group.');
+            }
+        }
+    }
+
     public function test_a_russian_staff_member_sees_russian_labels(): void
     {
         $this->actingAs($this->staff('RU'));

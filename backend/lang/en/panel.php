@@ -11,10 +11,13 @@
 return [
 
     'groups' => [
-        'campus' => 'Campus',
-        'people' => 'People',
-        'content' => 'Content',
-        'settings' => 'Settings',
+        'content_management' => 'Content Management',
+        'social' => 'Social',
+        'aicad' => 'AICAD',
+        'users' => 'Users',
+        'campus_map' => 'Campus Map',
+        'operations' => 'Operations',
+        'system' => 'System',
     ],
 
     'dashboard' => [
@@ -23,6 +26,93 @@ return [
         'needs_attention' => 'Needs attention',
         'on_campus' => 'On campus now',
         'my_department' => 'My department',
+        'total_users' => 'Total users', 'active_users' => 'Active users', 'active_today' => 'Active today',
+        'new_registrations' => 'New registrations (7 days)', 'pending_applications' => 'Pending applications',
+        'upcoming_appointments' => 'Upcoming appointments', 'active_events' => 'Active events',
+        'event_participation' => 'Event participation', 'active_clubs' => 'Active clubs',
+        'sports_activities' => 'Sports activities', 'open_tickets' => 'Open support tickets',
+        'moderation_waiting' => 'Awaiting moderation', 'missing_translations' => 'Missing translations',
+        'failed_emails' => 'Failed emails', 'storage_usage' => 'Media storage', 'system_health' => 'System health',
+        'operational' => 'Operational', 'published_pages' => 'Published pages', 'draft_content' => 'Draft content',
+        'awaiting_approval' => 'Awaiting approval',
+    ],
+
+    'pages' => [
+        'nav' => 'Page Builder',
+        'page_settings' => 'Page settings',
+        'internal_title' => 'Internal page name',
+        'title' => 'Title',
+        'summary' => 'Summary',
+        'body' => 'Content',
+        'settings' => 'Block settings',
+        'blocks' => 'Content blocks',
+        'blocks_help' => 'Drag blocks to reorder them. Blocks can be duplicated, collapsed, scheduled, and shown separately on web or mobile.',
+        'add_block' => 'Add content block',
+        'media' => 'Media library item ID',
+        'visible_web' => 'Show on website',
+        'visible_mobile' => 'Show in mobile app',
+        'starts_at' => 'Show from',
+        'ends_at' => 'Show until',
+        'publish_at' => 'Publish at',
+        'expires_at' => 'Unpublish at',
+        'preview' => 'Preview',
+        'updated_by' => 'Updated by',
+        'updated_at' => 'Updated',
+        'draft' => 'Draft',
+        'review' => 'Awaiting review',
+        'published' => 'Published',
+        'archived' => 'Archived',
+        'students' => 'Students',
+        'teachers' => 'Teachers',
+        'staff' => 'Staff',
+        'international' => 'International students',
+        'block_types' => [
+            'hero' => 'Hero', 'heading' => 'Heading', 'rich_text' => 'Rich text',
+            'image' => 'Image', 'video' => 'Video', 'gallery' => 'Gallery',
+            'card_list' => 'Card list', 'cta' => 'Call to action', 'event_list' => 'Event list',
+            'club_list' => 'Club list', 'faq' => 'FAQ', 'map' => 'Map', 'tour_360' => '360° content',
+            'form' => 'Form', 'survey' => 'Survey', 'download' => 'File download',
+            'api_data' => 'Approved API data', 'divider' => 'Spacer / divider', 'columns' => 'Columns',
+        ],
+    ],
+
+    'users' => [
+        'nav' => 'Users', 'identity' => 'User information', 'organization' => 'Organization information',
+        'security' => 'Security', 'name' => 'First and last name', 'email' => 'Institutional email',
+        'phone' => 'Phone', 'institution_id' => 'Staff / student ID', 'job_title' => 'Job title',
+        'language' => 'Preferred language', 'timezone' => 'Time zone', 'status' => 'Account status',
+        'invitation_pending' => 'Invitation pending', 'active' => 'Active', 'suspended' => 'Suspended',
+        'locked' => 'Locked', 'archived' => 'Former employee / archived', 'campus' => 'Campus',
+        'faculty' => 'Faculty', 'department' => 'Department', 'unit' => 'Department / unit',
+        'building' => 'Building / dormitory', 'require_mfa' => 'Require MFA', 'roles' => 'Role assignments',
+        'suspend' => 'Suspend account', 'terminate_sessions' => 'Terminate active sessions',
+        'suspended_notice' => 'The account was suspended and its API sessions were terminated.',
+    ],
+
+    'roles' => [
+        'nav' => 'Roles & Permissions', 'assignment' => 'Role assignment', 'user' => 'User',
+        'role' => 'Role', 'primary' => 'Primary role', 'scope' => 'Access scope', 'scope_id' => 'Scope record ID',
+        'scope_help' => 'Department, club, faculty, campus or building ID. Leave empty only for all/self scopes.',
+        'starts_at' => 'Permission starts', 'expires_at' => 'Permission expires', 'expired' => 'Expired',
+        'capabilities' => 'Permission exceptions', 'publish' => 'Publishing permission',
+        'export' => 'Export permission', 'sensitive' => 'Sensitive data access',
+        'extra_permissions' => 'Additional permissions', 'denied_permissions' => 'Explicitly denied permissions',
+        'cannot_assign_super' => 'Only a Super Admin can assign the Super Admin role.',
+    ],
+
+    'social' => [
+        'feed' => 'Campus Feed', 'author' => 'Author', 'post' => 'Post', 'workflow' => 'Workflow',
+        'moderation' => 'Moderation', 'pinned' => 'Pinned', 'created' => 'Created', 'hide' => 'Hide', 'publish' => 'Publish',
+    ],
+    'ai' => [
+        'chat_history' => 'Chat History (metadata)', 'user' => 'User', 'title' => 'Title',
+        'message_count' => 'Message count', 'created' => 'Created', 'updated' => 'Updated',
+    ],
+    'system' => [
+        'email_logs' => 'Email Logs', 'audit_logs' => 'Activity & Audit Logs', 'actor' => 'Actor',
+        'action' => 'Action', 'target_type' => 'Record type', 'target' => 'Affected record', 'time' => 'Time',
+        'recipient' => 'Recipient', 'template' => 'Template', 'subject' => 'Subject', 'attempts' => 'Attempts',
+        'failure' => 'Failure reason', 'sent_at' => 'Sent at',
     ],
 
     'common' => [
@@ -35,6 +125,7 @@ return [
     ],
 
     'places' => [
+        'nav' => 'Campus Places',
         'section' => 'The place',
         'category_help' => 'Groups the place on the Explore screen.',
         'street' => 'Street / address',
@@ -57,17 +148,20 @@ return [
     ],
 
     'clubs' => [
+        'nav' => 'Clubs',
         'section' => 'The club',
         'members' => 'Members',
     ],
 
     'sports' => [
+        'nav' => 'Sports Activities',
         'section' => 'The sport',
         'facility_help' => 'Where it is played.',
         'contact_help' => 'Phone, email or a name — free text.',
     ],
 
     'services' => [
+        'nav' => 'Campus Services',
         'section' => 'The service',
         'hours' => 'Opening hours',
         'where' => 'Where to find it',
@@ -79,6 +173,7 @@ return [
     ],
 
     'food' => [
+        'nav' => 'Food & Drink',
         'section' => 'The venue',
         'hours' => 'Opening hours',
         'standing_menu' => 'Standing menu',
@@ -88,6 +183,7 @@ return [
     ],
 
     'shuttle' => [
+        'nav' => 'Shuttle Routes',
         'section' => 'The route',
         'colour' => 'Colour',
         'colour_help' => 'How the route is drawn in the app.',
@@ -105,6 +201,7 @@ return [
     ],
 
     'career' => [
+        'nav' => 'Career Opportunities',
         'section' => 'The opportunity',
         'kind' => 'Kind',
         'kind_help' => 'Internship, full-time, part-time…',
@@ -119,6 +216,7 @@ return [
     ],
 
     'events' => [
+        'nav' => 'Events',
         'section' => 'The event',
         'date' => 'Date',
         'time_help' => 'As it should read, e.g. 18:00 - 20:00.',
@@ -150,6 +248,7 @@ return [
     ],
 
     'media' => [
+        'nav' => 'Media Library',
         'preview' => 'Preview',
         'file' => 'File',
         'uploaded_by' => 'Uploaded by',

@@ -77,7 +77,7 @@ class ModerationAlerts extends StatsOverviewWidget
                 ->descriptionIcon($lateCases > 0
                     ? 'heroicon-m-exclamation-triangle'
                     : 'heroicon-m-check-circle')
-                ->color($lateCases > 0 ? 'danger' : 'success')
+                ->color($lateCases > 0 ? 'primary' : 'gray')
                 ->url('/admin'),
 
             // Appeals are listed separately from cases on purpose: a person
@@ -91,12 +91,12 @@ class ModerationAlerts extends StatsOverviewWidget
                 ->descriptionIcon($lateAppeals > 0
                     ? 'heroicon-m-exclamation-triangle'
                     : 'heroicon-m-check-circle')
-                ->color($lateAppeals > 0 ? 'danger' : 'success'),
+                ->color($lateAppeals > 0 ? 'primary' : 'gray'),
 
             Stat::make('Reports from students', (string) $reports)
                 ->description($reports > 0 ? 'Unresolved' : 'Nothing outstanding')
                 ->descriptionIcon('heroicon-m-flag')
-                ->color($reports > 0 ? 'warning' : 'gray'),
+                ->color($reports > 0 ? 'primary' : 'gray'),
         ];
     }
 

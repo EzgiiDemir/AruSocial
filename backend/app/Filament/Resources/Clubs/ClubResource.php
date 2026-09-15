@@ -9,9 +9,9 @@ use App\Filament\Resources\Clubs\Pages\ListClubs;
 use App\Filament\Resources\Clubs\Pages\ViewClub;
 use App\Filament\Resources\Clubs\Schemas\ClubForm;
 use App\Filament\Resources\Clubs\Tables\ClubsTable;
+use App\Filament\Resources\TranslatedResource as Resource;
 use App\Models\Club;
 use BackedEnum;
-use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
@@ -25,7 +25,9 @@ class ClubResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedUserGroup;
 
-    protected static string|UnitEnum|null $navigationGroup = 'panel.groups.campus';
+    protected static string|UnitEnum|null $navigationGroup = 'panel.groups.operations';
+
+    protected static ?string $navigationLabel = 'panel.clubs.nav';
 
     protected static ?string $recordTitleAttribute = 'name';
 

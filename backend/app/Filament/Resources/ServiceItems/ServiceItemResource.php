@@ -9,9 +9,9 @@ use App\Filament\Resources\ServiceItems\Pages\ListServiceItems;
 use App\Filament\Resources\ServiceItems\Pages\ViewServiceItem;
 use App\Filament\Resources\ServiceItems\Schemas\ServiceItemForm;
 use App\Filament\Resources\ServiceItems\Tables\ServiceItemsTable;
+use App\Filament\Resources\TranslatedResource as Resource;
 use App\Models\ServiceItem;
 use BackedEnum;
-use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
@@ -25,7 +25,9 @@ class ServiceItemResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedLifebuoy;
 
-    protected static string|UnitEnum|null $navigationGroup = 'panel.groups.campus';
+    protected static string|UnitEnum|null $navigationGroup = 'panel.groups.operations';
+
+    protected static ?string $navigationLabel = 'panel.services.nav';
 
     protected static ?string $recordTitleAttribute = 'title';
 

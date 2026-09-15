@@ -51,24 +51,25 @@ class CampusPanel
     public static function navigationGroups(): array
     {
         return [
-            // What students see on the map and the calendar. The bulk of
-            // day-to-day editing, so it sits first and opens by default.
-            NavigationGroup::make(__('panel.groups.campus'))
-                ->icon('heroicon-o-building-office-2'),
-
-            // Accounts, staff profiles, and the things attached to people.
-            NavigationGroup::make(__('panel.groups.people'))
+            NavigationGroup::make(__('panel.groups.content_management'))
+                ->icon('heroicon-o-document-text')
+                ->collapsible(),
+            NavigationGroup::make(__('panel.groups.social'))
+                ->icon('heroicon-o-chat-bubble-left-right')
+                ->collapsed(),
+            NavigationGroup::make(__('panel.groups.aicad'))
+                ->icon('heroicon-o-sparkles')
+                ->collapsed(),
+            NavigationGroup::make(__('panel.groups.users'))
                 ->icon('heroicon-o-users')
                 ->collapsed(),
-
-            // Words, pages and anything published as text.
-            NavigationGroup::make(__('panel.groups.content'))
-                ->icon('heroicon-o-document-text')
+            NavigationGroup::make(__('panel.groups.campus_map'))
+                ->icon('heroicon-o-map')
                 ->collapsed(),
-
-            // Changes that affect the whole app. Last and collapsed,
-            // because nothing here should be a casual click.
-            NavigationGroup::make(__('panel.groups.settings'))
+            NavigationGroup::make(__('panel.groups.operations'))
+                ->icon('heroicon-o-building-office-2')
+                ->collapsed(),
+            NavigationGroup::make(__('panel.groups.system'))
                 ->icon('heroicon-o-cog-6-tooth')
                 ->collapsed(),
         ];
@@ -85,8 +86,8 @@ class CampusPanel
                 'primary' => $primary,
                 'danger' => Color::Red,
                 'warning' => Color::Amber,
-                'success' => Color::Emerald,
-                'gray' => Color::Slate,
+                'success' => Color::Blue,
+                'gray' => Color::Zinc,
             ])
             ->brandLogo(asset('images/arucad-logo.png'))
             ->brandLogoHeight('1.9rem')

@@ -68,18 +68,6 @@ Future<void> _runApp() async {
   ));
   configureUrlStrategy();
 
-  // Real web split: visiting /admin (vs the normal / root) is a genuinely
-  // separate entry point, not just a hidden button.
-  final startInAdminMode = kIsWeb && Uri.base.path.startsWith('/admin');
-  // Same pattern for the Trainer Panel (/trainer) — a third portal for
-  // department heads, separate from both the student app and full admin.
-  final startInTrainerMode = kIsWeb && Uri.base.path.startsWith('/trainer');
-  // Each real portal keeps a fully independent session (see
-  // SessionStore's class doc) — signing out of /admin in one tab must
-  // never touch a /trainer or student session open in another.
-  final portal =
-      startInAdminMode ? 'admin' : (startInTrainerMode ? 'trainer' : 'student');
-
   // Attempt Firebase initialization; swallow errors so missing config won't
   // block running the demo app. For production, provide generated
   // `firebase_options.dart` and proper platform files (google-services.json / Info.plist).
@@ -94,11 +82,7 @@ Future<void> _runApp() async {
   }
 
   try {
-    await _mountApp(
-      startInAdminMode: startInAdminMode,
-      startInTrainerMode: startInTrainerMode,
-      portal: portal,
-    );
+    await _mountApp();
   } on StateError catch (e) {
     runApp(ConfigErrorApp(message: e.message));
   } catch (e) {
@@ -110,17 +94,10 @@ Future<void> _runApp() async {
   }
 }
 
-Future<void> _mountApp({
-  required bool startInAdminMode,
-  required bool startInTrainerMode,
-  required String portal,
-}) async {
-  // Real Entra sign-in switches on automatically once an admin fills in
-  // Tenant ID / Client ID / Redirect URI from Profile → Yönetim Paneli →
-  // Site Settings — no code change or rebuild needed for the credentials
-  // themselves (the redirect scheme is still fixed at Android build time,
-  // see android/app/build.gradle.kts). Until then this is empty and the app
-  // keeps using the mock directory, exactly as before.
+Future<void> _mountApp() async {
+  // Entra sign-in switches on when the backend/site configuration supplies
+  // Tenant ID, Client ID and Redirect URI. The student app no longer embeds
+  // a management panel; administrators configure these values in Filament.
   // API configuration is compiled into the build, and that stays the
   // default. A saved host/port from the login screen's settings can point
   // this build at a different server — how a phone reaches a laptop running
@@ -131,9 +108,6 @@ Future<void> _mountApp({
   final config = await _withSavedApiOverride(AppConfig.fromEnvironment());
   await _mountAppWithConfig(
     config: config,
-    startInAdminMode: startInAdminMode,
-    startInTrainerMode: startInTrainerMode,
-    portal: portal,
   );
 }
 
@@ -168,10 +142,8 @@ Future<AppConfig> _withSavedApiOverride(AppConfig config) async {
 
 Future<void> _mountAppWithConfig({
   required AppConfig config,
-  required bool startInAdminMode,
-  required bool startInTrainerMode,
-  required String portal,
 }) async {
+  const portal = 'student';
   final useRestApi = config.useRestApi;
   final apiBaseUrl = config.apiBaseUrl;
 
@@ -231,13 +203,7 @@ Future<void> _mountAppWithConfig({
       authProvider: authProvider,
       mapProvider: const UrlLauncherMapProvider(),
       analyticsTracker: MockAnalyticsTracker(),
-      startInAdminMode: startInAdminMode,
-      startInTrainerMode: startInTrainerMode,
-      onReloadServices: () => _mountApp(
-        startInAdminMode: startInAdminMode,
-        startInTrainerMode: startInTrainerMode,
-        portal: portal,
-      ),
+      onReloadServices: _mountApp,
     ),
   );
 }

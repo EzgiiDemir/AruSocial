@@ -13,19 +13,24 @@ class UpsertPageRequest extends FormRequest
 
     public function rules(): array
     {
-        return array (
-  'id' => 
-  array (
-    0 => 'required',
-  ),
-  'title' => 
-  array (
-    0 => 'required',
-  ),
-  'slug' => 
-  array (
-    0 => 'required',
-  ),
-);
+        return [
+            'id' => [
+                0 => 'required',
+            ],
+            'title' => [
+                0 => 'required',
+            ],
+            'slug' => [
+                0 => 'required',
+            ],
+            'translations' => ['sometimes', 'array'],
+            'translations.tr' => ['sometimes', 'array'],
+            'translations.en' => ['sometimes', 'array'],
+            'translations.ru' => ['sometimes', 'array'],
+            'blocks' => ['sometimes', 'array'],
+            'audiences' => ['sometimes', 'array'],
+            'publishAt' => ['nullable', 'date'],
+            'expiresAt' => ['nullable', 'date', 'after:publishAt'],
+        ];
     }
 }

@@ -5,9 +5,9 @@ namespace App\Filament\Resources\MediaItems;
 use App\Filament\Concerns\ManagesCampusContent;
 use App\Filament\Resources\MediaItems\Pages\ListMediaItems;
 use App\Filament\Resources\MediaItems\Tables\MediaItemsTable;
+use App\Filament\Resources\TranslatedResource as Resource;
 use App\Models\MediaItem;
 use BackedEnum;
-use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
@@ -30,7 +30,9 @@ class MediaItemResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedPhoto;
 
-    protected static string|UnitEnum|null $navigationGroup = 'panel.groups.content';
+    protected static string|UnitEnum|null $navigationGroup = 'panel.groups.content_management';
+
+    protected static ?string $navigationLabel = 'panel.media.nav';
 
     protected static ?string $recordTitleAttribute = 'file_name';
 

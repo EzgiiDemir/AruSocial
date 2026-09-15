@@ -9,9 +9,9 @@ use App\Filament\Resources\Sports\Pages\ListSports;
 use App\Filament\Resources\Sports\Pages\ViewSport;
 use App\Filament\Resources\Sports\Schemas\SportForm;
 use App\Filament\Resources\Sports\Tables\SportsTable;
+use App\Filament\Resources\TranslatedResource as Resource;
 use App\Models\Sport;
 use BackedEnum;
-use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
@@ -25,7 +25,9 @@ class SportResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedTrophy;
 
-    protected static string|UnitEnum|null $navigationGroup = 'panel.groups.campus';
+    protected static string|UnitEnum|null $navigationGroup = 'panel.groups.operations';
+
+    protected static ?string $navigationLabel = 'panel.sports.nav';
 
     protected static ?string $recordTitleAttribute = 'name';
 

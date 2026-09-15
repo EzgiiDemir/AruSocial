@@ -7,13 +7,11 @@ import 'package:arucad_campus_prototype/core/services/contracts.dart';
 import 'package:arucad_campus_prototype/core/services/photo_picker_service.dart';
 import 'package:arucad_campus_prototype/core/services/upload_rules.dart';
 import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
-import 'package:arucad_campus_prototype/features/admin/admin_panel_screen.dart';
 import 'package:arucad_campus_prototype/features/home/campus_live_map.dart';
 import 'package:arucad_campus_prototype/features/legal/legal_document_screen.dart';
 import 'package:arucad_campus_prototype/features/profile/my_applications_screen.dart';
 import 'package:arucad_campus_prototype/features/quests/quests_screen.dart';
 import 'package:arucad_campus_prototype/features/services/appointment_booking_screen.dart';
-import 'package:arucad_campus_prototype/features/trainer/trainer_panel_screen.dart';
 import 'package:arucad_campus_prototype/features/widgets/moderation_notice.dart';
 import 'package:arucad_campus_prototype/features/widgets/campus_avatar.dart';
 import 'package:arucad_campus_prototype/features/widgets/campus_network_image.dart';
@@ -621,38 +619,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
             ),
-            if (widget.role.canOpenAdminPanel) ...[
-              const Divider(height: 1),
-              ListTile(
-                leading: const Icon(Icons.admin_panel_settings_outlined),
-                title: Text(AppLocale.of(context).t('pr_admin_panel')),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                  builder: (ctx) => AdminPanelScreen(
-                    repository: widget.repository,
-                    role: widget.role,
-                    user: widget.user,
-                    onLogout: () => Navigator.of(ctx).pop(),
-                  ),
-                )),
-              ),
-            ],
-            if (widget.role.canOpenTrainerPanel) ...[
-              const Divider(height: 1),
-              ListTile(
-                leading: const Icon(Icons.school_outlined),
-                title: Text(AppLocale.of(context).t('pr_trainer_panel')),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                  builder: (ctx) => TrainerPanelScreen(
-                    repository: widget.repository,
-                    user: widget.user,
-                    role: widget.role,
-                    onLogout: () => Navigator.of(ctx).pop(),
-                  ),
-                )),
-              ),
-            ],
           ]),
         ),
 

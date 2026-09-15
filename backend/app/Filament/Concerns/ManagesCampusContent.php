@@ -5,6 +5,7 @@ namespace App\Filament\Concerns;
 use App\Models\User;
 use App\Services\AuditLogger;
 use App\Services\GranularPermissions;
+use App\Services\ScopedAccess;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
@@ -81,52 +82,78 @@ trait ManagesCampusContent
 
     // ---- authorisation -------------------------------------------------
 
-    protected static function mayManage(): bool
+    protected static function mayManage(string $action = 'list'): bool
     {
         $user = auth()->user();
 
         return $user instanceof User
-            && GranularPermissions::allows($user, static::permissionKey());
+            && GranularPermissions::allows($user, GranularPermissions::actionPermission($user, static::permissionKey(), $action));
+    }
+
+    protected static function permissionFor(User $user, string $action): string
+    {
+        return GranularPermissions::actionPermission($user, static::permissionKey(), $action);
+    }
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        $user = auth()->user();
+
+        return $user instanceof User && (
+            GranularPermissions::allows($user, static::permissionKey())
+            || GranularPermissions::allows($user, (GranularPermissions::RESOURCE_BY_LEGACY_PERMISSION[static::permissionKey()] ?? static::permissionKey()).'.menu.view')
+        );
     }
 
     public static function canViewAny(): bool
     {
-        return static::mayManage();
+        return static::mayManage('list');
     }
 
     public static function canView($record): bool
     {
-        return static::mayManage();
+        $user = auth()->user();
+        $permission = $user instanceof User ? static::permissionFor($user, 'read') : static::permissionKey();
+
+        return static::mayManage('read') && (! $record instanceof Model || ($user instanceof User && ScopedAccess::recordAllowed($record, $user, $permission)));
     }
 
     public static function canCreate(): bool
     {
-        return static::mayManage();
+        return static::mayManage('create');
     }
 
     public static function canEdit($record): bool
     {
-        return static::mayManage();
+        $user = auth()->user();
+
+        return static::mayManage('update') && (! $record instanceof Model || ($user instanceof User && ScopedAccess::recordAllowed($record, $user, static::permissionFor($user, 'update'))));
     }
 
     public static function canDelete($record): bool
     {
-        return static::mayManage();
+        $user = auth()->user();
+
+        return static::mayManage('soft_delete') && (! $record instanceof Model || ($user instanceof User && ScopedAccess::recordAllowed($record, $user, static::permissionFor($user, 'soft_delete'))));
     }
 
     public static function canDeleteAny(): bool
     {
-        return static::mayManage();
+        return static::mayManage('bulk_delete');
     }
 
     public static function canRestore($record): bool
     {
-        return static::mayManage();
+        $user = auth()->user();
+
+        return static::mayManage('restore') && (! $record instanceof Model || ($user instanceof User && ScopedAccess::recordAllowed($record, $user, static::permissionFor($user, 'restore'))));
     }
 
     public static function canForceDelete($record): bool
     {
-        return static::mayManage();
+        $user = auth()->user();
+
+        return static::mayManage('permanent_delete') && (! $record instanceof Model || ($user instanceof User && ScopedAccess::recordAllowed($record, $user, static::permissionFor($user, 'permanent_delete'))));
     }
 
     // ---- queries -------------------------------------------------------
@@ -138,9 +165,12 @@ trait ManagesCampusContent
      */
     public static function getEloquentQuery(): Builder
     {
-        return parent::getEloquentQuery()->withoutGlobalScopes([
+        $query = parent::getEloquentQuery()->withoutGlobalScopes([
             SoftDeletingScope::class,
         ]);
+        $user = auth()->user();
+
+        return $user instanceof User ? ScopedAccess::apply($query, $user, static::permissionFor($user, 'list')) : $query->whereRaw('1 = 0');
     }
 
     /**
@@ -149,9 +179,12 @@ trait ManagesCampusContent
      */
     public static function getRecordRouteBindingEloquentQuery(): Builder
     {
-        return parent::getRecordRouteBindingEloquentQuery()->withoutGlobalScopes([
+        $query = parent::getRecordRouteBindingEloquentQuery()->withoutGlobalScopes([
             SoftDeletingScope::class,
         ]);
+        $user = auth()->user();
+
+        return $user instanceof User ? ScopedAccess::apply($query, $user, static::permissionFor($user, 'read')) : $query->whereRaw('1 = 0');
     }
 
     // ---- actions -------------------------------------------------------
@@ -195,7 +228,7 @@ trait ManagesCampusContent
                 ForceDeleteBulkAction::make()
                     ->requiresConfirmation()
                     ->modalHeading(__('panel.common.purge_bulk')),
-                ExportBulkAction::make(),
+                ExportBulkAction::make()->visible(fn (): bool => static::mayManage('export')),
             ]),
         ];
     }

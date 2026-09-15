@@ -15,10 +15,20 @@ class AdminPage extends Model
 
     public $timestamps = false;
 
-    protected $fillable = ['id', 'title', 'slug', 'blocks', 'status', 'updated_at', 'updated_by'];
+    protected $fillable = [
+        'id', 'title', 'slug', 'translations', 'blocks', 'status',
+        'publish_at', 'expires_at', 'audiences', 'updated_at', 'updated_by',
+    ];
 
     protected function casts(): array
     {
-        return ['blocks' => 'array', 'updated_at' => 'datetime'];
+        return [
+            'translations' => 'array',
+            'blocks' => 'array',
+            'audiences' => 'array',
+            'publish_at' => 'datetime',
+            'expires_at' => 'datetime',
+            'updated_at' => 'datetime',
+        ];
     }
 }

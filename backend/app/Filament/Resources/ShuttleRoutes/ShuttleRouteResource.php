@@ -9,9 +9,9 @@ use App\Filament\Resources\ShuttleRoutes\Pages\ListShuttleRoutes;
 use App\Filament\Resources\ShuttleRoutes\Pages\ViewShuttleRoute;
 use App\Filament\Resources\ShuttleRoutes\Schemas\ShuttleRouteForm;
 use App\Filament\Resources\ShuttleRoutes\Tables\ShuttleRoutesTable;
+use App\Filament\Resources\TranslatedResource as Resource;
 use App\Models\ShuttleRoute;
 use BackedEnum;
-use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
@@ -25,7 +25,9 @@ class ShuttleRouteResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedTruck;
 
-    protected static string|UnitEnum|null $navigationGroup = 'panel.groups.campus';
+    protected static string|UnitEnum|null $navigationGroup = 'panel.groups.operations';
+
+    protected static ?string $navigationLabel = 'panel.shuttle.nav';
 
     protected static ?string $recordTitleAttribute = 'name';
 

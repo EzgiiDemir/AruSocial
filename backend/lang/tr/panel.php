@@ -9,10 +9,13 @@
 return [
 
     'groups' => [
-        'campus' => 'Kampüs',
-        'people' => 'Kişiler',
-        'content' => 'İçerik',
-        'settings' => 'Ayarlar',
+        'content_management' => 'İçerik Yönetimi',
+        'social' => 'Sosyal',
+        'aicad' => 'AICAD',
+        'users' => 'Kullanıcılar',
+        'campus_map' => 'Kampüs Haritası',
+        'operations' => 'Operasyonlar',
+        'system' => 'Sistem',
     ],
 
     'dashboard' => [
@@ -21,6 +24,93 @@ return [
         'needs_attention' => 'İlgi bekleyenler',
         'on_campus' => 'Kampüste şu an',
         'my_department' => 'Bölümüm',
+        'total_users' => 'Toplam kullanıcı', 'active_users' => 'Aktif kullanıcı', 'active_today' => 'Bugün aktif',
+        'new_registrations' => 'Yeni kayıtlar (7 gün)', 'pending_applications' => 'Bekleyen başvurular',
+        'upcoming_appointments' => 'Yaklaşan randevular', 'active_events' => 'Aktif etkinlikler',
+        'event_participation' => 'Etkinlik katılımı', 'active_clubs' => 'Aktif kulüpler',
+        'sports_activities' => 'Spor aktiviteleri', 'open_tickets' => 'Açık destek talepleri',
+        'moderation_waiting' => 'Moderasyon bekleyen', 'missing_translations' => 'Eksik çeviriler',
+        'failed_emails' => 'Başarısız e-postalar', 'storage_usage' => 'Medya depolama', 'system_health' => 'Sistem sağlığı',
+        'operational' => 'Çalışıyor', 'published_pages' => 'Yayındaki sayfalar', 'draft_content' => 'Taslak içerik',
+        'awaiting_approval' => 'Onay bekleyen',
+    ],
+
+    'pages' => [
+        'nav' => 'Sayfa Oluşturucu',
+        'page_settings' => 'Sayfa ayarları',
+        'internal_title' => 'Dahili sayfa adı',
+        'title' => 'Başlık',
+        'summary' => 'Özet',
+        'body' => 'İçerik',
+        'settings' => 'Blok ayarları',
+        'blocks' => 'İçerik blokları',
+        'blocks_help' => 'Blokları sürükleyerek sıralayın. Bloklar çoğaltılabilir, daraltılabilir, zamanlanabilir; web ve mobilde ayrı ayrı gösterilebilir.',
+        'add_block' => 'İçerik bloğu ekle',
+        'media' => 'Medya kütüphanesi öğe kimliği',
+        'visible_web' => 'Web sitesinde göster',
+        'visible_mobile' => 'Mobil uygulamada göster',
+        'starts_at' => 'Gösterim başlangıcı',
+        'ends_at' => 'Gösterim bitişi',
+        'publish_at' => 'Yayın zamanı',
+        'expires_at' => 'Yayından kaldırma zamanı',
+        'preview' => 'Önizle',
+        'updated_by' => 'Güncelleyen',
+        'updated_at' => 'Güncellendi',
+        'draft' => 'Taslak',
+        'review' => 'İnceleme bekliyor',
+        'published' => 'Yayında',
+        'archived' => 'Arşivlendi',
+        'students' => 'Öğrenciler',
+        'teachers' => 'Akademisyenler',
+        'staff' => 'Personel',
+        'international' => 'Uluslararası öğrenciler',
+        'block_types' => [
+            'hero' => 'Hero alanı', 'heading' => 'Başlık', 'rich_text' => 'Zengin metin',
+            'image' => 'Görsel', 'video' => 'Video', 'gallery' => 'Galeri',
+            'card_list' => 'Kart listesi', 'cta' => 'Eylem çağrısı', 'event_list' => 'Etkinlik listesi',
+            'club_list' => 'Kulüp listesi', 'faq' => 'SSS', 'map' => 'Harita', 'tour_360' => '360° içerik',
+            'form' => 'Form', 'survey' => 'Anket', 'download' => 'Dosya indirme',
+            'api_data' => 'Onaylı API verisi', 'divider' => 'Boşluk / ayraç', 'columns' => 'Sütunlar',
+        ],
+    ],
+
+    'users' => [
+        'nav' => 'Kullanıcılar', 'identity' => 'Kullanıcı bilgileri', 'organization' => 'Organizasyon bilgileri',
+        'security' => 'Güvenlik', 'name' => 'Ad ve soyad', 'email' => 'Kurumsal e-posta',
+        'phone' => 'Telefon', 'institution_id' => 'Personel / öğrenci numarası', 'job_title' => 'Görev unvanı',
+        'language' => 'Tercih edilen dil', 'timezone' => 'Saat dilimi', 'status' => 'Hesap durumu',
+        'invitation_pending' => 'Davet bekliyor', 'active' => 'Aktif', 'suspended' => 'Askıya alındı',
+        'locked' => 'Kilitli', 'archived' => 'Eski çalışan / arşivlendi', 'campus' => 'Kampüs',
+        'faculty' => 'Fakülte', 'department' => 'Departman', 'unit' => 'Departman / birim',
+        'building' => 'Bina / yurt', 'require_mfa' => 'MFA zorunlu', 'roles' => 'Rol atamaları',
+        'suspend' => 'Hesabı askıya al', 'terminate_sessions' => 'Aktif oturumları sonlandır',
+        'suspended_notice' => 'Hesap askıya alındı ve API oturumları sonlandırıldı.',
+    ],
+
+    'roles' => [
+        'nav' => 'Roller ve İzinler', 'assignment' => 'Rol ataması', 'user' => 'Kullanıcı',
+        'role' => 'Rol', 'primary' => 'Birincil rol', 'scope' => 'Erişim kapsamı', 'scope_id' => 'Kapsam kayıt kimliği',
+        'scope_help' => 'Departman, kulüp, fakülte, kampüs veya bina kimliği. Tümü/kendisi kapsamlarında boş bırakın.',
+        'starts_at' => 'İzin başlangıcı', 'expires_at' => 'İzin bitişi', 'expired' => 'Süresi doldu',
+        'capabilities' => 'İzin istisnaları', 'publish' => 'Yayınlama izni',
+        'export' => 'Dışa aktarma izni', 'sensitive' => 'Hassas veri erişimi',
+        'extra_permissions' => 'Ek izinler', 'denied_permissions' => 'Açıkça reddedilen izinler',
+        'cannot_assign_super' => 'Super Admin rolünü yalnızca bir Super Admin atayabilir.',
+    ],
+
+    'social' => [
+        'feed' => 'Kampüs Akışı', 'author' => 'Yazar', 'post' => 'Gönderi', 'workflow' => 'İş akışı',
+        'moderation' => 'Moderasyon', 'pinned' => 'Sabitlendi', 'created' => 'Oluşturuldu', 'hide' => 'Gizle', 'publish' => 'Yayınla',
+    ],
+    'ai' => [
+        'chat_history' => 'Sohbet Geçmişi (metadata)', 'user' => 'Kullanıcı', 'title' => 'Başlık',
+        'message_count' => 'Mesaj sayısı', 'created' => 'Oluşturuldu', 'updated' => 'Güncellendi',
+    ],
+    'system' => [
+        'email_logs' => 'E-posta Günlüğü', 'audit_logs' => 'Aktivite ve Denetim Günlüğü', 'actor' => 'İşlemi yapan',
+        'action' => 'İşlem', 'target_type' => 'Kayıt türü', 'target' => 'Etkilenen kayıt', 'time' => 'Zaman',
+        'recipient' => 'Alıcı', 'template' => 'Şablon', 'subject' => 'Konu', 'attempts' => 'Deneme sayısı',
+        'failure' => 'Hata nedeni', 'sent_at' => 'Gönderim zamanı',
     ],
 
     'common' => [
@@ -33,6 +123,7 @@ return [
     ],
 
     'places' => [
+        'nav' => 'Kampüs Mekânları',
         'section' => 'Mekân',
         'category_help' => 'Keşfet ekranında mekânı gruplandırır.',
         'street' => 'Sokak / adres',
@@ -55,17 +146,20 @@ return [
     ],
 
     'clubs' => [
+        'nav' => 'Kulüpler',
         'section' => 'Kulüp',
         'members' => 'Üyeler',
     ],
 
     'sports' => [
+        'nav' => 'Spor Aktiviteleri',
         'section' => 'Spor',
         'facility_help' => 'Nerede yapıldığı.',
         'contact_help' => 'Telefon, e-posta veya bir isim — serbest metin.',
     ],
 
     'services' => [
+        'nav' => 'Kampüs Hizmetleri',
         'section' => 'Hizmet',
         'hours' => 'Çalışma saatleri',
         'where' => 'Nerede bulunur',
@@ -77,6 +171,7 @@ return [
     ],
 
     'food' => [
+        'nav' => 'Yeme-İçme Noktaları',
         'section' => 'İşletme',
         'hours' => 'Çalışma saatleri',
         'standing_menu' => 'Sabit menü',
@@ -86,6 +181,7 @@ return [
     ],
 
     'shuttle' => [
+        'nav' => 'Servis Güzergâhları',
         'section' => 'Güzergâh',
         'colour' => 'Renk',
         'colour_help' => 'Güzergâhın uygulamada nasıl çizileceği.',
@@ -103,6 +199,7 @@ return [
     ],
 
     'career' => [
+        'nav' => 'Kariyer Fırsatları',
         'section' => 'İlan',
         'kind' => 'Tür',
         'kind_help' => 'Staj, tam zamanlı, yarı zamanlı…',
@@ -117,6 +214,7 @@ return [
     ],
 
     'events' => [
+        'nav' => 'Etkinlikler',
         'section' => 'Etkinlik',
         'date' => 'Tarih',
         'time_help' => 'Görünmesi gerektiği gibi, örn. 18:00 - 20:00.',
@@ -148,6 +246,7 @@ return [
     ],
 
     'media' => [
+        'nav' => 'Medya Kütüphanesi',
         'preview' => 'Önizleme',
         'file' => 'Dosya',
         'uploaded_by' => 'Yükleyen',

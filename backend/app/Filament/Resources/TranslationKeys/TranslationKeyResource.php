@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\TranslationKeys;
 
+use App\Filament\Resources\TranslatedResource as Resource;
 use App\Filament\Resources\TranslationKeys\Pages\CreateTranslationKey;
 use App\Filament\Resources\TranslationKeys\Pages\EditTranslationKey;
 use App\Filament\Resources\TranslationKeys\Pages\ListTranslationKeys;
@@ -12,10 +13,10 @@ use App\Models\User;
 use App\Services\GranularPermissions;
 use App\Services\Translations\TranslationCatalogue;
 use BackedEnum;
-use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use UnitEnum;
 
 /**
  * The app's words, editable without a release.
@@ -38,6 +39,8 @@ class TranslationKeyResource extends Resource
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedLanguage;
 
     protected static ?string $navigationLabel = 'panel.translations.nav';
+
+    protected static string|UnitEnum|null $navigationGroup = 'panel.groups.content_management';
 
     protected static ?string $modelLabel = 'translation';
 
@@ -92,7 +95,7 @@ class TranslationKeyResource extends Resource
 
     public static function canViewAny(): bool
     {
-        return self::may('users.manage');
+        return self::may('users.manage') || self::may('pages.block.list');
     }
 
     public static function canCreate(): bool
@@ -102,7 +105,7 @@ class TranslationKeyResource extends Resource
 
     public static function canEdit($record): bool
     {
-        return self::may('users.manage');
+        return self::may('users.manage') || self::may('pages.block.translate');
     }
 
     public static function canDelete($record): bool

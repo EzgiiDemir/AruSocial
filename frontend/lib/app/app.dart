@@ -24,15 +24,12 @@ import '../core/services/rest_campus_repository.dart';
 import '../core/l10n/app_strings.dart';
 import '../core/l10n/translation_store.dart';
 import '../core/theme/arucad_theme.dart';
-import '../features/admin/admin_panel_screen.dart';
-import '../features/auth/access_denied_screen.dart';
 import '../features/auth/privacy_notice_screen.dart';
 import '../features/auth/settings_screen.dart';
 import '../features/campus_shell.dart';
 import '../features/place/place_detail_screen.dart';
 import '../features/social/chat_screen.dart';
 import '../features/social/notifications_screen.dart';
-import '../features/trainer/trainer_panel_screen.dart';
 import '../features/widgets/moderation_notice.dart';
 
 /// Lets code below the login screen show feedback (e.g. "location denied")
@@ -47,13 +44,6 @@ class ArucadCampusApp extends StatefulWidget {
   final MapProvider mapProvider;
   final AnalyticsTracker analyticsTracker;
 
-  /// True only when this session started at the web `/admin` URL — a real
-  /// separate entry point (see `main.dart`), not just a hidden button.
-  final bool startInAdminMode;
-
-  /// Same pattern for `/trainer` — the Trainer Panel, a third portal for
-  /// department heads separate from both the student app and full admin.
-  final bool startInTrainerMode;
   final Future<void> Function()? onReloadServices;
 
   const ArucadCampusApp({
@@ -63,8 +53,6 @@ class ArucadCampusApp extends StatefulWidget {
     required this.authProvider,
     required this.mapProvider,
     required this.analyticsTracker,
-    this.startInAdminMode = false,
-    this.startInTrainerMode = false,
     this.onReloadServices,
   });
 
@@ -160,8 +148,6 @@ class _ArucadCampusAppState extends State<ArucadCampusApp> {
           authProvider: widget.authProvider,
           mapProvider: widget.mapProvider,
           analyticsTracker: widget.analyticsTracker,
-          startInAdminMode: widget.startInAdminMode,
-          startInTrainerMode: widget.startInTrainerMode,
           onReloadServices: widget.onReloadServices,
           language: _language,
           onLanguageChanged: _setLanguage,
@@ -169,17 +155,9 @@ class _ArucadCampusAppState extends State<ArucadCampusApp> {
               WidgetsBinding.instance.platformDispatcher.defaultRouteName),
         ),
       ),
-      // The real /admin vs / split is decided once in main.dart by reading
-      // Uri.base.path directly (see startInAdminMode) — this app never uses
-      // named-route navigation. But on the web, Flutter's Navigator always
-      // probes the browser's actual initial path as a *named* route first
-      // (this overrides `initialRoute`, so setting that alone does nothing
-      // here — confirmed in WidgetsApp's `_initialRouteName` getter), and
-      // with no onGenerateRoute it finds nothing for "/admin" and logs a
-      // "Could not navigate to initial route" warning before falling back
-      // to `home` anyway. Answering every route name with the same `home`
-      // content removes the dead-end without pretending this app has real
-      // named routing.
+      // Student deep links are resolved from their browser route. Legacy
+      // /admin and /trainer URLs are normalized to / before this widget is
+      // mounted; management now lives only in Laravel/Filament.
       onGenerateRoute: (settings) => MaterialPageRoute(
         settings: settings,
         builder: (_) => _DemoSession(
@@ -188,8 +166,6 @@ class _ArucadCampusAppState extends State<ArucadCampusApp> {
           authProvider: widget.authProvider,
           mapProvider: widget.mapProvider,
           analyticsTracker: widget.analyticsTracker,
-          startInAdminMode: widget.startInAdminMode,
-          startInTrainerMode: widget.startInTrainerMode,
           onReloadServices: widget.onReloadServices,
           language: _language,
           onLanguageChanged: _setLanguage,
@@ -215,8 +191,6 @@ class _DemoSession extends StatefulWidget {
   final AuthProvider authProvider;
   final MapProvider mapProvider;
   final AnalyticsTracker analyticsTracker;
-  final bool startInAdminMode;
-  final bool startInTrainerMode;
   final Future<void> Function()? onReloadServices;
   final AppDeepLink? initialDeepLink;
   final String language;
@@ -228,8 +202,6 @@ class _DemoSession extends StatefulWidget {
     required this.authProvider,
     required this.mapProvider,
     required this.analyticsTracker,
-    this.startInAdminMode = false,
-    this.startInTrainerMode = false,
     this.onReloadServices,
     this.initialDeepLink,
     required this.language,
@@ -742,36 +714,6 @@ class _DemoSessionState extends State<_DemoSession>
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    if (widget.startInAdminMode) {
-      if (!role.canOpenAdminPanel) {
-        return _wrapPersistenceBanner(AccessDeniedScreen(
-          title: 'Yönetim paneli',
-          message: 'Bu hesap yönetim paneline erişemez.',
-          onLogout: _logout,
-        ));
-      }
-      return _wrapPersistenceBanner(AdminPanelScreen(
-          repository: widget.repository,
-          role: role,
-          user: user!,
-          onLogout: _logout));
-    }
-
-    if (widget.startInTrainerMode) {
-      if (!role.canOpenTrainerPanel) {
-        return _wrapPersistenceBanner(AccessDeniedScreen(
-          title: 'Eğitmen paneli',
-          message: 'Bu hesap eğitmen paneline erişemez.',
-          onLogout: _logout,
-        ));
-      }
-      return _wrapPersistenceBanner(TrainerPanelScreen(
-          repository: widget.repository,
-          user: user!,
-          role: role,
-          onLogout: _logout));
-    }
-
     return _wrapPersistenceBanner(CampusShell(
       user: user!,
       repository: widget.repository,
@@ -784,8 +726,8 @@ class _DemoSessionState extends State<_DemoSession>
     ));
   }
 
-  /// Mock mode keeps writes in-process only — refresh /admin in another
-  /// tab looks "broken". Surface that honestly until REST is on.
+  /// Mock mode keeps writes in-process only. Surface that honestly until
+  /// REST is on so the student does not mistake demo data for shared data.
   Widget _wrapPersistenceBanner(Widget child) {
     if (!widget.config.demoMode) return child;
     return Column(

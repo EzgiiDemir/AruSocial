@@ -1,16 +1,20 @@
-# The Admin and Trainer panels
+# The Admin panel
 
-Two Filament panels, deliberately separate:
+> **2026-09-15 architecture update:** the panel now uses the seven-group
+> information architecture, scoped multi-role grants, action permissions,
+> Page Builder, user/role screens and Social/AICAD/System resources described
+> in [ADMIN_PANEL_ARCHITECTURE_2026-09-15.md](ADMIN_PANEL_ARCHITECTURE_2026-09-15.md).
+> The four-group sidebar and “still to build” inventory below document the
+> earlier baseline and are retained for implementation history.
+
+The management surface is a single Filament panel:
 
 | | Path | Who | Resources discovered from |
 |---|---|---|---|
 | Admin | `/admin` | `viewAdmin` | `app/Filament/Resources` |
-| Trainer | `/trainer` | `manageOwnDepartment` | `app/Filament/Trainer/Resources` |
-
-They are separate panels rather than one panel with hidden sections, so a
-trainer's session never reaches an admin URL. A resource that forgets its own
-authorisation check is still not exposed to them, because it is not in their
-panel's discovery path.
+The former `/trainer` panel was retired on 2026-09-15. Department-limited
+staff are represented by scoped role grants inside `/admin`; they no longer
+receive a separate management product.
 
 Who may open which panel is decided in one place — `User::canAccessPanel()`,
 which defers to `GranularPermissions`, the same service the JSON API uses.

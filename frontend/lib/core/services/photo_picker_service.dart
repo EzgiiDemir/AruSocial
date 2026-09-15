@@ -4,16 +4,71 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import 'package:arucad_campus_prototype/core/models/story_framing.dart';
 import 'package:arucad_campus_prototype/core/services/web_camera.dart';
 
+/// One picture the author has chosen, with how they want it shown.
+///
+/// [bytes] is the photo as it came off the camera or out of the gallery
+/// and stays that way. The composer used to centre-crop it to 4:5 the
+/// instant it was picked and throw the rest away — before the author had
+/// seen it, with no way back and no way to change their mind later.
+/// [framing] replaces that: it says how to *draw* the photo, and the photo
+/// itself is uploaded whole.
 class PickedPostMedia {
   final Uint8List bytes;
   final String fileName;
 
+  /// How the author framed it. Defaults to showing the whole picture in a
+  /// 4:5 frame, which is a choice about layout and not a cut.
+  final MediaFraming framing;
+
+  /// What the picture shows, for anyone who cannot see it.
+  final String? altText;
+
+  /// Intrinsic pixel size, once known. The feed needs the shape before the
+  /// bytes arrive or every card resizes as its image loads.
+  final int? width;
+  final int? height;
+
+  /// Where this picture ended up, once it has been uploaded.
+  ///
+  /// Kept so that retrying a failed publish does not re-upload the items
+  /// that already succeeded. Uploading ten photos and having the tenth
+  /// fail should cost one photo on the retry, not ten — which matters
+  /// most on exactly the bad connection that caused the failure.
+  final String? uploadedUrl;
+
   const PickedPostMedia({
     required this.bytes,
     required this.fileName,
+    this.framing = const MediaFraming(fit: FrameFit.fit, aspect: PostAspect.portrait),
+    this.altText,
+    this.width,
+    this.height,
+    this.uploadedUrl,
   });
+
+  double? get aspectRatio =>
+      (width != null && height != null && height! > 0) ? width! / height! : null;
+
+  PickedPostMedia copyWith({
+    MediaFraming? framing,
+    String? altText,
+    int? width,
+    int? height,
+    String? uploadedUrl,
+  }) {
+    return PickedPostMedia(
+      bytes: bytes,
+      fileName: fileName,
+      framing: framing ?? this.framing,
+      altText: altText ?? this.altText,
+      width: width ?? this.width,
+      height: height ?? this.height,
+      uploadedUrl: uploadedUrl ?? this.uploadedUrl,
+    );
+  }
 }
 
 /// Real device photo capture/selection — camera or gallery — shared by

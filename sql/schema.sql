@@ -11,7 +11,7 @@ CREATE TABLE "activity_log" ("id" varchar not null, "user_id" integer not null, 
 
 CREATE TABLE "admin_audit_log" ("id" varchar not null, "actor_name" varchar not null, "action" varchar not null, "target_type" varchar not null, "target_label" varchar not null, "at" datetime not null, primary key ("id"));
 
-CREATE TABLE "admin_pages" ("id" varchar not null, "title" varchar not null, "slug" varchar not null, "blocks" text, "status" varchar not null default 'draft', "updated_at" datetime not null, "updated_by" varchar not null, "deleted_at" datetime, primary key ("id"));
+CREATE TABLE "admin_pages" ("id" varchar not null, "title" varchar not null, "slug" varchar not null, "blocks" text, "status" varchar not null default 'draft', "updated_at" datetime not null, "updated_by" varchar not null, "deleted_at" datetime, "translations" text, "audiences" text, "publish_at" datetime, "expires_at" datetime, primary key ("id"));
 
 CREATE TABLE "app_settings" ("key" varchar not null, "value" text, primary key ("key"));
 
@@ -77,7 +77,9 @@ CREATE TABLE "events" ("id" varchar not null, "title" varchar not null, "time" v
 
 CREATE TABLE "failed_jobs" ("id" integer primary key autoincrement not null, "uuid" varchar not null, "connection" varchar not null, "queue" varchar not null, "payload" text not null, "exception" text not null, "failed_at" datetime not null default CURRENT_TIMESTAMP);
 
-CREATE TABLE "feed_posts" ("id" varchar not null, "name" varchar not null, "text" text not null default (''), "meta" varchar not null default (''), "image_url" varchar, "visibility" varchar not null default ('everyone'), "post_type" varchar not null default ('normal'), "course_tag" varchar, "location_tag" varchar, "official" tinyint(1) not null default ('0'), "created_at" datetime not null, "author_id" integer, "is_pinned" tinyint(1) not null default '0', "pinned_at" datetime, "pinned_by" integer, "workflow_status" varchar not null default 'published', "review_note" text, "media_mime_type" varchar, "moderation_status" varchar not null default 'approved', foreign key("author_id") references "users"("id") on delete cascade, primary key ("id"));
+CREATE TABLE "feed_post_media" ("id" varchar not null, "post_id" varchar not null, "media_url" varchar not null, "media_type" varchar not null default 'image', "sort_order" integer not null default '0', "width" integer, "height" integer, "aspect_ratio" float, "style_json" text, "alt_text" text, "created_at" datetime, "updated_at" datetime, foreign key("post_id") references "feed_posts"("id") on delete cascade, primary key ("id"));
+
+CREATE TABLE "feed_posts" ("id" varchar not null, "name" varchar not null, "text" text not null default (''), "meta" varchar not null default (''), "image_url" varchar, "visibility" varchar not null default ('everyone'), "post_type" varchar not null default ('normal'), "course_tag" varchar, "location_tag" varchar, "official" tinyint(1) not null default ('0'), "created_at" datetime not null, "author_id" integer, "is_pinned" tinyint(1) not null default '0', "pinned_at" datetime, "pinned_by" integer, "workflow_status" varchar not null default 'published', "review_note" text, "media_mime_type" varchar, "moderation_status" varchar not null default 'approved', "style_json" text, "alt_text" text, foreign key("author_id") references "users"("id") on delete cascade, primary key ("id"));
 
 CREATE TABLE "food_daily_menus" ("id" varchar not null, "food_venue_id" varchar not null, "menu_date" date not null, "items" text, "price" varchar, "hours" varchar, "deleted_at" datetime, foreign key("food_venue_id") references "food_venues"("id") on delete cascade, primary key ("id"));
 
@@ -131,6 +133,8 @@ CREATE TABLE "reviews" ("id" varchar not null, "place_id" varchar not null, "rat
 
 CREATE TABLE "role_assignments" ("email" varchar not null, "role" varchar not null, "assigned_by" varchar not null, "assigned_at" datetime not null, "permissions" text, primary key ("email"));
 
+CREATE TABLE "role_grants" ("id" varchar not null, "user_id" integer not null, "role" varchar not null, "is_primary" tinyint(1) not null default '0', "scope_type" varchar not null default 'all', "scope_id" varchar, "permissions" text, "denied_permissions" text, "can_publish" tinyint(1) not null default '0', "can_export" tinyint(1) not null default '0', "sensitive_data_access" tinyint(1) not null default '0', "starts_at" datetime, "expires_at" datetime, "assigned_by" varchar not null, "status" varchar not null default 'active', "created_at" datetime, "updated_at" datetime, foreign key("user_id") references "users"("id") on delete cascade, primary key ("id"));
+
 CREATE TABLE "saved_posts" ("id" integer primary key autoincrement not null, "user_id" integer not null, "post_id" varchar not null, "created_at" datetime not null, foreign key("user_id") references "users"("id") on delete cascade, foreign key("post_id") references "feed_posts"("id") on delete cascade);
 
 CREATE TABLE "services" ("id" varchar not null, "title" varchar not null, "category" varchar not null, "description" text not null default '', "contact" varchar not null default '', "building" varchar, "floor" varchar, "room" varchar, "contact_person" varchar, "topics" text, "hours" varchar, "body" text, "responsible_staff_id" varchar, "deleted_at" datetime, primary key ("id"));
@@ -169,7 +173,7 @@ CREATE TABLE "user_achievements" ("id" integer primary key autoincrement not nul
 
 CREATE TABLE "user_violations" ("id" varchar not null, "user_id" integer not null, "moderation_case_id" varchar, "category" varchar not null, "severity" varchar not null, "confirmed" tinyint(1) not null default '0', "points" integer not null default '0', "action_taken" varchar, "decided_by" integer, "idempotency_key" varchar not null, "expires_at" datetime, "created_at" datetime, "updated_at" datetime, foreign key("user_id") references "users"("id") on delete cascade, foreign key("decided_by") references "users"("id") on delete set null, primary key ("id"));
 
-CREATE TABLE "users" ("id" integer primary key autoincrement not null, "name" varchar not null, "email" varchar not null, "email_verified_at" datetime, "password" varchar not null, "remember_token" varchar, "role" varchar not null default 'student', "level" integer not null default '1', "xp" integer not null default '0', "places" integer not null default '0', "events" integer not null default '0', "memories" integer not null default '0', "interests" text, "avatar_url" varchar, "created_at" datetime, "updated_at" datetime, "strikes" integer not null default '0', "banned_at" datetime, "department" varchar, "year" varchar, "university" varchar, "clubs" text, "achievements" text, "projects" text, "location_visibility" varchar not null default 'ghost', "nearby_discoverable" tinyint(1) not null default '0', "check_in_visible" tinyint(1) not null default '1', "personalization" tinyint(1) not null default '1', "is_private_profile" tinyint(1) not null default '0', "preferred_language" varchar not null default 'TR', "banned_until" datetime, "last_violation_at" datetime, "moderation_status" varchar not null default 'clear', "moderation_reason" varchar);
+CREATE TABLE "users" ("id" integer primary key autoincrement not null, "name" varchar not null, "email" varchar not null, "email_verified_at" datetime, "password" varchar not null, "remember_token" varchar, "role" varchar not null default 'student', "level" integer not null default '1', "xp" integer not null default '0', "places" integer not null default '0', "events" integer not null default '0', "memories" integer not null default '0', "interests" text, "avatar_url" varchar, "created_at" datetime, "updated_at" datetime, "strikes" integer not null default '0', "banned_at" datetime, "department" varchar, "year" varchar, "university" varchar, "clubs" text, "achievements" text, "projects" text, "location_visibility" varchar not null default 'ghost', "nearby_discoverable" tinyint(1) not null default '0', "check_in_visible" tinyint(1) not null default '1', "personalization" tinyint(1) not null default '1', "is_private_profile" tinyint(1) not null default '0', "preferred_language" varchar not null default 'TR', "banned_until" datetime, "last_violation_at" datetime, "moderation_status" varchar not null default 'clear', "moderation_reason" varchar, "account_status" varchar not null default 'active', "phone" varchar, "institution_id" varchar, "job_title" varchar, "timezone" varchar not null default 'Europe/Nicosia', "campus" varchar, "faculty" varchar, "unit" varchar, "building" varchar, "mfa_required" tinyint(1) not null default '0');
 
 CREATE TABLE "wordpress_form_versions" ("id" varchar not null, "source_url" varchar not null, "content_hash" varchar not null, "version" integer not null, "payload" text not null, "saved_by" integer, "created_at" datetime, "updated_at" datetime, foreign key("saved_by") references "users"("id") on delete set null, primary key ("id"));
 
@@ -271,6 +275,10 @@ CREATE INDEX "failed_jobs_connection_queue_failed_at_index" on "failed_jobs" ("c
 
 CREATE UNIQUE INDEX "failed_jobs_uuid_unique" on "failed_jobs" ("uuid");
 
+CREATE INDEX "feed_post_media_post_id_index" on "feed_post_media" ("post_id");
+
+CREATE UNIQUE INDEX "feed_post_media_post_id_sort_order_unique" on "feed_post_media" ("post_id", "sort_order");
+
 CREATE INDEX "feed_posts_is_pinned_pinned_at_index" on "feed_posts" ("is_pinned", "pinned_at");
 
 CREATE INDEX "feed_posts_moderation_status_index" on "feed_posts" ("moderation_status");
@@ -370,6 +378,10 @@ CREATE INDEX "quests_deleted_at_index" on "quests" ("deleted_at");
 CREATE UNIQUE INDEX "reports_one_per_reporter_reason" on "moderation_reports" ("reporter_user_id", "target_type", "target_id", "reason_code");
 
 CREATE INDEX "reviews_moderation_status_index" on "reviews" ("moderation_status");
+
+CREATE INDEX "role_grants_scope_type_scope_id_index" on "role_grants" ("scope_type", "scope_id");
+
+CREATE INDEX "role_grants_user_id_status_starts_at_expires_at_index" on "role_grants" ("user_id", "status", "starts_at", "expires_at");
 
 CREATE UNIQUE INDEX "saved_posts_user_id_post_id_unique" on "saved_posts" ("user_id", "post_id");
 

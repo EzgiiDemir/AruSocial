@@ -9,6 +9,7 @@ use App\Http\Controllers\Controller;
 use App\Events\CampusDataChanged;
 use App\Http\Requests\PaginatedListRequest;
 use App\Models\FeedPost;
+use App\Models\FeedPostMedia;
 use App\Models\ModerationReport;
 use App\Models\Notification as InboxNotification;
 use App\Models\PostComment;
@@ -19,11 +20,14 @@ use App\Services\GranularPermissions;
 use App\Services\Moderation\Workflow\ReportReason;
 use App\Services\Moderation\Workflow\ReportService;
 use App\Services\ModerationService;
+use App\Support\MediaFraming;
 use App\Support\MediaPublicUrl;
+use App\Support\PostMediaPayload;
 use App\Support\SchemaColumnCache;
 use App\Support\SocialAudience;
 use App\Support\SocialMediaAttachment;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -49,6 +53,26 @@ class FeedController extends Controller
             'likedByMe' => (bool) $p->liked_by_current_user,
             'imageUrl' => MediaPublicUrl::rewrite($p->image_url),
             'mediaMimeType' => $p->media_mime_type,
+            // Framing and alt text describe the single image; a carousel
+            // carries its own per item, on the rows below.
+            'styleJson' => $p->style_json,
+            'altText' => $p->alt_text,
+            // Always present, empty for a single-image post. A client that
+            // does not know about carousels ignores it and reads imageUrl,
+            // which is still the first picture.
+            'media' => $p->relationLoaded('media')
+                ? $p->media->map(fn ($m) => [
+                    'id' => $m->id,
+                    'imageUrl' => MediaPublicUrl::rewrite($m->media_url),
+                    'mediaType' => $m->media_type,
+                    'sortOrder' => $m->sort_order,
+                    'width' => $m->width,
+                    'height' => $m->height,
+                    'aspectRatio' => $m->aspect_ratio,
+                    'styleJson' => $m->style_json,
+                    'altText' => $m->alt_text,
+                ])->values()->all()
+                : [],
             'comments' => $p->comments->map(fn ($c) => $c->toApiArray()),
             'visibility' => $p->visibility,
             'postType' => $p->post_type,
@@ -70,7 +94,7 @@ class FeedController extends Controller
      */
     private function postsFor(User $me): Builder
     {
-        $query = FeedPost::with(['comments.user', 'user:id,avatar_url'])
+        $query = FeedPost::with(['comments.user', 'user:id,avatar_url', 'media'])
             ->withCount('likes')
             ->withExists(['likes as liked_by_current_user' => fn ($q) => $q->where('user_id', $me->id)]);
 
@@ -124,16 +148,22 @@ class FeedController extends Controller
         // without reading. Moderation decides what is held; this flag only
         // applies when moderation itself asked for a human.
         $needsReview = false;
-        $attachment = SocialMediaAttachment::resolve($request->input('imageUrl'), $me);
-        if ($attachment['code'] !== null) {
-            return $this->fail(422, $attachment['code'], $attachment['message']);
+
+        // Every picture is resolved and checked before anything is written.
+        // A carousel that fails on its seventh image must not leave six
+        // published, so nothing is created until the whole post is known
+        // to be publishable.
+        $media = PostMediaPayload::resolve($request->input('media'), $request->input('imageUrl'), $me);
+        if ($media->failed()) {
+            return $this->fail(422, $media->code, $media->message);
         }
 
-        // Caption and attached image are judged together, before the row
-        // exists — an image is often only abusive in light of its caption.
+        // Caption and attached images are judged together, before the row
+        // exists — an image is often only abusive in light of its caption,
+        // and in a carousel any one of them can be the problem.
         if ($blocked = $this->moderationBlock(
             $me, $text, 'post', 'feed.store',
-            $this->moderatableImages($attachment['url'] ?? null),
+            $this->moderatableImages(...$media->urls()),
         )) {
             return $blocked;
         }
@@ -144,8 +174,12 @@ class FeedController extends Controller
             'name' => $me->name,
             'text' => $text,
             'meta' => $needsReview ? 'incelemede' : 'az önce',
-            'image_url' => $attachment['url'],
-            'media_mime_type' => $attachment['item']?->mime_type,
+            // Still the first picture, still written for every post. This
+            // is what older clients and the moderation pipeline read.
+            'image_url' => $media->primaryUrl(),
+            'media_mime_type' => $media->primaryMime(),
+            'style_json' => MediaFraming::sanitize($request->input('styleJson')),
+            'alt_text' => self::altText($request->input('altText')),
             'visibility' => $visibility,
             'post_type' => $request->input('postType', 'normal'),
             'course_tag' => $request->input('courseTag'),
@@ -156,7 +190,15 @@ class FeedController extends Controller
         if (SchemaColumnCache::hasColumn('feed_posts', 'workflow_status')) {
             $row['workflow_status'] = $needsReview ? 'pending_review' : 'published';
         }
-        $post = FeedPost::create($row);
+        // The post and its pictures are one thing or nothing. Without the
+        // transaction a failure partway through the carousel would leave a
+        // published post showing some of the images the author chose.
+        $post = DB::transaction(function () use ($row, $media) {
+            $post = FeedPost::create($row);
+            self::writeCarousel($post, $media);
+
+            return $post;
+        });
         // No ActivityKind value represents "created a post" — see
         // ActivityLogger's doc comment. Nothing to log here on purpose.
 
@@ -199,6 +241,47 @@ class FeedController extends Controller
         $this->announceFeedChange(['feed'], $nowLiked ? 'liked' : 'unliked', $post->id);
 
         return $this->ok($this->postToJson($this->reload($post->id, $me)));
+    }
+
+    /**
+     * Writes the carousel rows for a post that has just been created.
+     *
+     * A single-image post gets no rows at all: it is fully described by
+     * `image_url`, exactly as every post written before carousels was, and
+     * inventing a one-row carousel for it would mean two ways to say the
+     * same thing and two code paths to keep in step.
+     */
+    private static function writeCarousel(FeedPost $post, PostMediaPayload $media): void
+    {
+        if (! $media->isCarousel()) {
+            return;
+        }
+
+        foreach ($media->items as $index => $item) {
+            FeedPostMedia::create([
+                'post_id' => $post->id,
+                'media_url' => $item['url'],
+                'media_type' => 'image',
+                // The author's order, not the order they happened to
+                // finish uploading in.
+                'sort_order' => $index,
+                'width' => $item['width'],
+                'height' => $item['height'],
+                'aspect_ratio' => $item['aspect'],
+                'style_json' => $item['style'],
+                'alt_text' => $item['alt'],
+            ]);
+        }
+    }
+
+    private static function altText(mixed $value): ?string
+    {
+        if (! is_string($value)) {
+            return null;
+        }
+        $value = trim($value);
+
+        return $value === '' ? null : mb_substr($value, 0, 1000);
     }
 
     private function reload(string $id, User $me): FeedPost

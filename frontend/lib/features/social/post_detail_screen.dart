@@ -13,7 +13,7 @@ import 'package:arucad_campus_prototype/features/place/place_detail_screen.dart'
 import 'package:arucad_campus_prototype/features/social/social_profile_screen.dart';
 import 'package:arucad_campus_prototype/features/widgets/campus_avatar.dart';
 import 'package:arucad_campus_prototype/features/widgets/campus_back_button.dart';
-import 'package:arucad_campus_prototype/features/widgets/feed_post_media.dart';
+import 'package:arucad_campus_prototype/features/social/post_media_carousel.dart';
 
 /// Full-screen single-post view — the post itself plus its comments inline,
 /// reached by tapping a card in the feed. Likes/comments/save all act on
@@ -202,15 +202,11 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                 if (post.text.isNotEmpty)
                   Text(post.displayText,
                       style: const TextStyle(fontSize: 16, height: 1.4)),
-                if (post.imageBytes != null || post.imageUrl != null) ...[
+                if (post.allMedia.isNotEmpty) ...[
                   const SizedBox(height: 12),
-                  FeedPostMedia(
-                    maxWidth: 252,
-                    borderRadius: 16,
-                    imageUrl: post.imageUrl,
-                    imageBytes: post.imageBytes,
-                    mimeType: post.mediaMimeType,
-                  ),
+                  // The same widget the feed uses, so detail and feed
+                  // cannot frame the same photo differently.
+                  PostMediaCarousel(post: post),
                 ],
                 if (post.locationTag != null || post.courseTag != null) ...[
                   const SizedBox(height: 10),

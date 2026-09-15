@@ -1,6 +1,12 @@
 import 'dart:math' as math;
 
-/// How a photo sits inside a story frame.
+/// How a photo sits inside a frame.
+///
+/// Written for stories, and now used for posts too: the problem is
+/// identical in both places, so the arithmetic, the clamping and the
+/// tolerance for malformed stored values are shared rather than written
+/// twice and allowed to drift. [StoryFraming] remains as an alias so the
+/// story code and its tests read the way they always did.
 ///
 /// A phone story is roughly 9:19.5. Almost no photo is that shape, so
 /// something has to give, and the app was giving the same answer every
@@ -23,17 +29,18 @@ enum FrameFit {
   /// Fill the frame, cropping the overflow. The old, only behaviour.
   fill,
 
-  /// Show the whole photo, letterboxed onto [StoryFraming.backgroundColor].
+  /// Show the whole photo, letterboxed onto [MediaFraming.backgroundColor].
   fit,
 }
 
-class StoryFraming {
-  const StoryFraming({
+class MediaFraming {
+  const MediaFraming({
     this.fit = FrameFit.fill,
     this.scale = 1.0,
     this.offsetX = 0.0,
     this.offsetY = 0.0,
     this.backgroundColor,
+    this.aspect,
   });
 
   final FrameFit fit;
@@ -53,31 +60,41 @@ class StoryFraming {
   /// the models.
   final int? backgroundColor;
 
+  /// Which frame a post is shown in. Null for stories, whose frame is the
+  /// screen and never a choice.
+  final PostAspect? aspect;
+
   static const minScale = 1.0;
   static const maxScale = 4.0;
+
+  /// The frame a post falls back to before anyone knows the photo's shape.
+  static const defaultPostRatio = 4 / 5;
 
   bool get isDefault =>
       fit == FrameFit.fill &&
       scale == 1.0 &&
       offsetX == 0.0 &&
       offsetY == 0.0 &&
-      backgroundColor == null;
+      backgroundColor == null &&
+      (aspect == null || aspect == PostAspect.portrait);
 
-  StoryFraming copyWith({
+  MediaFraming copyWith({
     FrameFit? fit,
     double? scale,
     double? offsetX,
     double? offsetY,
     int? backgroundColor,
+    PostAspect? aspect,
     bool clearBackground = false,
   }) {
-    return StoryFraming(
+    return MediaFraming(
       fit: fit ?? this.fit,
       scale: (scale ?? this.scale).clamp(minScale, maxScale).toDouble(),
       offsetX: (offsetX ?? this.offsetX).clamp(-1.0, 1.0).toDouble(),
       offsetY: (offsetY ?? this.offsetY).clamp(-1.0, 1.0).toDouble(),
       backgroundColor:
           clearBackground ? null : (backgroundColor ?? this.backgroundColor),
+      aspect: aspect ?? this.aspect,
     );
   }
 
@@ -99,6 +116,7 @@ class StoryFraming {
       'offsetX': offsetX,
       'offsetY': offsetY,
       if (backgroundColor != null) 'bg': backgroundColor,
+      if (aspect != null) 'aspect': aspect!.name,
     };
 
     return style;
@@ -110,9 +128,9 @@ class StoryFraming {
   /// older or newer than the one that wrote it. A malformed or absent
   /// `framing` gives the default rather than throwing — a story that will
   /// not render is worse than one framed the old way.
-  static StoryFraming fromStyle(Map<String, dynamic>? style) {
+  static MediaFraming fromStyle(Map<String, dynamic>? style) {
     final raw = style?['framing'];
-    if (raw is! Map) return const StoryFraming();
+    if (raw is! Map) return const MediaFraming();
 
     double number(Object? value, double fallback) {
       if (value is num) {
@@ -126,12 +144,13 @@ class StoryFraming {
 
     final fitName = raw['fit'];
 
-    return StoryFraming(
+    return MediaFraming(
       fit: fitName == FrameFit.fit.name ? FrameFit.fit : FrameFit.fill,
       scale: number(raw['scale'], 1.0).clamp(minScale, maxScale).toDouble(),
       offsetX: number(raw['offsetX'], 0.0).clamp(-1.0, 1.0).toDouble(),
       offsetY: number(raw['offsetY'], 0.0).clamp(-1.0, 1.0).toDouble(),
       backgroundColor: raw['bg'] is int ? raw['bg'] as int : null,
+      aspect: raw['aspect'] == null ? null : PostAspect.fromName(raw['aspect']),
     );
   }
 
@@ -165,3 +184,51 @@ class StoryFraming {
     return value.clamp(-slack, slack).toDouble();
   }
 }
+
+
+/// The frame a post's picture is shown in.
+///
+/// A post is not a story: there is no single right shape, because a feed
+/// mixes portrait phone photos with landscape ones and squares. So the
+/// author picks, and [PostAspect.portrait] is the default only because it
+/// is the one that wastes least space on a phone — not because the photo
+/// is going to be cut down to it.
+enum PostAspect {
+  /// The photo's own shape, whatever that is.
+  original,
+  square,
+  portrait;
+
+  /// The ratio to draw at, given what the photo actually is.
+  ///
+  /// [intrinsic] is the photo's own width/height. For [original] that is
+  /// the answer; the fallback only matters before the image has loaded and
+  /// nobody knows its shape yet.
+  double ratio(double? intrinsic) {
+    switch (this) {
+      case PostAspect.square:
+        return 1.0;
+      case PostAspect.portrait:
+        return 4 / 5;
+      case PostAspect.original:
+        final value = intrinsic;
+        if (value == null || !value.isFinite || value <= 0) return 4 / 5;
+
+        // Bounded so one absurd photo cannot make a feed card a mile tall
+        // or a single pixel high.
+        return value.clamp(0.5, 2.0).toDouble();
+    }
+  }
+
+  static PostAspect fromName(Object? value) {
+    for (final aspect in PostAspect.values) {
+      if (aspect.name == value) return aspect;
+    }
+
+    return PostAspect.portrait;
+  }
+}
+
+/// The old name. Stories were here first and read perfectly well as
+/// `StoryFraming`; nothing is gained by churning them.
+typedef StoryFraming = MediaFraming;

@@ -517,6 +517,51 @@ extension PostCategoryInfo on PostCategory {
       };
 }
 
+/// One picture of a post's carousel.
+///
+/// A post with an empty [FeedPost.media] is a single-image post described
+/// by [FeedPost.imageUrl] alone — which is every post written before
+/// carousels existed, and still the common case.
+class PostMedia {
+  const PostMedia({
+    required this.id,
+    required this.imageUrl,
+    this.mediaType = 'image',
+    this.sortOrder = 0,
+    this.width,
+    this.height,
+    this.style,
+    this.altText,
+  });
+
+  final String id;
+  final String? imageUrl;
+  final String mediaType;
+  final int sortOrder;
+  final int? width;
+  final int? height;
+  final Map<String, dynamic>? style;
+  final String? altText;
+
+  double? get aspectRatio =>
+      (width != null && height != null && height! > 0) ? width! / height! : null;
+
+  factory PostMedia.fromJson(Map<String, dynamic> json) {
+    return PostMedia(
+      id: '${json['id'] ?? ''}',
+      imageUrl: MediaUrl.resolve(json['imageUrl'] as String?),
+      mediaType: json['mediaType'] as String? ?? 'image',
+      sortOrder: (json['sortOrder'] as num?)?.toInt() ?? 0,
+      width: (json['width'] as num?)?.toInt(),
+      height: (json['height'] as num?)?.toInt(),
+      style: json['styleJson'] is Map
+          ? Map<String, dynamic>.from(json['styleJson'] as Map)
+          : null,
+      altText: json['altText'] as String?,
+    );
+  }
+}
+
 class FeedPost {
   final String id;
   final String authorId;
@@ -554,6 +599,16 @@ class FeedPost {
   final String workflowStatus;
   final DateTime? createdAt;
 
+  /// The carousel, in the author's order. Empty for a single-image post.
+  final List<PostMedia> media;
+
+  /// How the author framed the single image. Null means default framing,
+  /// which is what every post written before framing existed gets.
+  final Map<String, dynamic>? style;
+
+  /// What the picture shows, for anyone who cannot see it.
+  final String? altText;
+
   const FeedPost({
     required this.id,
     this.authorId = '',
@@ -576,7 +631,24 @@ class FeedPost {
     this.isPinned = false,
     this.workflowStatus = 'published',
     this.createdAt,
+    this.media = const [],
+    this.style,
+    this.altText,
   });
+
+  /// Every picture of the post, however it was stored.
+  ///
+  /// Collapses the two shapes into one list so the feed has a single thing
+  /// to render: a carousel gives its rows, and a single-image post gives
+  /// one synthesised item from `imageUrl`.
+  List<PostMedia> get allMedia {
+    if (media.isNotEmpty) return media;
+    if (imageUrl == null && imageBytes == null) return const [];
+
+    return [
+      PostMedia(id: id, imageUrl: imageUrl, style: style, altText: altText),
+    ];
+  }
 
   /// Real hashtags parsed straight out of the post text (e.g. "#flutter") —
   /// not a separate field to fill in twice, same as how every real social
@@ -626,6 +698,9 @@ class FeedPost {
       isPinned: isPinned ?? this.isPinned,
       workflowStatus: workflowStatus,
       createdAt: createdAt,
+      media: media,
+      style: style,
+      altText: altText,
     );
   }
 
@@ -657,6 +732,14 @@ class FeedPost {
       isPinned: json['isPinned'] as bool? ?? false,
       workflowStatus: json['workflowStatus'] as String? ?? 'published',
       createdAt: DateTime.tryParse(json['createdAt'] as String? ?? ''),
+      media: (json['media'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(PostMedia.fromJson)
+          .toList(),
+      style: json['styleJson'] is Map
+          ? Map<String, dynamic>.from(json['styleJson'] as Map)
+          : null,
+      altText: json['altText'] as String?,
     );
   }
 }

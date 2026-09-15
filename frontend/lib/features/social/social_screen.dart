@@ -21,13 +21,15 @@ import 'package:arucad_campus_prototype/features/social/compose_post_sheet.dart'
 import 'package:arucad_campus_prototype/core/models/story_framing.dart';
 import 'package:arucad_campus_prototype/features/social/compose_story_sheet.dart';
 import 'package:arucad_campus_prototype/features/social/framed_story_image.dart';
+import 'package:arucad_campus_prototype/core/models/story_overlay.dart';
+import 'package:arucad_campus_prototype/features/social/post_media_carousel.dart';
+import 'package:arucad_campus_prototype/features/social/story_overlay_layer.dart';
 import 'package:arucad_campus_prototype/features/social/notifications_screen.dart';
 import 'package:arucad_campus_prototype/features/social/post_detail_screen.dart';
 import 'package:arucad_campus_prototype/features/social/social_profile_screen.dart';
 import 'package:arucad_campus_prototype/features/widgets/campus_network_image.dart';
 import 'package:arucad_campus_prototype/features/widgets/campus_avatar.dart';
 import 'package:arucad_campus_prototype/features/widgets/campus_widgets.dart';
-import 'package:arucad_campus_prototype/features/widgets/feed_post_media.dart';
 
 const _apiPageSize = 20;
 const _socialBlue = ArucadColors.primary;
@@ -1200,18 +1202,54 @@ class _StoryViewerScreen extends StatefulWidget {
   State<_StoryViewerScreen> createState() => _StoryViewerScreenState();
 }
 
-class _StoryViewerScreenState extends State<_StoryViewerScreen> {
+class _StoryViewerScreenState extends State<_StoryViewerScreen>
+    with SingleTickerProviderStateMixin {
   late final PageController _controller;
   late int _index;
+
+  /// How long one story is shown before the next.
+  static const _storyDuration = Duration(seconds: 5);
+
+  /// Drives both the advance and the progress bar, so the bar cannot
+  /// disagree with when the story actually changes.
+  late final AnimationController _progress;
+
+  bool get _paused => !_progress.isAnimating && _progress.value < 1;
 
   @override
   void initState() {
     super.initState();
     _index = widget.initialIndex;
     _controller = PageController(initialPage: _index);
+    _progress = AnimationController(vsync: this, duration: _storyDuration)
+      ..addStatusListener((status) {
+        if (status == AnimationStatus.completed) _next();
+      });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _markCurrentViewed();
+      _restartProgress();
     });
+  }
+
+  void _restartProgress() {
+    _progress
+      ..reset()
+      ..forward();
+  }
+
+  /// Holding a finger down stops the clock; letting go starts it again.
+  ///
+  /// This exists because stories move on by themselves: the moment anyone
+  /// wants to actually read a caption or look at a photo, the only way to
+  /// keep it on screen is to hold it there.
+  void _pause() {
+    if (_progress.isAnimating) _progress.stop();
+    setState(() {});
+  }
+
+  void _resume() {
+    if (!_progress.isAnimating && _progress.value < 1) _progress.forward();
+    setState(() {});
   }
 
   void _markCurrentViewed() {
@@ -1283,6 +1321,7 @@ class _StoryViewerScreenState extends State<_StoryViewerScreen> {
 
   @override
   void dispose() {
+    _progress.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -1313,9 +1352,12 @@ class _StoryViewerScreenState extends State<_StoryViewerScreen> {
           onPageChanged: (i) {
             setState(() => _index = i);
             _markCurrentViewed();
+            _restartProgress();
           },
           itemBuilder: (context, i) {
             final story = widget.stories[i];
+            final overlays = StoryOverlay.listFromStyle(story.style);
+
             return GestureDetector(
               onTapUp: (details) {
                 final half = MediaQuery.of(context).size.width / 2;
@@ -1325,16 +1367,26 @@ class _StoryViewerScreenState extends State<_StoryViewerScreen> {
                   _next();
                 }
               },
+              // Press and hold anywhere to stop the story moving on.
+              onLongPressStart: (_) => _pause(),
+              onLongPressEnd: (_) => _resume(),
+              onLongPressCancel: _resume,
               child: ClipRect(
                 // Rendered the way the author framed it. A story published
                 // by an older build carries no framing and falls back to
                 // fill-and-crop, which is what it was published as.
                 child: story.imageBytes != null || story.imageUrl != null
                     ? SizedBox.expand(
-                        child: FramedStoryImage(
-                          framing: StoryFraming.fromStyle(story.style),
-                          bytes: story.imageBytes,
-                          url: story.imageUrl,
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            FramedStoryImage(
+                              framing: StoryFraming.fromStyle(story.style),
+                              bytes: story.imageBytes,
+                              url: story.imageUrl,
+                            ),
+                            StoryOverlayLayer(overlays: overlays),
+                          ],
                         ),
                       )
                     : Container(
@@ -1354,6 +1406,30 @@ class _StoryViewerScreenState extends State<_StoryViewerScreen> {
             );
           },
         ),
+        // Says out loud that the story is held, so a long press reads as
+        // something the app is doing rather than as it having frozen.
+        if (_paused)
+          Positioned(
+            bottom: 96,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.black54,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(Icons.pause, color: Colors.white, size: 14),
+                  const SizedBox(width: 6),
+                  Text(AppLocale.of(context).t('story_paused'),
+                      style: const TextStyle(color: Colors.white, fontSize: 12)),
+                ]),
+              ),
+            ),
+          ),
         Positioned(
           top: 50,
           left: 12,
@@ -1365,8 +1441,33 @@ class _StoryViewerScreenState extends State<_StoryViewerScreen> {
                   margin: const EdgeInsets.symmetric(horizontal: 2),
                   height: 3,
                   decoration: BoxDecoration(
-                    color: i <= _index ? Colors.white : Colors.white24,
+                    color: Colors.white24,
                     borderRadius: BorderRadius.circular(2),
+                  ),
+                  // Segments before this one are done, after it are
+                  // untouched, and this one fills as the story plays — so
+                  // the bar says how long is left rather than only which
+                  // story is showing.
+                  child: AnimatedBuilder(
+                    animation: _progress,
+                    builder: (context, _) {
+                      final fill = i < _index
+                          ? 1.0
+                          : i > _index
+                              ? 0.0
+                              : _progress.value;
+
+                      return FractionallySizedBox(
+                        alignment: Alignment.centerLeft,
+                        widthFactor: fill,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ),
               ),
@@ -1674,16 +1775,12 @@ class _PostCard extends StatelessWidget {
                 Text(post.displayText,
                     style: const TextStyle(
                         fontSize: 16, height: 1.42, color: ArucadColors.ink)),
-              if (post.imageBytes != null || post.imageUrl != null) ...[
+              if (post.allMedia.isNotEmpty) ...[
                 const SizedBox(height: 10),
-                FeedPostMedia(
-                  imageUrl: post.imageUrl,
-                  imageBytes: post.imageBytes,
-                  mimeType: post.mediaMimeType,
-                  maxWidth: 1000,
-                  borderRadius: 16,
-                  aspectRatio: 16 / 9,
-                ),
+                // Was a fixed 16/9 box with BoxFit.cover, which cut the top
+                // and bottom off every portrait photo in the feed. The
+                // shape now comes from the author's framing.
+                PostMediaCarousel(post: post),
               ],
               if (post.locationTag != null || post.courseTag != null) ...[
                 const SizedBox(height: 8),

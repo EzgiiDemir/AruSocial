@@ -19,7 +19,8 @@ class FeedPost extends Model
 
     protected $fillable = [
         'id', 'author_id', 'name', 'text', 'meta',
-        'image_url', 'media_mime_type', 'visibility', 'post_type', 'course_tag', 'location_tag',
+        'image_url', 'media_mime_type', 'style_json', 'alt_text',
+        'visibility', 'post_type', 'course_tag', 'location_tag',
         'official', 'workflow_status', 'review_note', 'moderation_status',
         'is_pinned', 'pinned_at', 'pinned_by', 'created_at',
     ];
@@ -32,12 +33,26 @@ class FeedPost extends Model
             'is_pinned' => 'boolean',
             'pinned_at' => 'datetime',
             'created_at' => 'datetime',
+            'style_json' => 'array',
         ];
     }
 
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class, 'author_id');
+    }
+
+    /**
+     * The carousel, in the order the author arranged it.
+     *
+     * Empty for every post written before carousels and for any post with
+     * one picture, which is still described by `image_url` alone.
+     */
+    public function media(): HasMany
+    {
+        return $this->hasMany(FeedPostMedia::class, 'post_id')
+            ->orderBy('sort_order')
+            ->orderBy('id');
     }
 
     public function comments(): HasMany

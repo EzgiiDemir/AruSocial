@@ -3,11 +3,14 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ModerationReport extends Model
 {
     public $incrementing = false;
+
     protected $keyType = 'string';
+
     public $timestamps = false;
 
     protected $fillable = [
@@ -24,7 +27,7 @@ class ModerationReport extends Model
         return ['reported_at' => 'datetime'];
     }
 
-    public function reporter(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    public function reporter(): BelongsTo
     {
         return $this->belongsTo(User::class, 'reporter_user_id');
     }

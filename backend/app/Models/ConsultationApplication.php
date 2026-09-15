@@ -8,9 +8,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class ConsultationApplication extends Model
 {
     public $incrementing = false;
+
     protected $keyType = 'string';
 
     public const STATUSES = ['pending', 'reviewed', 'shortlisted', 'rejected', 'accepted'];
+
     public const OPEN_STATUSES = ['pending', 'reviewed', 'shortlisted'];
 
     protected $fillable = [

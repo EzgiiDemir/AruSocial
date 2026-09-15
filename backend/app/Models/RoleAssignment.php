@@ -7,8 +7,11 @@ use Illuminate\Database\Eloquent\Model;
 class RoleAssignment extends Model
 {
     protected $primaryKey = 'email';
+
     public $incrementing = false;
+
     protected $keyType = 'string';
+
     public $timestamps = false;
 
     protected $fillable = ['email', 'role', 'permissions', 'assigned_by', 'assigned_at'];

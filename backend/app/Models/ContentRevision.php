@@ -7,7 +7,9 @@ use Illuminate\Database\Eloquent\Model;
 class ContentRevision extends Model
 {
     public $incrementing = false;
+
     protected $keyType = 'string';
+
     public $timestamps = false;
 
     protected $fillable = ['id', 'content_key', 'editor_name', 'snapshot', 'saved_at'];

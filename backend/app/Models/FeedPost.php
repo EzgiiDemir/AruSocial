@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasPublicModerationScope;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class FeedPost extends Model
 {
+    use HasPublicModerationScope;
+
     public $incrementing = false;
 
     protected $keyType = 'string';
@@ -17,7 +20,7 @@ class FeedPost extends Model
     protected $fillable = [
         'id', 'author_id', 'name', 'text', 'meta',
         'image_url', 'media_mime_type', 'visibility', 'post_type', 'course_tag', 'location_tag',
-        'official', 'workflow_status', 'review_note',
+        'official', 'workflow_status', 'review_note', 'moderation_status',
         'is_pinned', 'pinned_at', 'pinned_by', 'created_at',
     ];
 

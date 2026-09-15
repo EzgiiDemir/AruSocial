@@ -24,16 +24,25 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class ParticipationApplication extends Model
 {
     public $incrementing = false;
+
     protected $keyType = 'string';
+
     public $timestamps = false;
 
     public const STATUS_PREVIEW_SUBMITTED = 'preview_submitted';
+
     public const STATUS_DETAIL_FORM_PENDING = 'detail_form_pending';
+
     public const STATUS_DETAIL_FORM_SUBMITTED = 'detail_form_submitted';
+
     public const STATUS_UNDER_REVIEW = 'under_review';
+
     public const STATUS_REVISION_REQUIRED = 'revision_required';
+
     public const STATUS_APPROVED = 'approved';
+
     public const STATUS_REJECTED = 'rejected';
+
     public const STATUS_CANCELLED = 'cancelled';
 
     /** Statuses where the applicant does NOT yet have real participation and the target is still "open" for them (no duplicate block should ever block a resubmission from these). */
@@ -138,6 +147,6 @@ class ParticipationApplication extends Model
      */
     private static function objectOrEmpty(?array $value): object|array
     {
-        return empty($value) ? new \stdClass() : $value;
+        return empty($value) ? new \stdClass : $value;
     }
 }

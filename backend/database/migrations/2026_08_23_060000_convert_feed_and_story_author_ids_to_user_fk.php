@@ -46,6 +46,7 @@ return new class extends Migration
                     'author_id' => $row->author_id,
                     'reason' => 'author_id did not match an existing users.id',
                 ];
+
                 continue;
             }
             $mapped++;

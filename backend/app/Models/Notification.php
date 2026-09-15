@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
+use App\Jobs\DeliverFcmNotification;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Str;
 
 // Named to match the real in-app notification inbox concept — not to be
 // confused with Illuminate\Notifications\Notification (Laravel's queued
@@ -12,7 +14,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class Notification extends Model
 {
     public $incrementing = false;
+
     protected $keyType = 'string';
+
     public $timestamps = false;
 
     protected $fillable = ['id', 'user_id', 'actor_user_id', 'kind', 'title', 'body', 'data', 'read_at', 'created_at'];
@@ -44,7 +48,7 @@ class Notification extends Model
         }
 
         $row = self::create([
-            'id' => 'notif-'.(string) \Illuminate\Support\Str::uuid(),
+            'id' => 'notif-'.(string) Str::uuid(),
             'user_id' => $recipient->id,
             'actor_user_id' => $actor->id,
             'kind' => $kind,
@@ -54,7 +58,7 @@ class Notification extends Model
             'created_at' => now(),
         ]);
 
-        \App\Jobs\DeliverFcmNotification::dispatch(
+        DeliverFcmNotification::dispatch(
             userId: (int) $row->user_id,
             title: $title,
             body: $body,

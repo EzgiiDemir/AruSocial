@@ -4,6 +4,8 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Services\GranularPermissions;
+use Filament\Models\Contracts\FilamentUser;
+use Filament\Panel;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -11,9 +13,47 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
-class User extends Authenticatable
+class User extends Authenticatable implements FilamentUser
 {
+    // Deliberately *not* SoftDeletes, unlike the content models the panels
+    // manage. Deleting an account is supposed to take the person's posts,
+    // stories, club memberships and onboarding progress with it, and that
+    // erasure is done by `ON DELETE CASCADE` in the schema — a soft delete
+    // never issues a DELETE, so none of those cascades would fire and a
+    // "deleted" student's content would stay on the feed.
+    //
+    // Reversible lockout already exists and is the right tool for a
+    // mis-click: ban/enforcement keeps the account and its data while
+    // shutting the person out. Deletion stays the irreversible one,
+    // because that is what it promises the student.
     use HasApiTokens, HasFactory, Notifiable;
+
+    /**
+     * Who may open which Filament panel.
+     *
+     * Decided by the same `GranularPermissions` the JSON API already uses,
+     * not a second rule written for the panel. Two places deciding "is this
+     * person an admin" is two places to get it wrong, and the one that
+     * drifts is the one nobody is testing.
+     *
+     * The two panels are deliberately disjoint:
+     *
+     *   admin   — needs `viewAdmin`, which no trainer role satisfies
+     *   trainer — needs `events.manageOwnDepartment`, held only by trainers
+     *
+     * A super admin passes both, because `GranularPermissions` grants that
+     * role everything in one central place. Row-level scoping — *which*
+     * department a trainer may touch — is not decided here; that is
+     * `EnsureDepartmentHead`'s job and the resources' query scopes.
+     */
+    public function canAccessPanel(Panel $panel): bool
+    {
+        return match ($panel->getId()) {
+            'admin' => GranularPermissions::allows($this, 'stats.view'),
+            'trainer' => GranularPermissions::allows($this, 'events.manageOwnDepartment'),
+            default => false,
+        };
+    }
 
     protected $fillable = [
         'name',

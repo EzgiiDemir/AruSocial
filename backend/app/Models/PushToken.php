@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class PushToken extends Model
 {
     public $timestamps = false;
+
     protected $fillable = ['user_id', 'token', 'platform', 'created_at'];
 
     protected function casts(): array

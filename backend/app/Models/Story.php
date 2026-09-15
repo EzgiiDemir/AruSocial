@@ -2,19 +2,24 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasPublicModerationScope;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Story extends Model
 {
+    use HasPublicModerationScope;
+
     public $incrementing = false;
+
     protected $keyType = 'string';
+
     public $timestamps = false;
 
     protected $fillable = [
         'id', 'author_id', 'author_name', 'text', 'image_url', 'media_mime_type', 'background_color_value',
-        'style_json', 'visibility', 'created_at',
+        'style_json', 'visibility', 'created_at', 'moderation_status',
     ];
 
     protected function casts(): array

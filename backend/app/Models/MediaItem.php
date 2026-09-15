@@ -3,11 +3,21 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class MediaItem extends Model
 {
+    // Soft-deleted because a file removed here is referenced by posts,
+    // place covers and avatars: the blank frame appears everywhere at
+    // once and there is no way back. The bytes stay on disk until
+    // somebody purges them deliberately, which is what makes restore
+    // able to put something back.
+    use SoftDeletes;
+
     public $incrementing = false;
+
     protected $keyType = 'string';
+
     public $timestamps = false;
 
     protected $fillable = [
@@ -29,6 +39,8 @@ class MediaItem extends Model
 
     public static function disk(): string
     {
-        return (string) config('filesystems.media_disk', 'public');
+        // User uploads must never land on Laravel's public disk before a
+        // moderation decision. Configure a private disk in production.
+        return (string) config('filesystems.media_disk', 'local');
     }
 }

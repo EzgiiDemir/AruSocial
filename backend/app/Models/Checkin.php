@@ -7,7 +7,9 @@ use Illuminate\Database\Eloquent\Model;
 class Checkin extends Model
 {
     public $incrementing = false;
+
     protected $keyType = 'string';
+
     public $timestamps = false;
 
     protected $fillable = ['id', 'place_id', 'user_id', 'visible_to_others', 'created_at'];

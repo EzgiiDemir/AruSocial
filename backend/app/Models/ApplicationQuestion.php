@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 // Admin-managed, per-category question schema for the two-stage apply
 // flow — see docs/API_CONTRACT.md's Applications section. Never hardcode
@@ -10,7 +11,10 @@ use Illuminate\Database\Eloquent\Model;
 // staff member can add/reorder/retire a question without a deploy.
 class ApplicationQuestion extends Model
 {
+    use SoftDeletes;
+
     public $incrementing = false;
+
     protected $keyType = 'string';
 
     protected $fillable = [

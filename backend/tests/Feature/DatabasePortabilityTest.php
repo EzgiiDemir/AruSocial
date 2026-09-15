@@ -16,6 +16,7 @@ use App\Models\User;
 use App\Services\AuditLogger;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Tests\Concerns\SignsInChatUsers;
 use Tests\TestCase;
@@ -121,21 +122,17 @@ class DatabasePortabilityTest extends TestCase
     public function test_email_username_push_token_role_and_settings_uniques(): void
     {
         User::create(['name' => 'A', 'email' => 'unique@arucad.edu.tr', 'password' => bcrypt('x')]);
-        try {
-            User::create(['name' => 'B', 'email' => 'unique@arucad.edu.tr', 'password' => bcrypt('x')]);
-            $this->fail('duplicate email should violate unique');
-        } catch (QueryException) {
-            $this->assertTrue(true);
-        }
+        $this->assertRejected(
+            fn () => User::create(['name' => 'B', 'email' => 'unique@arucad.edu.tr', 'password' => bcrypt('x')]),
+            'duplicate email should violate unique',
+        );
 
         $user = $this->actingAsUser();
         PushToken::create(['user_id' => $user->id, 'token' => 'tok-a', 'platform' => 'android', 'created_at' => now()]);
-        try {
-            PushToken::create(['user_id' => $user->id, 'token' => 'tok-a', 'platform' => 'ios', 'created_at' => now()]);
-            $this->fail('duplicate push token per user should violate unique');
-        } catch (QueryException) {
-            $this->assertTrue(true);
-        }
+        $this->assertRejected(
+            fn () => PushToken::create(['user_id' => $user->id, 'token' => 'tok-a', 'platform' => 'ios', 'created_at' => now()]),
+            'duplicate push token per user should violate unique',
+        );
 
         RoleAssignment::create([
             'email' => 'role-unique@arucad.edu.tr',
@@ -143,17 +140,15 @@ class DatabasePortabilityTest extends TestCase
             'assigned_by' => 'test',
             'assigned_at' => now(),
         ]);
-        try {
-            RoleAssignment::create([
+        $this->assertRejected(
+            fn () => RoleAssignment::create([
                 'email' => 'role-unique@arucad.edu.tr',
                 'role' => 'clubPresident',
                 'assigned_by' => 'test',
                 'assigned_at' => now(),
-            ]);
-            $this->fail('duplicate role assignment email should violate unique');
-        } catch (QueryException) {
-            $this->assertTrue(true);
-        }
+            ]),
+            'duplicate role assignment email should violate unique',
+        );
 
         AppSetting::setValue('site.public.url', 'https://example.test');
         AppSetting::setValue('site.public.url', 'https://example.test/v2');
@@ -184,7 +179,13 @@ class DatabasePortabilityTest extends TestCase
         $this->assertArrayHasKey('lastPage', $page);
     }
 
-    public function test_deleting_a_food_venue_cascades_its_menus(): void
+    /**
+     * Venues are soft-deleted so the panel can undo a mis-click, and their
+     * menus deliberately survive that: a restored venue with no menus is a
+     * broken restore. Menus are only ever read through the venue, so a
+     * deleted venue takes them out of every read path anyway.
+     */
+    public function test_a_deleted_food_venue_hides_its_menus_but_keeps_them_for_a_restore(): void
     {
         $this->actingAsRole();
         FoodVenue::create(['id' => 'food-cascade', 'name' => 'Cascade Cafe']);
@@ -196,6 +197,55 @@ class DatabasePortabilityTest extends TestCase
         ]);
 
         FoodVenue::find('food-cascade')->delete();
-        $this->assertDatabaseMissing('food_daily_menus', ['id' => 'menu-cascade']);
+
+        $this->assertNull(FoodVenue::find('food-cascade'));
+        $this->assertDatabaseHas('food_daily_menus', ['id' => 'menu-cascade']);
+
+        FoodVenue::withTrashed()->find('food-cascade')->restore();
+
+        $this->assertCount(1, FoodVenue::find('food-cascade')->dailyMenus);
+    }
+
+    /**
+     * Purging for real still cascades — the foreign key is unchanged.
+     */
+    public function test_force_deleting_a_food_venue_still_cascades_its_menus(): void
+    {
+        $this->actingAsRole();
+        FoodVenue::create(['id' => 'food-purge', 'name' => 'Purge Cafe']);
+        FoodDailyMenu::create([
+            'id' => 'menu-purge',
+            'food_venue_id' => 'food-purge',
+            'menu_date' => '2026-08-24',
+            'items' => ['X'],
+        ]);
+
+        FoodVenue::find('food-purge')->forceDelete();
+
+        $this->assertDatabaseMissing('food_daily_menus', ['id' => 'menu-purge']);
+    }
+
+    /**
+     * Asserts that a write is refused by the database, and leaves the
+     * connection usable afterwards.
+     *
+     * The savepoint is the whole point. PostgreSQL aborts the entire
+     * transaction when a statement fails — every later statement then
+     * returns "current transaction is aborted" — and `RefreshDatabase`
+     * already has this test inside a transaction. A nested
+     * `DB::transaction()` opens a savepoint, so the failed insert rolls
+     * back to it and the rest of the test can carry on.
+     *
+     * SQLite does not need this, which is why the test passed there and
+     * failed against the database the app actually runs on.
+     */
+    private function assertRejected(callable $write, string $because): void
+    {
+        try {
+            DB::transaction($write);
+            $this->fail($because);
+        } catch (QueryException) {
+            $this->assertTrue(true);
+        }
     }
 }

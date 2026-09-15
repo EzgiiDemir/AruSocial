@@ -20,7 +20,15 @@ class ClubMemberController extends Controller
     public function index(): JsonResponse
     {
         $me = $this->currentUser();
-        $ids = ClubMember::where('user_id', $me->id)->pluck('club_id');
+
+        // Restricted to clubs that still exist rather than plucking the
+        // membership rows straight out. `clubs` is soft-deleted so the
+        // panel can undo a mis-click, which means the membership row
+        // outlives a deleted club — without this the student's own list
+        // still names it and the app renders a club it cannot open.
+        $ids = ClubMember::where('user_id', $me->id)
+            ->whereIn('club_id', Club::query()->select('id'))
+            ->pluck('club_id');
 
         return $this->ok($ids);
     }

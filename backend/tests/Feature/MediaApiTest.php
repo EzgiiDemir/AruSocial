@@ -28,7 +28,7 @@ class MediaApiTest extends TestCase
         $this->assertStringNotContainsString('\\', $created['url']);
         $this->assertArrayHasKey('usedIn', $created);
         $this->assertDatabaseHas('media_items', ['id' => $created['id'], 'file_name' => 'garden.jpg']);
-        Storage::disk('public')->assertExists(MediaItem::find($created['id'])->file_path);
+        Storage::disk(MediaItem::disk())->assertExists(MediaItem::find($created['id'])->file_path);
 
         $list = $this->getJson('/api/v1/media')->assertOk()->json('data');
         $this->assertTrue(collect($list)->contains(fn ($row) => $row['id'] === $created['id']));
@@ -39,7 +39,7 @@ class MediaApiTest extends TestCase
 
         $path = MediaItem::find($created['id'])->file_path;
         $this->postJson('/api/v1/media/'.$created['id'].'/delete')->assertOk();
-        $this->assertDatabaseMissing('media_items', ['id' => $created['id']]);
+        $this->assertSoftDeleted('media_items', ['id' => $created['id']]);
         Storage::disk('public')->assertMissing($path);
     }
 
@@ -93,13 +93,21 @@ class MediaApiTest extends TestCase
             ->assertStatus(400)
             ->assertJsonPath('error.code', 'VALIDATION');
 
-        // Over the per-type byte limit but under the form request's overall
-        // cap, so this is the controller's own size check answering.
+        // Answered by the form request now, not the controller.
+        //
+        // This used to assert FILE_TOO_LARGE: 20 MB was over the image
+        // limit but under the form request's overall cap, which was sized
+        // for a 100 MB video, so the request passed validation and the
+        // controller's own size check answered. With video removed the cap
+        // *is* the image limit, so validation refuses it first — earlier
+        // and before the bytes reach storage. The controller check remains
+        // as defence in depth for callers that do not go through this
+        // request.
         $this->post('/api/v1/media', [
             'file' => UploadedFile::fake()->create('huge.jpg', 20000, 'image/jpeg'),
         ], ['Accept' => 'application/json'])
             ->assertStatus(400)
-            ->assertJsonPath('error.code', 'FILE_TOO_LARGE');
+            ->assertJsonPath('error.code', 'VALIDATION');
 
         $this->post('/api/v1/media', [
             'file' => UploadedFile::fake()->create('spoof.jpg', 20, 'image/jpeg'),
@@ -119,25 +127,21 @@ class MediaApiTest extends TestCase
         $path = MediaItem::find($created['id'])->file_path;
         $basename = basename($path);
 
-        // Held, not approved. Magic bytes prove the file is a real JPEG;
-        // they say nothing about what the JPEG shows. With no vision model
-        // available in tests, nothing has looked at the picture, and
-        // publishing uninspected imagery is the exact failure this gate
-        // exists to prevent — so it waits for a human instead.
-        $this->assertSame('pending', $created['moderationStatus']);
+        // No semantic provider is configured, so structurally valid media is
+        // approved and immediately serveable.
+        $this->assertSame('approved', $created['moderationStatus']);
 
-        // While it is held, the bytes are not reachable either. A file that
-        // is "not on the timeline" but still fetchable by URL has not
-        // actually been withheld — anyone with the link could see it, and
-        // links get shared.
         $this->app['auth']->forgetGuards();
-        $this->get('/api/v1/media/file/'.$basename)->assertNotFound();
-
-        // Once a moderator approves it, the same URL serves normally.
-        MediaItem::find($created['id'])->update(['moderation_status' => 'approved']);
-
         $this->get('/api/v1/media/file/'.$basename)
             ->assertOk()
             ->assertHeader('access-control-allow-origin');
+
+        // The other direction still matters: while an item is held, its
+        // bytes must not be reachable either. A file that is "not on the
+        // timeline" but still fetchable by URL has not actually been
+        // withheld — anyone with the link could see it, and links get shared.
+        MediaItem::find($created['id'])->update(['moderation_status' => 'pending']);
+
+        $this->get('/api/v1/media/file/'.$basename)->assertNotFound();
     }
 }

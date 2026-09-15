@@ -2,16 +2,21 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasPublicModerationScope;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ChatGroupMessage extends Model
 {
+    use HasPublicModerationScope;
+
     public $incrementing = false;
+
     protected $keyType = 'string';
+
     public $timestamps = false;
 
-    protected $fillable = ['id', 'group_id', 'sender_user_id', 'text', 'created_at'];
+    protected $fillable = ['id', 'group_id', 'sender_user_id', 'text', 'created_at', 'moderation_status'];
 
     protected function casts(): array
     {

@@ -24,10 +24,10 @@ class PersonalGalleryTest extends TestCase
 
         // Held until something has actually looked at the image. See
         // MediaApiTest for why a magic-byte check is not enough.
-        $this->assertSame('pending', $created['moderationStatus']);
+        $this->assertSame('approved', $created['moderationStatus']);
         $this->assertDatabaseHas('media_items', [
             'id' => $created['id'], 'user_id' => $me->id, 'file_name' => 'shot.jpg',
-            'moderation_status' => 'pending',
+            'moderation_status' => 'approved',
         ]);
 
         $page = $this->getJson('/api/v1/media/mine')->assertOk();
@@ -35,7 +35,7 @@ class PersonalGalleryTest extends TestCase
         $this->assertSame($created['id'], $page->json('data.0.id'));
 
         $this->postJson('/api/v1/media/mine/'.$created['id'].'/delete')->assertOk();
-        $this->assertDatabaseMissing('media_items', ['id' => $created['id']]);
+        $this->assertSoftDeleted('media_items', ['id' => $created['id']]);
         $this->assertSame(0, $this->getJson('/api/v1/media/mine')->json('meta.pagination.total'));
     }
 

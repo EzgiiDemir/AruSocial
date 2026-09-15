@@ -7,7 +7,9 @@ use Illuminate\Database\Eloquent\Model;
 class EmailLog extends Model
 {
     public $incrementing = false;
+
     protected $keyType = 'string';
+
     public $timestamps = false;
 
     protected $fillable = [

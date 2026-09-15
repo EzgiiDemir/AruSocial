@@ -2,16 +2,21 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasPublicModerationScope;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ChatMessage extends Model
 {
+    use HasPublicModerationScope;
+
     protected $table = 'messages';
+
     public $incrementing = false;
+
     protected $keyType = 'string';
 
-    protected $fillable = ['id', 'conversation_id', 'sender_id', 'body'];
+    protected $fillable = ['id', 'conversation_id', 'sender_id', 'body', 'moderation_status'];
 
     public function conversation(): BelongsTo
     {

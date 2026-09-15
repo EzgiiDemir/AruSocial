@@ -2,12 +2,14 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class StaffAvailabilitySlot extends Model
 {
     public $incrementing = false;
+
     protected $keyType = 'string';
 
     protected $fillable = [
@@ -35,7 +37,7 @@ class StaffAvailabilitySlot extends Model
         $past = false;
         if ($date) {
             try {
-                $past = \Carbon\Carbon::parse("{$date} {$start}")->isPast();
+                $past = Carbon::parse("{$date} {$start}")->isPast();
             } catch (\Throwable) {
                 $past = false;
             }

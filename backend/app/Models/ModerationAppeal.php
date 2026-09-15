@@ -16,11 +16,15 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class ModerationAppeal extends Model
 {
     public $incrementing = false;
+
     protected $keyType = 'string';
 
     public const STATUS_OPEN = 'open';
+
     public const STATUS_REVIEWING = 'reviewing';
+
     public const STATUS_UPHELD = 'upheld';
+
     public const STATUS_OVERTURNED = 'overturned';
 
     protected $fillable = [

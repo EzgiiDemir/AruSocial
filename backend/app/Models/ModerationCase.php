@@ -17,15 +17,21 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class ModerationCase extends Model
 {
     public $incrementing = false;
+
     protected $keyType = 'string';
 
     public const STATUS_OPEN = 'open';
+
     public const STATUS_REVIEWING = 'reviewing';
+
     public const STATUS_RESOLVED = 'resolved';
 
     public const SOURCE_AUTOMATIC = 'automatic';
+
     public const SOURCE_USER_REPORT = 'user_report';
+
     public const SOURCE_APPEAL = 'appeal';
+
     public const SOURCE_SYSTEM = 'system';
 
     protected $fillable = [

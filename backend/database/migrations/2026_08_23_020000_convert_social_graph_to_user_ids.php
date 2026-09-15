@@ -50,6 +50,7 @@ return new class extends Migration
                     'followed_name' => $row->followed_name,
                     'reason' => $matches->isEmpty() ? 'no_user' : 'ambiguous_name',
                 ];
+
                 continue;
             }
             $targetId = $matches[0]->id;
@@ -60,6 +61,7 @@ return new class extends Migration
                     'followed_name' => $row->followed_name,
                     'reason' => 'self_follow',
                 ];
+
                 continue;
             }
             $key = $row->follower_user_id.'-'.$targetId;
@@ -112,6 +114,7 @@ return new class extends Migration
                     'blocked_name' => $row->blocked_name,
                     'reason' => $matches->isEmpty() ? 'no_user' : 'ambiguous_name',
                 ];
+
                 continue;
             }
             $targetId = $matches[0]->id;
@@ -122,6 +125,7 @@ return new class extends Migration
                     'blocked_name' => $row->blocked_name,
                     'reason' => 'self_block',
                 ];
+
                 continue;
             }
             $key = $row->blocker_user_id.'-'.$targetId;

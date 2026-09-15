@@ -8,9 +8,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class Appointment extends Model
 {
     public $incrementing = false;
+
     protected $keyType = 'string';
 
     public const STATUSES = ['pending', 'approved', 'rejected', 'cancelled', 'completed', 'booked'];
+
     public const ACTIVE_STATUSES = ['pending', 'approved', 'booked'];
 
     protected $fillable = [

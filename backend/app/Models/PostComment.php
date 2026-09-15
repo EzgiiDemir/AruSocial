@@ -2,18 +2,21 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasPublicModerationScope;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class PostComment extends Model
 {
+    use HasPublicModerationScope;
+
     public $incrementing = false;
 
     protected $keyType = 'string';
 
     public $timestamps = false;
 
-    protected $fillable = ['id', 'post_id', 'user_id', 'text', 'meta', 'created_at'];
+    protected $fillable = ['id', 'post_id', 'user_id', 'text', 'meta', 'created_at', 'moderation_status'];
 
     protected function casts(): array
     {

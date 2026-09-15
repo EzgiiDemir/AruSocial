@@ -2,18 +2,21 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasPublicModerationScope;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Review extends Model
 {
+    use HasPublicModerationScope;
+
     public $incrementing = false;
 
     protected $keyType = 'string';
 
     public $timestamps = false;
 
-    protected $fillable = ['id', 'place_id', 'user_id', 'rating', 'comment', 'meta', 'created_at'];
+    protected $fillable = ['id', 'place_id', 'user_id', 'rating', 'comment', 'meta', 'created_at', 'moderation_status'];
 
     protected function casts(): array
     {

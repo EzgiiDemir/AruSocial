@@ -3,10 +3,14 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class ShuttleRoute extends Model
 {
+    use SoftDeletes;
+
     public $incrementing = false;
+
     protected $keyType = 'string';
 
     public const COLOR_KEYS = ['blue', 'yellow', 'success', 'warning', 'campusGreen', 'primary', 'danger'];

@@ -148,13 +148,43 @@ class ClubMembershipTest extends TestCase
         $this->assertEquals(['club-b'], $ids);
     }
 
-    public function test_deleting_a_club_takes_its_memberships_with_it(): void
+    /**
+     * Clubs are soft-deleted so the panel can undo a mis-click, so the
+     * membership rows deliberately outlive the delete — a club restored
+     * with nobody in it is a broken restore, not a recovered one.
+     *
+     * What has to hold instead is that nobody can reach the club while it
+     * is deleted.
+     */
+    public function test_a_deleted_club_leaves_the_students_list_but_keeps_its_members_for_a_restore(): void
     {
         $me = $this->actingAsUser();
         $club = $this->seedClub();
         ClubMember::create(['user_id' => $me->id, 'club_id' => $club->id, 'created_at' => now()]);
 
+        $this->assertEquals([$club->id], $this->getJson('/api/v1/club-memberships')->json('data'));
+
         $club->delete();
+
+        $this->assertEquals([], $this->getJson('/api/v1/club-memberships')->json('data'));
+        $this->assertDatabaseCount('club_members', 1);
+
+        Club::withTrashed()->find($club->id)->restore();
+
+        $this->assertEquals([$club->id], $this->getJson('/api/v1/club-memberships')->json('data'));
+    }
+
+    /**
+     * Purging for real still cascades — the foreign key is unchanged, and
+     * this is what empties the table once a deletion is made permanent.
+     */
+    public function test_force_deleting_a_club_still_takes_its_memberships_with_it(): void
+    {
+        $me = $this->actingAsUser();
+        $club = $this->seedClub();
+        ClubMember::create(['user_id' => $me->id, 'club_id' => $club->id, 'created_at' => now()]);
+
+        $club->forceDelete();
 
         $this->assertDatabaseCount('club_members', 0);
     }

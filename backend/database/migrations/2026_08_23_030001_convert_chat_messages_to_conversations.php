@@ -34,6 +34,7 @@ return new class extends Migration
                     'from_me' => $fromMe,
                     'reason' => 'peer_name did not uniquely match a user',
                 ];
+
                 continue;
             }
 
@@ -47,6 +48,7 @@ return new class extends Migration
                     'peer_name' => $row->peer_name,
                     'reason' => 'self_chat',
                 ];
+
                 continue;
             }
 

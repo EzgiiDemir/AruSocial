@@ -37,7 +37,7 @@ return new class extends Migration
             $table->unsignedSmallInteger('priority')->default(50);   // 0 highest
             $table->string('status', 20)->default('open');   // open | reviewing | resolved
             $table->string('decision', 30)->nullable();      // approve | remove | warn | restrict | suspend | ban | escalate
-            $table->string('recommendation', 30)->nullable();// what the machine suggested, for override tracking
+            $table->string('recommendation', 30)->nullable(); // what the machine suggested, for override tracking
             $table->uuid('moderation_event_id')->nullable(); // the automatic evidence, when there is any
             $table->unsignedInteger('report_count')->default(0);
             $table->foreignId('assigned_moderator_id')->nullable()

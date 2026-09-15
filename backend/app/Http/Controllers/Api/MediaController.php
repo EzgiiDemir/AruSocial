@@ -18,11 +18,9 @@ use App\Services\Moderation\ContentModerator;
 use App\Services\Moderation\Image\FastApiImageModerationProvider;
 use App\Services\Moderation\Image\ImageModerationPolicy;
 use App\Services\Moderation\Image\ImageVerdict;
-use App\Services\Moderation\Image\VideoModerationRunner;
 use App\Services\Moderation\ModerationClient;
 use App\Services\Moderation\ModerationExemption;
 use App\Services\Moderation\ModerationOutcome;
-use App\Services\Moderation\VideoModerator;
 use App\Services\ModerationService;
 use App\Support\UploadMagic;
 use Illuminate\Http\JsonResponse;
@@ -76,22 +74,33 @@ class MediaController extends Controller
     private function validateAndModerateUpload($file, bool $adminLibrary, $submitter = null): array
     {
         $mime = $file->getMimeType();
-        $isVideo = $this->isVideo($mime);
         $isImage = $this->isImage($mime);
 
         $limits = config('services.media_uploads');
 
-        if (! $isVideo && ! $isImage) {
-            return [$this->fail(400, 'UNSUPPORTED_FILE_TYPE',
-                'Bu dosya türü desteklenmiyor. Fotoğraf için JPG, PNG, WEBP veya HEIC; '
-                .'video için MP4, MOV veya WEBM yükleyebilirsin.'), null];
+        // Video was removed from the product on 14 September 2026.
+        //
+        // Answered before the generic unsupported-type branch, and with
+        // its own error code, because an older build of the app still has
+        // a video button and its user deserves to be told what happened
+        // rather than "this file type is not supported". Detected on the
+        // sniffed MIME type, so renaming an .mp4 does not route around it.
+        if ($this->isVideo($mime)) {
+            return [$this->fail(415, 'VIDEO_NOT_SUPPORTED',
+                'Video paylaşımı artık desteklenmiyor. Lütfen uygulamayı '
+                .'güncelleyin ve fotoğraf paylaşın.'), null];
         }
 
-        $max = $isVideo ? $limits['max_video_bytes'] : $limits['max_image_bytes'];
+        if (! $isImage) {
+            return [$this->fail(400, 'UNSUPPORTED_FILE_TYPE',
+                'Bu dosya türü desteklenmiyor. '
+                .'JPG, PNG, WEBP veya HEIC yükleyebilirsin.'), null];
+        }
+
+        $max = $limits['max_image_bytes'];
         if ($file->getSize() > $max) {
             return [$this->fail(400, 'FILE_TOO_LARGE', sprintf(
-                '%s çok büyük (%s MB). En fazla %s MB olabilir.',
-                $isVideo ? 'Video' : 'Fotoğraf',
+                'Fotoğraf çok büyük (%s MB). En fazla %s MB olabilir.',
                 number_format($file->getSize() / 1048576, 1),
                 (int) round($max / 1048576),
             )), null];
@@ -99,52 +108,30 @@ class MediaController extends Controller
 
         // Magic bytes, not the extension: renaming a file does not change
         // what it is, and the client's Content-Type is attacker-controlled.
-        if ($isImage && ! UploadMagic::isImage($file)) {
+        if (! UploadMagic::isImage($file)) {
             return [$this->fail(400, 'INVALID_FILE_CONTENTS',
                 'Dosya içeriği geçerli bir fotoğrafla eşleşmiyor.'), null];
         }
-        if ($isVideo && ! UploadMagic::isVideo($file)) {
-            return [$this->fail(400, 'INVALID_FILE_CONTENTS',
-                'Dosya içeriği geçerli bir videoyla eşleşmiyor.'), null];
+
+        $invalid = ImageModerationService::checkImageBytes(
+            file_get_contents($file->getRealPath()),
+            $mime,
+        );
+        if ($invalid !== null) {
+            return [$this->fail(400, 'INVALID_FILE_CONTENTS', $invalid), null];
         }
 
-        if ($isImage) {
-            $invalid = ImageModerationService::checkImageBytes(
-                file_get_contents($file->getRealPath()),
-                $mime,
-            );
-            if ($invalid !== null) {
-                return [$this->fail(400, 'INVALID_FILE_CONTENTS', $invalid), null];
-            }
-
-            // A decompression bomb is small on disk and enormous in memory,
-            // so it has to be refused on dimensions before anything decodes
-            // it — including our own moderation pass.
-            $size = @getimagesize($file->getRealPath());
-            if (is_array($size) && ($size[0] * $size[1]) > $limits['max_image_pixels']) {
-                return [$this->fail(400, 'IMAGE_TOO_LARGE', sprintf(
-                    'Fotoğraf çözünürlüğü çok yüksek (%d×%d).', $size[0], $size[1],
-                )), null];
-            }
-        }
-
-        if ($isVideo) {
-            $seconds = (new VideoModerator)
-                ->durationSeconds($file->getRealPath());
-            // Null means the duration could not be read — that is handled by
-            // the frame-extraction step, which holds the upload rather than
-            // guessing. Only a known, over-limit duration is refused here.
-            if ($seconds !== null && $seconds > $limits['max_video_seconds']) {
-                return [$this->fail(400, 'VIDEO_TOO_LONG', sprintf(
-                    'Video çok uzun (%d saniye). En fazla %d saniye olabilir.',
-                    (int) round($seconds), $limits['max_video_seconds'],
-                )), null];
-            }
+        // A decompression bomb is small on disk and enormous in memory,
+        // so it has to be refused on dimensions before anything decodes
+        // it — including our own moderation pass.
+        $size = @getimagesize($file->getRealPath());
+        if (is_array($size) && ($size[0] * $size[1]) > $limits['max_image_pixels']) {
+            return [$this->fail(400, 'IMAGE_TOO_LARGE', sprintf(
+                'Fotoğraf çözünürlüğü çok yüksek (%d×%d).', $size[0], $size[1],
+            )), null];
         }
 
         // Primary layer: the moderation model actually looks at the picture.
-        // Images go straight in; videos are sampled into frames first, so
-        // prohibited content buried mid-clip is still caught.
         if ($submitter === null) {
             // No account to attribute the upload to means no moderation ran.
             // Hold it rather than approve — an unattributed upload is the
@@ -152,16 +139,20 @@ class MediaController extends Controller
             return [null, 'pending'];
         }
 
-        // Staff uploads are not scanned. Structural validation above still
-        // ran — format, size, pixel ceiling, decode — because a corrupt or
-        // enormous file is a problem whoever sent it. Only the classifier
-        // is skipped, and only for accounts the server itself resolves as
-        // staff; nothing in the request can claim this.
-        if (! ModerationExemption::appliesTo($submitter)) {
+        // Staff uploads to the shared media library are not scanned —
+        // that is institutional material. A member of staff uploading to
+        // their *personal* gallery is posting as themselves, and is
+        // scanned like anyone else: `$adminLibrary` is what separates the
+        // two, and it comes from the route, not the request body.
+        //
+        // Structural validation above still ran either way, because a
+        // corrupt or enormous file is a problem whoever sent it.
+        $surface = $adminLibrary ? 'media.library' : 'media.mine';
+        if (! ModerationExemption::appliesTo($submitter, $surface)) {
             return [null, 'approved'];
         }
 
-        $decision = $this->inspectUploadWithProvider($file, $mime, $isVideo, $submitter);
+        $decision = $this->inspectUploadWithProvider($file, $mime, $submitter);
         if ($decision !== null) {
             return $decision;
         }
@@ -171,15 +162,7 @@ class MediaController extends Controller
         // continues past here to a fallback whose failure mode is
         // "approve because nothing was configured". Nothing below this
         // point may look at an image again.
-        // Video used to skip this block and fall through to a fallback
-        // ending in "no local classifier configured → approve", so every
-        // clip published with no frame ever inspected. It now goes through
-        // the same provider, policy and calibrated thresholds as a photo.
-        if ($isVideo && app(FastApiImageModerationProvider::class)->isConfigured()) {
-            return $this->inspectVideoVisually($file, $submitter);
-        }
-
-        if (! $isVideo && app(FastApiImageModerationProvider::class)->isConfigured()) {
+        if (app(FastApiImageModerationProvider::class)->isConfigured()) {
             // Queued mode stores the image as pending and lets the job
             // decide. It is written as pending *before* the job is
             // dispatched, so a worker that never runs leaves it private
@@ -193,7 +176,7 @@ class MediaController extends Controller
         }
 
         // A configured ARUCAD-owned semantic model may make a high-confidence
-        // decision for both image and video files. It is intentionally not a
+        // decision for an image. It is intentionally not a
         // remote API. If the model is configured but unavailable, the upload
         // remains pending below (fail closed). If it is not configured at all,
         // magic-byte-clean uploads are approved so social media is not blocked.
@@ -272,38 +255,6 @@ class MediaController extends Controller
         };
     }
 
-    /**
-     * Visual moderation for one video.
-     *
-     * Shares the image mapping exactly, including the exhaustive match
-     * with no permissive default. The only difference is where the
-     * verdict came from — frames rather than a single picture.
-     *
-     * @return array{0: JsonResponse|null, 1: string|null}
-     */
-    private function inspectVideoVisually($file, $submitter): array
-    {
-        $verdict = app(VideoModerationRunner::class)
-            ->scanFile((string) $file->getRealPath());
-
-        $this->recordImageVerdict($submitter, $file, $verdict);
-
-        return match ($verdict->decision) {
-            ImageVerdict::ALLOW => [null, 'approved'],
-            ImageVerdict::REVIEW => [null, 'pending'],
-            ImageVerdict::BLOCK => [$this->blockedImageResponse($submitter, $verdict), null],
-            ImageVerdict::INVALID => [
-                $this->fail(400, 'INVALID_FILE_CONTENTS',
-                    'Video okunamadı. Lütfen geçerli bir MP4, MOV veya WEBM dosyası yükle.'),
-                null,
-            ],
-            // No frames inspected — including the common case of FFmpeg
-            // not being installed. That is an operational gap, never a
-            // safe state, so the clip is held rather than published.
-            default => [$this->moderationError(ModerationOutcome::unavailable()), null],
-        };
-    }
-
     private function blockedImageResponse($submitter, ImageVerdict $verdict): JsonResponse
     {
         $category = $verdict->topCategory() ?? 'policy';
@@ -363,17 +314,13 @@ class MediaController extends Controller
      *
      * Returns a `[response, status]` pair when the upload must not proceed
      * as-is, or null to let the existing local-classifier path decide.
-     * Videos are reduced to sampled frames first; if ffmpeg is unavailable
-     * the video is held for human review rather than published unchecked.
      *
      * @return array{0: JsonResponse|null, 1: string|null}|null
      */
-    private function inspectUploadWithProvider($file, string $mime, bool $isVideo, $submitter): ?array
+    private function inspectUploadWithProvider($file, string $mime, $submitter): ?array
     {
         // With no remote provider configured, continue to the optional local
-        // classifier. Trying to extract frames first made all videos depend
-        // on ffmpeg even in installations that intentionally use only the
-        // structural/local path.
+        // classifier.
         $client = app(ModerationClient::class);
         if (! $client->isConfigured()) {
             return null;
@@ -382,10 +329,12 @@ class MediaController extends Controller
         $moderator = app(ContentModerator::class);
 
         if ($client->usesGateway()) {
+            // The self-hosted gateway is the designed central decision
+            // point for everything, so it keeps precedence.
             $outcome = $moderator->check(
                 $submitter,
                 null,
-                $isVideo ? 'video' : 'image',
+                'image',
                 'media.upload',
                 [],
                 [[
@@ -400,24 +349,32 @@ class MediaController extends Controller
             };
         }
 
-        if ($isVideo) {
-            $extraction = (new VideoModerator)
-                ->extractFrames($file->getRealPath());
-
-            if (! $extraction['available']) {
-                return [$this->moderationError(ModerationOutcome::unavailable()), null];
-            }
-
-            $outcome = $moderator->check(
-                $submitter, null, 'video', 'media.upload', $extraction['frames'],
-            );
-        } else {
-            $dataUri = 'data:'.$mime.';base64,'
-                .base64_encode((string) file_get_contents($file->getRealPath()));
-            $outcome = $moderator->check(
-                $submitter, null, 'image', 'media.upload', [$dataUri],
-            );
+        // Below here is the LEGACY remote vision path, and it only applies
+        // when there is no self-hosted classifier.
+        //
+        // Precedence follows measured authority, not configuration order.
+        // The self-hosted classifier is calibrated against a labelled set
+        // and its thresholds are versioned policy; the remote provider is
+        // neither. Asking "is any remote provider configured?" here caused
+        // a live incident: switching the remote layer on to fix *text*
+        // moderation rerouted every image away from the working
+        // classifier, and because that account had no quota, an unsafe
+        // image uploaded as a student came back 201 approved.
+        //
+        // Deferring rather than returning a decision means the caller
+        // continues to the self-hosted path immediately below, which holds
+        // when it cannot inspect. A healthy remote provider must not get a
+        // say either: "something else thought it was fine" is not evidence
+        // about these pixels.
+        if (app(FastApiImageModerationProvider::class)->isConfigured()) {
+            return null;
         }
+
+        $dataUri = 'data:'.$mime.';base64,'
+            .base64_encode((string) file_get_contents($file->getRealPath()));
+        $outcome = $moderator->check(
+            $submitter, null, 'image', 'media.upload', [$dataUri],
+        );
 
         $status = ModerationOutcome::class;
 
@@ -449,7 +406,7 @@ class MediaController extends Controller
     private function storeUpload($file, ?int $userId, string $uploadedBy, string $moderationStatus): MediaItem
     {
         $id = 'media-'.Str::uuid();
-        $folder = $this->isVideo($file->getMimeType()) ? 'media/video' : 'media';
+        $folder = 'media';
         $path = $file->store($folder, MediaItem::disk());
 
         $item = MediaItem::create([
@@ -536,8 +493,16 @@ class MediaController extends Controller
     {
         $item = MediaItem::find($id);
         if ($item) {
-            Storage::disk(MediaItem::disk())->delete($item->file_path);
             AuditLogger::logAsCurrentUser('delete', 'media', $item->file_name);
+
+            // The row is soft-deleted and the file is left where it is.
+            // Deleting the bytes here would make the Media Library's
+            // Restore button hand back a record whose file is gone — a
+            // broken row that renders a frame which never loads, which is
+            // the exact defect `media:audit` exists to report.
+            //
+            // The bytes go when somebody purges deliberately: the panel's
+            // permanent-delete action, or `media:purge-orphans`.
             $item->delete();
         }
 
@@ -589,7 +554,7 @@ class MediaController extends Controller
             return $this->fail(404, 'MEDIA_NOT_FOUND', 'Media item not found.');
         }
 
-        Storage::disk(MediaItem::disk())->delete($item->file_path);
+        // Soft delete, file left in place — see destroy() above.
         $item->delete();
 
         return $this->ok(['deleted' => true]);
@@ -614,7 +579,7 @@ class MediaController extends Controller
         if (! $item || ($item->moderation_status ?? 'approved') !== 'approved') {
             abort(404);
         }
-        if (! $this->isImage($item->mime_type) && ! $this->isVideo($item->mime_type)) {
+        if (! $this->isImage($item->mime_type)) {
             abort(404);
         }
 
@@ -642,7 +607,7 @@ class MediaController extends Controller
         if (! $item || ($item->moderation_status ?? 'approved') !== 'pending') {
             abort(404);
         }
-        if (! $this->isImage($item->mime_type) && ! $this->isVideo($item->mime_type)) {
+        if (! $this->isImage($item->mime_type)) {
             abort(404);
         }
 
@@ -668,7 +633,6 @@ class MediaController extends Controller
         $item = MediaItem::query()
             ->where(function ($q) use ($safe) {
                 $q->where('file_path', 'media/'.$safe)
-                    ->orWhere('file_path', 'media/video/'.$safe)
                     ->orWhere('file_path', 'like', '%/'.$safe);
             })
             ->first();

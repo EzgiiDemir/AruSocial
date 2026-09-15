@@ -7,7 +7,9 @@ use Illuminate\Database\Eloquent\Model;
 class SurveyOption extends Model
 {
     public $incrementing = false;
+
     protected $keyType = 'string';
+
     public $timestamps = false;
 
     protected $fillable = ['id', 'survey_id', 'label', 'sort_order'];

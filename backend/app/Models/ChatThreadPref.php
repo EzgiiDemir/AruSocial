@@ -13,6 +13,7 @@ class ChatThreadPref extends Model
         'muted_at',
         'archived_at',
         'restricted_at',
+        'last_read_at',
     ];
 
     protected function casts(): array
@@ -21,6 +22,7 @@ class ChatThreadPref extends Model
             'muted_at' => 'datetime',
             'archived_at' => 'datetime',
             'restricted_at' => 'datetime',
+            'last_read_at' => 'datetime',
         ];
     }
 

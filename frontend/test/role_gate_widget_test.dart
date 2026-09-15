@@ -9,7 +9,6 @@ import 'package:arucad_campus_prototype/features/admin/admin_panel_screen.dart';
 import 'package:arucad_campus_prototype/features/auth/access_denied_screen.dart';
 import 'package:arucad_campus_prototype/features/home/campus_live_map.dart';
 import 'package:arucad_campus_prototype/features/profile/profile_screen.dart';
-import 'package:arucad_campus_prototype/features/trainer/trainer_panel_screen.dart';
 
 class _NoopMap implements MapProvider {
   @override
@@ -57,49 +56,14 @@ void main() {
     expect(find.text('Yönetim paneli'), findsOneWidget);
   });
 
-  testWidgets('student cannot open trainer panel via route', (tester) async {
-    await tester.pumpWidget(MaterialApp(
-      home: TrainerPanelScreen(
-        repository: MockCampusRepository(),
-        user: _student,
-        role: UserRole.student,
-        onLogout: () {},
-      ),
-    ));
-    await tester.pump();
-    expect(find.byType(AccessDeniedScreen), findsOneWidget);
-    expect(find.text('Eğitmen paneli'), findsOneWidget);
-  });
-
-  testWidgets('superAdmin settings show both management tiles', (tester) async {
-    await tester.pumpWidget(MaterialApp(
-      home: ProfileScreen(
-                onLogout: () {},
-user: _student,
-        repository: MockCampusRepository(),
-        mapProvider: _NoopMap(),
-        analyticsTracker: _NoopAnalytics(),
-        role: UserRole.superAdmin,
-        language: 'TR',
-        locationVisibility: CampusVisibility.ghost,
-        nearbyDiscoverable: false,
-        personalization: true,
-        isPrivateProfile: false,
-        initialSection: SettingsSection.system,
-        onLanguage: (_) {},
-        onLocationVisibility: (_) {},
-        onNearbyDiscoverable: (_) {},
-        onPersonalization: (_) {},
-        onPrivateProfile: (_) {},
-      ),
-    ));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 50));
-    expect(find.text('Yönetim paneli'), findsOneWidget);
-    expect(find.text('Eğitmen paneli'), findsOneWidget);
-  });
-
-  testWidgets('student settings hide admin and trainer tiles', (tester) async {
+  /// Settings carries no staff entry point for anybody.
+  ///
+  /// The in-app tiles were removed with the Trainer panel on 15 September
+  /// 2026: staff sign in to the one admin panel at /admin/login, and the
+  /// role decides what they see there. This used to have a companion test
+  /// asserting a superAdmin *did* see both tiles; there are no tiles now,
+  /// so what is left to check is that none leak to a student.
+  testWidgets('settings show no admin or trainer entry point', (tester) async {
     await tester.pumpWidget(MaterialApp(
       home: ProfileScreen(
                 onLogout: () {},

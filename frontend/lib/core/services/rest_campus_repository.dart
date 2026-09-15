@@ -1,3 +1,4 @@
+import 'photo_picker_service.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -364,10 +365,58 @@ class RestCampusRepository implements CampusRepository {
       {String? imageUrl,
       Uint8List? imageBytes,
       String? mediaFileName,
+      List<PickedPostMedia>? mediaItems,
+      void Function(int index, String url)? onItemUploaded,
       PostVisibility visibility = PostVisibility.everyone,
       PostCategory postType = PostCategory.normal,
       String? courseTag,
       String? locationTag}) async {
+    // A carousel is uploaded in full before the post is created. If any
+    // upload fails the whole thing throws here, and no post exists —
+    // rather than a post appearing with the three pictures that happened
+    // to make it and not the two that did not.
+    if (mediaItems != null && mediaItems.isNotEmpty) {
+      final uploaded = <Map<String, dynamic>>[];
+      for (var i = 0; i < mediaItems.length; i++) {
+        final item = mediaItems[i];
+
+        // Already uploaded on an earlier attempt, so this is a retry and
+        // there is nothing to send again. Re-uploading would also orphan
+        // the first copy on the server.
+        final url = item.uploadedUrl ??
+            await _uploadApprovedSocialMedia(item.bytes,
+                fileName: item.fileName);
+
+        // Recorded before the next item is attempted: if the *next* one
+        // fails, the caller still learns that this one is done.
+        onItemUploaded?.call(i, url);
+
+        uploaded.add({
+          'imageUrl': url,
+          'styleJson': item.framing.toStyle(null),
+          if (item.altText != null) 'altText': item.altText,
+          if (item.width != null) 'width': item.width,
+          if (item.height != null) 'height': item.height,
+        });
+      }
+
+      await _postModerated('/feed', body: {
+        'text': text,
+        'media': uploaded,
+        // The first item's framing also describes the post itself, so a
+        // client reading only `imageUrl` frames it the same way.
+        'styleJson': mediaItems.first.framing.toStyle(null),
+        if (mediaItems.first.altText != null)
+          'altText': mediaItems.first.altText,
+        'visibility': visibility.apiValue,
+        'postType': postType.name,
+        if (courseTag != null) 'courseTag': courseTag,
+        if (locationTag != null) 'locationTag': locationTag,
+      });
+
+      return;
+    }
+
     // Real bug fix: a device-picked photo used to be dropped on the floor
     // here — this only ever sent `imageUrl`, so a picked-from-gallery/
     // camera image previewed fine in the compose sheet but never actually
@@ -811,104 +860,6 @@ class RestCampusRepository implements CampusRepository {
     await client.post('/admin/events/$id/delete');
   }
 
-  @override
-  Future<List<CampusEvent>> getTrainerEvents() async {
-    final response = await client.get('/trainer/events');
-    final items = response['data'] as List<dynamic>;
-    return items
-        .map((item) => CampusEvent.fromJson(item as Map<String, dynamic>))
-        .toList();
-  }
-
-  @override
-  Future<CampusEvent> upsertTrainerEvent(CampusEvent event,
-      {required bool isNew}) async {
-    final response =
-        await _postWithPlaceConflictCheck('/trainer/events', body: {
-      if (!isNew) 'id': event.id,
-      'title': event.title,
-      'placeId': event.placeId,
-      'eventDate': event.eventDate?.toIso8601String().split('T').first,
-      'time': event.time,
-      'category': event.category,
-      'description': event.description,
-    });
-    return CampusEvent.fromJson(response['data'] as Map<String, dynamic>);
-  }
-
-  @override
-  Future<void> deleteTrainerEvent(String id) async {
-    await client.post('/trainer/events/$id/delete');
-  }
-
-  @override
-  Future<List<ParticipationApplication>> getTrainerApplications(
-      {String? status}) async {
-    final response = await client.get('/trainer/applications', query: {
-      if (status != null) 'status': status,
-    });
-    return (response['data'] as List)
-        .map(
-            (e) => ParticipationApplication.fromJson(e as Map<String, dynamic>))
-        .toList();
-  }
-
-  @override
-  Future<ParticipationApplication> approveTrainerApplication(String id,
-      {String? reviewNote}) async {
-    final response =
-        await client.post('/trainer/applications/$id/approve', body: {
-      if (reviewNote != null) 'reviewNote': reviewNote,
-    });
-    return ParticipationApplication.fromJson(
-        response['data'] as Map<String, dynamic>);
-  }
-
-  @override
-  Future<ParticipationApplication> rejectTrainerApplication(String id,
-      {required String reviewNote}) async {
-    final response =
-        await client.post('/trainer/applications/$id/reject', body: {
-      'reviewNote': reviewNote,
-    });
-    return ParticipationApplication.fromJson(
-        response['data'] as Map<String, dynamic>);
-  }
-
-  @override
-  Future<ParticipationApplication> requestTrainerApplicationRevision(String id,
-      {required String reviewNote}) async {
-    final response =
-        await client.post('/trainer/applications/$id/revise', body: {
-      'reviewNote': reviewNote,
-    });
-    return ParticipationApplication.fromJson(
-        response['data'] as Map<String, dynamic>);
-  }
-
-  @override
-  Future<List<StaffProfile>> getTrainerRoster() async {
-    final response = await client.get('/trainer/roster');
-    return (response['data'] as List)
-        .map((e) => StaffProfile.fromJson(e as Map<String, dynamic>))
-        .toList();
-  }
-
-  @override
-  Future<List<EventParticipant>> getTrainerEventParticipants(
-      String eventId) async {
-    final response = await client.get('/trainer/events/$eventId/participants');
-    final items = response['data'] as List<dynamic>;
-    return items
-        .map((item) => EventParticipant.fromJson(item as Map<String, dynamic>))
-        .toList();
-  }
-
-  @override
-  Future<void> approveTrainerEventParticipant(
-      String eventId, String joinId) async {
-    await client.post('/trainer/events/$eventId/participants/$joinId/approve');
-  }
 
   @override
   Future<List<CampusClub>> getClubs({String? category}) async {

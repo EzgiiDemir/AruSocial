@@ -27,19 +27,36 @@ class LaunchFlowTest extends TestCase
         (new DatabaseSeeder)->run();
     }
 
-    public function test_admin_links_a_teacher_by_email_and_teacher_can_enter_own_portal(): void
+    /**
+     * Linking a staff record to an account by email address.
+     *
+     * This test used to continue into the Trainer portal — that the linked
+     * teacher could load their own events, and lost them when the profile
+     * was deactivated. The separate Trainer panel was removed on 15
+     * September 2026 (staff now work in the one admin panel, and the role
+     * decides what they see), so that half of it tests an endpoint that no
+     * longer exists.
+     *
+     * The linking half is kept, because it is still how a staff record
+     * finds its account and the case-insensitive match is easy to break.
+     */
+    public function test_admin_links_a_teacher_to_their_account_by_email(): void
     {
         $teacher = $this->actingAsRole('trainer');
         $this->actingAsRole('superAdmin');
+
         $this->postJson('/api/v1/admin/staff', [
             'id' => 'teacher-launch', 'name' => 'Test Teacher',
+            // Deliberately the wrong case: an address typed by an
+            // administrator will not match how the student registered it.
             'email' => strtoupper($teacher->email), 'department' => 'Architecture',
             'active' => true, 'isDepartmentHead' => false,
         ])->assertCreated()->assertJsonPath('data.userId', (string) $teacher->id);
-        $this->actingAsUser($teacher);
-        $this->getJson('/api/v1/trainer/events')->assertOk();
-        StaffProfile::where('id', 'teacher-launch')->update(['active' => false]);
-        $this->getJson('/api/v1/trainer/events')->assertForbidden();
+
+        $this->assertSame(
+            $teacher->id,
+            (int) StaffProfile::find('teacher-launch')->user_id,
+        );
     }
 
     public function test_admin_cannot_link_a_nonexistent_user(): void

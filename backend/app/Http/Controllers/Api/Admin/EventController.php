@@ -85,7 +85,18 @@ class EventController extends Controller
             return $this->fail(409, 'PLACE_UNAVAILABLE', "Bu mekân o tarihte ve saatte dolu: \"{$conflict->title}\".");
         }
 
-        $isNew = ! Event::where('id', $id)->exists();
+        $existing = Event::where('id', $id)->first();
+        $isNew = $existing === null;
+
+        // Attendance is a count of people who joined, not a field the
+        // editor types. Taking it from the request with a default of 0
+        // meant any update that did not resend it silently reset the
+        // event to nobody attending — and an edit form has no reason to
+        // send it back, so "fix a typo in the title" erased the turnout.
+        $attendees = $request->has('attendees')
+            ? (int) $request->input('attendees')
+            : (int) ($existing->attendees ?? 0);
+
         $event = Event::updateOrCreate(
             ['id' => $id],
             [
@@ -95,7 +106,7 @@ class EventController extends Controller
                 'place_name' => $request->input('placeName', ''),
                 'place_id' => $placeId,
                 'category' => $request->input('category', ''),
-                'attendees' => (int) $request->input('attendees', 0),
+                'attendees' => $attendees,
                 'xp' => (int) $request->input('xp', 0),
                 'draft' => (bool) $request->input('draft', false),
                 'workflow_status' => $request->input('draft', false) ? 'draft' : 'published',

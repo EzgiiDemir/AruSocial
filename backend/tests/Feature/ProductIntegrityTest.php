@@ -183,26 +183,53 @@ class ProductIntegrityTest extends TestCase
         $this->assertSame('staff-club', $app['responsibleStaffId']);
     }
 
-    public function test_trainer_update_preserves_attendee_count(): void
+    /**
+     * Editing an event must not erase who turned up.
+     *
+     * This was a Trainer-panel test until that panel was removed on 15
+     * September 2026. The rule it protects is not about trainers, so it
+     * moved here rather than being deleted with the panel — and it was
+     * right to: the admin endpoint it moved to did *not* have the
+     * protection. `attendees` was read from the request with a default of
+     * 0, and an edit form has no reason to resend a count nobody types, so
+     * correcting a typo in the title set the turnout to nobody.
+     */
+    public function test_editing_an_event_preserves_its_attendee_count(): void
     {
-        $user = $this->actingAsRole('trainer');
-        $staff = StaffProfile::create([
-            'id' => 'staff-arch-head', 'name' => 'Architecture Head', 'department' => 'Architecture',
-            'is_department_head' => true, 'active' => true, 'user_id' => $user->id,
-        ]);
+        $this->actingAsRole('superAdmin');
         Place::create(['id' => 'p1', 'name' => 'Garden', 'category' => 'Social', 'lat' => 1, 'lng' => 1]);
-        $event = $this->postJson('/api/v1/trainer/events', [
-            'title' => 'V1', 'placeId' => 'p1',
-        ])->json('data');
-        Event::where('id', $event['id'])->update(['attendees' => 9]);
 
-        $update = $this->postJson('/api/v1/trainer/events', [
-            'id' => $event['id'], 'title' => 'V2', 'placeId' => 'p1',
-        ]);
-        $update->assertOk();
+        $this->postJson('/api/v1/admin/events', [
+            'id' => 'ev-1', 'title' => 'V1', 'placeId' => 'p1', 'placeName' => 'Garden',
+        ])->assertOk();
+
+        Event::where('id', 'ev-1')->update(['attendees' => 9]);
+
+        $update = $this->postJson('/api/v1/admin/events', [
+            'id' => 'ev-1', 'title' => 'V2', 'placeId' => 'p1', 'placeName' => 'Garden',
+        ])->assertOk();
+
         $this->assertSame('V2', $update->json('data.title'));
-        $this->assertSame(9, $update->json('data.attendees'));
-        $this->assertSame($staff->id, $update->json('data.responsibleStaffId'));
+        $this->assertSame(9, $update->json('data.attendees'),
+            'Editing the title must not reset the turnout.');
+    }
+
+    /** An explicit count is still honoured — this is not a read-only field. */
+    public function test_an_explicit_attendee_count_is_still_written(): void
+    {
+        $this->actingAsRole('superAdmin');
+        Place::create(['id' => 'p1', 'name' => 'Garden', 'category' => 'Social', 'lat' => 1, 'lng' => 1]);
+
+        $this->postJson('/api/v1/admin/events', [
+            'id' => 'ev-2', 'title' => 'V1', 'placeId' => 'p1', 'placeName' => 'Garden',
+        ])->assertOk();
+
+        $update = $this->postJson('/api/v1/admin/events', [
+            'id' => 'ev-2', 'title' => 'V1', 'placeId' => 'p1',
+            'placeName' => 'Garden', 'attendees' => 42,
+        ])->assertOk();
+
+        $this->assertSame(42, $update->json('data.attendees'));
     }
 
     public function test_hidden_checkins_do_not_affect_place_density(): void

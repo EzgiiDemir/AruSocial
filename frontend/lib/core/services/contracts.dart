@@ -10,6 +10,7 @@ import '../models/admin_stats.dart';
 import '../models/audit_log_entry.dart';
 import '../models/campus_directory.dart';
 import '../models/campus_models.dart';
+import 'photo_picker_service.dart';
 import '../models/campus_weather.dart';
 import '../models/chat_message.dart';
 import '../models/content_block.dart';
@@ -167,10 +168,18 @@ abstract class CampusRepository {
   Future<List<Achievement>> getAchievements();
   Future<List<FeedPost>> getFeed();
   Future<PageSlice<FeedPost>> getFeedPage({int page = 1, int perPage = 20});
+  /// Creates a post.
+  ///
+  /// [mediaItems] is the carousel, in the author's order, each item
+  /// carrying its own framing and alt text. The older [imageUrl] /
+  /// [imageBytes] pair still works and means a single picture with default
+  /// framing — several callers outside the composer still use it.
   Future<void> createPost(String text,
       {String? imageUrl,
       Uint8List? imageBytes,
       String? mediaFileName,
+      List<PickedPostMedia>? mediaItems,
+      void Function(int index, String url)? onItemUploaded,
       PostVisibility visibility = PostVisibility.everyone,
       PostCategory postType = PostCategory.normal,
       String? courseTag,
@@ -290,35 +299,6 @@ abstract class CampusRepository {
   Future<void> upsertEvent(CampusEvent event);
   Future<void> deleteEvent(String id);
 
-  // Trainer Panel — a department head's own events only. Real, department
-  // -scoped enforcement happens server-side (department-head middleware);
-  // these calls simply hit the /trainer/* routes rather than /admin/*.
-  Future<List<CampusEvent>> getTrainerEvents();
-
-  /// [isNew] must be passed explicitly rather than inferred from
-  /// [event.id] — a new event's id is only ever assigned by the server.
-  Future<CampusEvent> upsertTrainerEvent(CampusEvent event,
-      {required bool isNew});
-  Future<void> deleteTrainerEvent(String id);
-
-  // Trainer Panel — the same approve/reject/revise pipeline Admin's
-  // Applications tab uses, scoped server-side to this trainer's own
-  // department, plus a read-only view of their department colleagues.
-  Future<List<ParticipationApplication>> getTrainerApplications(
-      {String? status});
-  Future<ParticipationApplication> approveTrainerApplication(String id,
-      {String? reviewNote});
-  Future<ParticipationApplication> rejectTrainerApplication(String id,
-      {required String reviewNote});
-  Future<ParticipationApplication> requestTrainerApplicationRevision(String id,
-      {required String reviewNote});
-  Future<List<StaffProfile>> getTrainerRoster();
-
-  // Real attendance roster for one of this trainer's own events — same
-  // shape as [getEventParticipants]/[approveEventParticipant], scoped
-  // server-side to events this trainer is actually responsible for.
-  Future<List<EventParticipant>> getTrainerEventParticipants(String eventId);
-  Future<void> approveTrainerEventParticipant(String eventId, String joinId);
 
   Future<List<ModerationReport>> getReports();
   Future<void> resolveReport(String id, ModerationAction action);

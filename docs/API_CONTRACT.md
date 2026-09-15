@@ -507,31 +507,20 @@ Permission `moderation.moderate`.
 | POST | `/api/v1/admin/events/{id}/approve` | `perm:pendingActivities.manage` | publishes (`workflow_status=published`, `draft=false`) |
 | POST | `/api/v1/admin/events/{id}/reject` | `perm:pendingActivities.manage` | `{ reviewNote? }` |
 
-### Trainer Panel
+### Trainer Panel — removed
 
-A department head publishing events scoped to their own department only —
-separate from the full Admin Panel. Both gates apply to every route below:
-`perm:events.manageOwnDepartment` (is this account provisioned as a
-trainer) and `department-head` middleware (resolves *which* department
-from the `StaffProfile` linked via `user_id`; 403 `NOT_A_DEPARTMENT_HEAD`
-if none). `responsibleStaffId`/department are always server-resolved,
-never accepted from the client. Trainer-created events start
-`workflowStatus=published` immediately (no review queue — the trainer
-already is the accountable party), and every write is logged to the
-Activity Log.
+Removed on 15 September 2026, along with the separate Filament panel at
+`/trainer`. There is one staff surface now: the Admin Panel at
+`/admin/login`, where the account's role decides what it can see and do.
+A department head is an account with the `trainer` role, not a second
+application.
+
+Every `/api/v1/trainer/*` route is gone. `SingleAdminSurfaceTest` asserts
+that none of them, and no `trainer` Filament panel, can come back by
+accident.
 
 | Method | Path | Request | `data` |
 | --- | --- | --- | --- |
-| GET | `/api/v1/trainer/events` | — | this trainer's own events only |
-| POST | `/api/v1/trainer/events` | `{ id?, title, placeId, eventDate?, time?, category?, description? }` | upserted event, `workflowStatus: "published"`; 409 `PLACE_UNAVAILABLE`; 404 `EVENT_NOT_FOUND` if `id` isn't one of this trainer's own events |
-| POST | `/api/v1/trainer/events/{id}/delete` | — | `{ deleted: true }`; 404 `EVENT_NOT_FOUND` if not this trainer's own event |
-| GET | `/api/v1/trainer/events/{eventId}/participants` | — | same shape as `/admin/events/{eventId}/participants`, scoped to this trainer's own event; 404 `EVENT_NOT_FOUND` if not theirs |
-| POST | `/api/v1/trainer/events/{eventId}/participants/{joinId}/approve` | — | marks attendance approved; 400 `FORM_NOT_SUBMITTED` if the student hasn't completed the katılım formu yet; 404 if the event isn't this trainer's own |
-| GET | `/api/v1/trainer/applications` | `?status=` | pending applications where `responsibleStaffId` is this trainer's own staff id (default) or filtered by status |
-| POST | `/api/v1/trainer/applications/{id}/approve` | `{ reviewNote? }` | same outcome as `/admin/applications/{id}/approve`, scoped to this trainer's own department; 404 `APPLICATION_NOT_FOUND` if not theirs |
-| POST | `/api/v1/trainer/applications/{id}/reject` | `{ reviewNote }` | scoped reject; 422 `REVIEW_NOTE_REQUIRED` if blank |
-| POST | `/api/v1/trainer/applications/{id}/revise` | `{ reviewNote }` | scoped revision request; 422 `REVIEW_NOTE_REQUIRED` if blank |
-| GET | `/api/v1/trainer/roster` | — | active `StaffProfile[]` in this trainer's own department only |
 | GET | `/api/v1/weather` | — | `{ weather: { temperatureC, feelsLikeC, windKph, code, summary, isDay } \| null }` — live Open-Meteo reading for the Kyrenia campus, cached 15 min server-side; `null` when the provider is unreachable (client hides the row rather than inventing a value) |
 
 ### Applications (two-stage Preview → Detail → Review)
@@ -713,7 +702,7 @@ Track in `docs/AUDIT_GERCEK_URUN.md`, not as live `/api/v1` paths.
 
 ---
 
-## Route inventory (canonical, 261)
+## Route inventory (canonical, 255)
 
 Machine-readable. One `METHOD /api/v1/...` per line. `tests/Feature/ApiContractInventoryTest.php` compares this list to `php artisan route:list --path=api` (HEAD omitted).
 
@@ -830,10 +819,6 @@ GET /api/v1/stories
 GET /api/v1/stories/{id}/viewers
 GET /api/v1/surveys/active
 GET /api/v1/tour-proxy/{path}
-GET /api/v1/trainer/applications
-GET /api/v1/trainer/events
-GET /api/v1/trainer/events/{eventId}/participants
-GET /api/v1/trainer/roster
 GET /api/v1/translations
 GET /api/v1/weather
 POST /api/v1/admin/academic-years
@@ -977,12 +962,6 @@ POST /api/v1/stories/{id}/delete
 POST /api/v1/stories/{id}/report
 POST /api/v1/stories/{id}/view
 POST /api/v1/surveys/{id}/vote
-POST /api/v1/trainer/applications/{id}/approve
-POST /api/v1/trainer/applications/{id}/reject
-POST /api/v1/trainer/applications/{id}/revise
-POST /api/v1/trainer/events
-POST /api/v1/trainer/events/{eventId}/participants/{joinId}/approve
-POST /api/v1/trainer/events/{id}/delete
 ```
 
 Generated from `backend/routes/api.php` + `php artisan route:list --path=api`.

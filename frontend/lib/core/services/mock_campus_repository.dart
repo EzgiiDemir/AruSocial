@@ -41,6 +41,7 @@ import 'chat_store.dart';
 import 'content_moderation.dart';
 import 'content_revision_store.dart';
 import 'contracts.dart';
+import 'photo_picker_service.dart';
 import 'directions_result.dart';
 import 'place_photo_store.dart';
 import 'profile_bio_store.dart';
@@ -1163,127 +1164,8 @@ class MockCampusRepository implements CampusRepository {
   }
 
   // Mock mode has no multi-account/department concept (MockAuthProvider
-  // only distinguishes superAdmin vs student) — the Trainer Panel demo
-  // here always acts as this one fixed department, matching the seeded
-  // 'staff-arch-head' StaffProfile used elsewhere in this file.
-  static const _mockTrainerStaffId = 'staff-arch-head';
 
-  @override
-  Future<List<CampusEvent>> getTrainerEvents() async {
-    return _events
-        .where((e) => e.responsibleStaffId == _mockTrainerStaffId)
-        .toList();
-  }
 
-  @override
-  Future<CampusEvent> upsertTrainerEvent(CampusEvent event,
-      {required bool isNew}) async {
-    if (event.placeId != null) {
-      final conflict = _placeConflict(
-          event.placeId!, event.eventDate, event.time,
-          excludeEventId: isNew ? null : event.id);
-      if (conflict != null) {
-        throw PlaceConflictException(
-            'Bu mekân o tarihte ve saatte dolu: "${conflict.title}".');
-      }
-    }
-    final saved = CampusEvent(
-      id: isNew ? 'event-${DateTime.now().millisecondsSinceEpoch}' : event.id,
-      title: event.title,
-      time: event.time,
-      eventDate: event.eventDate,
-      placeName: event.placeName,
-      placeId: event.placeId,
-      category: event.category,
-      attendees: 0,
-      xp: 20,
-      draft: false,
-      workflowStatus: 'published',
-      audience: 'Tümü',
-      organizer: event.organizer,
-      description: event.description,
-      responsibleStaffId: _mockTrainerStaffId,
-    );
-    final index = _events.indexWhere((e) => e.id == saved.id);
-    if (index == -1) {
-      _events.add(saved);
-    } else {
-      _events[index] = saved;
-    }
-    return saved;
-  }
-
-  @override
-  Future<void> deleteTrainerEvent(String id) async {
-    _events.removeWhere(
-        (e) => e.id == id && e.responsibleStaffId == _mockTrainerStaffId);
-  }
-
-  @override
-  Future<List<ParticipationApplication>> getTrainerApplications(
-      {String? status}) async {
-    return _applications.where((a) {
-      if (a.responsibleStaffId != _mockTrainerStaffId) return false;
-      if (status != null) return a.status == status;
-      return a.status == ParticipationApplication.statusDetailFormPending ||
-          a.status == ParticipationApplication.statusDetailFormSubmitted ||
-          a.status == ParticipationApplication.statusUnderReview ||
-          a.status == ParticipationApplication.statusRevisionRequired;
-    }).toList();
-  }
-
-  ParticipationApplication _updateTrainerApplication(
-      String id, String status, String? reviewNote) {
-    final i = _applications.indexWhere(
-        (a) => a.id == id && a.responsibleStaffId == _mockTrainerStaffId);
-    final old = _applications[i];
-    final next = ParticipationApplication(
-      id: old.id,
-      userId: old.userId,
-      studentName: old.studentName,
-      studentDepartment: old.studentDepartment,
-      targetType: old.targetType,
-      targetId: old.targetId,
-      status: status,
-      responsibleStaffId: old.responsibleStaffId,
-      responsibleStaffName: old.responsibleStaffName,
-      formPayload: old.formPayload,
-      detailPayload: old.detailPayload,
-      reviewNote: reviewNote,
-      submittedAt: old.submittedAt,
-    );
-    _applications[i] = next;
-    return next;
-  }
-
-  @override
-  Future<ParticipationApplication> approveTrainerApplication(String id,
-      {String? reviewNote}) async {
-    return _updateTrainerApplication(
-        id, ParticipationApplication.statusApproved, reviewNote);
-  }
-
-  @override
-  Future<ParticipationApplication> rejectTrainerApplication(String id,
-      {required String reviewNote}) async {
-    return _updateTrainerApplication(
-        id, ParticipationApplication.statusRejected, reviewNote);
-  }
-
-  @override
-  Future<ParticipationApplication> requestTrainerApplicationRevision(String id,
-      {required String reviewNote}) async {
-    return _updateTrainerApplication(
-        id, ParticipationApplication.statusRevisionRequired, reviewNote);
-  }
-
-  @override
-  Future<List<StaffProfile>> getTrainerRoster() async {
-    final me = _staff.firstWhere((s) => s.id == _mockTrainerStaffId);
-    return _staff
-        .where((s) => s.active && s.department == me.department)
-        .toList();
-  }
 
   @override
   Future<List<CampusClub>> getClubs({String? category}) async {
@@ -2678,14 +2560,6 @@ class MockCampusRepository implements CampusRepository {
     );
   }
 
-  @override
-  Future<List<EventParticipant>> getTrainerEventParticipants(String eventId) =>
-      getEventParticipants(eventId);
-
-  @override
-  Future<void> approveTrainerEventParticipant(String eventId, String joinId) =>
-      approveEventParticipant(eventId, joinId);
-
   final List<EmailLogEntry> _emailLogs = [];
 
   @override
@@ -3122,6 +2996,8 @@ class MockCampusRepository implements CampusRepository {
       {String? imageUrl,
       Uint8List? imageBytes,
       String? mediaFileName,
+      List<PickedPostMedia>? mediaItems,
+      void Function(int index, String url)? onItemUploaded,
       PostVisibility visibility = PostVisibility.everyone,
       PostCategory postType = PostCategory.normal,
       String? courseTag,

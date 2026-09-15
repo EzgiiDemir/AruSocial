@@ -66,6 +66,11 @@ class ApiContractInventoryTest extends TestCase
         // +2: GET /me/deletion-preview and POST /me/delete — self-service
         //     account deletion, which both app stores require to be
         //     possible from inside the app and which did not exist.
-        $this->assertCount(265, $fromLaravel);
+        // -10: the whole /trainer/* group, removed on 15 September 2026
+        //     with the separate Trainer panel. Staff work in the one admin
+        //     panel now and the role decides what they see, so a second
+        //     application — and a second set of scoped endpoints doing the
+        //     same jobs as /admin/* — had nothing left to do.
+        $this->assertCount(255, $fromLaravel);
     }
 }

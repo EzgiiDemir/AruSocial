@@ -13,11 +13,10 @@ class UpsertFoodMenuRequest extends FormRequest
 
     public function rules(): array
     {
-        return array (
-  'date' => 
-  array (
-    0 => 'required',
-  ),
-);
+        return [
+            'date' => [
+                0 => 'required',
+            ],
+        ];
     }
 }

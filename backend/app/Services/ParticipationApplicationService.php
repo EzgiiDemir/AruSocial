@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Mail\ApplicationStatusMail;
+use App\Models\ApplicationStatusEvent;
+use App\Models\CareerOpportunity;
 use App\Models\Club;
 use App\Models\ClubMember;
 use App\Models\Event;
@@ -10,9 +12,10 @@ use App\Models\EventJoin;
 use App\Models\EventParticipationType;
 use App\Models\Notification as InboxNotification;
 use App\Models\ParticipationApplication;
+use App\Models\ServiceItem;
+use App\Models\Sport;
 use App\Models\StaffProfile;
 use App\Models\User;
-use App\Services\EventAttendance;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Str;
 
@@ -39,11 +42,11 @@ class ParticipationApplicationService
 
         $fromCatalog = match ($targetType) {
             'club' => Club::find($targetId)?->responsible_staff_id,
-            'sport' => \App\Models\Sport::find($targetId)?->responsible_staff_id ?? null,
+            'sport' => Sport::find($targetId)?->responsible_staff_id ?? null,
             'service', 'help' => self::serviceItem($targetId)?->responsible_staff_id ?? null,
             'career' => StaffProfile::where('id', 'staff-career')->where('active', true)->value('id')
                 ?? StaffProfile::where('department', 'Career')->where('active', true)->value('id'),
-            'event' => \App\Models\Event::find($targetId)?->responsible_staff_id
+            'event' => Event::find($targetId)?->responsible_staff_id
                 ?? StaffProfile::where('id', 'staff-clubs')->where('active', true)->value('id'),
             default => null,
         };
@@ -59,11 +62,11 @@ class ParticipationApplicationService
     {
         return match ($type) {
             'club' => Club::where('id', $id)->exists(),
-            'sport' => \App\Models\Sport::where('id', $id)->exists(),
+            'sport' => Sport::where('id', $id)->exists(),
             'service', 'help' => self::serviceItem($id) !== null,
-            'career' => \App\Models\CareerOpportunity::where('id', $id)->exists(),
+            'career' => CareerOpportunity::where('id', $id)->exists(),
             'community' => Club::where('id', $id)->exists(),
-            'event' => \App\Models\Event::where('id', $id)->exists(),
+            'event' => Event::where('id', $id)->exists(),
             default => false,
         };
     }
@@ -72,10 +75,10 @@ class ParticipationApplicationService
     {
         $name = match ($app->target_type) {
             'club', 'community' => Club::find($app->target_id)?->name,
-            'sport' => \App\Models\Sport::find($app->target_id)?->name,
+            'sport' => Sport::find($app->target_id)?->name,
             'service', 'help' => self::serviceItem($app->target_id)?->title,
-            'career' => \App\Models\CareerOpportunity::find($app->target_id)?->title,
-            'event' => \App\Models\Event::find($app->target_id)?->title,
+            'career' => CareerOpportunity::find($app->target_id)?->title,
+            'event' => Event::find($app->target_id)?->title,
             default => null,
         };
 
@@ -104,13 +107,13 @@ class ParticipationApplicationService
     }
 
     /** Catalog ids are unprefixed (`pdr`); older REST rows used `service-pdr`. */
-    private static function serviceItem(string $id): ?\App\Models\ServiceItem
+    private static function serviceItem(string $id): ?ServiceItem
     {
         $key = str_starts_with($id, 'service-') ? substr($id, strlen('service-')) : $id;
 
-        return \App\Models\ServiceItem::find($id)
-            ?? \App\Models\ServiceItem::find($key)
-            ?? \App\Models\ServiceItem::find('service-'.$key);
+        return ServiceItem::find($id)
+            ?? ServiceItem::find($key)
+            ?? ServiceItem::find('service-'.$key);
     }
 
     /**
@@ -125,7 +128,7 @@ class ParticipationApplicationService
         ?User $actor,
         ?string $actorLabel = null,
     ): void {
-        \App\Models\ApplicationStatusEvent::create([
+        ApplicationStatusEvent::create([
             'id' => 'evt-'.Str::uuid(),
             'application_id' => $app->id,
             'from_status' => $fromStatus,

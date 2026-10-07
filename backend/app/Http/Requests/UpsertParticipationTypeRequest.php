@@ -13,11 +13,10 @@ class UpsertParticipationTypeRequest extends FormRequest
 
     public function rules(): array
     {
-        return array (
-  'label' => 
-  array (
-    0 => 'required',
-  ),
-);
+        return [
+            'label' => [
+                0 => 'required',
+            ],
+        ];
     }
 }

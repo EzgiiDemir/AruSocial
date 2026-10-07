@@ -20,11 +20,10 @@ class SendChatMessageRequest extends FormRequest
 
     public function rules(): array
     {
-        return array (
-  'text' => 
-  array (
-    0 => 'required',
-  ),
-);
+        return [
+            'text' => [
+                0 => 'required',
+            ],
+        ];
     }
 }

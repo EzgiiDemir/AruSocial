@@ -104,6 +104,7 @@ class DatabaseSeeder extends Seeder
         // it safely upgrades the 4 demo `place-*` rows above with real
         // coordinates rather than conflicting with them.
         $this->call(CampusCatalogSeeder::class);
+        $this->call(CrawlSourceSeeder::class);
 
         // Local/demo portal accounts are seeded after staff records exist,
         // so the trainer account can be attached to its real department.

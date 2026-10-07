@@ -14,6 +14,7 @@ use App\Models\ModerationEvent;
 use App\Models\ModerationReport;
 use App\Services\AuditLogger;
 use App\Services\ImageModerationService;
+use App\Services\Moderation\AccountStanding;
 use App\Services\Moderation\ContentModerator;
 use App\Services\Moderation\Image\FastApiImageModerationProvider;
 use App\Services\Moderation\Image\ImageModerationPolicy;
@@ -73,6 +74,20 @@ class MediaController extends Controller
      */
     private function validateAndModerateUpload($file, bool $adminLibrary, $submitter = null): array
     {
+        // Account locks first, before anything about the file.
+        //
+        // This path does not always go through ContentModerator — a
+        // deployment running the self-hosted image classifier inspects the
+        // pixels here instead — so the check that gate performs has to be
+        // repeated, or an upload would be the one way around a posting
+        // restriction. Suspensions are already handled for every route by
+        // EnsureNotBanned.
+        if ($submitter !== null && (new AccountStanding)->isPostingRestricted($submitter)) {
+            return [$this->moderationError(
+                ModerationOutcome::postingRestricted($submitter->posting_restricted_until),
+            ), null];
+        }
+
         $mime = $file->getMimeType();
         $isImage = $this->isImage($mime);
 
@@ -184,7 +199,13 @@ class MediaController extends Controller
         if ($semantic['blocked']) {
             $categories = implode(', ', $semantic['categories']);
             if ($submitter !== null) {
-                ModerationService::recordMediaViolation($submitter, $categories);
+                // The file's own hash is the idempotency key: a student
+                // retrying the same upload has committed one violation,
+                // not two.
+                ModerationService::recordMediaViolation(
+                    $submitter, $categories,
+                    'media:'.(hash_file('sha256', $file->getRealPath()) ?: $file->getClientOriginalName()),
+                );
             }
             AuditLogger::logAsCurrentUser('moderation', 'media', 'Yerel model engelledi: '.$categories);
 
@@ -238,7 +259,7 @@ class MediaController extends Controller
             ImageVerdict::REVIEW => [null, 'pending'],
 
             ImageVerdict::BLOCK => [
-                $this->blockedImageResponse($submitter, $verdict),
+                $this->blockedImageResponse($submitter, $verdict, $bytes),
                 null,
             ],
 
@@ -255,12 +276,16 @@ class MediaController extends Controller
         };
     }
 
-    private function blockedImageResponse($submitter, ImageVerdict $verdict): JsonResponse
+    private function blockedImageResponse($submitter, ImageVerdict $verdict, string $bytes): JsonResponse
     {
         $category = $verdict->topCategory() ?? 'policy';
 
         if ($submitter !== null) {
-            ModerationService::recordMediaViolation($submitter, $category);
+            // Keyed on the image itself, so re-uploading a refused photo
+            // is the same violation rather than a second one.
+            ModerationService::recordMediaViolation(
+                $submitter, $category, 'media:'.hash('sha256', $bytes),
+            );
         }
         AuditLogger::logAsCurrentUser('moderation', 'media',
             'Görsel sınıflandırıcı engelledi: '.$category);

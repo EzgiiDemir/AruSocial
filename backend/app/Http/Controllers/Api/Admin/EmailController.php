@@ -11,7 +11,6 @@ use App\Models\EmailLog;
 use App\Services\AuditLogger;
 use App\Services\EmailService;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 
 class EmailController extends Controller
 {
@@ -36,7 +35,9 @@ class EmailController extends Controller
     public function retry(string $id): JsonResponse
     {
         $log = EmailLog::find($id);
-        if (! $log) return $this->fail(404, 'EMAIL_NOT_FOUND', 'Email log entry not found.');
+        if (! $log) {
+            return $this->fail(404, 'EMAIL_NOT_FOUND', 'Email log entry not found.');
+        }
 
         $mail = new BulkAnnouncementMail($log->subject, "(retry) {$log->subject}");
         $updated = EmailService::retry($id, $mail);

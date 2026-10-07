@@ -52,6 +52,7 @@ class User extends Authenticatable implements FilamentUser
         'strikes',
         'banned_at',
         'banned_until',
+        'posting_restricted_until',
         'last_violation_at',
         'moderation_status',
         'moderation_reason',
@@ -92,6 +93,7 @@ class User extends Authenticatable implements FilamentUser
             'interests' => 'array',
             'banned_at' => 'datetime',
             'banned_until' => 'datetime',
+            'posting_restricted_until' => 'datetime',
             'last_violation_at' => 'datetime',
             // Free-text profile display lists (Social tab bio editor) — not
             // the same as club_members ("clubs" here is a name a student

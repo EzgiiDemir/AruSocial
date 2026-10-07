@@ -61,7 +61,7 @@ class ProfileController extends Controller
      * Every free-text field a student controls on their profile, joined so
      * one moderation call covers the whole submission.
      */
-    private function profileFreeText(\App\Models\User $me): string
+    private function profileFreeText(User $me): string
     {
         $parts = [$me->department, $me->year, $me->university];
         foreach ([$me->clubs, $me->achievements, $me->projects] as $list) {

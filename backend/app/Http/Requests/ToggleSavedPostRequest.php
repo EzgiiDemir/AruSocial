@@ -13,11 +13,10 @@ class ToggleSavedPostRequest extends FormRequest
 
     public function rules(): array
     {
-        return array (
-  'postId' => 
-  array (
-    0 => 'required',
-  ),
-);
+        return [
+            'postId' => [
+                0 => 'required',
+            ],
+        ];
     }
 }

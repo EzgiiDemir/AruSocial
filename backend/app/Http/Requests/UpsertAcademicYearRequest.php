@@ -13,23 +13,19 @@ class UpsertAcademicYearRequest extends FormRequest
 
     public function rules(): array
     {
-        return array (
-  'id' => 
-  array (
-    0 => 'required',
-  ),
-  'label' => 
-  array (
-    0 => 'required',
-  ),
-  'startsOn' => 
-  array (
-    0 => 'required',
-  ),
-  'endsOn' => 
-  array (
-    0 => 'required',
-  ),
-);
+        return [
+            'id' => [
+                0 => 'required',
+            ],
+            'label' => [
+                0 => 'required',
+            ],
+            'startsOn' => [
+                0 => 'required',
+            ],
+            'endsOn' => [
+                0 => 'required',
+            ],
+        ];
     }
 }

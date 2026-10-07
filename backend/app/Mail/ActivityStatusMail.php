@@ -17,8 +17,7 @@ class ActivityStatusMail extends Mailable
         public string $statusLabel,
         public string $note,
         public string $adminUrl,
-    ) {
-    }
+    ) {}
 
     public function build(): self
     {

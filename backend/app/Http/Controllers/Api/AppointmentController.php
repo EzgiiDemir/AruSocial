@@ -17,6 +17,7 @@ use App\Models\StaffProfile;
 use App\Models\User;
 use App\Services\AuditLogger;
 use App\Services\GranularPermissions;
+use Carbon\Carbon;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -143,7 +144,7 @@ class AppointmentController extends Controller
         }
 
         try {
-            $slotStart = \Carbon\Carbon::parse("{$date} {$start}");
+            $slotStart = Carbon::parse("{$date} {$start}");
             if ($slotStart->isPast()) {
                 return $this->fail(409, 'PAST_SLOT', 'Past slots cannot be booked.');
             }
@@ -392,7 +393,7 @@ class AppointmentController extends Controller
     private function addMinutes(string $hhmm, int $minutes): string
     {
         try {
-            return \Carbon\Carbon::createFromFormat('H:i', $hhmm)
+            return Carbon::createFromFormat('H:i', $hhmm)
                 ->addMinutes($minutes)
                 ->format('H:i');
         } catch (\Throwable) {

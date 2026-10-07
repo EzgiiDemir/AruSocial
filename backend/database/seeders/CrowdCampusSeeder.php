@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\CampusPresence;
 use App\Models\Checkin;
 use App\Models\FeedPost;
 use App\Models\Place;
@@ -75,6 +76,44 @@ class CrowdCampusSeeder extends Seeder
                 'visible_to_others' => true,
                 'created_at' => $now->copy()->subMinutes(8 + $i * 5),
             ]);
+        }
+
+        // Feed the same short-lived aggregate that real GPS pings use.
+        // Uneven counts produce quiet, warm and hot areas on the real
+        // MapLibre heat layer; Flutter contains no hardcoded demo dots and
+        // the public response still exposes totals only, never identities.
+        $presencePlan = [
+            $busyId => 12,
+            $midId => 8,
+            'titan' => 6,
+            'meditation' => 5,
+            'daniele' => 4,
+            'eternal-spring' => 3,
+            'art-rooms' => 2,
+        ];
+        $presencePlan = array_filter(
+            $presencePlan,
+            fn (int $count, string $placeId) => Place::whereKey($placeId)->exists(),
+            ARRAY_FILTER_USE_BOTH,
+        );
+        CampusPresence::whereIn('user_id', collect($users)->pluck('id'))->delete();
+        $cursor = 0;
+        foreach ($presencePlan as $placeId => $count) {
+            foreach (array_slice($users, $cursor, $count) as $offset => $user) {
+                $user->forceFill([
+                    'location_visibility' => 'public',
+                    'nearby_discoverable' => true,
+                    'check_in_visible' => true,
+                ])->save();
+                CampusPresence::updateOrCreate(
+                    ['user_id' => $user->id],
+                    [
+                        'place_id' => $placeId,
+                        'updated_at' => $now->copy()->subSeconds(($cursor + $offset) * 7),
+                    ],
+                );
+            }
+            $cursor += $count;
         }
 
         $snippets = [

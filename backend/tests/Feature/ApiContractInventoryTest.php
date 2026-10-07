@@ -71,6 +71,22 @@ class ApiContractInventoryTest extends TestCase
         //     panel now and the role decides what they see, so a second
         //     application — and a second set of scoped endpoints doing the
         //     same jobs as /admin/* — had nothing left to do.
-        $this->assertCount(255, $fromLaravel);
+        // +3: GET /admin/integrations plus the test and enable/disable
+        //     actions. Reading provider health and switching a provider off
+        //     are separate canonical permissions, so an auditor grant can
+        //     see the list without being able to fire a connection test at
+        //     a provider. None of the three accepts or returns a credential.
+        // +3: POST /presence/ping, POST /presence/forget and GET
+        //     /presence/live — the map's live crowd counts. The map used
+        //     to read "how busy is this building" from check-ins, which
+        //     most students never make; these count passive location
+        //     pings instead. Ghost mode is enforced on ping, and the read
+        //     returns head counts with no identity attached.
+        // +1: POST /routing/match — snapping a raw GPS trace onto the walked
+        //     path, so the blue dot follows a route instead of drifting
+        //     through buildings. The route was registered and reachable but
+        //     had never been written down, which is the drift this gate is
+        //     here to catch; it is now in the inventory above.
+        $this->assertCount(262, $fromLaravel);
     }
 }

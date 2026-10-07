@@ -4,6 +4,7 @@ namespace Tests;
 
 use App\Models\RoleAssignment;
 use App\Models\User;
+use App\Models\UserViolation;
 use App\Services\FcmClient;
 use App\Services\Moderation\ModerationNotice;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
@@ -166,5 +167,31 @@ abstract class TestCase extends BaseTestCase
     protected static function isIntegerColumnType(string $type): bool
     {
         return in_array(strtolower($type), ['bigint', 'integer', 'int', 'int8', 'int4', 'smallint', 'int2'], true);
+    }
+
+    /**
+     * Put an account back to a clean standing.
+     *
+     * Several suites walk a list of categories, fields or payloads on one
+     * account to prove each is refused. Violations accumulate points, so
+     * without this the account is locked part-way through and the rest of
+     * the list would be refused for *who is asking* rather than for what
+     * it contains — which is the ladder working, not the thing under test.
+     * The ladder has its own tests.
+     *
+     * Takes the instance the test is acting as, not a fresh copy: Sanctum
+     * hands that same object to the request, so a lock cleared only in the
+     * database would still be read from memory.
+     */
+    protected function clearStanding(User $user): void
+    {
+        UserViolation::where('user_id', $user->id)->delete();
+        $user->forceFill([
+            'strikes' => 0,
+            'banned_at' => null,
+            'banned_until' => null,
+            'posting_restricted_until' => null,
+            'moderation_status' => 'clear',
+        ])->save();
     }
 }

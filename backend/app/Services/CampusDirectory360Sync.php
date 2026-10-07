@@ -205,21 +205,43 @@ class CampusDirectory360Sync
                 $placesUpdated++;
             }
 
-            // Backfill tour URLs onto curated service-linked directory rows
-            // (seeded with related_service_id) from the building's 360 link.
+            // Bind curated service rows to their exact live room whenever the
+            // integration exposes one. A building fallback is still useful,
+            // but it is not precise enough for services such as Student
+            // Affairs: opening TITAN's first panorama can land on a different
+            // office after the upstream room order changes.
+            $liveRooms = DirectoryEntry::query()
+                ->where('id', 'like', '360-%')
+                ->get();
             $serviceLinksUpdated = 0;
             foreach (DirectoryEntry::query()
                 ->whereNotNull('related_service_id')
                 ->where('related_service_id', '!=', '')
                 ->get() as $entry) {
-                $tour = $tourByBuilding[$this->key($entry->building)] ?? null;
-                if ($tour === null) {
+                $room = $this->roomForService($entry, $liveRooms->all());
+                $changes = $room === null
+                    ? ['tour_url' => $tourByBuilding[$this->key($entry->building)] ?? null]
+                    : [
+                        'tour_url' => $room->tour_url,
+                        'tour_target' => $room->tour_target,
+                        'splat_scene_id' => $room->splat_scene_id,
+                        'splat_scene_url' => $room->splat_scene_url,
+                        'campus_id' => $room->campus_id,
+                        'campus_name' => $room->campus_name,
+                        'building_id' => $room->building_id,
+                        'category_id' => $room->category_id,
+                        'category_name' => $room->category_name,
+                        'room_number' => $room->room_number,
+                        'notes' => $room->notes,
+                        'location' => $room->location,
+                        'navigation_marker' => $room->navigation_marker,
+                        'directory_synced_at' => $room->directory_synced_at,
+                    ];
+                $changes = array_filter($changes, static fn ($value) => $value !== null);
+                if ($changes === [] || $entry->only(array_keys($changes)) === $changes) {
                     continue;
                 }
-                if ($entry->tour_url === $tour) {
-                    continue;
-                }
-                $entry->update(['tour_url' => $tour]);
+                $entry->update($changes);
                 $serviceLinksUpdated++;
             }
 
@@ -345,6 +367,58 @@ class CampusDirectory360Sync
             'î' => 'i',
             'û' => 'u',
         ]);
+    }
+
+    /**
+     * Find the authoritative 360 room for a curated service row.
+     *
+     * This is intentionally conservative: service aliases are explicit and
+     * matching stays inside the already-curated building. If no unique,
+     * tour-capable room is found the caller uses the building panorama rather
+     * than guessing a room.
+     *
+     * @param  list<DirectoryEntry>  $rooms
+     */
+    private function roomForService(DirectoryEntry $service, array $rooms): ?DirectoryEntry
+    {
+        $needles = $this->serviceRoomNeedles()[$service->related_service_id] ?? [];
+        if ($needles === []) {
+            return null;
+        }
+
+        $building = $this->key($service->building);
+        $matches = array_values(array_filter($rooms, function (DirectoryEntry $room) use ($building, $needles): bool {
+            if ($this->key($room->building) !== $building) {
+                return false;
+            }
+            if ($room->tour_url === null && $room->splat_scene_url === null) {
+                return false;
+            }
+            $haystack = $this->key(implode(' ', array_filter([
+                $room->room,
+                $room->occupant_name,
+                $room->occupant_role,
+                $room->category_name,
+                $room->room_number,
+            ])));
+
+            return collect($needles)->contains(
+                fn (string $needle): bool => str_contains($haystack, $needle),
+            );
+        }));
+
+        return count($matches) === 1 ? $matches[0] : null;
+    }
+
+    /** @return array<string, list<string>> */
+    private function serviceRoomNeedles(): array
+    {
+        return [
+            'student-affairs' => ['ogrenci isleri'],
+            'career' => ['kariyer', 'mezun'],
+            'it' => ['bilgi islem'],
+            'academic-advising' => ['psikolojik danismanlik', 'akademik danismanlik'],
+        ];
     }
 
     /**

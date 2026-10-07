@@ -11,7 +11,6 @@ use App\Http\Requests\SetPlaceCoverRequest;
 use App\Http\Requests\UpsertPlaceRequest;
 use App\Models\CollaborationPost;
 use App\Models\Event;
-use App\Models\ModerationReport;
 use App\Models\Place;
 use App\Models\Review;
 use App\Models\WorkshopEquipmentItem;

@@ -13,15 +13,13 @@ class UpsertSportRequest extends FormRequest
 
     public function rules(): array
     {
-        return array (
-  'id' => 
-  array (
-    0 => 'required',
-  ),
-  'name' => 
-  array (
-    0 => 'required',
-  ),
-);
+        return [
+            'id' => [
+                0 => 'required',
+            ],
+            'name' => [
+                0 => 'required',
+            ],
+        ];
     }
 }

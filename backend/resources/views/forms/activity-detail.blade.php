@@ -3,9 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Aktivite detay formu</title>
+  <title>Aktivite detay formu — ARUVERSE</title>
+  <link rel="icon" type="image/png" href="{{ asset('images/aruverse-logo.png') }}">
   <style>
     body { font-family: system-ui, sans-serif; max-width: 560px; margin: 40px auto; padding: 0 16px; color: #1C1E22; }
+    .brand { display: block; height: 76px; margin: 0 auto 20px; }
     label { display: block; margin-top: 12px; font-weight: 600; font-size: 14px; }
     input, textarea { width: 100%; padding: 10px; margin-top: 4px; border: 1px solid #E9EBEF; border-radius: 8px; }
     button { margin-top: 18px; background: #000F9F; color: #fff; border: 0; padding: 12px 18px; border-radius: 10px; font-weight: 700; }
@@ -15,6 +17,7 @@
   </style>
 </head>
 <body>
+  <img class="brand" src="{{ asset('images/aruverse-logo.png') }}" alt="ARUVERSE">
   <h1>Aktivite detay formu</h1>
   <p class="muted">{{ $event->title }} · {{ $event->place_name }}</p>
 

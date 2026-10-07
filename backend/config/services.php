@@ -46,10 +46,30 @@ return [
         'required' => (bool) env('FCM_REQUIRED', false),
     ],
 
-    // Walking directions (OSRM-compatible). Empty = not configured; the
-    // API returns 501 ROUTING_NOT_CONFIGURED rather than inventing a route.
+    /*
+     * Directions over two OSRM graphs, both built from the same Cyprus OSM
+     * extract (deploy/osrm/ builds and serves them).
+     *
+     * An OSRM instance serves ONE profile, and answers /route/v1/driving/
+     * from a pedestrian graph without complaint — so the graph is chosen
+     * by HOST, not by the profile in the path:
+     *
+     *   base_url          foot.lua graph  → walking     (osrm-foot:5000)
+     *   driving_base_url  car.lua graph   → car / bus   (osrm-car:5000)
+     *
+     * Either being empty means that mode is not configured: the API
+     * returns 501 ROUTING_NOT_CONFIGURED and the app falls back to an
+     * honest straight-line estimate. A vehicle never silently borrows the
+     * pedestrian graph — that produced real-looking routes down stairs
+     * and footpaths no car can use.
+     */
     'routing' => [
         'base_url' => env('ROUTING_BASE_URL'),
+        'driving_base_url' => env('ROUTING_DRIVING_BASE_URL'),
+        // A public third-party OSRM must not be required. Falling back to the
+        // public demo server is opt-in and OFF by default: a self-hosted OSRM
+        // that is down yields an honest 501, never a silent external call.
+        'allow_public_fallback' => filter_var(env('ROUTING_ALLOW_PUBLIC_FALLBACK', 'false'), FILTER_VALIDATE_BOOLEAN),
         // Local Windows often hits cURL 60 without a CA bundle. Default
         // off in local, on elsewhere. Override with ROUTING_VERIFY_SSL.
         'verify_ssl' => filter_var(
@@ -84,6 +104,19 @@ return [
         // polygon = site envelopes (default). radius = 3 km circles (legacy).
         'geofence_mode' => env('CHECKIN_GEOFENCE_MODE', 'polygon'),
         'cooldown_minutes' => (int) env('CHECKIN_COOLDOWN_MINUTES', 30),
+    ],
+
+    /*
+     * Live map presence (App\Services\LiveCrowd).
+     *
+     * How close a location ping has to be to a building before it counts
+     * as "this person is here". Tighter than the check-in radius on
+     * purpose: a check-in is deliberate and forgiving of a poor GPS fix,
+     * while a passive ping that lands 150 m away would credit a crowd to
+     * the wrong building.
+     */
+    'presence' => [
+        'radius_meters' => (float) env('PRESENCE_RADIUS_METERS', 75),
     ],
 
     /*
@@ -178,25 +211,10 @@ return [
         ],
 
         /*
-         * Strike ladder. Index = strike number, value = penalty. Kept in
-         * config so the rules can change without touching application code.
-         * `hours` of 0 means "warning only".
+         * The strike ladder that used to live here is gone. What a
+         * violation costs is now one points ladder shared by every path,
+         * in config/moderation.php under `enforcement`.
          */
-        'penalties' => [
-            1 => ['action' => 'warning', 'hours' => 0],
-            2 => ['action' => 'warning', 'hours' => 0],
-            3 => ['action' => 'warning', 'hours' => 0],
-            4 => ['action' => 'ban', 'hours' => 24],
-            5 => ['action' => 'ban', 'hours' => 72],
-            6 => ['action' => 'ban', 'hours' => 168],
-        ],
-
-        /*
-         * Beyond the configured ladder the account keeps the longest
-         * configured ban rather than escalating on its own — a permanent
-         * ban stays an explicit administrator decision.
-         */
-        'repeat_last_penalty' => filter_var(env('MODERATION_REPEAT_LAST_PENALTY', 'true'), FILTER_VALIDATE_BOOLEAN),
 
         /* Privacy: keep the offending text only long enough to appeal. */
         'retain_excerpt_days' => (int) env('MODERATION_RETAIN_EXCERPT_DAYS', 30),
@@ -230,6 +248,14 @@ return [
             FILTER_VALIDATE_BOOLEAN
         ),
         'rate_limit_per_minute' => (int) env('AI_RATE_LIMIT_PER_MINUTE', 20),
+    ],
+
+    // Vendor-neutral SIS boundary. No production provider is enabled until
+    // ARUCAD IT supplies an approved read-only integration and identity map.
+    'sis' => [
+        'provider' => env('SIS_PROVIDER', 'unavailable'),
+        'identity_field' => env('SIS_IDENTITY_FIELD', 'email'),
+        'cache_seconds' => (int) env('SIS_CACHE_SECONDS', 300),
     ],
 
 ];

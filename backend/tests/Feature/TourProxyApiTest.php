@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
 /**
@@ -87,6 +88,84 @@ class TourProxyApiTest extends TestCase
         // No actingAsUser()/withToken() — an iframe `src` load can't carry
         // a bearer token, so this must work unauthenticated.
         $this->get('/api/v1/tour-proxy/vista_export/Main/index.htm')->assertOk();
+    }
+
+    /*
+     * A 3DVista export is hundreds of immutable panorama tiles and skin
+     * images. With no Cache-Control the browser re-requested every one of
+     * them through PHP on each visit and each scene change, which is what
+     * made a tour slow to open the second time as much as the first.
+     */
+    public function test_a_proxied_asset_is_cacheable_and_keeps_its_upstream_validators(): void
+    {
+        Http::fake([
+            'https://360.arucad.edu.tr/vista_export/Main/media/panorama_0.jpg' => Http::response(
+                'jpegbytes',
+                200,
+                ['Content-Type' => 'image/jpeg', 'ETag' => '"abc123"', 'Last-Modified' => 'Mon, 01 Sep 2025 10:00:00 GMT'],
+            ),
+        ]);
+
+        $response = $this->get('/api/v1/tour-proxy/vista_export/Main/media/panorama_0.jpg');
+
+        $response->assertOk();
+        $response->assertHeader('Cache-Control', 'max-age=86400, public');
+        $response->assertHeader('ETag', '"abc123"');
+        $response->assertHeader('Last-Modified', 'Mon, 01 Sep 2025 10:00:00 GMT');
+    }
+
+    public function test_a_revalidation_is_forwarded_upstream_and_answered_with_304(): void
+    {
+        Http::fake([
+            'https://360.arucad.edu.tr/*' => Http::response('', 304, ['ETag' => '"abc123"']),
+        ]);
+
+        $response = $this
+            ->withHeaders(['If-None-Match' => '"abc123"'])
+            ->get('/api/v1/tour-proxy/vista_export/Main/media/panorama_0.jpg');
+
+        $response->assertStatus(304);
+        Http::assertSent(fn ($request) => $request->header('If-None-Match') === ['"abc123"']);
+    }
+
+    /*
+     * The document we serve is not the document upstream sent — it carries
+     * an injected <base href>. Passing upstream's validator on would let a
+     * browser revalidate our rewritten copy against the original and be
+     * told, wrongly, that nothing changed.
+     */
+    public function test_the_rewritten_html_document_does_not_reuse_the_upstream_validator(): void
+    {
+        Http::fake([
+            'https://360.arucad.edu.tr/*' => Http::response(
+                '<html><head></head><body/></html>',
+                200,
+                ['Content-Type' => 'text/html', 'ETag' => '"upstream-html"'],
+            ),
+        ]);
+
+        $response = $this->get('/api/v1/tour-proxy/vista_export/Main/index.htm');
+
+        $response->assertOk();
+        $this->assertNull($response->headers->get('ETag'));
+        $response->assertHeader('Cache-Control', 'max-age=300, public');
+    }
+
+    /*
+     * A tour opening is hundreds of requests in one burst, and this route
+     * is public so the general budget is keyed by IP — one student on
+     * campus wifi would have throttled everyone behind the same NAT, and
+     * the tour would have half-loaded with no visible error.
+     */
+    public function test_the_tour_proxy_is_not_on_the_general_api_rate_limit(): void
+    {
+        $route = collect(Route::getRoutes())
+            ->first(fn ($r) => $r->uri() === 'api/v1/tour-proxy/{path}');
+
+        $this->assertNotNull($route);
+        $middleware = $route->gatherMiddleware();
+        $this->assertContains('throttle:tour-proxy', $middleware);
+        $this->assertNotContains('throttle:api', $middleware);
     }
 
     public function test_a_failed_upstream_fetch_returns_a_clean_error_not_a_crash(): void

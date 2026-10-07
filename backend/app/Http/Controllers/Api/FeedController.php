@@ -2,24 +2,21 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Events\CampusDataChanged;
 use App\Http\Controllers\Api\Concerns\ApiResponds;
 use App\Http\Controllers\Api\Concerns\ModeratesContent;
 use App\Http\Controllers\Api\Concerns\SubmitsReports;
 use App\Http\Controllers\Controller;
-use App\Events\CampusDataChanged;
 use App\Http\Requests\PaginatedListRequest;
 use App\Models\FeedPost;
 use App\Models\FeedPostMedia;
-use App\Models\ModerationReport;
 use App\Models\Notification as InboxNotification;
 use App\Models\PostComment;
 use App\Models\PostLike;
 use App\Models\User;
 use App\Services\ActivityLogger;
 use App\Services\GranularPermissions;
-use App\Services\Moderation\Workflow\ReportReason;
-use App\Services\Moderation\Workflow\ReportService;
-use App\Services\ModerationService;
+use App\Services\PrivateProfileGate;
 use App\Support\MediaFraming;
 use App\Support\MediaPublicUrl;
 use App\Support\PostMediaPayload;
@@ -27,9 +24,10 @@ use App\Support\SchemaColumnCache;
 use App\Support\SocialAudience;
 use App\Support\SocialMediaAttachment;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class FeedController extends Controller
 {
@@ -307,7 +305,7 @@ class FeedController extends Controller
         $createdAt = now();
         $latest = PostComment::where('post_id', $post->id)->max('created_at');
         if ($latest && $createdAt->lte($latest)) {
-            $createdAt = \Illuminate\Support\Carbon::parse($latest)->addSecond();
+            $createdAt = Carbon::parse($latest)->addSecond();
         }
 
         PostComment::create([
@@ -573,7 +571,7 @@ class FeedController extends Controller
             return null;
         }
         $author = $post->user;
-        if ($author && ! \App\Services\PrivateProfileGate::allows($me, $author)) {
+        if ($author && ! PrivateProfileGate::allows($me, $author)) {
             return null;
         }
 

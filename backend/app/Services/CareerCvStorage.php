@@ -14,12 +14,15 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class CareerCvStorage
 {
     public const DISK = 'local';
+
     public const MAX_BYTES = 8 * 1024 * 1024;
+
     public const MIMES = [
         'application/pdf',
         'application/msword',
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     ];
+
     public const EXTENSIONS = ['pdf', 'doc', 'docx'];
 
     public static function store(User $user, UploadedFile $file): array

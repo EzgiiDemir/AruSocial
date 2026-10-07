@@ -13,9 +13,7 @@ class EventParticipationFormMail extends Mailable
 {
     use Queueable, SerializesModels;
 
-    public function __construct(public Event $event, public ?string $formUrl = null)
-    {
-    }
+    public function __construct(public Event $event, public ?string $formUrl = null) {}
 
     public function build(): self
     {

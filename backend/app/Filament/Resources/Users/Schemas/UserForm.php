@@ -41,7 +41,16 @@ class UserForm
                 TextInput::make('building')->label(__('panel.users.building')),
             ])->columns(2),
             Section::make(__('panel.users.security'))->schema([
-                Toggle::make('mfa_required')->label(__('panel.users.require_mfa')),
+                // `mfa_required` is recorded but NOT yet enforced: no login
+                // path (Filament session, password, or Entra) currently
+                // checks it. Leaving the toggle unqualified told an
+                // administrator they had secured an account when they had
+                // not, which is worse than having no toggle at all. The
+                // helper text says so until the enrolment/verification flow
+                // exists — see docs/DEPLOYMENT_ARUVERSE.md §10.
+                Toggle::make('mfa_required')
+                    ->label(__('panel.users.require_mfa'))
+                    ->helperText(__('panel.users.require_mfa_hint')),
             ]),
         ]);
     }

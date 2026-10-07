@@ -72,7 +72,7 @@ class MediaStorageExposureTest extends TestCase
 
         $this->assertSame([], $offenders,
             "These fake the 'public' disk, which media has not used since it moved behind "
-            ."the authorised route. Uploads in them write to real storage. Use "
+            .'the authorised route. Uploads in them write to real storage. Use '
             .'Storage::fake(MediaItem::disk()) instead: '.implode(', ', $offenders));
     }
 

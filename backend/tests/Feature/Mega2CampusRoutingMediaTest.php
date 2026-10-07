@@ -69,6 +69,238 @@ class Mega2CampusRoutingMediaTest extends TestCase
         ])->assertStatus(501)->assertJsonPath('error.code', 'ROUTING_NOT_CONFIGURED');
     }
 
+    public function test_map_matching_returns_the_snapped_latest_fix(): void
+    {
+        config([
+            'services.routing.base_url' => 'http://walk.test',
+            'services.routing.driving_base_url' => 'http://car.test',
+        ]);
+        Http::fake(function ($request) {
+            $this->assertStringContainsString('/match/v1/driving/', $request->url());
+            $this->assertStringContainsString('timestamps=', $request->url());
+            $this->assertStringContainsString('radiuses=', $request->url());
+
+            return Http::response([
+                'tracepoints' => [
+                    ['location' => [33.32001, 35.33001]],
+                    ['location' => [33.32020, 35.33020]],
+                ],
+                'matchings' => [[
+                    'confidence' => 0.91,
+                    'geometry' => ['coordinates' => [
+                        [33.32001, 35.33001],
+                        [33.32020, 35.33020],
+                    ]],
+                ]],
+            ], 200);
+        });
+        $this->actingAsUser();
+
+        $this->postJson('/api/v1/routing/match', [
+            'mode' => 'driving',
+            'samples' => [
+                ['lat' => 35.33000, 'lng' => 33.32000, 'accuracy' => 8, 'timestamp' => 1_795_000_000],
+                ['lat' => 35.33019, 'lng' => 33.32019, 'accuracy' => 7, 'timestamp' => 1_795_000_002],
+            ],
+        ])->assertOk()
+            ->assertJsonPath('data.lat', 35.3302)
+            ->assertJsonPath('data.lng', 33.3202)
+            ->assertJsonPath('data.confidence', 0.91)
+            ->assertJsonCount(2, 'data.points');
+    }
+
+    public function test_map_matching_rejects_a_single_gps_sample(): void
+    {
+        config(['services.routing.base_url' => 'http://walk.test']);
+        Http::fake();
+        $this->actingAsUser();
+
+        $this->postJson('/api/v1/routing/match', [
+            'samples' => [
+                ['lat' => 35.33, 'lng' => 33.32, 'accuracy' => 8, 'timestamp' => 1_795_000_000],
+            ],
+        ])->assertStatus(400)
+            ->assertJsonPath('error.code', 'VALIDATION');
+
+        Http::assertNothingSent();
+    }
+
+    /*
+     * An OSRM instance serves one profile, and it answers
+     * /route/v1/driving/ from a pedestrian graph just the same. Before
+     * the split, a "car" route was walking geometry down footpaths with
+     * nothing to indicate it.
+     */
+    public function test_a_vehicle_route_uses_the_car_graph_when_one_is_configured(): void
+    {
+        config([
+            'services.routing.base_url' => 'http://walk.test',
+            'services.routing.driving_base_url' => 'http://car.test',
+        ]);
+        $seen = [];
+        Http::fake(function ($request) use (&$seen) {
+            $seen[] = $request->url();
+
+            return Http::response([
+                'routes' => [[
+                    'distance' => 900.0,
+                    'duration' => 180.0,
+                    'geometry' => ['coordinates' => [[33.32, 35.33], [33.31, 35.34]]],
+                    'legs' => [[]],
+                ]],
+            ], 200);
+        });
+        $this->actingAsUser();
+
+        $this->postJson('/api/v1/routing/directions', [
+            'fromLat' => 35.33, 'fromLng' => 33.32,
+            'toLat' => 35.34, 'toLng' => 33.31,
+            'mode' => 'driving',
+        ])->assertOk();
+
+        $this->assertNotEmpty($seen);
+        foreach ($seen as $url) {
+            $this->assertStringContainsString('car.test', $url);
+            $this->assertStringNotContainsString('walk.test', $url);
+        }
+    }
+
+    public function test_walking_still_uses_the_pedestrian_graph(): void
+    {
+        config([
+            'services.routing.base_url' => 'http://walk.test',
+            'services.routing.driving_base_url' => 'http://car.test',
+        ]);
+        $seen = [];
+        Http::fake(function ($request) use (&$seen) {
+            $seen[] = $request->url();
+
+            return Http::response([
+                'routes' => [[
+                    'distance' => 120.0,
+                    'duration' => 90.0,
+                    'geometry' => ['coordinates' => [[33.32, 35.33], [33.31, 35.34]]],
+                    'legs' => [[]],
+                ]],
+            ], 200);
+        });
+        $this->actingAsUser();
+
+        $this->postJson('/api/v1/routing/directions', [
+            'fromLat' => 35.33, 'fromLng' => 33.32,
+            'toLat' => 35.34, 'toLng' => 33.31,
+            'mode' => 'walking',
+        ])->assertOk();
+
+        foreach ($seen as $url) {
+            $this->assertStringContainsString('walk.test', $url);
+        }
+    }
+
+    /*
+     * The whole point of the split. A pedestrian graph answers
+     * /route/v1/driving/ without complaint, so borrowing it for a car
+     * produced a real-looking route down stairs and footpaths with
+     * nothing on screen saying so. With no car graph the mode is simply
+     * unconfigured: 501, and the app draws its honest straight line.
+     */
+    public function test_a_vehicle_route_never_borrows_the_pedestrian_graph(): void
+    {
+        config([
+            'services.routing.base_url' => 'http://osrm-foot.test',
+            'services.routing.driving_base_url' => null,
+            'services.routing.allow_public_fallback' => false,
+        ]);
+        Http::fake();
+        $this->actingAsUser();
+
+        foreach (['driving', 'transit'] as $mode) {
+            $this->postJson('/api/v1/routing/directions', [
+                'fromLat' => 35.33, 'fromLng' => 33.32,
+                'toLat' => 35.34, 'toLng' => 33.31,
+                'mode' => $mode,
+            ])->assertStatus(501)->assertJsonPath('error.code', 'ROUTING_NOT_CONFIGURED');
+        }
+
+        Http::assertNothingSent();
+    }
+
+    /*
+     * ...and the reverse: a missing car graph must not take walking down
+     * with it. Pedestrian routing is the one the campus depends on most.
+     */
+    public function test_walking_still_works_when_only_the_foot_graph_exists(): void
+    {
+        config([
+            'services.routing.base_url' => 'http://osrm-foot.test',
+            'services.routing.driving_base_url' => null,
+            'services.routing.allow_public_fallback' => false,
+        ]);
+        Http::fake(['osrm-foot.test/*' => Http::response([
+            'routes' => [[
+                'distance' => 120.0,
+                'duration' => 90.0,
+                'geometry' => ['coordinates' => [[33.32, 35.33], [33.31, 35.34]]],
+                'legs' => [[]],
+            ]],
+        ], 200)]);
+        $this->actingAsUser();
+
+        $this->postJson('/api/v1/routing/directions', [
+            'fromLat' => 35.33, 'fromLng' => 33.32,
+            'toLat' => 35.34, 'toLng' => 33.31,
+            'mode' => 'walking',
+        ])->assertOk()->assertJsonPath('data.distanceMeters', 120);
+    }
+
+    /*
+     * The compose stack's own values (deploy/docker-compose.yml). Walking
+     * must reach osrm-foot and vehicles osrm-car, with no crossover in
+     * either direction.
+     */
+    public function test_the_compose_service_urls_route_each_mode_to_its_own_graph(): void
+    {
+        config([
+            'services.routing.base_url' => 'http://osrm-foot:5000',
+            'services.routing.driving_base_url' => 'http://osrm-car:5000',
+            'services.routing.allow_public_fallback' => false,
+        ]);
+        $this->actingAsUser();
+
+        foreach ([
+            'walking' => ['osrm-foot:5000', 'osrm-car:5000'],
+            'driving' => ['osrm-car:5000', 'osrm-foot:5000'],
+            'transit' => ['osrm-car:5000', 'osrm-foot:5000'],
+        ] as $mode => [$expected, $forbidden]) {
+            $seen = [];
+            Http::fake(function ($request) use (&$seen) {
+                $seen[] = $request->url();
+
+                return Http::response([
+                    'routes' => [[
+                        'distance' => 500.0,
+                        'duration' => 120.0,
+                        'geometry' => ['coordinates' => [[33.32, 35.33], [33.31, 35.34]]],
+                        'legs' => [[]],
+                    ]],
+                ], 200);
+            });
+
+            $this->postJson('/api/v1/routing/directions', [
+                // Real ARUCAD campus coordinates, Kyrenia / Girne, TRNC.
+                'fromLat' => 35.337395, 'fromLng' => 33.321358,
+                'toLat' => 35.341944, 'toLng' => 33.318611,
+                'mode' => $mode,
+            ])->assertOk()->assertJsonPath('data.mode', $mode);
+
+            $this->assertNotEmpty($seen, "{$mode} sent no request");
+            foreach ($seen as $url) {
+                $this->assertStringContainsString($expected, $url, "{$mode} must use {$expected}");
+                $this->assertStringNotContainsString($forbidden, $url, "{$mode} must never touch {$forbidden}");
+            }
+        }
+    }
+
     public function test_routing_with_osrm_response_returns_points(): void
     {
         config(['services.routing.base_url' => 'http://routing.test']);
@@ -101,6 +333,12 @@ class Mega2CampusRoutingMediaTest extends TestCase
         $this->assertCount(3, $data['points']);
         $this->assertSame(120.5, $data['distanceMeters']);
         $this->assertNotEmpty($data['steps']);
+        // The client phrases the turn itself, so it needs the maneuver,
+        // not only the flattened English string built from it.
+        $this->assertSame('turn', $data['steps'][0]['type']);
+        $this->assertSame('left', $data['steps'][0]['modifier']);
+        $this->assertSame('Campus Rd', $data['steps'][0]['name']);
+        $this->assertSame('left turn', $data['steps'][0]['instruction']);
     }
 
     public function test_routing_public_osrm_uses_driving_not_foot(): void
@@ -175,9 +413,19 @@ class Mega2CampusRoutingMediaTest extends TestCase
         ])->assertOk()->assertJsonPath('data.distanceMeters', 40);
     }
 
+    /*
+     * Updated when walking and vehicles were split onto separate OSRM
+     * instances: a vehicle no longer borrows the pedestrian graph, so
+     * this now has to configure the car host it is meant to reach. The
+     * behaviour under test — vehicles ask for /route/v1/driving/ and the
+     * response echoes the mode — is unchanged.
+     */
     public function test_driving_and_transit_use_the_road_graph_and_echo_mode(): void
     {
-        config(['services.routing.base_url' => 'http://routing.test']);
+        config([
+            'services.routing.base_url' => 'http://routing.test',
+            'services.routing.driving_base_url' => 'http://routing.test',
+        ]);
         $seen = [];
         Http::fake(function ($request) use (&$seen) {
             $seen[] = $request->url();

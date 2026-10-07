@@ -6,12 +6,12 @@ use App\Http\Controllers\Api\Concerns\ApiResponds;
 use App\Http\Controllers\Api\Concerns\ModeratesContent;
 use App\Http\Controllers\Api\Concerns\SubmitsReports;
 use App\Http\Controllers\Controller;
-use App\Models\ModerationReport;
 use App\Models\Notification as InboxNotification;
 use App\Models\SocialBlock;
 use App\Models\SocialFollow;
 use App\Models\User;
 use App\Services\ActivityLogger;
+use App\Services\PrivateProfileGate;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -295,7 +295,7 @@ class SocialGraphController extends Controller
         $following = $me->following()->where('users.id', $user->id)->exists();
         $followerCount = SocialFollow::query()->accepted()->where('followed_user_id', $user->id)->count();
         $followingCount = SocialFollow::query()->accepted()->where('follower_user_id', $user->id)->count();
-        $allowed = \App\Services\PrivateProfileGate::allows($me, $user);
+        $allowed = PrivateProfileGate::allows($me, $user);
         if (! $allowed) {
             return $this->ok([
                 'id' => (string) $user->id,
@@ -311,7 +311,7 @@ class SocialGraphController extends Controller
         $payload = $user->toApiArray();
         $payload['isLocked'] = false;
         $payload['following'] = $following;
-        $payload['isFriend'] = \App\Services\PrivateProfileGate::isFriend($me, $user);
+        $payload['isFriend'] = PrivateProfileGate::isFriend($me, $user);
         $payload['followerCount'] = $followerCount;
         $payload['followingCount'] = $followingCount;
 

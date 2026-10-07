@@ -12,6 +12,18 @@ Artisan::command('inspire', function () {
 // Bearer token to the mobile app. `withoutOverlapping` protects the remote
 // directory if a slow network response spans the next hourly invocation.
 Schedule::command('campus:sync-360-directory')->hourly()->withoutOverlapping();
+Schedule::command('knowledge:crawl')->twiceDaily(4, 16)->withoutOverlapping();
+
+// Pages that were crawled but never embedded — because the classifier was
+// down at the time, which the crawler deliberately survives rather than
+// failing on — would otherwise stay invisible to semantic search until
+// their text changed again. Half an hour after each crawl is long enough
+// for the crawl to have finished and for a restarted classifier to be
+// answering. It is a no-op when there is nothing to embed.
+// A cron expression rather than twiceDaily(4, 16)->at('04:30'): `at()`
+// replaces the hours the previous call set, so that combination silently
+// ran once a day at 04:30 and never after the afternoon crawl.
+Schedule::command('knowledge:embed')->cron('30 4,16 * * *')->withoutOverlapping();
 
 // Stories are a 24h promise. Reading is time-filtered so an expired story
 // is already invisible; this is what actually makes it gone. Every fifteen

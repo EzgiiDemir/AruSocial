@@ -8,7 +8,6 @@ use App\Http\Requests\UpsertAcademicYearRequest;
 use App\Models\AcademicYear;
 use App\Services\AuditLogger;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 
 class AcademicYearController extends Controller
 {

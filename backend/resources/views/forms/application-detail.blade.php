@@ -3,11 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Detaylı Başvuru Formu — ARUCAD</title>
+  <title>Detaylı Başvuru Formu — ARUVERSE</title>
+  <link rel="icon" type="image/png" href="{{ asset('images/aruverse-logo.png') }}">
   <style>
     * { box-sizing: border-box; }
     body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; max-width: 640px; margin: 0 auto; padding: 32px 20px 60px; color: #1C1E22; background: #F7F8FA; }
     h1 { font-size: 22px; margin-bottom: 4px; }
+    .brand { display: block; height: 76px; margin: 0 auto 20px; }
     .muted { color: #6B7280; font-size: 13px; }
     .card { background: #fff; border-radius: 14px; padding: 20px; margin-top: 20px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
     label { display: block; margin-top: 16px; font-weight: 600; font-size: 14px; }
@@ -26,6 +28,7 @@
   </style>
 </head>
 <body>
+  <img class="brand" src="{{ asset('images/aruverse-logo.png') }}" alt="ARUVERSE">
   <h1>Detaylı Başvuru Formu</h1>
   @if($valid)
     <p class="muted">{{ $targetLabel }} @if($student) · {{ $student->name }} @endif</p>

@@ -8,6 +8,7 @@ use App\Models\ContentRevision;
 use App\Models\Draft;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class ContentRevisionController extends Controller
 {
@@ -33,10 +34,12 @@ class ContentRevisionController extends Controller
     public function record(Request $request, string $contentKey): JsonResponse
     {
         $snapshot = $request->input('snapshot', []);
-        if (empty($snapshot)) return $this->ok(['recorded' => false]);
+        if (empty($snapshot)) {
+            return $this->ok(['recorded' => false]);
+        }
 
         ContentRevision::create([
-            'id' => 'rev-'.\Illuminate\Support\Str::uuid(),
+            'id' => 'rev-'.Str::uuid(),
             'content_key' => $contentKey,
             'editor_name' => $request->input('editorName', 'admin'),
             'snapshot' => $snapshot,

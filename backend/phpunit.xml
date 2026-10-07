@@ -50,6 +50,16 @@
         -->
         <env name="IMAGE_MODERATION_ENABLED" value="false" force="true"/>
         <!--
+            Live web research off, and the key blanked, for the same reason
+            as GROQ_API_KEY above: a real .env must not change what the suite
+            measures. Three tests inspecting the outgoing model request began
+            failing when a developer's Tavily key made the assistant search
+            the web mid-test. WebResearchTest turns it on explicitly.
+        -->
+        <env name="AI_WEB_SEARCH_ENABLED" value="false" force="true"/>
+        <env name="TAVILY_API_KEY" value="" force="true"/>
+        <env name="BRAVE_SEARCH_KEY" value="" force="true"/>
+        <!--
             The test suite must never call the real moderation API: it would
             be slow, non-deterministic, and would spend a live quota. Tests
             therefore run on the local engine by default; the ones that
@@ -64,6 +74,14 @@
              actually asserting lexicon behaviour. Tests that want it enable
              it in-test with Http::fake. -->
         <env name="TEXT_MODERATION_ENABLED" value="false" force="true"/>
+        <!--
+            Retrieval embeddings are served by the same classifier as text
+            moderation, so they are off here for the same reason: the suite
+            must not depend on a service being up, and Http::preventStrayRequests
+            turns an unfaked call into a failure. Tests that exercise semantic
+            retrieval switch it on and fake the response.
+        -->
+        <env name="KNOWLEDGE_EMBEDDINGS_ENABLED" value="false" force="true"/>
         <!-- Forced on so the suite always asserts production enforcement,
              whatever a developer has switched off locally during a
              moderation testing window. A test that silently adopts the

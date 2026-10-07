@@ -65,7 +65,7 @@ class HealthApiTest extends TestCase
         // queue contents or anything about a person.
         // Asserted as a subset rather than an exact list: the shape varies
         // by state (disabled reports only `image`, healthy adds the model
-        // and policy versions, unreachable adds the url). What must hold
+        // and policy versions). What must hold
         // in every state is that nothing *unexpected* appears.
         // `enforcement` is one global word, 'on' or 'off', describing a
         // config flag rather than any person: it says whether account
@@ -73,7 +73,10 @@ class HealthApiTest extends TestCase
         // deployment left with them off after a testing window is
         // otherwise undetectable from outside — content is still refused,
         // so everything looks normal.
-        $allowed = ['image', 'url', 'model', 'modelVersion', 'policyVersion', 'enforcement'];
+        // 'url' was deliberately removed: it named the internal classifier
+        // host to anonymous callers. Keeping it out of this allow-list means
+        // re-adding it fails here rather than shipping quietly.
+        $allowed = ['image', 'model', 'modelVersion', 'policyVersion', 'enforcement'];
         $this->assertSame([], array_diff(array_keys($data['moderation']), $allowed),
             'health.moderation grew a field that has not been reviewed for leakage');
     }

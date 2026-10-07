@@ -10,6 +10,7 @@ use App\Models\DirectoryEntry;
 use App\Services\AuditLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 
 class DirectoryController extends Controller
 {
@@ -34,9 +35,9 @@ class DirectoryController extends Controller
      * follows has to resolve it back across the mixed casing in the data.
      * Filtered in PHP for the same collation reason as the grouping there.
      *
-     * @return \Illuminate\Support\Collection<int, DirectoryEntry>
+     * @return Collection<int, DirectoryEntry>
      */
-    private function entriesForBuilding(string $building): \Illuminate\Support\Collection
+    private function entriesForBuilding(string $building): Collection
     {
         $key = mb_strtoupper($building, 'UTF-8');
 

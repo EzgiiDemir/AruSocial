@@ -15,17 +15,17 @@ use Illuminate\Support\Facades\Log;
  * point on the map and every student opening the map would otherwise hit
  * the upstream service again for the same number.
  *
- * When the provider is unreachable the caller gets null and the UI simply
- * omits the weather row — an invented temperature would be worse than none.
+ * When the provider is unreachable the caller gets null and the UI keeps an
+ * explicit unavailable state — an invented temperature would be worse.
  */
 class CampusWeatherService
 {
     private const ENDPOINT = 'https://api.open-meteo.com/v1/forecast';
 
     /** ARUCAD Kyrenia campus. */
-    private const CAMPUS_LAT = 35.337305;
+    private const CAMPUS_LAT = 35.33745566534394;
 
-    private const CAMPUS_LNG = 33.321303;
+    private const CAMPUS_LNG = 33.321512563639914;
 
     private const CACHE_TTL_MINUTES = 15;
 
@@ -35,30 +35,35 @@ class CampusWeatherService
     public static function current(): ?array
     {
         return Cache::remember('campus.weather.current', now()->addMinutes(self::CACHE_TTL_MINUTES), function (): ?array {
+            $query = [
+                'latitude' => self::CAMPUS_LAT,
+                'longitude' => self::CAMPUS_LNG,
+                'current' => 'temperature_2m,apparent_temperature,weather_code,wind_speed_10m,is_day',
+                'timezone' => 'Europe/Nicosia',
+                'wind_speed_unit' => 'kmh',
+            ];
+            $current = null;
             try {
                 $response = Http::timeout(6)
                     ->connectTimeout(3)
                     ->withOptions(['verify' => (bool) config('services.campus_directory.verify_ssl', true)])
-                    ->get(self::ENDPOINT, [
-                        'latitude' => self::CAMPUS_LAT,
-                        'longitude' => self::CAMPUS_LNG,
-                        'current' => 'temperature_2m,apparent_temperature,weather_code,wind_speed_10m,is_day',
-                        'timezone' => 'Europe/Istanbul',
-                        'wind_speed_unit' => 'kmh',
-                    ]);
+                    ->get(self::ENDPOINT, $query);
+                if ($response->successful()) {
+                    $current = $response->json('current');
+                } else {
+                    Log::warning('weather.http', ['status' => $response->status()]);
+                }
             } catch (\Throwable $e) {
                 Log::warning('weather.unreachable', ['message' => $e->getMessage()]);
-
-                return null;
+                // Some managed Windows environments block PHP's libcurl
+                // socket while PHP's native HTTPS stream remains available.
+                // Retry the exact same allow-listed URL without changing
+                // provider or fabricating a reading.
+                if (str_contains($e->getMessage(), 'cURL error')) {
+                    $current = self::streamCurrent($query);
+                }
             }
 
-            if (! $response->successful()) {
-                Log::warning('weather.http', ['status' => $response->status()]);
-
-                return null;
-            }
-
-            $current = $response->json('current');
             if (! is_array($current) || ! isset($current['temperature_2m'])) {
                 return null;
             }
@@ -74,6 +79,31 @@ class CampusWeatherService
                 'isDay' => (int) ($current['is_day'] ?? 1) === 1,
             ];
         });
+    }
+
+    /** @param array<string, scalar> $query */
+    private static function streamCurrent(array $query): ?array
+    {
+        $verify = (bool) config('services.campus_directory.verify_ssl', true);
+        $context = stream_context_create([
+            'http' => [
+                'method' => 'GET',
+                'timeout' => 6,
+                'ignore_errors' => true,
+                'header' => "Accept: application/json\r\nUser-Agent: ARUCAD-Campus-Prototype/1.0\r\n",
+            ],
+            'ssl' => [
+                'verify_peer' => $verify,
+                'verify_peer_name' => $verify,
+            ],
+        ]);
+        $body = @file_get_contents(self::ENDPOINT.'?'.http_build_query($query), false, $context);
+        if (! is_string($body) || $body === '') {
+            return null;
+        }
+        $json = json_decode($body, true);
+
+        return is_array($json['current'] ?? null) ? $json['current'] : null;
     }
 
     /**

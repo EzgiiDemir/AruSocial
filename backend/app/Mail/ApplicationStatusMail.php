@@ -17,8 +17,7 @@ class ApplicationStatusMail extends Mailable
         public string $statusLabel,
         public string $note,
         public string $appUrl,
-    ) {
-    }
+    ) {}
 
     public function build(): self
     {

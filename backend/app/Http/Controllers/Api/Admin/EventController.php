@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers\Api\Admin;
 
+use App\Events\CampusDataChanged;
 use App\Http\Controllers\Api\Concerns\ApiResponds;
 use App\Http\Controllers\Api\Concerns\ModeratesContent;
 use App\Http\Controllers\Controller;
-use App\Events\CampusDataChanged;
 use App\Http\Requests\UpsertAdminEventRequest;
 use App\Http\Requests\UpsertParticipationTypeRequest;
 use App\Mail\ActivityStatusMail;
@@ -21,6 +21,7 @@ use App\Services\EventAttendance;
 use App\Services\PlaceConflictChecker;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class EventController extends Controller
 {
@@ -150,7 +151,9 @@ class EventController extends Controller
     public function approveActivity(Request $request, string $id): JsonResponse
     {
         $event = Event::find($id);
-        if (! $event) return $this->fail(404, 'EVENT_NOT_FOUND', 'Event not found.');
+        if (! $event) {
+            return $this->fail(404, 'EVENT_NOT_FOUND', 'Event not found.');
+        }
 
         // 'published', not 'approved' — the public index() filter requires
         // workflow_status='published' to show an event at all, so anything
@@ -169,7 +172,9 @@ class EventController extends Controller
     public function rejectActivity(Request $request, string $id): JsonResponse
     {
         $event = Event::find($id);
-        if (! $event) return $this->fail(404, 'EVENT_NOT_FOUND', 'Event not found.');
+        if (! $event) {
+            return $this->fail(404, 'EVENT_NOT_FOUND', 'Event not found.');
+        }
 
         $note = trim((string) $request->input('reviewNote', ''));
         if ($note === '') {
@@ -238,10 +243,12 @@ class EventController extends Controller
     public function upsertParticipationType(UpsertParticipationTypeRequest $request, string $eventId): JsonResponse
     {
         $event = Event::find($eventId);
-        if (! $event) return $this->fail(404, 'EVENT_NOT_FOUND', 'Event not found.');
+        if (! $event) {
+            return $this->fail(404, 'EVENT_NOT_FOUND', 'Event not found.');
+        }
         $label = $request->input('label');
 
-        $id = $request->input('id') ?: 'ptype-'.\Illuminate\Support\Str::uuid();
+        $id = $request->input('id') ?: 'ptype-'.Str::uuid();
         $type = EventParticipationType::updateOrCreate(
             ['id' => $id],
             ['event_id' => $eventId, 'label' => $label, 'sort_order' => (int) $request->input('sortOrder', 0)]
@@ -264,7 +271,9 @@ class EventController extends Controller
     public function participants(string $eventId): JsonResponse
     {
         $event = Event::find($eventId);
-        if (! $event) return $this->fail(404, 'EVENT_NOT_FOUND', 'Event not found.');
+        if (! $event) {
+            return $this->fail(404, 'EVENT_NOT_FOUND', 'Event not found.');
+        }
 
         $joins = EventJoin::with(['user', 'participationType'])
             ->where('event_id', $eventId)
@@ -287,7 +296,9 @@ class EventController extends Controller
     public function approveParticipant(Request $request, string $eventId, string $joinId): JsonResponse
     {
         $join = EventJoin::where('id', $joinId)->where('event_id', $eventId)->first();
-        if (! $join) return $this->fail(404, 'JOIN_NOT_FOUND', 'Participation record not found.');
+        if (! $join) {
+            return $this->fail(404, 'JOIN_NOT_FOUND', 'Participation record not found.');
+        }
         // The real gate (docs/EKSIKLER.md §5): a student who hasn't
         // completed the katılım formu isn't reviewable yet — approving
         // attendance before the form is in is not allowed, not just

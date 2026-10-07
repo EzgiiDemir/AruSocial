@@ -2,6 +2,4 @@
 
 namespace App\Services;
 
-class EntraTokenException extends \RuntimeException
-{
-}
+class EntraTokenException extends \RuntimeException {}

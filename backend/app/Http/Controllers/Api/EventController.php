@@ -12,7 +12,8 @@ use App\Mail\EventParticipationFormMail;
 use App\Models\AcademicYear;
 use App\Models\Event;
 use App\Models\EventJoin;
-use App\Models\EventParticipationType;
+use App\Models\Place;
+use App\Models\StaffProfile;
 use App\Services\AchievementEvaluator;
 use App\Services\ActivityLogger;
 use App\Services\EmailService;
@@ -242,11 +243,11 @@ class EventController extends Controller
         $me = $this->currentUser();
         $title = $request->input('title');
         $placeId = $request->input('placeId');
-        if (! \App\Models\Place::where('id', $placeId)->exists()) {
+        if (! Place::where('id', $placeId)->exists()) {
             return $this->fail(400, 'INVALID_PLACE', 'placeId must reference a real, admin-defined place.');
         }
 
-        $staff = \App\Models\StaffProfile::find($request->input('responsibleStaffId'));
+        $staff = StaffProfile::find($request->input('responsibleStaffId'));
         if (! $staff || ! $staff->is_department_head) {
             return $this->fail(400, 'INVALID_STAFF', 'responsibleStaffId must reference an active department head.');
         }
@@ -257,7 +258,7 @@ class EventController extends Controller
             return $this->fail(409, 'PLACE_UNAVAILABLE', "Bu mekân o tarihte ve saatte dolu: \"{$conflict->title}\".");
         }
 
-        $place = \App\Models\Place::find($placeId);
+        $place = Place::find($placeId);
         $activeYear = AcademicYear::where('is_active', true)->first();
 
         // Student-created activities are public listings once approved, so

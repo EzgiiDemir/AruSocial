@@ -31,6 +31,25 @@ class TourProxyController extends Controller
     // fix, not a general-purpose fetch-any-url proxy (SSRF surface).
     private const UPSTREAM_HOST = 'https://360.arucad.edu.tr';
 
+    /**
+     * A 3DVista export is one small HTML document plus hundreds of static
+     * panorama tiles, scripts and skin images, all immutable for the life
+     * of an export. Without a Cache-Control the browser re-requested every
+     * one of them through PHP on each visit (and on each scene change),
+     * which is what made opening a tour feel slow the second time as much
+     * as the first. A day is safe: a re-export changes the file names.
+     */
+    private const ASSET_MAX_AGE = 86400;
+
+    /** The document itself is the one thing worth re-checking often. */
+    private const DOCUMENT_MAX_AGE = 300;
+
+    /**
+     * Validators and caching hints worth carrying across, so the browser
+     * can revalidate cheaply instead of re-downloading a panorama tile.
+     */
+    private const FORWARDED_RESPONSE_HEADERS = ['ETag', 'Last-Modified'];
+
     public function show(Request $request, string $path): Response
     {
         // Route wildcards are URL-decoded by Laravel; guard against escaping
@@ -47,11 +66,20 @@ class TourProxyController extends Controller
             // its verify_ssl setting — local Windows PHP/cURL builds
             // otherwise fail the TLS handshake to this host even though a
             // plain `curl` from the same machine succeeds fine.
+            //
+            // The browser's own validators are forwarded so a cached tile
+            // it is merely revalidating can come back as an empty 304 from
+            // upstream instead of a full re-download through us.
             $upstream = Http::timeout(15)
                 ->withOptions(['verify' => (bool) config('services.campus_directory.verify_ssl', true)])
+                ->withHeaders($this->conditionalHeaders($request))
                 ->get($upstreamUrl);
         } catch (\Throwable) {
             return response('Tour could not be reached.', 502);
+        }
+
+        if ($upstream->status() === 304) {
+            return $this->withAssetCaching(response('', 304), $upstream);
         }
 
         if ($upstream->failed()) {
@@ -78,9 +106,47 @@ class TourProxyController extends Controller
                 ? preg_replace('/<head[^>]*>/i', '$0'.$baseTag, $body, 1)
                 : $baseTag.$body;
 
-            return response($body, 200)->header('Content-Type', 'text/html; charset=UTF-8');
+            // The rewritten document is not byte-identical to the upstream
+            // one, so its ETag/Last-Modified must not be passed on — a
+            // browser revalidating with them would be told "unchanged" for
+            // content we would actually have rewritten differently.
+            return response($body, 200)
+                ->header('Content-Type', 'text/html; charset=UTF-8')
+                ->header('Cache-Control', 'public, max-age='.self::DOCUMENT_MAX_AGE);
         }
 
-        return response($body, 200)->header('Content-Type', $contentType);
+        return $this->withAssetCaching(
+            response($body, 200)->header('Content-Type', $contentType),
+            $upstream,
+        );
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function conditionalHeaders(Request $request): array
+    {
+        $headers = [];
+        foreach (['If-None-Match', 'If-Modified-Since'] as $name) {
+            $value = $request->header($name);
+            if (is_string($value) && $value !== '') {
+                $headers[$name] = $value;
+            }
+        }
+
+        return $headers;
+    }
+
+    /** Everything but the rewritten HTML document: an immutable asset. */
+    private function withAssetCaching(Response $response, mixed $upstream): Response
+    {
+        foreach (self::FORWARDED_RESPONSE_HEADERS as $name) {
+            $value = $upstream->header($name);
+            if (is_string($value) && $value !== '') {
+                $response->header($name, $value);
+            }
+        }
+
+        return $response->header('Cache-Control', 'public, max-age='.self::ASSET_MAX_AGE);
     }
 }

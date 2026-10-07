@@ -18,6 +18,16 @@ use Illuminate\Support\Facades\Http;
 // Deliberately carries no user or domain data: this is a reachability
 // probe, not an unauthenticated window into anything the protected
 // endpoints hold.
+//
+// That rule covers infrastructure too. This route is public and
+// unauthenticated, so it must never name an internal host: the classifier's
+// base URL used to ride along in the `url` field, which handed any
+// anonymous caller the address of a service that is not meant to be
+// reachable from the internet. The classifier's *state* is still reported —
+// an operator needs to tell "not running" from "weights failed to load" —
+// and so are the model and policy versions, which describe what is running
+// rather than where. Only the address is gone; it remains in the server log
+// and on the authenticated admin system-health surface.
 class HealthController extends Controller
 {
     use ApiResponds;
@@ -64,17 +74,17 @@ class HealthController extends Controller
         try {
             $response = Http::timeout(3)->get($base.'/health');
         } catch (\Throwable) {
-            return ['image' => 'unreachable', 'url' => $base];
+            return ['image' => 'unreachable'];
         }
 
         if ($response->status() === 503) {
             // The service is up but its weights failed to load, which is
             // a different fix from "the process is not running".
-            return ['image' => 'model_not_loaded', 'url' => $base];
+            return ['image' => 'model_not_loaded'];
         }
 
         if (! $response->successful()) {
-            return ['image' => 'unhealthy', 'url' => $base];
+            return ['image' => 'unhealthy'];
         }
 
         return [

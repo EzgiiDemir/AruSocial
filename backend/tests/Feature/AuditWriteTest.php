@@ -2,8 +2,8 @@
 
 namespace Tests\Feature;
 
-use App\Models\MediaItem;
 use App\Models\AdminAuditLog;
+use App\Models\MediaItem;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;

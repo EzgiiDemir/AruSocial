@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\DirectoryEntry;
 use App\Models\Place;
+use App\Models\ServiceItem;
 use App\Services\CampusDirectory360Sync;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
@@ -153,5 +154,34 @@ class CampusDirectoryTourLinkTest extends TestCase
         $this->assertNotNull($office);
         $this->assertStringContainsString('media-name=MG_INT_1', (string) $office->tour_url);
         $this->assertSame('panorama_TITAN_1', $office->tour_target);
+    }
+
+    public function test_student_affairs_service_is_pinned_to_its_exact_room_scene(): void
+    {
+        $this->fakeDirectory();
+        ServiceItem::create([
+            'id' => 'student-affairs',
+            'title' => 'Öğrenci İşleri',
+            'category' => 'İdari',
+            'description' => '',
+            'contact' => '',
+        ]);
+        DirectoryEntry::create([
+            'id' => 'dir-student-affairs',
+            'building' => 'TITAN',
+            'floor' => 'Zemin Kat',
+            'room' => 'Öğrenci İşleri',
+            'occupant_name' => 'Öğrenci İşleri',
+            'related_service_id' => 'student-affairs',
+        ]);
+
+        $summary = (new CampusDirectory360Sync)->sync();
+        $service = DirectoryEntry::findOrFail('dir-student-affairs');
+
+        $this->assertSame(1, $summary['serviceLinksUpdated']);
+        $this->assertStringContainsString('media-name=MG_INT_1', (string) $service->tour_url);
+        $this->assertSame('panorama_TITAN_1', $service->tour_target);
+        $this->assertSame('OFİS', $service->category_name);
+        $this->assertNotNull($service->directory_synced_at);
     }
 }

@@ -13,9 +13,7 @@ class BulkAnnouncementMail extends Mailable
 {
     use Queueable, SerializesModels;
 
-    public function __construct(public string $subjectLine, public string $bodyText)
-    {
-    }
+    public function __construct(public string $subjectLine, public string $bodyText) {}
 
     public function build(): self
     {

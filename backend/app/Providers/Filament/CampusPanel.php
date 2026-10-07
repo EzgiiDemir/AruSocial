@@ -89,9 +89,9 @@ class CampusPanel
                 'success' => Color::Blue,
                 'gray' => Color::Zinc,
             ])
-            ->brandLogo(asset('images/arucad-logo.png'))
+            ->brandLogo(asset('images/aruverse-logo.png'))
             ->brandLogoHeight('1.9rem')
-            ->favicon(asset('images/arucad-logo.png'))
+            ->favicon(asset('images/aruverse-logo.png'))
             ->navigationGroups(self::navigationGroups())
             // Collapsible on desktop: these tables are wide, and a sidebar
             // that cannot get out of the way costs a column of data on a

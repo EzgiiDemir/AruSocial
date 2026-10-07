@@ -100,6 +100,28 @@ class Settings(BaseSettings):
     preload_model: bool = True
     device: str = "cpu"
 
+    # Retrieval embeddings, served from the sentence model already loaded
+    # above for text moderation.
+    #
+    # It is the same weights, the same process and the same memory: a
+    # second copy of a multilingual encoder, loaded to answer "which page
+    # is this question about", would cost ~470 MB to duplicate a vector
+    # this service can already produce in ~30 ms. The alternative was an
+    # external embedding API, which would have sent every student question
+    # to a third party.
+    #
+    # Disabled turns the endpoint off without touching moderation; Laravel
+    # then falls back to keyword retrieval, which is a quality loss and
+    # never an outage.
+    embed_enabled: bool = True
+    embed_max_texts: int = 64
+    embed_max_chars: int = 4000
+
+    # Threads PyTorch may use per worker. Left at 0 the library grabs one
+    # per core, and several uvicorn workers then fight over the same cores
+    # and run slower than one would. Set this to (cores / workers).
+    torch_threads: int = 0
+
     # Decompression-bomb and resource guards. A 50k x 50k PNG is a few
     # hundred KB on the wire and gigabytes once decoded.
     max_upload_bytes: int = 12 * 1024 * 1024

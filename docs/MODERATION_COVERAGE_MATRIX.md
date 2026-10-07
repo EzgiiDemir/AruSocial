@@ -36,9 +36,10 @@ remain available for migration compatibility.
 ## Decision contract
 
 - `ALLOW`: persist as `approved` and publish immediately.
-- `BLOCK`: do not persist/broadcast; create one strike under the configured
-  penalty ladder.
-- `ERROR`: return `503 MODERATION_UNAVAILABLE`; do not persist, strike, or ban.
+- `BLOCK`: do not persist/broadcast; charge one violation on the shared points
+  ladder (`config/moderation.php` -> `enforcement`), where the detected
+  category decides the severity and the severity decides the points.
+- `ERROR`: return `503 MODERATION_UNAVAILABLE`; do not persist, charge, or lock.
 
 Local `WARN`/`REVIEW` labels are not blocks. A clean semantic result resolves a
 weak local match to `ALLOW`; only an explicit local removal or configured

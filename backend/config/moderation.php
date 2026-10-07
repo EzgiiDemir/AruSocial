@@ -499,6 +499,107 @@ return [
      */
     'enforcement' => [
         'enabled' => filter_var(env('MODERATION_ENFORCEMENT_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
+
+        /*
+         * Points per confirmed violation, and how long each one counts
+         * for.
+         *
+         * Points rather than strikes because severity matters: spam and a
+         * credible threat cannot share a punishment path just because
+         * both count as "one violation". And they expire, because a
+         * ladder with no decay eventually bans everyone who stays long
+         * enough.
+         *
+         * This replaced a second, incompatible ladder (1-3 warning, 4 ->
+         * 24h, 5 -> 72h, 6 -> 168h, counted in `users.strikes`) that ran
+         * on the text/feed/chat path while a third rule — three strikes
+         * and a *permanent* ban — ran on the media path. The same third
+         * offence therefore meant a warning or a permanent ban depending
+         * on which door it came through. There is now one ladder.
+         */
+        'bands' => [
+            'minor' => ['points' => 1, 'expires_days' => 90],
+            'serious' => ['points' => 3, 'expires_days' => 180],
+            'severe' => ['points' => 6, 'expires_days' => 365],
+            'critical' => ['points' => 12, 'expires_days' => 730],
+        ],
+
+        /*
+         * Accumulated active points to consequence. Read as "at least this
+         * many points" — the highest matching rung wins.
+         *
+         * `posting_restriction` blocks submitting content and nothing
+         * else: the student can still read the feed, open chats, book an
+         * appointment. `temporary_suspension` locks the account out of the
+         * API entirely. They are deliberately different penalties and are
+         * stored in different columns (`posting_restricted_until` vs
+         * `banned_until`) — a restriction that quietly locked someone out
+         * of the whole campus app would be a suspension wearing the wrong
+         * name.
+         *
+         * Nothing here bans permanently. Past the top rung the longest
+         * suspension repeats; a permanent ban stays an explicit human
+         * decision recorded against a named moderator
+         * (`POST /admin/moderation/users/{id}/ban`).
+         */
+        'ladder' => [
+            1 => ['action' => 'warning', 'hours' => 0],
+            3 => ['action' => 'posting_restriction', 'hours' => 24],
+            6 => ['action' => 'temporary_suspension', 'hours' => 72],
+            12 => ['action' => 'temporary_suspension', 'hours' => 168],
+            20 => ['action' => 'temporary_suspension', 'hours' => 720],
+        ],
+
+        /*
+         * Category to severity band. Every path that can charge an account
+         * reads this one map — see `App\Services\Moderation\ViolationSeverity`.
+         *
+         * The bands match `ReportReason::severityIfConfirmed()`, so a
+         * classifier decision and a moderator confirming a report of the
+         * same behaviour cost the same. Codes from all three vocabularies
+         * (offline lexicon, OpenAI-compatible provider, image classifier)
+         * are listed together because they describe the same acts.
+         *
+         * NOTE on the first offence: `severe` is 6 points, which is a
+         * 72-hour suspension on its own. That is intended for hate,
+         * doxxing and sexual content, and it is the same cost a confirmed
+         * report of those already carried. If a first nudity refusal
+         * should instead be a 24-hour posting restriction, move `nsfw`,
+         * `clip_nudity` and `SEX` down to `serious` here — one edit, no
+         * code change.
+         */
+        'severity' => [
+            'critical' => [
+                'CSA', 'MINOR', 'EXT', 'THR',
+                'sexual/minors', 'harassment/threatening', 'hate/threatening',
+            ],
+            'severe' => [
+                'HATE', 'SEX', 'PRIV', 'GORE',
+                'hate', 'sexual', 'violence/graphic', 'self-harm/instructions',
+                'nsfw', 'clip_nudity', 'clip_gore',
+            ],
+            'serious' => [
+                'HAR', 'VIO', 'SCAM', 'DRUG', 'CRIME', 'IMP', 'CYBER', 'ANIMAL',
+                'harassment', 'violence', 'illicit', 'illicit/violent',
+                // A moderator rejected a held upload. The queue does not
+                // capture *why*, so this is mapped explicitly rather than
+                // left to fall through to the catch-all: a human looking
+                // at an image and refusing it is stronger evidence than an
+                // unrecognised code, and should not cost the least the
+                // ladder can charge.
+                'reviewer_confirmed',
+            ],
+            'minor' => [
+                'PROF', 'SPAM', 'POL', 'IP', 'MISINFO',
+                'clip_kissing', 'clip_swimwear',
+            ],
+        ],
+
+        /*
+         * An unmapped category is charged as `minor` rather than skipped.
+         * A refusal that costs nothing at all is a gap nobody would see.
+         */
+        'default_severity' => 'minor',
     ],
 
     /*

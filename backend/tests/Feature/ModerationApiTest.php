@@ -6,6 +6,7 @@ use App\Models\FeedPost;
 use App\Models\MediaItem;
 use App\Models\ModerationReport;
 use App\Models\User;
+use App\Services\Moderation\Workflow\AccountEnforcementPolicy;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
@@ -23,6 +24,22 @@ class ModerationApiTest extends TestCase
     private function seedUser(): User
     {
         return $this->actingAsUser();
+    }
+
+    /**
+     * A detection test posts several violations in a row, and severe ones
+     * reach a lock part-way through — after which the next post is
+     * refused for *who is asking* rather than for what it says, and the
+     * test would be measuring enforcement instead of detection.
+     *
+     * One account per submission keeps the two apart. The ladder itself
+     * is pinned by its own tests above.
+     */
+    private function freshUser(string $tag): User
+    {
+        return $this->actingAsUser(User::factory()->create([
+            'email' => $tag.'@arucad.edu.tr',
+        ]));
     }
 
     public function test_a_post_with_blocked_text_is_rejected_and_not_created(): void
@@ -82,47 +99,107 @@ class ModerationApiTest extends TestCase
     }
 
     /**
-     * The published ladder: three warnings, then escalating timed bans of
-     * 24 hours, 3 days and 7 days. Nothing here may quietly become a
-     * permanent ban — that stays an explicit admin decision.
+     * The ladder, end to end over HTTP.
+     *
+     * The engine judges a bare insult a *direct attack* and labels it
+     * HAR, which is a `serious` violation worth 3 points — so one
+     * refusal reaches the restriction rung and a second reaches the
+     * suspension rung. That is stricter than the ladder it replaced
+     * (which warned three times first) and it is the deliberate
+     * consequence of letting severity, not a count, decide.
+     *
+     * Nothing here may quietly become a permanent ban: that stays an
+     * explicit human decision.
      */
-    public function test_strike_ladder_warns_three_times_then_escalates_timed_bans(): void
+    public function test_a_refusal_restricts_posting_and_a_second_one_suspends(): void
     {
         $user = $this->seedUser();
 
-        foreach (['salak', 'aptal', 'ahmak'] as $index => $text) {
-            $this->postJson('/api/v1/feed', ['text' => $text])->assertStatus(400);
-            $fresh = $user->fresh();
-            $this->assertSame($index + 1, (int) $fresh->strikes);
-            $this->assertNull($fresh->banned_until, 'Strikes 1-3 are warnings, not bans.');
-            $this->assertNull($fresh->banned_at);
-        }
+        // 3 points: a posting restriction, which is NOT a suspension.
+        $this->postJson('/api/v1/feed', ['text' => 'salak'])
+            ->assertStatus(400)
+            ->assertJsonPath('error.code', 'CONTENT_BLOCKED')
+            ->assertJsonPath('error.points', 3);
 
-        // 4th → 24 hours.
-        $this->postJson('/api/v1/feed', ['text' => 'gerizekalı'])->assertStatus(400);
         $fresh = $user->fresh();
-        $this->assertSame(4, (int) $fresh->strikes);
-        $this->assertNotNull($fresh->banned_until);
-        $this->assertEqualsWithDelta(24, now()->diffInHours($fresh->banned_until, false), 1);
+        $this->assertNull($fresh->banned_until, 'A restriction must not suspend the account.');
+        $this->assertNotNull($fresh->posting_restricted_until);
+        $this->assertEqualsWithDelta(24, now()->diffInHours($fresh->posting_restricted_until, false), 1);
 
-        // A ban is enforced for every endpoint, not just the one that tripped it.
+        // The difference that makes it a restriction: reading still works.
+        $this->getJson('/api/v1/events')->assertOk();
+
+        // Posting does not, and says so specifically rather than claiming
+        // the account is suspended.
+        $this->postJson('/api/v1/feed', ['text' => 'merhaba'])
+            ->assertStatus(403)
+            ->assertJsonPath('error.code', 'POSTING_RESTRICTED');
+
+        // 6 points: a 72-hour suspension, which locks everything.
+        $user->forceFill(['posting_restricted_until' => null])->save();
+        $this->postJson('/api/v1/feed', ['text' => 'aptal'])->assertStatus(400);
+
+        $fresh = $user->fresh();
+        $this->assertNotNull($fresh->banned_until);
+        $this->assertEqualsWithDelta(72, now()->diffInHours($fresh->banned_until, false), 1);
+        $this->assertNull($fresh->banned_at, 'Nothing on the ladder bans permanently.');
+
+        // A suspension is enforced everywhere, not just where it was earned.
         $this->getJson('/api/v1/events')
             ->assertStatus(403)
             ->assertJsonPath('error.code', 'ACCOUNT_BANNED');
+    }
 
-        // 5th → 3 days.
-        $user->update(['banned_until' => null, 'moderation_status' => 'clear']);
-        $this->postJson('/api/v1/feed', ['text' => 'şerefsiz'])->assertStatus(400);
-        $fresh = $user->fresh();
-        $this->assertSame(5, (int) $fresh->strikes);
-        $this->assertEqualsWithDelta(72, now()->diffInHours($fresh->banned_until, false), 1);
+    /**
+     * Every rung, including the ones an HTTP test cannot reach without
+     * inventing a dozen violations. Read as "at least this many points".
+     */
+    public function test_every_rung_of_the_published_ladder(): void
+    {
+        $policy = app(AccountEnforcementPolicy::class);
 
-        // 6th → 7 days.
-        $user->update(['banned_until' => null, 'moderation_status' => 'clear']);
-        $this->postJson('/api/v1/feed', ['text' => 'orospu'])->assertStatus(400);
-        $fresh = $user->fresh();
-        $this->assertSame(6, (int) $fresh->strikes);
-        $this->assertEqualsWithDelta(168, now()->diffInHours($fresh->banned_until, false), 1);
+        $this->assertSame(['action' => 'none', 'hours' => 0], $policy->consequenceFor(0));
+        $this->assertSame(['action' => 'warning', 'hours' => 0], $policy->consequenceFor(1));
+        $this->assertSame(['action' => 'posting_restriction', 'hours' => 24], $policy->consequenceFor(3));
+        $this->assertSame(['action' => 'temporary_suspension', 'hours' => 72], $policy->consequenceFor(6));
+        $this->assertSame(['action' => 'temporary_suspension', 'hours' => 168], $policy->consequenceFor(12));
+        $this->assertSame(['action' => 'temporary_suspension', 'hours' => 720], $policy->consequenceFor(20));
+
+        // Past the top rung the longest suspension repeats. It must never
+        // escalate into something permanent on its own.
+        $this->assertSame(['action' => 'temporary_suspension', 'hours' => 720], $policy->consequenceFor(99));
+    }
+
+    /**
+     * Severity is the whole point of the change: spam and a credible
+     * threat cannot cost the same.
+     */
+    public function test_severity_decides_what_a_violation_costs(): void
+    {
+        $spammer = $this->freshUser('spammer');
+        $threatener = $this->freshUser('threatener');
+        $policy = app(AccountEnforcementPolicy::class);
+
+        $policy->recordAutomatedViolation($spammer, ['SPAM'], 'idem-spam');
+        $policy->recordAutomatedViolation($threatener, ['THR'], 'idem-threat');
+
+        $this->assertSame(1, $policy->activePoints($spammer->refresh()));
+        $this->assertSame(12, $policy->activePoints($threatener->refresh()));
+
+        $this->assertNull($spammer->posting_restricted_until, 'Spam alone is a warning.');
+        $this->assertNotNull($threatener->banned_until, 'A threat is a suspension on its own.');
+        $this->assertNull($threatener->banned_at, 'Still not permanent.');
+    }
+
+    /** The worst category in a submission decides, not the first listed. */
+    public function test_the_worst_category_in_a_submission_decides_the_severity(): void
+    {
+        $user = $this->freshUser('mixed');
+        $policy = app(AccountEnforcementPolicy::class);
+
+        $policy->recordAutomatedViolation($user, ['SPAM', 'THR', 'PROF'], 'idem-mixed');
+
+        $this->assertSame(12, $policy->activePoints($user->refresh()));
     }
 
     public function test_an_expired_ban_restores_access_without_admin_action(): void
@@ -135,61 +212,79 @@ class ModerationApiTest extends TestCase
         $this->assertNull($user->fresh()->banned_until);
     }
 
-    public function test_a_repeated_submission_does_not_cost_two_strikes(): void
+    public function test_a_repeated_submission_does_not_cost_two_violations(): void
     {
         $user = $this->seedUser();
+        $policy = app(AccountEnforcementPolicy::class);
 
-        $this->postJson('/api/v1/feed', ['text' => 'sen tam bir aptalsın'])->assertStatus(400);
-        $this->postJson('/api/v1/feed', ['text' => 'sen tam bir aptalsın'])->assertStatus(400);
+        $this->postJson('/api/v1/feed', ['text' => 'salak'])->assertStatus(400);
+
+        // The first refusal already restricted posting, so the retry is
+        // now refused for who is asking rather than for what it says.
+        $this->postJson('/api/v1/feed', ['text' => 'salak'])
+            ->assertStatus(403)
+            ->assertJsonPath('error.code', 'POSTING_RESTRICTED');
 
         $this->assertSame(1, (int) $user->fresh()->strikes, 'A double-tap must not double-punish.');
+        $this->assertSame(3, $policy->activePoints($user->fresh()));
+
+        // And the charge itself is keyed to the submission, so even
+        // without the restriction above the same act cannot cost twice.
+        $other = $this->freshUser('retry');
+        $policy->recordAutomatedViolation($other, ['HAR'], 'idem-retry');
+        $second = $policy->recordAutomatedViolation($other, ['HAR'], 'idem-retry');
+
+        $this->assertTrue($second['duplicate']);
+        $this->assertSame(3, $policy->activePoints($other->refresh()));
     }
 
     public function test_local_text_policy_normalizes_common_turkish_obfuscation_and_categories(): void
     {
-        $user = $this->seedUser();
-
+        $obfuscated = $this->freshUser('obfuscation');
         $this->postJson('/api/v1/feed', ['text' => 's4l4k davranma'])
             ->assertStatus(400)
             ->assertJsonPath('error.code', 'CONTENT_BLOCKED');
+        $this->assertSame(1, (int) $obfuscated->fresh()->strikes);
+
+        $threat = $this->freshUser('threat');
         $this->postJson('/api/v1/feed', ['text' => 'seni vuracağım'])
             ->assertStatus(400)
             ->assertJsonPath('error.code', 'CONTENT_BLOCKED');
-
-        $this->assertSame(2, $user->fresh()->strikes);
+        $this->assertSame(1, (int) $threat->fresh()->strikes);
     }
 
     public function test_local_text_policy_enforces_english_and_russian_content(): void
     {
-        $user = $this->seedUser();
-
+        $english = $this->freshUser('english');
         $this->postJson('/api/v1/feed', ['text' => 'I will kill you'])
             ->assertStatus(400)
             ->assertJsonPath('error.code', 'CONTENT_BLOCKED');
+        $this->assertSame(1, (int) $english->fresh()->strikes);
+
+        $russian = $this->freshUser('russian');
         $this->postJson('/api/v1/feed', ['text' => 'Я тебя убью'])
             ->assertStatus(400)
             ->assertJsonPath('error.code', 'CONTENT_BLOCKED');
-
-        $this->assertSame(2, $user->fresh()->strikes);
+        $this->assertSame(1, (int) $russian->fresh()->strikes);
     }
 
     public function test_local_text_policy_blocks_hate_speech_and_sexual_harassment(): void
     {
-        $user = $this->seedUser();
-
+        $hater = $this->freshUser('hate');
         $hate = $this->postJson('/api/v1/feed', [
             'text' => 'Bu göçmenler insan değil, hepsini ülkeden sürmek lazım',
         ]);
         $hate->assertStatus(400)->assertJsonPath('error.code', 'CONTENT_BLOCKED');
         $this->assertStringContainsString('nefret', (string) $hate->json('error.message'));
+        $this->assertSame(1, (int) $hater->fresh()->strikes);
 
+        $harasser = $this->freshUser('sexual');
         $sex = $this->postJson('/api/v1/feed', [
             'text' => "Give me your number, gorgeous. I won't let you sleep tonight.",
         ]);
         $sex->assertStatus(400)->assertJsonPath('error.code', 'CONTENT_BLOCKED');
         $this->assertStringContainsString('cinsel', (string) $sex->json('error.message'));
-
-        $this->assertSame(2, $user->fresh()->strikes);
+        $this->assertSame(1, (int) $harasser->fresh()->strikes);
     }
 
     public function test_mild_campus_exclamation_is_still_allowed(): void
@@ -224,21 +319,20 @@ class ModerationApiTest extends TestCase
 
     public function test_stretched_letters_and_rephrased_insults_are_still_caught(): void
     {
-        $user = $this->seedUser();
-
         // Elongated-letter evasion of an exact BLOCKED_TERMS phrase.
+        $stretched = $this->freshUser('stretched');
         $this->postJson('/api/v1/feed', ['text' => 'saaaalak davranma'])
             ->assertStatus(400)
             ->assertJsonPath('error.code', 'CONTENT_BLOCKED');
+        $this->assertSame(1, (int) $stretched->fresh()->strikes);
 
         // A rephrasing the old exact-phrase list would have missed, caught
         // by the gap-tolerant pattern family instead of an exact string.
-        $rephrased = $this->postJson('/api/v1/feed', [
+        $rephraser = $this->freshUser('rephrased');
+        $this->postJson('/api/v1/feed', [
             'text' => 'Uyarıyorum, hesabını yakında tamamen sileceğim.',
-        ]);
-        $rephrased->assertStatus(400)->assertJsonPath('error.code', 'CONTENT_BLOCKED');
-
-        $this->assertSame(2, $user->fresh()->strikes);
+        ])->assertStatus(400)->assertJsonPath('error.code', 'CONTENT_BLOCKED');
+        $this->assertSame(1, (int) $rephraser->fresh()->strikes);
     }
 
     public function test_reviewer_rejection_of_owned_media_records_a_strike(): void

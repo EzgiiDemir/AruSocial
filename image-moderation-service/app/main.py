@@ -1,3 +1,4 @@
+import time
 from contextlib import asynccontextmanager
 from typing import Annotated
 
@@ -17,6 +18,17 @@ text_classifier = SemanticTextClassifier(settings)
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    # Pin the thread count BEFORE any model loads.
+    #
+    # Left alone, PyTorch takes one thread per core in every worker, so
+    # running four uvicorn workers on four cores gives sixteen threads
+    # fighting over four cores — measurably slower than a single worker.
+    # Set torch_threads to (cores / workers) when running more than one.
+    if settings.torch_threads > 0:
+        import torch
+
+        torch.set_num_threads(settings.torch_threads)
+
     if settings.preload_model:
         classifier.load()
         clip.load()
@@ -56,6 +68,15 @@ async def health():
                 "clip": settings.clip_model_id if clip.enabled else None,
                 "text": settings.text_model_id if text_classifier.enabled else None,
             },
+            # Retrieval embeddings ride on the text model, so they are
+            # available exactly when it is. Reported separately because a
+            # caller that only wants embeddings should not have to infer
+            # that from a moderation signal.
+            "embeddings": (
+                settings.text_model_id
+                if settings.embed_enabled and text_classifier.ready
+                else None
+            ),
         }
 
     which, error = "nsfw", classifier.load_error
@@ -76,8 +97,18 @@ async def health():
     )
 
 
+# `def`, not `async def`, and deliberately so.
+#
+# PyTorch inference is blocking. In an `async def` handler it runs ON the
+# event loop, so requests are served strictly one at a time and the second
+# caller waits for the first to finish before its own work even starts. A
+# plain `def` handler is run in FastAPI's threadpool instead, and PyTorch
+# releases the GIL during inference, so concurrent uploads and messages
+# actually overlap. Moderation sits on the synchronous request path of
+# every post and every chat message, so this is the difference between the
+# classifier being a step and being a queue.
 @app.post("/v1/moderate/text")
-async def moderate_text(payload: dict):
+def moderate_text(payload: dict):
     """Score one piece of text against every policy category.
 
     Returns margins, never a verdict: "how much more does this resemble
@@ -130,8 +161,85 @@ async def moderate_text(payload: dict):
     }
 
 
+@app.post("/v1/embed")
+def embed(payload: dict):
+    """Unit-length embeddings for retrieval.
+
+    This exists so Ask ARUVERSE can rank knowledge pages against a
+    question by meaning rather than by shared keywords — "kayıt nasıl
+    yapılır" and "başvuru süreci" share no word and describe the same
+    page. It serves them from the multilingual sentence model this service
+    already keeps in memory for text moderation, so the feature costs no
+    extra weights, no extra RAM and no third party.
+
+    Vectors are already L2-normalised, so a dot product is the cosine
+    similarity. The caller must not normalise again.
+
+    Returns 503 when the model is not loaded — never an empty list, which
+    a caller could not tell apart from "nothing is similar".
+    """
+    if not settings.embed_enabled:
+        raise HTTPException(
+            status_code=503,
+            detail={"code": "EMBED_DISABLED", "message": "Embeddings are disabled."},
+        )
+
+    if not text_classifier.ready:
+        raise HTTPException(
+            status_code=503,
+            detail={"code": "MODEL_NOT_LOADED",
+                    "message": text_classifier.load_error or "text model unavailable"},
+        )
+
+    raw = payload.get("texts")
+    if isinstance(raw, str):
+        raw = [raw]
+    if not isinstance(raw, list) or raw == []:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "EMPTY_TEXTS", "message": "Send a non-empty `texts` array."},
+        )
+
+    # Bounded on purpose: one request must not be able to tie up a worker
+    # for an unbounded time, and the caller batches its own backfill.
+    if len(raw) > settings.embed_max_texts:
+        raise HTTPException(
+            status_code=413,
+            detail={"code": "TOO_MANY_TEXTS",
+                    "message": f"At most {settings.embed_max_texts} texts per request."},
+        )
+
+    texts = []
+    for item in raw:
+        text = str(item or "").strip()
+        if text == "":
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "EMPTY_TEXT", "message": "A text in the batch was empty."},
+            )
+        texts.append(text[: settings.embed_max_chars])
+
+    started = time.perf_counter()
+    try:
+        vectors = text_classifier.embed_texts(texts)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(
+            status_code=500,
+            detail={"code": "EMBED_FAILED", "message": f"{type(exc).__name__}"},
+        ) from exc
+
+    return {
+        "success": True,
+        "model": settings.text_model_id,
+        "model_version": settings.text_model_revision,
+        "dimensions": len(vectors[0]) if vectors else 0,
+        "vectors": vectors,
+        "latency_ms": int((time.perf_counter() - started) * 1000),
+    }
+
+
 @app.post("/v1/moderate/image")
-async def moderate_image(file: Annotated[UploadFile, File()]):
+def moderate_image(file: Annotated[UploadFile, File()]):
     """Score one uploaded image.
 
     Accepts bytes only. There is deliberately no URL parameter: fetching
@@ -142,7 +250,10 @@ async def moderate_image(file: Annotated[UploadFile, File()]):
     Returns model signals, never a verdict — no "blocked", no "ban".
     Laravel owns policy.
     """
-    raw = await file.read()
+    # `file.file.read()` rather than `await file.read()`: this handler is
+    # synchronous (see the note above) and the underlying spooled file is
+    # an ordinary file object.
+    raw = file.file.read()
 
     if not raw:
         raise HTTPException(status_code=400, detail={"code": "EMPTY_FILE", "message": "No image bytes received."})

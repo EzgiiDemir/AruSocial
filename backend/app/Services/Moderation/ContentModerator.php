@@ -5,6 +5,7 @@ namespace App\Services\Moderation;
 use App\Models\ModerationEvent;
 use App\Models\User;
 use App\Services\AuditLogger;
+use App\Services\Moderation\Workflow\AccountEnforcementPolicy;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -33,7 +34,8 @@ class ContentModerator
     public function __construct(
         private readonly ModerationClient $provider = new ModerationClient,
         private readonly TextPolicyEngine $localEngine = new TextPolicyEngine,
-        private readonly PenaltyLadder $ladder = new PenaltyLadder,
+        private readonly AccountStanding $standing = new AccountStanding,
+        private readonly AccountEnforcementPolicy $enforcement = new AccountEnforcementPolicy,
     ) {}
 
     /**
@@ -49,8 +51,17 @@ class ContentModerator
         array $imageUrls = [],
         array $files = [],
     ): ModerationOutcome {
-        if ($this->ladder->isCurrentlyBanned($user)) {
+        if ($this->standing->isCurrentlyBanned($user)) {
             return ModerationOutcome::banned($user->banned_until);
+        }
+
+        // A posting restriction is the lighter penalty on the same ladder:
+        // the account keeps working, it just may not add content. It is
+        // enforced here rather than in middleware because this is the one
+        // gate every submission passes through, and because restricting
+        // reading as well would turn it into a suspension.
+        if ($this->standing->isPostingRestricted($user)) {
+            return ModerationOutcome::postingRestricted($user->posting_restricted_until);
         }
 
         // Staff content is not scanned — but the ban check above runs
@@ -168,23 +179,32 @@ class ContentModerator
 
         if ($blockedByProvider || $blockedByLocal) {
             $categories = $blockedByProvider ? $providerViolations : ($local?->labels ?? []);
+
+            // One ladder for every path. The categories decide the
+            // severity, the severity decides the points, and the points
+            // decide the consequence — see AccountEnforcementPolicy. The
+            // submission hash is the idempotency key, so a retry cannot be
+            // charged twice even when it arrives after the replay window
+            // above has closed.
             $penalty = ($blockedByLocal || $provider->strikeRecommended)
-                ? $this->ladder->applyStrike($user, implode(',', $categories) ?: 'policy')
+                ? $this->enforcement->recordAutomatedViolation(
+                    $user, $categories !== [] ? $categories : ['policy'], 'content:'.$hash,
+                )
                 : null;
 
             $event = $this->record($user, $contentType, $sourceFeature, ModerationEvent::ACTION_REJECTED,
                 $provider, $local, $text, $hash, $penalty);
 
             AuditLogger::log('system', 'moderation_block', 'user', sprintf(
-                '%s (%s): %s/%s [%s]',
-                $user->name, $penalty['strike'] ?? 'no-strike', $sourceFeature, $contentType, implode(',', $categories),
+                '%s (%s puan): %s/%s [%s]',
+                $user->name, $penalty['points'] ?? 'ücretsiz', $sourceFeature, $contentType, implode(',', $categories),
             ));
 
             return ModerationOutcome::rejected(
                 categories: $categories,
-                strike: $penalty['strike'] ?? null,
+                points: $penalty['points'] ?? null,
                 action: $penalty['action'] ?? null,
-                bannedUntil: $penalty['banned_until'] ?? null,
+                until: $this->lockUntil($user, $penalty),
                 eventId: $event->id,
             );
         }
@@ -294,8 +314,23 @@ class ContentModerator
     }
 
     /**
-     * @param  array{strike: int, action: string, banned_until: ?Carbon}|null  $penalty
+     * When the lock this decision produced ends, whichever lock it is.
+     *
+     * A posting restriction and a suspension are stored in different
+     * columns on purpose, and the author needs to be told the right date
+     * either way.
+     *
+     * @param  array{action: string, hours: int, points: int}|null  $penalty
      */
+    private function lockUntil(User $user, ?array $penalty): ?Carbon
+    {
+        return match ($penalty['action'] ?? null) {
+            'posting_restriction' => $user->posting_restricted_until,
+            'temporary_suspension' => $user->banned_until,
+            default => null,
+        };
+    }
+
     /**
      * Evidence that a submission was exempt, and on whose authority.
      *
@@ -359,9 +394,9 @@ class ContentModerator
             ))),
             'category_scores' => $provider->significantScores(),
             'decided_by' => $decidedBy,
-            'strike_number' => $penalty['strike'] ?? null,
+            'points' => $penalty['charged'] ?? null,
             'penalty' => $penalty['action'] ?? null,
-            'banned_until' => $penalty['banned_until'] ?? null,
+            'banned_until' => $this->lockUntil($user, $penalty),
             'moderation_provider' => $provider->available ? $provider->providerName : 'local',
             'moderation_model' => $provider->model,
             // Only a short excerpt, and only until the appeal window closes.

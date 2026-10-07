@@ -7,7 +7,6 @@ use App\Http\Controllers\Api\Concerns\ModeratesContent;
 use App\Http\Controllers\Controller;
 use App\Models\ModerationAppeal;
 use App\Models\ModerationCase;
-use App\Models\UserViolation;
 use App\Services\Moderation\Workflow\ModerationAudit;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;

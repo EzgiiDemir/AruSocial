@@ -130,6 +130,10 @@ class ModerationBypassHardeningTest extends TestCase
             $this->postJson('/api/v1/me/profile', [$field => $value])
                 ->assertStatus(400, "profile field '{$field}' was not moderated")
                 ->assertJsonPath('error.code', 'CONTENT_BLOCKED');
+
+            // Every field must be refused because of what it contains,
+            // not because an earlier field already locked the account.
+            $this->clearStanding($me);
         }
 
         $fresh = $me->fresh();
@@ -171,7 +175,7 @@ class ModerationBypassHardeningTest extends TestCase
      */
     public function test_client_supplied_fields_cannot_skip_or_pre_approve_moderation(): void
     {
-        $this->actingAsUser();
+        $me = $this->actingAsUser();
 
         $attempts = [
             ['text' => 'lanet zenci defol', 'skipModeration' => true],
@@ -185,6 +189,10 @@ class ModerationBypassHardeningTest extends TestCase
             $this->postJson('/api/v1/feed', $payload)
                 ->assertStatus(400)
                 ->assertJsonPath('error.code', 'CONTENT_BLOCKED');
+
+            // Same reason as above: each flag has to be ignored on its
+            // own, not shadowed by the penalty the last one earned.
+            $this->clearStanding($me);
         }
 
         $this->assertSame(0, FeedPost::includingUnmoderated()->count(),

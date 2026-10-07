@@ -2,15 +2,15 @@
 
 namespace App\Http\Middleware;
 
-use App\Services\Moderation\PenaltyLadder;
+use App\Services\Moderation\AccountStanding;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 
-// Real consequence for the strike system in ModerationService: once an
-// account is banned, every API request from it is rejected here — not
-// just the one endpoint that tripped the strike. Applied to the whole
+// Real consequence for the points ladder in AccountEnforcementPolicy:
+// once an account is suspended, every API request from it is rejected
+// here — not just the one endpoint that tripped it. Applied to the whole
 // /api/v1 group in routes/api.php, same as throttle:api.
 class EnsureNotBanned
 {
@@ -35,11 +35,13 @@ class EnsureNotBanned
             return $next($request);
         }
 
-        // Permanent ban (admin decision) and timed ban (strike ladder) are
-        // both enforced here. PenaltyLadder clears an expired timed ban as a
+        // Permanent ban (a human decision) and timed suspension (the
+        // points ladder) are both enforced here. A posting restriction is
+        // NOT: it is the lighter penalty and is enforced at the content
+        // gate, so a restricted student can still read and use the app. AccountStanding clears an expired timed ban as a
         // side effect of this check, so access comes back on its own using
         // server time — never the device clock.
-        if (! (new PenaltyLadder())->isCurrentlyBanned($user)) {
+        if (! (new AccountStanding)->isCurrentlyBanned($user)) {
             return $next($request);
         }
 

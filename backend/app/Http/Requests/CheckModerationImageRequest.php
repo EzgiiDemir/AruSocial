@@ -13,11 +13,10 @@ class CheckModerationImageRequest extends FormRequest
 
     public function rules(): array
     {
-        return array (
-  'imageBase64' => 
-  array (
-    0 => 'required',
-  ),
-);
+        return [
+            'imageBase64' => [
+                0 => 'required',
+            ],
+        ];
     }
 }

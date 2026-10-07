@@ -5,7 +5,6 @@ namespace Tests\Feature;
 use App\Models\FeedPost;
 use App\Models\User;
 use App\Services\Moderation\AccountEnforcement;
-use App\Services\Moderation\PenaltyLadder;
 use App\Services\Moderation\Workflow\AccountEnforcementPolicy;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -93,36 +92,78 @@ class AccountEnforcementToggleTest extends TestCase
         $this->assertNull($user->banned_until);
     }
 
-    public function test_the_penalty_ladder_charges_nothing(): void
-    {
-        $this->disableEnforcement();
-        $user = $this->makeUser();
-
-        $result = app(PenaltyLadder::class)->applyStrike($user, 'test');
-
-        $this->assertSame('warning', $result['action']);
-        $this->assertNull($result['banned_until']);
-        $this->assertSame(0, (int) $user->refresh()->strikes);
-    }
-
     /**
      * The violation *record* survives — moderators work the queue from
      * those rows, so suppressing them would break the case workflow
-     * rather than the punishment. Only the lock is skipped.
+     * rather than the punishment. It is written UNCONFIRMED, so it
+     * carries no points and no consequence.
      */
-    public function test_a_confirmed_violation_is_recorded_but_not_served(): void
+    public function test_a_violation_is_recorded_but_costs_nothing(): void
     {
         $this->disableEnforcement();
         $user = $this->makeUser();
 
-        $result = app(AccountEnforcementPolicy::class)->recordConfirmedViolation(
+        $policy = app(AccountEnforcementPolicy::class);
+        $result = $policy->recordConfirmedViolation(
             $user, 'hate', 'critical', 'idem-'.uniqid(),
         );
 
-        $this->assertSame('temporary_suspension', $result['action']);
-        $this->assertTrue($result['violation']->exists);
+        $this->assertSame('none', $result['action']);
+        $this->assertTrue($result['violation']->exists, 'The evidence row is the case record.');
+        $this->assertFalse((bool) $result['violation']->confirmed);
+        $this->assertSame('suppressed', $result['violation']->action_taken);
+        $this->assertSame(0, $policy->activePoints($user->refresh()));
         $this->assertNull($user->refresh()->banned_until,
             'The suspension was actually served.');
+        $this->assertNull($user->refresh()->posting_restricted_until);
+    }
+
+    /**
+     * The promise the toggle makes, and the one that is easiest to break:
+     * turning enforcement back on must not settle a bill run up while it
+     * was off.
+     *
+     * Banking the points and merely skipping the lock would do exactly
+     * that — the first violation after the switch flipped would land on
+     * top of a whole testing window.
+     */
+    public function test_points_do_not_accumulate_while_enforcement_is_off(): void
+    {
+        $this->disableEnforcement();
+        $user = $this->makeUser();
+        $policy = app(AccountEnforcementPolicy::class);
+
+        for ($i = 0; $i < 4; $i++) {
+            $policy->recordConfirmedViolation($user, 'hate', 'critical', 'idem-off-'.$i);
+        }
+        $this->assertSame(0, $policy->activePoints($user->refresh()));
+
+        // Switched back on, the next violation is charged on its own —
+        // not on top of the four above.
+        config(['moderation.enforcement.enabled' => true]);
+        $result = $policy->recordConfirmedViolation($user, 'spam', 'minor', 'idem-on');
+
+        $this->assertSame(1, $result['points']);
+        $this->assertSame('warning', $result['action']);
+        $this->assertNull($user->refresh()->banned_until);
+    }
+
+    /**
+     * A posting restriction is the 3-point rung and must not behave like
+     * a suspension: the account keeps working, it just cannot submit.
+     */
+    public function test_a_posting_restriction_is_not_a_suspension(): void
+    {
+        config(['moderation.enforcement.enabled' => true]);
+        $user = $this->makeUser();
+
+        app(AccountEnforcementPolicy::class)->recordConfirmedViolation(
+            $user, 'harassment', 'serious', 'idem-'.uniqid(),
+        );
+
+        $user->refresh();
+        $this->assertNotNull($user->posting_restricted_until);
+        $this->assertNull($user->banned_until, 'A restriction must not lock the account.');
     }
 
     // ---- the default -----------------------------------------------

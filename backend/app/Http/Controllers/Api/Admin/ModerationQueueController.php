@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers\Api\Admin;
 
+use App\Events\CampusDataChanged;
 use App\Http\Controllers\Api\Concerns\ApiResponds;
 use App\Http\Controllers\Controller;
-use App\Events\CampusDataChanged;
 use App\Http\Requests\PaginatedListRequest;
 use App\Http\Requests\ResolveModerationQueueRequest;
 use App\Models\MediaItem;
@@ -70,11 +70,17 @@ class ModerationQueueController extends Controller
 
         if ($action === 'rejected') {
             Storage::disk(MediaItem::disk())->delete($item->file_path);
-            // A reviewer-confirmed policy violation is a real consequence for
-            // the submitting account. Three strikes trigger the existing
-            // account-wide ban middleware; an admin library item has no owner.
+            // A reviewer-confirmed policy violation is a real consequence
+            // for the submitting account: it is charged on the same points
+            // ladder as everything else. An admin library item has no
+            // owner, so there is nobody to charge.
+            //
+            // The item id is the idempotency key — a moderator who
+            // double-clicks resolve has confirmed one violation.
             if ($item->user_id !== null && ($submitter = User::find($item->user_id))) {
-                ModerationService::recordMediaViolation($submitter, 'reviewer_confirmed');
+                ModerationService::recordMediaViolation(
+                    $submitter, 'reviewer_confirmed', 'media-review:'.$item->id,
+                );
             }
             // Keep the row so audit/history can reference it, or delete —
             // product choice: keep metadata, clear file. Soft keep.

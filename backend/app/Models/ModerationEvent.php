@@ -27,7 +27,7 @@ class ModerationEvent extends Model
     protected $fillable = [
         'id', 'user_id', 'content_type', 'source_feature', 'content_id',
         'action', 'flagged', 'categories', 'category_scores', 'decided_by',
-        'strike_number', 'penalty', 'banned_until',
+        'strike_number', 'points', 'penalty', 'banned_until',
         'moderation_provider', 'moderation_model', 'excerpt', 'excerpt_purge_after',
         'submission_hash',
         // Which model and which thresholds produced this verdict. Without
@@ -44,6 +44,7 @@ class ModerationEvent extends Model
             'banned_until' => 'datetime',
             'excerpt_purge_after' => 'datetime',
             'strike_number' => 'integer',
+            'points' => 'integer',
         ];
     }
 

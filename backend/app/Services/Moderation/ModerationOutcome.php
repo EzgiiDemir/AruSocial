@@ -8,9 +8,9 @@ use Illuminate\Support\Carbon;
 /**
  * What a controller should do with a submission, and what to tell the user.
  *
- * The client needs to tell four situations apart — content rejected, user
- * warned, user banned, moderation temporarily unavailable — so each gets its
- * own error code. Category names and scores stay server-side: telling a user
+ * The client needs to tell five situations apart — content rejected, user
+ * warned, posting restricted, account suspended, moderation temporarily
+ * unavailable — so each gets its own error code. Category names and scores stay server-side: telling a user
  * exactly which threshold they missed is a recipe for probing around it.
  */
 final class ModerationOutcome
@@ -24,6 +24,14 @@ final class ModerationOutcome
     public const REJECTED = 'rejected';
 
     public const BANNED = 'banned';
+
+    /**
+     * The account may not submit content for a while, but is otherwise
+     * working — the 3-point rung of the ladder. Separate from BANNED
+     * because a student who can still read the feed and their messages
+     * must not be told their account is suspended.
+     */
+    public const RESTRICTED = 'restricted';
 
     public const UNAVAILABLE = 'unavailable';
 
@@ -39,9 +47,11 @@ final class ModerationOutcome
     private function __construct(
         public readonly string $status,
         public readonly array $categories = [],
-        public readonly ?int $strike = null,
+        /** Points this violation cost, null when it cost nothing. */
+        public readonly ?int $points = null,
         public readonly ?string $penalty = null,
-        public readonly ?Carbon $bannedUntil = null,
+        /** End of whichever lock this produced — suspension or restriction. */
+        public readonly ?Carbon $until = null,
         public readonly ?string $eventId = null,
     ) {}
 
@@ -95,14 +105,20 @@ final class ModerationOutcome
     }
 
     /** @param list<string> $categories */
-    public static function rejected(array $categories, ?int $strike, ?string $action, ?Carbon $bannedUntil, string $eventId): self
+    public static function rejected(array $categories, ?int $points, ?string $action, ?Carbon $until, string $eventId): self
     {
-        return new self(self::REJECTED, $categories, $strike, $action, $bannedUntil, $eventId);
+        return new self(self::REJECTED, $categories, $points, $action, $until, $eventId);
     }
 
     public static function banned(?Carbon $until): self
     {
-        return new self(self::BANNED, bannedUntil: $until);
+        return new self(self::BANNED, until: $until);
+    }
+
+    /** Serving a posting restriction: nothing new may be submitted. */
+    public static function postingRestricted(?Carbon $until): self
+    {
+        return new self(self::RESTRICTED, until: $until);
     }
 
     public static function unavailable(): self
@@ -114,7 +130,7 @@ final class ModerationOutcome
     {
         return match ($event->action) {
             ModerationEvent::ACTION_REJECTED => new self(
-                self::REJECTED, $event->categories ?? [], $event->strike_number,
+                self::REJECTED, $event->categories ?? [], $event->points,
                 $event->penalty, $event->banned_until, $event->id,
             ),
             // A support decision must replay as support. Re-posting the
@@ -143,6 +159,7 @@ final class ModerationOutcome
         return match ($this->status) {
             self::REJECTED => 'CONTENT_BLOCKED',
             self::BANNED => 'ACCOUNT_SUSPENDED',
+            self::RESTRICTED => 'POSTING_RESTRICTED',
             self::UNAVAILABLE => 'MODERATION_UNAVAILABLE',
             self::REVIEW, self::SUPPORT => 'MODERATION_PENDING',
             default => 'OK',
@@ -154,10 +171,14 @@ final class ModerationOutcome
     {
         return match ($this->status) {
             self::REJECTED => $this->rejectionMessage(),
-            self::BANNED => $this->bannedUntil !== null
+            self::BANNED => $this->until !== null
                 ? 'Hesabın geçici olarak askıya alındı. Tekrar paylaşabileceğin zaman: '
-                    .$this->bannedUntil->timezone(config('app.timezone'))->format('d.m.Y H:i').'.'
+                    .$this->formattedUntil().'.'
                 : 'Hesabın topluluk kurallarını ihlal nedeniyle askıya alındı.',
+            self::RESTRICTED => 'Topluluk kurallarını ihlal ettiğin için paylaşım yapman '
+                .($this->until !== null ? $this->formattedUntil().' tarihine kadar ' : 'geçici olarak ')
+                .'kısıtlandı. Uygulamanın geri kalanını kullanmaya devam edebilirsin: '
+                .'akışı okuyabilir, mesajlarını görebilir ve randevularına erişebilirsin.',
             self::UNAVAILABLE => in_array('media_uninspected', $this->categories, true)
                 ? 'Görsel ve video kontrolü şu anda yapılamıyor, bu yüzden dosyan '
                     .'yayınlanmadı ve incelemeye alındı. Kontrol edilmeden hiçbir '
@@ -232,25 +253,39 @@ final class ModerationOutcome
                 .'veya 112 / yerel kriz hattından destek al.';
         }
 
-        if ($this->bannedUntil !== null) {
-            return $base.' Tekrarlanan ihlal nedeniyle hesabın '
-                .$this->bannedUntil->timezone(config('app.timezone'))->format('d.m.Y H:i')
-                .' tarihine kadar askıya alındı. Askı süresi bittiğinde hesabın '
-                .'otomatik olarak açılır; ihlal devam ederse süre uzar.';
+        // Someone who has just had a post refused is the one person
+        // certain to be reading this, so it is where the consequence of
+        // doing it again actually lands.
+        //
+        // What is said, and what is deliberately not: the points charged
+        // and what they cost, never the category scores or thresholds.
+        // A student should be able to understand and appeal the decision;
+        // nobody should be able to tune content to slip under the bar.
+        $consequence = match ($this->penalty) {
+            'posting_restriction' => $this->until !== null
+                ? ' Bu nedenle '.$this->formattedUntil().' tarihine kadar paylaşım yapamazsın; '
+                    .'uygulamanın geri kalanı açık kalır.'
+                : ' Bu nedenle paylaşım hakkın geçici olarak kısıtlandı.',
+            'temporary_suspension' => $this->until !== null
+                ? ' Bu nedenle hesabın '.$this->formattedUntil().' tarihine kadar askıya alındı. '
+                    .'Süre dolduğunda hesabın otomatik olarak açılır.'
+                : ' Bu nedenle hesabın geçici olarak askıya alındı.',
+            'warning' => ' Bu bir uyarıdır; hesabına başka bir kısıtlama uygulanmadı.',
+            default => '',
+        };
+
+        if ($this->points === null || $this->points <= 0) {
+            return $base.$consequence;
         }
 
-        if ($this->strike === null) {
-            return $base;
-        }
+        return $base.' İhlal puanı: +'.$this->points.'.'.$consequence
+            .' Puanlar süreyle birlikte düşer; ağır ihlaller daha çok puan getirir.';
+    }
 
-        // Someone who has just had a post refused is the one person certain
-        // to be reading this, so it is where the consequence of doing it
-        // again actually lands. Saying "warning 1/3" alone leaves them to
-        // guess what happens at 4.
-        return $base.' Uyarı '.$this->strike.'/3. '
-            .'Lütfen paylaşacağın görsel ve videolara dikkat et: 3 uyarıdan sonra '
-            .'hesabın geçici olarak askıya alınır (4. ihlal 24 saat, 5. ihlal 3 gün, '
-            .'6. ihlal 7 gün).';
+    /** The lock's end, in the app's own timezone. */
+    private function formattedUntil(): string
+    {
+        return (string) $this->until?->timezone(config('app.timezone'))->format('d.m.Y H:i');
     }
 
     /** Structured payload for the API error envelope. */
@@ -258,9 +293,12 @@ final class ModerationOutcome
     {
         return array_filter([
             'status' => $this->status,
-            'strike' => $this->strike,
+            'points' => $this->points,
             'penalty' => $this->penalty,
-            'bannedUntil' => $this->bannedUntil?->toIso8601String(),
+            // One key for both locks. Which one it is, is already in
+            // `penalty` and in the error code; a client that only wants to
+            // show "until when" should not have to know the difference.
+            'until' => $this->until?->toIso8601String(),
         ], fn ($v) => $v !== null);
     }
 }

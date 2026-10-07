@@ -4,9 +4,9 @@ namespace App\Services;
 
 use App\Models\ModerationReport;
 use App\Models\User;
-use App\Services\Moderation\AccountEnforcement;
 use App\Services\Moderation\ModerationVerdict;
 use App\Services\Moderation\TextPolicyEngine;
+use App\Services\Moderation\Workflow\AccountEnforcementPolicy;
 use Illuminate\Support\Str;
 
 /**
@@ -14,14 +14,13 @@ use Illuminate\Support\Str;
  *
  * Matches are deterministic keyword rules (TR / EN / RU), not natural-language
  * understanding. Category codes classify content-policy violations — not legal
- * crimes. Severity S2+ blocks and records a strike; S4/S5 add an escalate
- * prefix on the audit reason. Mild S1 general exclamations are intentionally
+ * crimes. Severity S2+ blocks and charges the account on the shared points
+ * ladder (`AccountEnforcementPolicy`); S4/S5 add an escalate prefix on the
+ * audit reason. Mild S1 general exclamations are intentionally
  * absent from the block list so ordinary campus posts stay allowed.
  */
 class ModerationService
 {
-    private const BAN_AFTER_STRIKES = 3;
-
     /**
      * High-confidence block terms keyed by policy category code.
      * Matching uses normalize() + substring / compacted-substring checks.
@@ -240,7 +239,7 @@ class ModerationService
         if ($verdict->blocksPublication()) {
             $category = $verdict->primaryLabel() ?? 'HAR';
             $prefix = $verdict->isEscalation() ? 'escalate/' : '';
-            self::recordStrike($user, $prefix.'metin/'.$category.': '.$verdict->auditSummary());
+            self::charge($user, [$category], $prefix.'metin/'.$category.': '.$verdict->auditSummary());
 
             return self::messageFor($category);
         }
@@ -263,7 +262,7 @@ class ModerationService
     /** The policy decision for $text, with no side effects. */
     public static function evaluate(string $text): ModerationVerdict
     {
-        return (new TextPolicyEngine())->evaluate($text);
+        return (new TextPolicyEngine)->evaluate($text);
     }
 
     private static function checkDeterministicTerms(User $user, string $text): ?string
@@ -320,7 +319,7 @@ class ModerationService
     {
         $escalate = in_array($category, self::ESCALATE_CATEGORIES, true);
         $prefix = $escalate ? 'escalate/' : '';
-        self::recordStrike($user, $prefix."metin/$category: $matchDescription");
+        self::charge($user, [$category], $prefix."metin/$category: $matchDescription");
 
         if ($category === 'SELF') {
             return 'Bu içerik kendine zarar riski taşıyor ve yayınlanamaz. '
@@ -353,22 +352,29 @@ class ModerationService
     }
 
     /**
-     * Reserved for an explicit reviewer decision. Local media uploads are
-     * held pending; a moderator may apply a strike after reviewing an actual
-     * policy violation, without relying on a remote vision service.
+     * A local semantic model's high-confidence decision, or a reviewer
+     * confirming one, is a real violation.
+     *
+     * `$category` may be one code or a comma-separated list, which is what
+     * the image classifier produces when several signals fire; every code
+     * is mapped and the worst one decides the severity.
      */
-    public static function recordImageStrike(User $user, string $reason): void
+    public static function recordMediaViolation(User $user, string $category, ?string $idempotencyKey = null): void
     {
-        self::recordStrike($user, "görsel: $reason");
-    }
+        $codes = array_values(array_filter(array_map(
+            static fn (string $part): string => self::mediaCategoryCode(trim($part)),
+            explode(',', $category),
+        ), static fn (string $code): bool => $code !== ''));
 
-    /** A local semantic model's high-confidence decision is a real strike. */
-    public static function recordMediaViolation(User $user, string $category): void
-    {
-        $code = self::mediaCategoryCode($category);
-        $escalate = in_array($code, self::ESCALATE_CATEGORIES, true);
+        if ($codes === []) {
+            $codes = ['policy'];
+        }
+
+        $escalate = array_intersect($codes, self::ESCALATE_CATEGORIES) !== [];
         $prefix = $escalate ? 'escalate/' : '';
-        self::recordStrike($user, $prefix.'medya/'.self::categoryLabel($code));
+        $labels = implode(', ', array_map(self::categoryLabel(...), $codes));
+
+        self::charge($user, $codes, $prefix.'medya/'.$labels, $idempotencyKey);
     }
 
     private static function normalize(string $value): string
@@ -466,26 +472,34 @@ class ModerationService
         };
     }
 
-    private static function recordStrike(User $user, string $reason): void
+    /**
+     * Charge one violation to an account, on the one ladder.
+     *
+     * This used to be a second, incompatible rule: three strikes and a
+     * **permanent** ban, counted in the same `users.strikes` column the
+     * content gate was using for a warning-then-timed-ban ladder. The same
+     * third offence therefore cost a warning or an account, depending on
+     * whether it arrived as text or as an image. Both are gone; severity
+     * decides the points and the points decide the consequence
+     * (`AccountEnforcementPolicy`), and a permanent ban is now only ever a
+     * human decision.
+     *
+     * @param  list<string>  $categories  Detected category codes.
+     * @param  string|null  $idempotencyKey  A key stable for this one act,
+     *                                       where the caller has one. Without it a retry charges again —
+     *                                       so pass the file hash or the reviewed item's id.
+     */
+    private static function charge(User $user, array $categories, string $reason, ?string $idempotencyKey = null): void
     {
-        // Content was still refused before we got here; this is only the
-        // account consequence. Skipping the increment too, rather than
-        // counting silently, is deliberate — a counter that keeps rising
-        // while enforcement is off would ban everyone the moment it came
-        // back on.
-        if (! AccountEnforcement::enabled()) {
-            AccountEnforcement::skip($user, "strike for: $reason");
+        $result = app(AccountEnforcementPolicy::class)->recordAutomatedViolation(
+            $user,
+            $categories,
+            $idempotencyKey ?? 'legacy:'.(string) Str::uuid(),
+        );
 
-            return;
-        }
-
-        $user->increment('strikes');
-        $user->refresh();
-        AuditLogger::log('system', 'moderation_strike', 'user', "{$user->name} ({$user->strikes}/".self::BAN_AFTER_STRIKES."): $reason");
-
-        if ($user->strikes >= self::BAN_AFTER_STRIKES && ! $user->isBanned()) {
-            $user->update(['banned_at' => now()]);
-            AuditLogger::log('system', 'ban', 'user', "{$user->name} otomatik olarak yasaklandı (".self::BAN_AFTER_STRIKES." ihlal)");
-        }
+        AuditLogger::log('system', 'moderation_violation', 'user', sprintf(
+            '%s (+%d puan, toplam %d) -> %s: %s',
+            $user->name, $result['charged'], $result['points'], $result['action'], $reason,
+        ));
     }
 }

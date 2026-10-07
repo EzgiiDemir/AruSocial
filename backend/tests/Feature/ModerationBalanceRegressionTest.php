@@ -168,11 +168,8 @@ class ModerationBalanceRegressionTest extends TestCase
                 ->assertStatus(400)
                 ->assertJsonPath('error.code', 'CONTENT_BLOCKED');
             $this->assertSame($before, FeedPost::count(), $category.' was published');
-            $this->assertSame(1, (int) $user->fresh()->strikes, $category.' did not create one strike');
-            $user->forceFill([
-                'strikes' => 0, 'banned_until' => null, 'banned_at' => null,
-                'moderation_status' => 'clear',
-            ])->save();
+            $this->assertSame(1, (int) $user->fresh()->strikes, $category.' did not create one violation');
+            $this->clearStanding($user);
         }
     }
 
@@ -200,7 +197,7 @@ class ModerationBalanceRegressionTest extends TestCase
             ])->assertStatus(400)->assertJsonPath('error.code', 'CONTENT_BLOCKED');
             $this->assertSame(0, MediaItem::count());
             $this->assertSame(1, (int) $user->fresh()->strikes);
-            $user->forceFill(['strikes' => 0, 'moderation_status' => 'clear'])->save();
+            $this->clearStanding($user);
         }
 
     }

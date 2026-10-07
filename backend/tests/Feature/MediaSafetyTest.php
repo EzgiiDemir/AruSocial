@@ -176,7 +176,7 @@ class MediaSafetyTest extends TestCase
     public function test_prohibited_imagery_is_rejected_and_never_stored_as_approved(): void
     {
         Storage::fake(MediaItem::disk());
-        $this->actingAsUser();
+        $user = $this->actingAsUser();
 
         foreach ([['sexual'], ['violence/graphic'], ['violence'], ['self-harm/instructions']] as $categories) {
             $this->flaggedAs($categories);
@@ -186,6 +186,10 @@ class MediaSafetyTest extends TestCase
             ], ['Accept' => 'application/json'])
                 ->assertStatus(400)
                 ->assertJsonPath('error.code', 'CONTENT_BLOCKED');
+
+            // Each case must be refused on its own merits, not because the
+            // previous one already locked the account.
+            $this->clearStanding($user);
         }
 
         $this->assertSame(
@@ -193,6 +197,29 @@ class MediaSafetyTest extends TestCase
             MediaItem::where('moderation_status', 'approved')->count(),
             'Flagged media must not be stored as approved.',
         );
+    }
+
+    /**
+     * The upload path does not always run ContentModerator, so it has to
+     * check the lock itself — otherwise uploading would be the one way
+     * around a posting restriction.
+     */
+    public function test_a_restricted_account_cannot_upload(): void
+    {
+        Storage::fake(MediaItem::disk());
+        $user = $this->actingAsUser();
+        $user->forceFill(['posting_restricted_until' => now()->addDay()])->save();
+
+        $this->post('/api/v1/media/mine', [
+            'file' => $this->fakeJpeg('upload.jpg'),
+        ], ['Accept' => 'application/json'])
+            ->assertStatus(403)
+            ->assertJsonPath('error.code', 'POSTING_RESTRICTED');
+
+        $this->assertSame(0, MediaItem::count());
+
+        // Reading is untouched: a restriction is not a suspension.
+        $this->getJson('/api/v1/media/mine')->assertOk();
     }
 
     public function test_the_rejection_tells_the_student_why_and_what_happens_next(): void

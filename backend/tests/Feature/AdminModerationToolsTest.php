@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\ModerationEvent;
 use App\Models\User;
+use App\Services\Moderation\Workflow\AccountEnforcementPolicy;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -117,24 +118,46 @@ class AdminModerationToolsTest extends TestCase
 
         $policy = $this->getJson('/api/v1/admin/moderation/policy')->assertOk()->json('data');
 
-        $this->assertSame('warning', $policy['penalties'][1]['action']);
-        $this->assertSame(24, $policy['penalties'][4]['hours']);
-        $this->assertSame(72, $policy['penalties'][5]['hours']);
-        $this->assertSame(168, $policy['penalties'][6]['hours']);
+        // The severity bands, what each costs, and how long it counts.
+        $this->assertSame(1, $policy['bands']['minor']['points']);
+        $this->assertSame(12, $policy['bands']['critical']['points']);
+        $this->assertSame(730, $policy['bands']['critical']['expires_days']);
+
+        // The one ladder every path is charged against.
+        $this->assertSame('warning', $policy['ladder'][1]['action']);
+        $this->assertSame('posting_restriction', $policy['ladder'][3]['action']);
+        $this->assertSame(24, $policy['ladder'][3]['hours']);
+        $this->assertSame(72, $policy['ladder'][6]['hours']);
+        $this->assertSame(168, $policy['ladder'][12]['hours']);
+        $this->assertSame(720, $policy['ladder'][20]['hours']);
+
+        // Nothing on the published ladder is permanent.
+        foreach ($policy['ladder'] as $rung) {
+            $this->assertNotSame('permanent_ban', $rung['action']);
+        }
+
+        $this->assertContains('THR', $policy['severity']['critical']);
         $this->assertSame('omni-moderation-latest', $policy['model']);
     }
 
-    public function test_offender_list_shows_standing_and_the_next_penalty(): void
+    public function test_offender_list_shows_points_and_the_next_penalty(): void
     {
-        User::factory()->create(['strikes' => 3, 'last_violation_at' => now()]);
+        $user = User::factory()->create(['strikes' => 1, 'last_violation_at' => now()]);
+        app(AccountEnforcementPolicy::class)
+            ->recordConfirmedViolation($user, 'harassment', 'serious', 'idem-offender');
+
         $this->actingAsRole('moderator');
 
         $users = $this->getJson('/api/v1/admin/moderation/users')->assertOk()->json('data');
 
-        $this->assertCount(1, $users);
-        $this->assertSame(3, $users[0]['strikes']);
-        // Next one crosses into a 24-hour ban.
-        $this->assertSame('ban', $users[0]['nextPenalty']['action']);
-        $this->assertSame(24, $users[0]['nextPenalty']['hours']);
+        $offender = collect($users)->firstWhere('id', (string) $user->id);
+        $this->assertNotNull($offender);
+        $this->assertSame(3, $offender['points']);
+        $this->assertSame('posting_restriction', $offender['standing']['action']);
+        $this->assertTrue($offender['postingRestricted']);
+        $this->assertFalse($offender['currentlyBanned'],
+            'A posting restriction is not a suspension.');
+        // One more point does not change the rung; the next one at 6 does.
+        $this->assertSame('posting_restriction', $offender['nextPenalty']['action']);
     }
 }

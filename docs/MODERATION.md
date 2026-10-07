@@ -27,10 +27,12 @@ in the server environment and is never returned by any endpoint.
 
 | Piece | File | Job |
 |---|---|---|
-| Gateway | `app/Services/Moderation/ContentModerator.php` | The single entry point. Ban check → local engine → provider → decide → record → strike. |
+| Gateway | `app/Services/Moderation/ContentModerator.php` | The single entry point. Lock check → local engine → provider → decide → record → charge. |
 | Provider | `OpenAiModerationClient.php` | Calls `omni-moderation-latest` with text and/or images. |
 | Local engine | `TextPolicyEngine.php` | Offline TR/EN/RU rules: obfuscation, targeting, context exemptions, campus policy. |
-| Ladder | `PenaltyLadder.php` | Strike number → warning or timed ban. |
+| Ladder | `Workflow/AccountEnforcementPolicy.php` | Severity → points → warning, posting restriction or suspension. |
+| Severity map | `ViolationSeverity.php` | Category → minor / serious / severe / critical. |
+| Account state | `AccountStanding.php` | Is this account suspended, or restricted from posting, right now. |
 | Outcome | `ModerationOutcome.php` | What the controller does, and what the user is told. |
 | Video | `VideoModerator.php` | Samples frames across a clip so they can be moderated as images. |
 | Controller hook | `Http/Controllers/Api/Concerns/ModeratesContent.php` | One-line guard: `if ($blocked = $this->moderationBlock(...)) return $blocked;` |
@@ -48,34 +50,90 @@ thirty handlers.
 | `warned` | yes | no | Borderline; author is told, audit row written. |
 | `review` | yes | no | Ambiguous (sarcasm, banter, unnamed target) — queued for a human. |
 | `support` | yes | **never** | Author described harm to themselves — help offered, not a penalty. |
+| `rejected` | **no** | charged | Violation. Content is never written. |
+| `restricted` | **no** | no | Account is serving a posting restriction; nothing new was inspected. |
+| `banned` | **no** | no | Account is already serving a suspension. |
+| `unavailable` | **no** | no | Provider unreachable — held, not published. |
 
 `warned`, `review` and `support` publish, so they travel on the *success*
 response as `meta.moderation` — attached centrally in `ApiResponds::ok()`
 rather than at each call site, because they were previously computed and
 discarded: the self-harm support message never reached anyone.
-| `rejected` | **no** | yes | Violation. Content is never written. |
-| `banned` | **no** | no | Account is already serving a ban. |
-| `unavailable` | **no** | no | Provider unreachable — held, not published. |
 
-Client error codes: `CONTENT_BLOCKED` (400), `ACCOUNT_SUSPENDED` /
-`ACCOUNT_BANNED` (403), `MODERATION_UNAVAILABLE` (503).
+Client error codes: `CONTENT_BLOCKED` (400), `POSTING_RESTRICTED` (403),
+`ACCOUNT_SUSPENDED` / `ACCOUNT_BANNED` (403), `MODERATION_UNAVAILABLE`
+(503). `POSTING_RESTRICTED` is deliberately its own code: the account
+works, so telling the student it was suspended would be false, and it must
+never sign anyone out.
 
-## Strike ladder
+## The points ladder
 
-Configured in `config/services.php` under `moderation.penalties`, so the
-rules change without touching code.
+One ladder for every path — text, feed, chat, media, and a moderator
+confirming a report. Configured in `config/moderation.php` under
+`enforcement`, so the rules change without touching code.
 
-| Strike | Consequence |
+**What a violation is worth**, by severity. Points expire, because a
+ladder with no decay eventually bans everyone who stays long enough.
+
+| Severity | Points | Counts for |
+|---|---|---|
+| minor | 1 | 90 days |
+| serious | 3 | 180 days |
+| severe | 6 | 365 days |
+| critical | 12 | 730 days |
+
+**What the total costs.** Read as "at least this many active points".
+
+| Points | Consequence |
 |---|---|
-| 1, 2, 3 | Warning |
-| 4 | 24-hour ban |
-| 5 | 3-day ban |
-| 6 | 7-day ban |
+| 1+ | Warning |
+| 3+ | 24-hour posting restriction |
+| 6+ | 72-hour suspension |
+| 12+ | 7-day suspension |
+| 20+ | 30-day suspension |
 
-Past 6 the longest configured ban repeats; escalating to a permanent ban
-stays an explicit administrator decision. Ban windows use server time, so
-changing a phone's clock does nothing. Expired bans clear themselves on the
-next request — no cron job, no admin action.
+Past the top rung the 30-day suspension repeats. **Nothing on this ladder
+bans permanently** — that stays an explicit human decision, recorded
+against a named moderator (`POST /admin/moderation/users/{id}/ban`).
+
+A **posting restriction** is not a suspension and does not share a column
+with one. `posting_restricted_until` blocks submitting content and nothing
+else: the student keeps reading the feed, their messages and their
+appointments, and the content gate is what refuses them.
+`banned_until` locks the whole API, and `EnsureNotBanned` enforces it on
+every request.
+
+Severity comes from the detected category, via one map in
+`config/moderation.php` (`enforcement.severity`) read by
+`ViolationSeverity`. It agrees with `ReportReason::severityIfConfirmed()`
+on purpose: a classifier decision and a moderator confirming a report of
+the same behaviour cost the same.
+
+Both windows use server time, so changing a phone's clock does nothing,
+and both clear themselves on the next request — no cron job, no admin
+action.
+
+### What this replaced
+
+Three incompatible rules ran at once on the same accounts:
+
+| Path | Old rule |
+|---|---|
+| text / feed / chat | strikes 1-3 warning, 4 → 24h, 5 → 72h, 6 → 168h |
+| media uploads | **3 strikes → permanent ban** |
+| confirmed reports | points, as above |
+
+All three counted into the same `users.strikes` column, so the same third
+offence cost a warning or an account depending on which door it came
+through. `users.strikes` survives as a lifetime counter for the admin
+tools; **nothing reads it to decide a consequence.**
+
+One consequence of severity deciding instead of a count: the engine judges
+a bare insult a *direct attack* and labels it `HAR`, which is `serious`
+— 3 points, so the first such refusal restricts posting for 24 hours
+where the old ladder warned three times first. To soften that, move `HAR`
+to `minor` in the severity map, or raise the 3-point rung. Both are config
+edits.
 
 ## Failure behaviour
 
@@ -168,7 +226,7 @@ All behind `permission:moderation.moderate`:
 - `GET /admin/moderation/events` — decision trail, filterable
 - `GET /admin/moderation/users` — offenders, standing, next penalty
 - `GET /admin/moderation/policy` — active ladder and thresholds
-- `POST /admin/moderation/events/{id}/remove-strike` — reverse a wrong call (also lifts the ban it caused)
+- `POST /admin/moderation/events/{id}/remove-strike` — reverse a wrong call: the violation is withdrawn (kept, marked unconfirmed) and the account standing is recomputed from the points that remain
 - `POST /admin/moderation/users/{userId}/ban` — manual ban / lift
 
 ## Privacy

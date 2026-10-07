@@ -45,6 +45,26 @@ met, change the published figure rather than quietly miss it.
 A shift means the queue is checked, not that someone is available. What
 matters is that no held post waits longer than the target above.
 
+## Checking the assistant, not just moderation
+
+Two commands, both safe to run any time and both read-only:
+
+```
+php artisan ask:benchmark          # does retrieval find the right page?
+php artisan moderation:status      # is the classifier up, is the queue draining?
+```
+
+`ask:benchmark` runs 30 labelled campus questions in Turkish, English
+and Russian and reports how many found the page that answers them. It
+exits non-zero below 80%, so it works in CI or a release checklist. Run
+it after a crawl, after changing a retrieval threshold, and before a
+release. A drop means either retrieval regressed or the corpus lost a
+page — `--verbose-misses` shows which.
+
+Both need the classifier running on `:8801`. Without it, moderation
+falls back to rules alone and retrieval to keyword matching; the app
+keeps working and gets measurably worse.
+
 ## The daily check
 
 ```

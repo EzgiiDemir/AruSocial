@@ -21,9 +21,9 @@ use Illuminate\Support\Str;
  *
  * The guard runs *before* the content row is created, so rejected content
  * is never written and never briefly visible. Returning the ready-made
- * error response keeps the four client-visible outcomes (rejected, warned,
- * suspended, unavailable) identical everywhere instead of each controller
- * inventing its own shape.
+ * error response keeps the client-visible outcomes (rejected, warned,
+ * restricted, suspended, unavailable) identical everywhere instead of each
+ * controller inventing its own shape.
  */
 trait ModeratesContent
 {
@@ -115,7 +115,10 @@ trait ModeratesContent
         // "try again shortly" apart from "we refused this content".
         $status = match ($outcome->status) {
             ModerationOutcome::UNAVAILABLE => 503,
-            ModerationOutcome::BANNED => 403,
+            // 403 for both account locks: the request was understood and
+            // refused because of who is asking, not because of what they
+            // sent. The error code tells the two apart.
+            ModerationOutcome::BANNED, ModerationOutcome::RESTRICTED => 403,
             default => 400,
         };
 

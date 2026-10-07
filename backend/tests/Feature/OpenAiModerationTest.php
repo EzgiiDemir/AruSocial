@@ -283,7 +283,13 @@ class OpenAiModerationTest extends TestCase
         $this->assertSame('post', $event->content_type);
         $this->assertSame('feed.store', $event->source_feature);
         $this->assertContains('hate', $event->categories);
-        $this->assertSame(1, $event->strike_number);
+        // What the refusal cost, in the units the ladder uses: hate is a
+        // `severe` violation, which is 6 points and a 72-hour suspension.
+        // `strike_number` is not written any more — it recorded a position
+        // on a ladder that no longer exists.
+        $this->assertSame(6, $event->points);
+        $this->assertSame('temporary_suspension', $event->penalty);
+        $this->assertNotNull($event->banned_until);
         $this->assertSame('omni-moderation-latest', $event->moderation_model);
     }
 

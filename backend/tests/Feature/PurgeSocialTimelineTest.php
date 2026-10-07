@@ -13,6 +13,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Testing\PendingCommand;
 use Tests\TestCase;
 
 /**
@@ -73,7 +74,7 @@ class PurgeSocialTimelineTest extends TestCase
     /**
      * Every invocation goes through here so none can forget `--backup-dir`.
      */
-    private function purge(array $options = []): \Illuminate\Testing\PendingCommand
+    private function purge(array $options = []): PendingCommand
     {
         return $this->artisan(
             'social:purge-timeline',

@@ -38,6 +38,7 @@ class ModerationController extends Controller
                 'semanticModel' => 'checked_on_upload',
             ]);
         }
+
         return $this->fail(400, 'INVALID_FILE_CONTENTS',
             "Fotoğraf dosyası geçersiz ($invalid). Lütfen başka bir dosya seç.");
     }

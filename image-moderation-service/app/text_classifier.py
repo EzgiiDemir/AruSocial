@@ -500,6 +500,24 @@ class SemanticTextClassifier:
         pooled = (out * mask).sum(1) / mask.sum(1).clamp(min=1e-9)
         return pooled / pooled.norm(dim=-1, keepdim=True)
 
+    def embed_texts(self, texts: list[str]) -> list[list[float]]:
+        """Unit-length embeddings for arbitrary text.
+
+        The same mean-pooled, L2-normalised vectors the category margins
+        are computed from, exposed so Laravel can rank knowledge pages
+        against a question by cosine similarity. Because they are
+        normalised, a dot product IS the cosine — the caller does not have
+        to normalise again, and must not.
+
+        Raises if the model is not loaded, rather than returning an empty
+        list: a caller has to be able to tell "nothing matched" from
+        "nothing was compared".
+        """
+        if not self.ready:
+            raise RuntimeError(self._load_error or "text model not loaded")
+
+        return [[float(x) for x in row] for row in self._embed(texts)]
+
     @property
     def enabled(self) -> bool:
         return bool(self.s.text_enabled)

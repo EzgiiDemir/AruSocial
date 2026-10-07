@@ -15,14 +15,15 @@ use App\Services\AuditLogger;
  * switchable. This gate covers only the second one. Nothing here can make
  * unsafe content publish.
  *
- * Three paths mutate account state, and all three must consult this:
+ * There is now exactly one path that mutates account state, and it
+ * consults this:
  *
- *  - `ModerationService::recordStrike` (legacy: strikes -> permanent ban)
- *  - `PenaltyLadder::applyStrike` (strikes -> timed ban)
- *  - `AccountEnforcementPolicy::apply` (points -> suspension)
+ *  - `AccountEnforcementPolicy::recordConfirmedViolation` (points ->
+ *    warning, posting restriction or suspension)
  *
- * A gate applied to two of three is not a gate. If a fourth path appears,
- * it belongs here too.
+ * There used to be three, with three different rules, and a gate applied
+ * to two of them was not a gate. If a second path ever appears, it
+ * belongs behind this one.
  */
 final class AccountEnforcement
 {

@@ -1,0 +1,398 @@
+{
+    "frozen_at": "2026-10-06",
+    "phase": "4A",
+    "source": "local database (seeded campus catalogue); counts only",
+    "metrics": {
+        "SUPPORTED": 5,
+        "PARTIALLY_SUPPORTED": 3,
+        "NOT_IMPLEMENTED": 3,
+        "DATA_UNAVAILABLE": 8,
+        "SOURCE_UNAVAILABLE": 1,
+        "STALE": 0
+    },
+    "matrix": [
+        {
+            "capability": "academic_dates",
+            "priority": "P0",
+            "fact_types": [
+                "academic_date"
+            ],
+            "exists": true,
+            "structured": true,
+            "authoritative": true,
+            "current": true,
+            "status": "SUPPORTED",
+            "gap": null,
+            "detail": "2026-2027: 36 dated entries from the official calendar page"
+        },
+        {
+            "capability": "required_documents",
+            "priority": "P0",
+            "fact_types": [
+                "required_documents"
+            ],
+            "exists": true,
+            "structured": false,
+            "authoritative": true,
+            "current": null,
+            "status": "PARTIALLY_SUPPORTED",
+            "gap": "DATA_GAP",
+            "detail": "extracted only where an official page lists the documents; no per-office structured list"
+        },
+        {
+            "capability": "admission_requirements",
+            "priority": "P0",
+            "fact_types": [],
+            "exists": true,
+            "structured": false,
+            "authoritative": true,
+            "current": null,
+            "status": "NOT_IMPLEMENTED",
+            "gap": "SOURCE_GAP",
+            "detail": "no structured admission criteria (scores, grade thresholds); the verifier rejects any such claim"
+        },
+        {
+            "capability": "service_contacts",
+            "priority": "P0",
+            "fact_types": [
+                "contact_email",
+                "contact_phone"
+            ],
+            "exists": true,
+            "structured": true,
+            "authoritative": true,
+            "current": null,
+            "status": "PARTIALLY_SUPPORTED",
+            "gap": "DATA_GAP",
+            "detail": "10/10 services with an e-mail, 0/10 with a phone number"
+        },
+        {
+            "capability": "programme_language",
+            "priority": "P0",
+            "fact_types": [
+                "program_language"
+            ],
+            "exists": true,
+            "structured": true,
+            "authoritative": true,
+            "current": null,
+            "status": "SUPPORTED",
+            "gap": null,
+            "detail": "20/20 programmes with a language-of-instruction fact"
+        },
+        {
+            "capability": "programme_other_attributes",
+            "priority": "P0",
+            "fact_types": [],
+            "exists": true,
+            "structured": true,
+            "authoritative": true,
+            "current": null,
+            "status": "NOT_IMPLEMENTED",
+            "gap": "CODE_GAP",
+            "detail": "18 programmes have other extracted attributes (e.g. duration) with no SupportedFact type; the verifier rejects programme-length claims"
+        },
+        {
+            "capability": "food_opening_hours",
+            "priority": "P1",
+            "fact_types": [
+                "current_opening_hours",
+                "is_open_now"
+            ],
+            "exists": false,
+            "structured": false,
+            "authoritative": true,
+            "current": null,
+            "status": "DATA_UNAVAILABLE",
+            "gap": "DATA_GAP",
+            "detail": "0/1 venues with hours (0 as structured weekly rows)"
+        },
+        {
+            "capability": "food_location",
+            "priority": "P1",
+            "fact_types": [
+                "place_coordinates"
+            ],
+            "exists": false,
+            "structured": false,
+            "authoritative": true,
+            "current": null,
+            "status": "DATA_UNAVAILABLE",
+            "gap": "DATA_GAP",
+            "detail": "0/1 venues reach a campus place (0 by canonical place_id, the rest by name)"
+        },
+        {
+            "capability": "food_menu",
+            "priority": "P1",
+            "fact_types": [
+                "current_menu"
+            ],
+            "exists": false,
+            "structured": true,
+            "authoritative": true,
+            "current": false,
+            "status": "DATA_UNAVAILABLE",
+            "gap": "DATA_GAP",
+            "detail": "0 daily menus for today or later"
+        },
+        {
+            "capability": "club_social_profile",
+            "priority": "P1",
+            "fact_types": [
+                "club_social_profile"
+            ],
+            "exists": false,
+            "structured": true,
+            "authoritative": true,
+            "current": null,
+            "status": "DATA_UNAVAILABLE",
+            "gap": "DATA_GAP",
+            "detail": "0/19 clubs with an official Instagram URL"
+        },
+        {
+            "capability": "club_contacts",
+            "priority": "P1",
+            "fact_types": [
+                "contact_email"
+            ],
+            "exists": false,
+            "structured": true,
+            "authoritative": true,
+            "current": null,
+            "status": "DATA_UNAVAILABLE",
+            "gap": "DATA_GAP",
+            "detail": "0/19 clubs with an e-mail"
+        },
+        {
+            "capability": "club_rooms",
+            "priority": "P1",
+            "fact_types": [
+                "place_coordinates"
+            ],
+            "exists": false,
+            "structured": true,
+            "authoritative": true,
+            "current": null,
+            "status": "DATA_UNAVAILABLE",
+            "gap": "DATA_GAP",
+            "detail": "0/19 clubs with a room / place"
+        },
+        {
+            "capability": "staff_persons",
+            "priority": "P1",
+            "fact_types": [],
+            "exists": true,
+            "structured": true,
+            "authoritative": true,
+            "current": null,
+            "status": "NOT_IMPLEMENTED",
+            "gap": "DATA_GAP",
+            "detail": "1/58 staff records name a person (the rest are offices); no person fact type until names exist"
+        },
+        {
+            "capability": "service_opening_hours",
+            "priority": "P1",
+            "fact_types": [
+                "current_opening_hours",
+                "is_open_now"
+            ],
+            "exists": true,
+            "structured": false,
+            "authoritative": true,
+            "current": null,
+            "status": "PARTIALLY_SUPPORTED",
+            "gap": "DATA_GAP",
+            "detail": "8/10 services with hours"
+        },
+        {
+            "capability": "campus_locations",
+            "priority": "P1",
+            "fact_types": [
+                "place_coordinates"
+            ],
+            "exists": true,
+            "structured": true,
+            "authoritative": true,
+            "current": null,
+            "status": "SUPPORTED",
+            "gap": null,
+            "detail": "24/24 places with coordinates"
+        },
+        {
+            "capability": "walking_routes",
+            "priority": "P1",
+            "fact_types": [
+                "route_duration_min",
+                "route_distance_m"
+            ],
+            "exists": true,
+            "structured": true,
+            "authoritative": true,
+            "current": null,
+            "status": "SUPPORTED",
+            "gap": null,
+            "detail": "routing service configured"
+        },
+        {
+            "capability": "announcements",
+            "priority": "P2",
+            "fact_types": [],
+            "exists": false,
+            "structured": false,
+            "authoritative": false,
+            "current": null,
+            "status": "SOURCE_UNAVAILABLE",
+            "gap": "SOURCE_GAP",
+            "detail": "no announcements table or feed; official notices exist only as crawled pages (not structured, no validity dates)"
+        },
+        {
+            "capability": "events",
+            "priority": "P2",
+            "fact_types": [
+                "current_events"
+            ],
+            "exists": false,
+            "structured": true,
+            "authoritative": true,
+            "current": false,
+            "status": "DATA_UNAVAILABLE",
+            "gap": "DATA_GAP",
+            "detail": "0 published upcoming events"
+        },
+        {
+            "capability": "sports_facilities",
+            "priority": "P2",
+            "fact_types": [],
+            "exists": true,
+            "structured": true,
+            "authoritative": true,
+            "current": null,
+            "status": "DATA_UNAVAILABLE",
+            "gap": "DATA_GAP",
+            "detail": "0/5 sports facilities match a campus place"
+        },
+        {
+            "capability": "app_navigation",
+            "priority": "P2",
+            "fact_types": [],
+            "exists": true,
+            "structured": true,
+            "authoritative": true,
+            "current": null,
+            "status": "SUPPORTED",
+            "gap": null,
+            "detail": "14/14 trusted app destinations labelled in tr, en and ru (claims about other screens are rejected)"
+        }
+    ],
+    "evaluation_runs": [
+        {
+            "run": 63,
+            "what": "retrieval: all cases",
+            "passed": 166,
+            "failed": 0,
+            "latency": {
+                "retrieval": {
+                    "median": 973,
+                    "p95": 1476,
+                    "n": 166
+                },
+                "full": {
+                    "median": null,
+                    "p95": null,
+                    "n": 0
+                }
+            }
+        },
+        {
+            "run": 64,
+            "what": "full: legacy base set, facts off",
+            "passed": 11,
+            "failed": 0,
+            "latency": {
+                "retrieval": {
+                    "median": null,
+                    "p95": null,
+                    "n": 0
+                },
+                "full": {
+                    "median": 8424,
+                    "p95": 18128,
+                    "n": 11
+                }
+            }
+        },
+        {
+            "run": 67,
+            "what": "full: legacy base set, facts off (idle CPU)",
+            "passed": 11,
+            "failed": 0,
+            "latency": {
+                "retrieval": {
+                    "median": null,
+                    "p95": null,
+                    "n": 0
+                },
+                "full": {
+                    "median": 7087,
+                    "p95": 16347,
+                    "n": 11
+                }
+            }
+        },
+        {
+            "run": 65,
+            "what": "full: fact_generation, facts on",
+            "passed": 16,
+            "failed": 1,
+            "latency": {
+                "retrieval": {
+                    "median": null,
+                    "p95": null,
+                    "n": 0
+                },
+                "full": {
+                    "median": 3813,
+                    "p95": 6562,
+                    "n": 17
+                }
+            }
+        },
+        {
+            "run": 66,
+            "what": "full: 4a person case",
+            "passed": 1,
+            "failed": 0,
+            "latency": {
+                "retrieval": {
+                    "median": null,
+                    "p95": null,
+                    "n": 0
+                },
+                "full": {
+                    "median": 104,
+                    "p95": 104,
+                    "n": 1
+                }
+            }
+        },
+        {
+            "run": 62,
+            "what": "retrieval: phase4a",
+            "passed": 20,
+            "failed": 0,
+            "latency": {
+                "retrieval": {
+                    "median": 728,
+                    "p95": 1114,
+                    "n": 20
+                },
+                "full": {
+                    "median": null,
+                    "p95": null,
+                    "n": 0
+                }
+            }
+        }
+    ],
+    "privacy_tests": "AiPersonalAnswerCacheTest 7/7"
+}

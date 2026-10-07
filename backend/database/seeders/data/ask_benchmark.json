@@ -1,0 +1,329 @@
+{
+    "_about": "Labelled questions for `php artisan ask:benchmark`. Each case names the page a correct answer must be grounded in, matched on a distinctive substring of the page title. Written against the crawled ARUCAD corpus; see the command's output caveat about who wrote it. `also` lists alternative acceptable title/URL substrings. `routing_cases` are answered from live database tools, so they assert which tools QueryPlanner selects.",
+    "cases": [
+        {
+            "q": "burs imkanları nelerdir",
+            "lang": "tr",
+            "expect": "Burslar"
+        },
+        {
+            "q": "burs oranları ne kadar",
+            "lang": "tr",
+            "expect": "Burslar"
+        },
+        {
+            "q": "What scholarships are available?",
+            "lang": "en",
+            "expect": "Burslar",
+            "also": [
+                "Scholarships and Fees"
+            ]
+        },
+        {
+            "q": "Какие есть стипендии?",
+            "lang": "ru",
+            "expect": "Burslar"
+        },
+        {
+            "q": "okul ücretleri ne kadar",
+            "lang": "tr",
+            "expect": "Burslar"
+        },
+        {
+            "q": "kütüphane nerede",
+            "lang": "tr",
+            "expect": "ütüphane"
+        },
+        {
+            "q": "kutuphane calisma saatleri",
+            "lang": "tr",
+            "expect": "ütüphane"
+        },
+        {
+            "q": "library opening hours",
+            "lang": "en",
+            "expect": "ibrary"
+        },
+        {
+            "q": "Где библиотека?",
+            "lang": "ru",
+            "expect": "ütüphane"
+        },
+        {
+            "q": "akademik takvim ne zaman başlıyor",
+            "lang": "tr",
+            "expect": "Akademik Takvim"
+        },
+        {
+            "q": "academic calendar",
+            "lang": "en",
+            "expect": "Akademik Takvim"
+        },
+        {
+            "q": "dersler ne zaman başlıyor",
+            "lang": "tr",
+            "expect": "Akademik Takvim"
+        },
+        {
+            "q": "mimarlık bölümü hakkında bilgi",
+            "lang": "tr",
+            "expect": "Mimarl"
+        },
+        {
+            "q": "architecture programme",
+            "lang": "en",
+            "expect": "Mimarl"
+        },
+        {
+            "q": "iç mimarlık bölümü",
+            "lang": "tr",
+            "expect": "Mimarl"
+        },
+        {
+            "q": "seramik bölümü",
+            "lang": "tr",
+            "expect": "Seramik"
+        },
+        {
+            "q": "fotoğraf bölümü hakkında",
+            "lang": "tr",
+            "expect": "Fotoğraf"
+        },
+        {
+            "q": "oyunculuk bölümü",
+            "lang": "tr",
+            "expect": "Oyunculuk"
+        },
+        {
+            "q": "dijital oyun tasarımı",
+            "lang": "tr",
+            "expect": "Oyun Tasarımı"
+        },
+        {
+            "q": "endüstriyel tasarım programı",
+            "lang": "tr",
+            "expect": "Endüstriyel"
+        },
+        {
+            "q": "dikey geçiş sınavı şartları",
+            "lang": "tr",
+            "expect": "Dikey Geçiş"
+        },
+        {
+            "q": "yatay geçiş nasıl yapılır",
+            "lang": "tr",
+            "expect": "Yatay Geçiş"
+        },
+        {
+            "q": "sıkça sorulan sorular",
+            "lang": "tr",
+            "expect": "Sıkça Sorulan"
+        },
+        {
+            "q": "iletişim bilgileri nedir",
+            "lang": "tr",
+            "expect": "LETİŞİM"
+        },
+        {
+            "q": "contact information",
+            "lang": "en",
+            "expect": "LETİŞİM",
+            "also": [
+                "Contact Us"
+            ]
+        },
+        {
+            "q": "öğrenci kulüpleri hangileri",
+            "lang": "tr",
+            "expect": "Kulüpleri"
+        },
+        {
+            "q": "student clubs",
+            "lang": "en",
+            "expect": "Kulüpleri"
+        },
+        {
+            "q": "uluslararası öğrenci olanakları",
+            "lang": "tr",
+            "expect": "Uluslararası"
+        },
+        {
+            "q": "ulaşım ve servis",
+            "lang": "tr",
+            "expect": "Ulaşım"
+        },
+        {
+            "q": "atölyeler hangi imkanlar var",
+            "lang": "tr",
+            "expect": "Atölye"
+        },
+        {
+            "q": "Grafik Tasarım bölümü hakkında bilgi",
+            "lang": "tr",
+            "expect": "İletişim Tasarımı",
+            "also": [
+                "gorsel-iletisim-tasarimi"
+            ]
+        },
+        {
+            "q": "graphic design department",
+            "lang": "en",
+            "expect": "Visual Communication Design",
+            "also": [
+                "İletişim Tasarımı"
+            ]
+        },
+        {
+            "q": "taban puanları",
+            "lang": "tr",
+            "expect": "Taban Puan"
+        },
+        {
+            "q": "проходные баллы",
+            "lang": "ru",
+            "expect": "Taban Puan"
+        },
+        {
+            "q": "eğitim dili nedir",
+            "lang": "tr",
+            "expect": "Hazırlık",
+            "also": [
+                "Preparatory",
+                "rt-program"
+            ]
+        },
+        {
+            "q": "What is the language of instruction?",
+            "lang": "en",
+            "expect": "Preparatory",
+            "also": [
+                "Hazırlık",
+                "rt-program"
+            ]
+        },
+        {
+            "q": "international students",
+            "lang": "en",
+            "expect": "International Opportunities",
+            "also": [
+                "Uluslararası Olanaklar"
+            ]
+        },
+        {
+            "q": "перевод из другого университета",
+            "lang": "ru",
+            "expect": "Yatay Geçiş"
+        },
+        {
+            "q": "psikolojik danışmanlık hizmeti",
+            "lang": "tr",
+            "expect": "Danışmanlık Merkezi"
+        },
+        {
+            "q": "kariyer ofisi",
+            "lang": "tr",
+            "expect": "Kariyer ve Mezun"
+        },
+        {
+            "q": "sports facilities on campus",
+            "lang": "en",
+            "expect": "Sports Activities",
+            "also": [
+                "Spor"
+            ]
+        }
+    ],
+    "routing_cases": [
+        {
+            "q": "öğrenci işleri nerede",
+            "lang": "tr",
+            "tools": [
+                "services"
+            ]
+        },
+        {
+            "q": "ogrenci isleri nerde",
+            "lang": "tr",
+            "tools": [
+                "services"
+            ]
+        },
+        {
+            "q": "where is student affairs",
+            "lang": "en",
+            "tools": [
+                "services"
+            ]
+        },
+        {
+            "q": "spor salonu nerede",
+            "lang": "tr",
+            "tools": [
+                "sports"
+            ]
+        },
+        {
+            "q": "gym var mı",
+            "lang": "tr",
+            "tools": [
+                "sports"
+            ]
+        },
+        {
+            "q": "bugün ne etkinlik var",
+            "lang": "tr",
+            "tools": [
+                "events"
+            ]
+        },
+        {
+            "q": "what's on tonight",
+            "lang": "en",
+            "tools": [
+                "events"
+            ]
+        },
+        {
+            "q": "yemek ne çıktı",
+            "lang": "tr",
+            "tools": [
+                "food"
+            ]
+        },
+        {
+            "q": "где столовая",
+            "lang": "ru",
+            "tools": [
+                "food"
+            ]
+        },
+        {
+            "q": "servis saatleri",
+            "lang": "tr",
+            "tools": [
+                "shuttle"
+            ]
+        },
+        {
+            "q": "shuttle times",
+            "lang": "en",
+            "tools": [
+                "shuttle"
+            ]
+        },
+        {
+            "q": "staj ilanı var mı",
+            "lang": "tr",
+            "tools": [
+                "career"
+            ]
+        },
+        {
+            "q": "psikolojik destek almak istiyorum",
+            "lang": "tr",
+            "tools": [
+                "support"
+            ]
+        }
+    ]
+}

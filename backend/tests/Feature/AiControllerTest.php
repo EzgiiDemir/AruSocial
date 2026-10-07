@@ -26,7 +26,22 @@ class AiControllerTest extends TestCase
 
     private function withGroqKey(string $key = 'test-key'): void
     {
-        config(['services.groq.key' => $key]);
+        // The AI layer is now provider-abstracted (config/ai.php). Configure
+        // the Groq provider directly; no local provider is set, so Groq is the
+        // active one. Legacy services.groq.key is kept for any older reader.
+        config([
+            'services.groq.key' => $key,
+            'ai.provider' => 'groq',
+            // Groq is an EXTERNAL provider and is now opt-in: the privacy
+            // policy refuses it by default so a student's prompt never
+            // leaves campus by accident. BOTH switches are needed here,
+            // because these tests act as a signed-in user and such a
+            // request is classified as carrying personal data. These
+            // tests are about Groq's own mechanics, so they turn it on.
+            'ai.privacy.allow_external' => true,
+            'ai.privacy.allow_external_with_personal_data' => true,
+            'ai.providers.groq.api_key' => $key,
+        ]);
         $_ENV['GROQ_API_KEY'] = $key;
         $_SERVER['GROQ_API_KEY'] = $key;
     }
@@ -63,7 +78,8 @@ class AiControllerTest extends TestCase
             return $messages[0]['role'] === 'system'
                 && ($request->data()['model'] ?? '') === 'openai/gpt-oss-20b'
                 && str_contains($system, 'Kütüphane')
-                && str_contains($system, 'Markdown biçimlendirmesi KULLANMA');
+                && str_contains($system, 'Markdown')
+                && str_contains($system, 'SYSTEM_METADATA');
         });
     }
 

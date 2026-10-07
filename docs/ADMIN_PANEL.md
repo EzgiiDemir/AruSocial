@@ -225,8 +225,8 @@ the table, at which point the buttons are simply absent.
 ## Still to build
 
 The migration covers twenty tables. Eight have a resource: places, clubs,
-sports, services, food venues, shuttle routes, career opportunities and
-events. Twelve do not yet: academic years, onboarding steps, staff profiles,
+sports, services, food venues, shuttle routes, career opportunities,
+events and (since Phase 4C) academic years. Eleven do not yet: onboarding steps, staff profiles,
 directory entries, quests, achievement definitions, workshop equipment, admin
 pages, surveys, application questions, event participation types and daily
 food menus. Each follows the pattern above.

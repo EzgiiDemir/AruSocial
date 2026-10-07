@@ -1,0 +1,70 @@
+# AICAD on a developer machine (Ollama).
+#
+# Production is vLLM on ARUCAD hardware — see ../README.md. This file is the
+# local-development equivalent: the same OpenAI-compatible contract, served by
+# Ollama, so `AI_PROVIDER=local` works on a laptop with no code change.
+#
+# Build it (from the repository root):
+#
+#   ollama create aicad-qwen3:8b -f deploy/ai/ollama/aicad-qwen3-8b.Modelfile
+#
+# then point the backend at it:
+#
+#   LOCAL_AI_BASE_URL=http://127.0.0.1:11434/v1
+#   LOCAL_AI_MODEL=aicad-qwen3:8b
+
+FROM qwen3:8b
+
+# THE REASON THIS FILE EXISTS.
+#
+# Ollama defaults to a 4096-token context and silently truncates anything
+# longer — from the FRONT. AICAD's system prompt measures 6,234 tokens on its
+# own (AskPromptBuilder: rules, metadata, personal block, retrieved sources),
+# so on the default context two thirds of it was discarded before the model
+# ever saw it, and what was discarded was the beginning: the language rule,
+# the "never invent a number" rule, the source-priority order, the markdown
+# ban and the prompt-injection fence that marks retrieved web text as data
+# rather than instructions. The model still answered — plausibly, in markdown,
+# with none of its guardrails — which is exactly why this was worth measuring
+# rather than assuming.
+#
+# 12288 holds the prompt plus ai.history_turns of conversation and the reply.
+# On an 8 GB card that spills ~13% of the layers to CPU (≈21 tok/s instead of
+# ≈33). That is the right trade: a fast answer produced with the rules missing
+# is worse than a slower answer produced with them present. On a 12 GB+ card
+# raise this to 16384; do not lower it below the prompt size.
+PARAMETER num_ctx 12288
+
+# THE OTHER HALF OF THE SPEED.
+#
+# Ollama sizes the GPU offload itself and is conservative about it. On this
+# 8 GB card it placed 87% of the model on the GPU and left the rest on the
+# CPU — with 1.1 GB of VRAM still unused. Those few CPU layers cost more than
+# they save: every generated token waits on them.
+#
+# Measured, same prompt, same card, f16 KV cache:
+#
+#   default offload (87% GPU)   20.3 tok/s   ~20 s for a 300-token answer
+#   num_gpu 99   (100% GPU)     32.3 tok/s   ~14 s        "
+#
+# 99 means "every layer"; llama.cpp clamps it to the number the model has.
+# If a future model does not fit, Ollama fails to load rather than silently
+# spilling — which is the better failure, because the spill is invisible and
+# this is exactly what it costs.
+#
+# NOT to be confused with quantising the KV cache, which was also measured
+# here and is a trap on this workload: OLLAMA_KV_CACHE_TYPE=q8_0 did reach
+# 100% GPU and 30 tok/s, but prompt processing went from 2.1 s to 39 s
+# because our prompt is ~6,200 tokens and quantised KV has to be dequantised
+# during prefill. End to end that was four times SLOWER. Leave the KV cache
+# at f16.
+PARAMETER num_gpu 99
+
+# Sampling. Kept identical to aicad-qwen3:4b so switching LOCAL_AI_MODEL
+# between them changes the model and nothing else. temperature is normally
+# supplied per-request by the backend (LOCAL_AI_TEMPERATURE); the rest are
+# not, so they are pinned here.
+PARAMETER temperature 0.1
+PARAMETER top_k 20
+PARAMETER top_p 0.9
+PARAMETER repeat_penalty 1.05

@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\AskConversation;
 use App\Models\AskMessage;
 use App\Models\User;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
@@ -15,7 +16,7 @@ class AskConversationService
         return Schema::hasTable('ask_conversations') && Schema::hasTable('ask_messages');
     }
 
-    public function listFor(User $user): \Illuminate\Support\Collection
+    public function listFor(User $user): Collection
     {
         if (! $this->isAvailable()) {
             return collect();

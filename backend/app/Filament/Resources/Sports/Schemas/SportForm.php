@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Sports\Schemas;
 
+use App\Models\Place;
 use App\Models\StaffProfile;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -27,6 +28,12 @@ class SportForm
                     TextInput::make('contact')
                         ->maxLength(160)
                         ->helperText(__('panel.sports.contact_help')),
+
+                    Select::make('place_id')
+                        ->label(__('panel.sports.place'))
+                        ->helperText(__('panel.sports.place_help'))
+                        ->options(fn () => Place::query()->orderBy('name')->pluck('name', 'id')->all())
+                        ->searchable(),
 
                     Select::make('responsible_staff_id')
                         ->label(__('panel.common.responsible_staff'))

@@ -1,0 +1,11 @@
+{
+    "measured_at": "2026-10-06",
+    "phase": "4B",
+    "what": "Coverage before and after representative data entry, measured in a throwaway test database seeded with the campus catalogue (CampusCatalogSeeder) plus the one food venue. Entered values were fictitious (example.edu, +90 000 ...) and exist only in that throwaway database; no local or production record was changed. The throwaway database has no crawled pages, so academic dates and programme rows read as source-unavailable there; the local database (docs/coverage/phase4a_baseline.json) has them.",
+    "entered": ["phone for every service", "food venue: campus place + Mon-Fri weekly hours", "every club: Instagram URL, e-mail, room", "every sports team: campus place"],
+    "question_battery": ["öğrenci işleri nerede ve telefonu ne?", "kütüphane nerede ve telefonu ne?", "kariyer ofisi nerede ve telefonu ne?", "bugün açık olan en yakın yemek yerine götür.", "şu an yemek yiyebileceğim açık bir yer var mı", "fotoğraf kulübünün instagramı ne ve maili ne", "Bu kulübün instagramı ne ve kulüp odası nerede? (after: Fotoğraf Kulübü ne yapıyor?)", "basketbol takımı nerede ve maili ne", "tiyatro kulübünün instagramı ne ve odası nerede"],
+    "before": {"data_complete": "42/151", "tasks_supported": "8/20", "question_outcomes": {"COMPLETE": 3, "PARTIAL": 2, "UNAVAILABLE": 4},
+        "rows": {"service_contacts": "PARTIAL 10/20", "food_opening_hours": "DATA_UNAVAILABLE 0/1", "food_location": "DATA_UNAVAILABLE 0/1", "club_social_profile": "DATA_UNAVAILABLE 0/19", "club_contacts": "DATA_UNAVAILABLE 0/19", "club_rooms": "DATA_UNAVAILABLE 0/19", "sports_facilities": "DATA_UNAVAILABLE 0/10"}},
+    "after": {"data_complete": "121/151", "tasks_supported": "17/20", "question_outcomes": {"COMPLETE": 7, "PARTIAL": 1, "UNAVAILABLE": 1},
+        "rows": {"service_contacts": "SUPPORTED 20/20", "food_opening_hours": "SUPPORTED 1/1", "food_location": "SUPPORTED 1/1", "club_social_profile": "SUPPORTED 19/19", "club_contacts": "SUPPORTED 19/19", "club_rooms": "SUPPORTED 19/19", "sports_facilities": "SUPPORTED 10/10"}}
+}

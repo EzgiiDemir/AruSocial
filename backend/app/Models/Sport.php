@@ -15,5 +15,10 @@ class Sport extends Model
 
     public $timestamps = false;
 
-    protected $fillable = ['id', 'name', 'facility', 'contact', 'responsible_staff_id'];
+    protected $fillable = ['id', 'name', 'facility', 'contact', 'responsible_staff_id', 'place_id'];
+
+    public function place()
+    {
+        return $this->belongsTo(Place::class);
+    }
 }

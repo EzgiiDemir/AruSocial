@@ -15,7 +15,8 @@ class Club extends Model
 
     public $timestamps = false;
 
-    protected $fillable = ['id', 'name', 'category', 'description', 'body', 'responsible_staff_id'];
+    protected $fillable = ['id', 'name', 'category', 'description', 'body', 'responsible_staff_id',
+        'email', 'website', 'instagram_url', 'place_id'];
 
     protected function casts(): array
     {

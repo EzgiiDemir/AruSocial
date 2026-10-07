@@ -13,6 +13,16 @@ CREATE TABLE "admin_audit_log" ("id" varchar not null, "actor_name" varchar not 
 
 CREATE TABLE "admin_pages" ("id" varchar not null, "title" varchar not null, "slug" varchar not null, "blocks" text, "status" varchar not null default 'draft', "updated_at" datetime not null, "updated_by" varchar not null, "deleted_at" datetime, "translations" text, "audiences" text, "publish_at" datetime, "expires_at" datetime, primary key ("id"));
 
+CREATE TABLE "ai_entity_aliases" ("id" integer primary key autoincrement not null, "entity_type" varchar not null, "entity_id" varchar not null, "alias" varchar not null, "normalized_alias" varchar not null, "locale" varchar, "active" tinyint(1) not null default '1', "created_by" varchar, "created_at" datetime, "updated_at" datetime);
+
+CREATE TABLE "ai_evaluation_cases" ("id" integer primary key autoincrement not null, "name" varchar not null, "question" text not null, "locale" varchar, "mode" varchar not null default 'retrieval', "active" tinyint(1) not null default '1', "tags" text, "previous_turns" text, "context_user_email" varchar, "assertions" text not null, "notes" text, "created_by" varchar, "created_at" datetime, "updated_at" datetime);
+
+CREATE TABLE "ai_evaluation_results" ("id" integer primary key autoincrement not null, "run_id" integer not null, "case_id" integer, "case_name" varchar not null, "question" text not null, "mode" varchar not null, "status" varchar not null, "failure_stage" varchar, "failed_assertions" text, "snapshot" text, "trace_id" varchar, "duration_ms" integer, "created_at" datetime, "updated_at" datetime, foreign key("run_id") references "ai_evaluation_runs"("id") on delete cascade, foreign key("case_id") references "ai_evaluation_cases"("id") on delete set null);
+
+CREATE TABLE "ai_evaluation_runs" ("id" integer primary key autoincrement not null, "status" varchar not null default 'queued', "mode" varchar not null, "scope" text, "initiated_by" varchar, "started_at" datetime, "finished_at" datetime, "duration_ms" integer, "git_commit" varchar, "environment" varchar, "local_model" varchar, "embedding_model" varchar, "retrieval_fingerprint" varchar, "prompt_fingerprint" varchar, "passed" integer not null default '0', "failed" integer not null default '0', "skipped" integer not null default '0', "metrics" text, "error" varchar, "created_at" datetime, "updated_at" datetime);
+
+CREATE TABLE "ai_query_concepts" ("id" integer primary key autoincrement not null, "concept" varchar not null, "label" varchar, "phrases" text not null, "domains" text, "retrieval_terms" text, "preferred_paths" text, "active" tinyint(1) not null default '1', "created_by" varchar, "created_at" datetime, "updated_at" datetime);
+
 CREATE TABLE "app_settings" ("key" varchar not null, "value" text, primary key ("key"));
 
 CREATE TABLE "application_questions" ("id" varchar not null, "target_type" varchar not null, "stage" varchar not null, "type" varchar not null, "label" varchar not null, "help_text" varchar, "options" text, "required" tinyint(1) not null default '0', "sort_order" integer not null default '0', "active" tinyint(1) not null default '1', "created_at" datetime, "updated_at" datetime, "deleted_at" datetime, primary key ("id"));
@@ -28,6 +38,8 @@ CREATE TABLE "ask_messages" ("id" varchar not null, "conversation_id" varchar no
 CREATE TABLE "cache" ("key" varchar not null, "value" text not null, "expiration" integer not null, primary key ("key"));
 
 CREATE TABLE "cache_locks" ("key" varchar not null, "owner" varchar not null, "expiration" integer not null, primary key ("key"));
+
+CREATE TABLE "campus_presences" ("user_id" integer not null, "place_id" varchar not null, "updated_at" datetime not null, foreign key("user_id") references "users"("id") on delete cascade, foreign key("place_id") references "places"("id") on delete cascade, primary key ("user_id"));
 
 CREATE TABLE "career_applications" ("id" varchar not null, "user_id" integer not null, "opportunity_id" varchar not null, "cv_path" varchar, "cv_original_name" varchar, "cv_mime" varchar, "status" varchar not null default 'pending', "admin_notes" text, "created_at" datetime, "updated_at" datetime, foreign key("user_id") references "users"("id") on delete cascade, foreign key("opportunity_id") references "career_opportunities"("id") on delete cascade, primary key ("id"));
 
@@ -49,7 +61,7 @@ CREATE TABLE "checkins" ("id" varchar not null, "place_id" varchar not null, "us
 
 CREATE TABLE "club_members" ("id" integer primary key autoincrement not null, "user_id" integer not null, "club_id" varchar not null, "created_at" datetime not null, foreign key("user_id") references "users"("id") on delete cascade, foreign key("club_id") references "clubs"("id") on delete cascade);
 
-CREATE TABLE "clubs" ("id" varchar not null, "name" varchar not null, "category" varchar not null, "description" text not null default '', "body" text, "responsible_staff_id" varchar, "deleted_at" datetime, primary key ("id"));
+CREATE TABLE "clubs" ("id" varchar not null, "name" varchar not null, "category" varchar not null, "description" text not null default (''), "body" text, "responsible_staff_id" varchar, "deleted_at" datetime, "email" varchar, "website" varchar, "instagram_url" varchar, "place_id" varchar, foreign key("place_id") references "places"("id") on delete set null, primary key ("id"));
 
 CREATE TABLE "collaboration_posts" ("id" varchar not null, "place_id" varchar not null, "author_id" integer not null, "text" text not null, "created_at" datetime not null default CURRENT_TIMESTAMP, "expires_at" datetime not null, "moderation_status" varchar not null default 'approved', foreign key("place_id") references "places"("id") on delete cascade, foreign key("author_id") references "users"("id") on delete cascade, primary key ("id"));
 
@@ -62,6 +74,8 @@ CREATE TABLE "content_revisions" ("id" varchar not null, "content_key" varchar n
 CREATE TABLE "conversation_participants" ("id" integer primary key autoincrement not null, "conversation_id" integer not null, "user_id" integer not null, "created_at" datetime, "updated_at" datetime, foreign key("conversation_id") references "conversations"("id") on delete cascade, foreign key("user_id") references "users"("id") on delete cascade);
 
 CREATE TABLE "conversations" ("id" integer primary key autoincrement not null, "pair_key" varchar not null, "created_at" datetime, "updated_at" datetime);
+
+CREATE TABLE "crawl_sources" ("domain" varchar not null, "label" varchar, "access" varchar not null default 'global', "enabled" tinyint(1) not null default '1', "created_at" datetime, "updated_at" datetime, "keys" text, primary key ("domain"));
 
 CREATE TABLE "directory_entries" ("id" varchar not null, "building" varchar not null, "floor" varchar, "room" varchar, "occupant_name" varchar not null, "occupant_role" varchar, "related_service_id" varchar, "tour_url" varchar, "tour_target" varchar, "campus_id" varchar, "campus_name" varchar, "building_id" varchar, "category_id" varchar, "category_name" varchar, "room_number" varchar, "notes" text, "splat_scene_id" varchar, "splat_scene_url" varchar, "location" text, "navigation_marker" text, "directory_synced_at" datetime, "deleted_at" datetime, foreign key("related_service_id") references "services"("id") on delete set null, primary key ("id"));
 
@@ -83,11 +97,21 @@ CREATE TABLE "feed_posts" ("id" varchar not null, "name" varchar not null, "text
 
 CREATE TABLE "food_daily_menus" ("id" varchar not null, "food_venue_id" varchar not null, "menu_date" date not null, "items" text, "price" varchar, "hours" varchar, "deleted_at" datetime, foreign key("food_venue_id") references "food_venues"("id") on delete cascade, primary key ("id"));
 
-CREATE TABLE "food_venues" ("id" varchar not null, "name" varchar not null, "hours" varchar, "menu_file_url" varchar, "menu_text" text, "deleted_at" datetime, primary key ("id"));
+CREATE TABLE "food_venues" ("id" varchar not null, "name" varchar not null, "hours" varchar, "menu_file_url" varchar, "menu_text" text, "deleted_at" datetime, "place_id" varchar, foreign key("place_id") references "places"("id") on delete set null, primary key ("id"));
+
+CREATE TABLE "integration_states" ("key" varchar not null, "enabled" tinyint(1), "last_test_at" datetime, "last_test_ok" tinyint(1), "last_success_at" datetime, "last_error" varchar, "last_error_at" datetime, "updated_by_email" varchar, "created_at" datetime, "updated_at" datetime, primary key ("key"));
 
 CREATE TABLE "job_batches" ("id" varchar not null, "name" varchar not null, "total_jobs" integer not null, "pending_jobs" integer not null, "failed_jobs" integer not null, "failed_job_ids" text not null, "options" text, "cancelled_at" integer, "created_at" integer not null, "finished_at" integer, primary key ("id"));
 
 CREATE TABLE "jobs" ("id" integer primary key autoincrement not null, "queue" varchar not null, "payload" text not null, "attempts" integer not null, "reserved_at" integer, "available_at" integer not null, "created_at" integer not null);
+
+CREATE TABLE "knowledge_chunks" ("id" integer primary key autoincrement not null, "knowledge_document_id" varchar not null, "position" integer not null, "text" text not null, "embedding" text, "model" varchar, "model_version" varchar, "created_at" datetime, "updated_at" datetime);
+
+CREATE TABLE "knowledge_documents" ("id" varchar not null, "url" varchar not null, "domain" varchar not null, "title" varchar, "content" text not null, "content_hash" varchar, "content_length" integer not null default '0', "http_status" integer, "language" varchar, "fetched_at" datetime, "created_at" datetime, "updated_at" datetime, "fail_count" integer not null default '0', "last_error" varchar, "is_stale" tinyint(1) not null default '0', "last_seen_at" datetime, "content_type" varchar not null default 'text/html', "document_status" varchar not null default 'indexed', "authority" integer not null default '40', "page_count" integer, "last_modified_at" datetime, "content_clean" text, "content_folded" text, primary key ("id"));
+
+CREATE TABLE "knowledge_facts" ("id" integer primary key autoincrement not null, "knowledge_document_id" varchar not null, "subject_type" varchar not null, "subject" varchar not null, "subject_folded" varchar not null, "attribute" varchar not null, "value" varchar not null, "source_url" varchar not null, "source_passage" text not null, "verified_at" datetime, "created_at" datetime, "updated_at" datetime);
+
+CREATE TABLE "knowledge_sources" ("id" integer primary key autoincrement not null, "url" varchar not null, "label" varchar, "locale" varchar, "enabled" tinyint(1) not null default '1', "notes" text, "created_by" varchar, "last_crawl_status" varchar, "last_crawl_error" varchar, "last_crawl_requested_at" datetime, "last_crawled_at" datetime, "created_at" datetime, "updated_at" datetime);
 
 CREATE TABLE "media_items" ("id" varchar not null, "file_path" varchar not null, "file_name" varchar not null, "mime_type" varchar, "size_bytes" integer not null default ('0'), "uploaded_at" datetime not null, "uploaded_by" varchar not null, "used_in" text, "user_id" integer, "moderation_status" varchar not null default 'approved', "deleted_at" datetime, foreign key("user_id") references "users"("id") on delete set null, primary key ("id"));
 
@@ -101,7 +125,7 @@ CREATE TABLE "moderation_audit_log" ("id" varchar not null, "actor_type" varchar
 
 CREATE TABLE "moderation_cases" ("id" varchar not null, "content_type" varchar not null, "content_id" varchar, "user_id" integer, "source" varchar not null, "priority" integer not null default '50', "status" varchar not null default 'open', "decision" varchar, "recommendation" varchar, "moderation_event_id" varchar, "report_count" integer not null default '0', "assigned_moderator_id" integer, "resolution_note" text, "resolved_at" datetime, "created_at" datetime, "updated_at" datetime, foreign key("user_id") references "users"("id") on delete set null, foreign key("assigned_moderator_id") references "users"("id") on delete set null, primary key ("id"));
 
-CREATE TABLE "moderation_events" ("id" varchar not null, "user_id" varchar not null, "content_type" varchar not null, "source_feature" varchar not null, "content_id" varchar, "action" varchar not null, "flagged" tinyint(1) not null default '0', "categories" text, "category_scores" text, "decided_by" varchar not null default 'openai', "strike_number" integer, "penalty" varchar, "banned_until" datetime, "moderation_provider" varchar not null default 'openai', "moderation_model" varchar, "excerpt" text, "excerpt_purge_after" datetime, "submission_hash" varchar, "created_at" datetime, "updated_at" datetime, "model_version" varchar, "policy_version" varchar, "latency_ms" integer, "moderation_case_id" varchar, primary key ("id"));
+CREATE TABLE "moderation_events" ("id" varchar not null, "user_id" varchar not null, "content_type" varchar not null, "source_feature" varchar not null, "content_id" varchar, "action" varchar not null, "flagged" tinyint(1) not null default '0', "categories" text, "category_scores" text, "decided_by" varchar not null default 'openai', "strike_number" integer, "penalty" varchar, "banned_until" datetime, "moderation_provider" varchar not null default 'openai', "moderation_model" varchar, "excerpt" text, "excerpt_purge_after" datetime, "submission_hash" varchar, "created_at" datetime, "updated_at" datetime, "model_version" varchar, "policy_version" varchar, "latency_ms" integer, "moderation_case_id" varchar, "points" integer, primary key ("id"));
 
 CREATE TABLE "moderation_reports" ("id" varchar not null, "kind" varchar not null, "target_id" varchar not null, "target_label" varchar not null, "reason" text not null, "reported_at" datetime not null, "action" varchar, "reporter_user_id" integer, "target_type" varchar, "reason_code" varchar, "description" text, "status" varchar not null default 'open', "moderation_case_id" varchar, "created_at" datetime, "updated_at" datetime, foreign key("reporter_user_id") references "users"("id") on delete cascade, primary key ("id"));
 
@@ -110,6 +134,10 @@ CREATE TABLE "notifications" ("id" varchar not null, "user_id" integer not null,
 CREATE TABLE "onboarding_progress" ("id" integer primary key autoincrement not null, "user_id" integer not null, "step_id" varchar not null, "completed_at" datetime not null, foreign key("user_id") references "users"("id") on delete cascade);
 
 CREATE TABLE "onboarding_steps" ("id" varchar not null, "group_label" varchar not null, "title" varchar not null, "detail" text not null, "action_kind" varchar not null default 'info', "ref_id" varchar, "sort_order" integer not null default '0', "active" tinyint(1) not null default '1', "created_at" datetime, "updated_at" datetime, "deleted_at" datetime, primary key ("id"));
+
+CREATE TABLE "opening_hours" ("id" integer primary key autoincrement not null, "subject_type" varchar not null, "subject_id" varchar not null, "day_of_week" integer not null, "opens" time not null, "closes" time not null, "timezone" varchar not null default 'Europe/Nicosia', "valid_from" date, "valid_until" date, "created_at" datetime, "updated_at" datetime);
+
+CREATE TABLE "page_keywords" ("url" varchar not null, "title" varchar, "language" varchar, "category" varchar, "keywords" text, "summary" text, "created_at" datetime, "updated_at" datetime, primary key ("url"));
 
 CREATE TABLE "participation_applications" ("id" varchar not null, "user_id" integer not null, "target_type" varchar not null, "target_id" varchar not null, "status" varchar not null default 'submitted', "responsible_staff_id" varchar, "form_payload" text, "review_note" text, "submitted_at" datetime not null, "reviewed_at" datetime, "reviewed_by_user_id" integer, "detail_payload" text, "detail_form_token" varchar, "detail_form_submitted_at" datetime, foreign key("user_id") references "users"("id") on delete cascade, foreign key("reviewed_by_user_id") references "users"("id") on delete set null, primary key ("id"));
 
@@ -137,7 +165,7 @@ CREATE TABLE "role_grants" ("id" varchar not null, "user_id" integer not null, "
 
 CREATE TABLE "saved_posts" ("id" integer primary key autoincrement not null, "user_id" integer not null, "post_id" varchar not null, "created_at" datetime not null, foreign key("user_id") references "users"("id") on delete cascade, foreign key("post_id") references "feed_posts"("id") on delete cascade);
 
-CREATE TABLE "services" ("id" varchar not null, "title" varchar not null, "category" varchar not null, "description" text not null default '', "contact" varchar not null default '', "building" varchar, "floor" varchar, "room" varchar, "contact_person" varchar, "topics" text, "hours" varchar, "body" text, "responsible_staff_id" varchar, "deleted_at" datetime, primary key ("id"));
+CREATE TABLE "services" ("id" varchar not null, "title" varchar not null, "category" varchar not null, "description" text not null default '', "contact" varchar not null default '', "building" varchar, "floor" varchar, "room" varchar, "contact_person" varchar, "topics" text, "hours" varchar, "body" text, "responsible_staff_id" varchar, "deleted_at" datetime, "phone" varchar, primary key ("id"));
 
 CREATE TABLE "sessions" ("id" varchar not null, "user_id" integer, "ip_address" varchar, "user_agent" text, "payload" text not null, "last_activity" integer not null, primary key ("id"));
 
@@ -147,7 +175,7 @@ CREATE TABLE "social_blocks" ("id" integer primary key autoincrement not null, "
 
 CREATE TABLE "social_follows" ("id" integer primary key autoincrement not null, "follower_user_id" integer not null, "followed_user_id" integer not null, "created_at" datetime not null, "updated_at" datetime, "status" varchar not null default 'accepted', foreign key("follower_user_id") references "users"("id") on delete cascade, foreign key("followed_user_id") references "users"("id") on delete cascade);
 
-CREATE TABLE "sports" ("id" varchar not null, "name" varchar not null, "facility" varchar not null, "contact" varchar, "responsible_staff_id" varchar, "deleted_at" datetime, primary key ("id"));
+CREATE TABLE "sports" ("id" varchar not null, "name" varchar not null, "facility" varchar not null, "contact" varchar, "responsible_staff_id" varchar, "deleted_at" datetime, "place_id" varchar, foreign key("place_id") references "places"("id") on delete set null, primary key ("id"));
 
 CREATE TABLE "staff_availability_slots" ("id" varchar not null, "staff_profile_id" varchar not null, "slot_date" date not null, "start_time" varchar not null, "end_time" varchar not null, "is_blocked" tinyint(1) not null default '0', "created_at" datetime, "updated_at" datetime, foreign key("staff_profile_id") references "staff_profiles"("id") on delete cascade, primary key ("id"));
 
@@ -173,7 +201,7 @@ CREATE TABLE "user_achievements" ("id" integer primary key autoincrement not nul
 
 CREATE TABLE "user_violations" ("id" varchar not null, "user_id" integer not null, "moderation_case_id" varchar, "category" varchar not null, "severity" varchar not null, "confirmed" tinyint(1) not null default '0', "points" integer not null default '0', "action_taken" varchar, "decided_by" integer, "idempotency_key" varchar not null, "expires_at" datetime, "created_at" datetime, "updated_at" datetime, foreign key("user_id") references "users"("id") on delete cascade, foreign key("decided_by") references "users"("id") on delete set null, primary key ("id"));
 
-CREATE TABLE "users" ("id" integer primary key autoincrement not null, "name" varchar not null, "email" varchar not null, "email_verified_at" datetime, "password" varchar not null, "remember_token" varchar, "role" varchar not null default 'student', "level" integer not null default '1', "xp" integer not null default '0', "places" integer not null default '0', "events" integer not null default '0', "memories" integer not null default '0', "interests" text, "avatar_url" varchar, "created_at" datetime, "updated_at" datetime, "strikes" integer not null default '0', "banned_at" datetime, "department" varchar, "year" varchar, "university" varchar, "clubs" text, "achievements" text, "projects" text, "location_visibility" varchar not null default 'ghost', "nearby_discoverable" tinyint(1) not null default '0', "check_in_visible" tinyint(1) not null default '1', "personalization" tinyint(1) not null default '1', "is_private_profile" tinyint(1) not null default '0', "preferred_language" varchar not null default 'TR', "banned_until" datetime, "last_violation_at" datetime, "moderation_status" varchar not null default 'clear', "moderation_reason" varchar, "account_status" varchar not null default 'active', "phone" varchar, "institution_id" varchar, "job_title" varchar, "timezone" varchar not null default 'Europe/Nicosia', "campus" varchar, "faculty" varchar, "unit" varchar, "building" varchar, "mfa_required" tinyint(1) not null default '0');
+CREATE TABLE "users" ("id" integer primary key autoincrement not null, "name" varchar not null, "email" varchar not null, "email_verified_at" datetime, "password" varchar not null, "remember_token" varchar, "role" varchar not null default 'student', "level" integer not null default '1', "xp" integer not null default '0', "places" integer not null default '0', "events" integer not null default '0', "memories" integer not null default '0', "interests" text, "avatar_url" varchar, "created_at" datetime, "updated_at" datetime, "strikes" integer not null default '0', "banned_at" datetime, "department" varchar, "year" varchar, "university" varchar, "clubs" text, "achievements" text, "projects" text, "location_visibility" varchar not null default 'ghost', "nearby_discoverable" tinyint(1) not null default '0', "check_in_visible" tinyint(1) not null default '1', "personalization" tinyint(1) not null default '1', "is_private_profile" tinyint(1) not null default '0', "preferred_language" varchar not null default 'TR', "banned_until" datetime, "last_violation_at" datetime, "moderation_status" varchar not null default 'clear', "moderation_reason" varchar, "account_status" varchar not null default 'active', "phone" varchar, "institution_id" varchar, "job_title" varchar, "timezone" varchar not null default 'Europe/Nicosia', "campus" varchar, "faculty" varchar, "unit" varchar, "building" varchar, "mfa_required" tinyint(1) not null default '0', "posting_restricted_until" datetime);
 
 CREATE TABLE "wordpress_form_versions" ("id" varchar not null, "source_url" varchar not null, "content_hash" varchar not null, "version" integer not null, "payload" text not null, "saved_by" integer, "created_at" datetime, "updated_at" datetime, foreign key("saved_by") references "users"("id") on delete set null, primary key ("id"));
 
@@ -188,6 +216,22 @@ CREATE INDEX "achievement_definitions_deleted_at_index" on "achievement_definiti
 CREATE INDEX "admin_pages_deleted_at_index" on "admin_pages" ("deleted_at");
 
 CREATE UNIQUE INDEX "admin_pages_slug_unique" on "admin_pages" ("slug");
+
+CREATE INDEX "ai_entity_aliases_entity_type_entity_id_index" on "ai_entity_aliases" ("entity_type", "entity_id");
+
+CREATE UNIQUE INDEX "ai_entity_aliases_entity_type_entity_id_normalized_alias_unique" on "ai_entity_aliases" ("entity_type", "entity_id", "normalized_alias");
+
+CREATE INDEX "ai_entity_aliases_normalized_alias_index" on "ai_entity_aliases" ("normalized_alias");
+
+CREATE INDEX "ai_evaluation_cases_active_mode_index" on "ai_evaluation_cases" ("active", "mode");
+
+CREATE INDEX "ai_evaluation_results_case_id_created_at_index" on "ai_evaluation_results" ("case_id", "created_at");
+
+CREATE INDEX "ai_evaluation_results_run_id_status_index" on "ai_evaluation_results" ("run_id", "status");
+
+CREATE INDEX "ai_evaluation_runs_created_at_index" on "ai_evaluation_runs" ("created_at");
+
+CREATE UNIQUE INDEX "ai_query_concepts_concept_unique" on "ai_query_concepts" ("concept");
 
 CREATE INDEX "application_questions_deleted_at_index" on "application_questions" ("deleted_at");
 
@@ -210,6 +254,10 @@ CREATE INDEX "ask_messages_conversation_id_index" on "ask_messages" ("conversati
 CREATE INDEX "cache_expiration_index" on "cache" ("expiration");
 
 CREATE INDEX "cache_locks_expiration_index" on "cache_locks" ("expiration");
+
+CREATE INDEX "campus_presences_place_id_updated_at_index" on "campus_presences" ("place_id", "updated_at");
+
+CREATE INDEX "campus_presences_updated_at_index" on "campus_presences" ("updated_at");
 
 CREATE UNIQUE INDEX career_applications_open_unique
              ON career_applications (user_id, opportunity_id)
@@ -293,6 +341,24 @@ CREATE INDEX "food_venues_deleted_at_index" on "food_venues" ("deleted_at");
 
 CREATE INDEX "jobs_queue_index" on "jobs" ("queue");
 
+CREATE INDEX "knowledge_chunks_knowledge_document_id_position_index" on "knowledge_chunks" ("knowledge_document_id", "position");
+
+CREATE INDEX "knowledge_documents_content_hash_index" on "knowledge_documents" ("content_hash");
+
+CREATE INDEX "knowledge_documents_content_type_document_status_index" on "knowledge_documents" ("content_type", "document_status");
+
+CREATE INDEX "knowledge_documents_domain_index" on "knowledge_documents" ("domain");
+
+CREATE INDEX "knowledge_documents_fetched_at_index" on "knowledge_documents" ("fetched_at");
+
+CREATE UNIQUE INDEX "knowledge_facts_knowledge_document_id_attribute_unique" on "knowledge_facts" ("knowledge_document_id", "attribute");
+
+CREATE INDEX "knowledge_facts_subject_type_subject_folded_index" on "knowledge_facts" ("subject_type", "subject_folded");
+
+CREATE INDEX "knowledge_sources_enabled_index" on "knowledge_sources" ("enabled");
+
+CREATE UNIQUE INDEX "knowledge_sources_url_unique" on "knowledge_sources" ("url");
+
 CREATE INDEX "media_items_deleted_at_index" on "media_items" ("deleted_at");
 
 CREATE INDEX "media_items_moderation_status_index" on "media_items" ("moderation_status");
@@ -336,6 +402,8 @@ CREATE INDEX "moderation_reports_target_type_target_id_index" on "moderation_rep
 CREATE UNIQUE INDEX "onboarding_progress_user_id_step_id_unique" on "onboarding_progress" ("user_id", "step_id");
 
 CREATE INDEX "onboarding_steps_deleted_at_index" on "onboarding_steps" ("deleted_at");
+
+CREATE INDEX "opening_hours_subject_type_subject_id_index" on "opening_hours" ("subject_type", "subject_id");
 
 CREATE UNIQUE INDEX "participation_applications_detail_form_token_unique" on "participation_applications" ("detail_form_token");
 

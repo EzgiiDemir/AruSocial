@@ -17,6 +17,8 @@ operator’s dart-define / Firebase files (Flutter public values only).
 | CORS origins (P3-7) | `localhost:8090` + any loopback port | staging web origin(s) only | production web origin(s) only, never `*` |
 | Trusted proxy (P3-7) | none | `TRUSTED_PROXIES` if behind one | `TRUSTED_PROXIES` if behind one |
 | Flutter | REST by default; mock only with explicit `USE_REST_API=false` debug build | REST + public API URL | REST + public API URL |
+| AICAD fact-bounded answers (`AICAD_SUPPORTED_FACT_GENERATION_ENABLED`) | `off` (set `on` to test) | `on` — review AICAD Health → SupportedFacts rollout | `off` until the staging review passes; `staff_only` as the first production step |
+| AICAD campus clock (`AICAD_CAMPUS_TIMEZONE`) | `Europe/Nicosia` | `Europe/Nicosia` | `Europe/Nicosia` |
 
 Source of truth:
 
@@ -129,7 +131,7 @@ flutter run --dart-define=USE_REST_API=true \
   --dart-define=REVERB_PORT=8080 \
   --dart-define=REVERB_SCHEME=http
 
-# Staging / production release — API URL is required; no localhost fallback
+# Staging release — its API URL is required; no localhost fallback
 flutter build apk --dart-define=USE_REST_API=true \
   --dart-define=APP_ENV=staging \
   --dart-define=API_BASE_URL=https://staging-api.example.com/api/v1 \
@@ -142,7 +144,7 @@ flutter build apk --dart-define=USE_REST_API=true \
 
 flutter build apk --dart-define=USE_REST_API=true \
   --dart-define=APP_ENV=production \
-  --dart-define=API_BASE_URL=https://api.example.com/api/v1 \
+  --dart-define=API_BASE_URL=https://api-aruverse.arucad.edu.tr/api/v1 \
   --dart-define=REVERB_ENABLED=true \
   --dart-define=REVERB_APP_KEY=prod-public-key \
   --dart-define=REVERB_HOST=ws.example.com \
@@ -151,9 +153,11 @@ flutter build apk --dart-define=USE_REST_API=true \
   --dart-define=SENTRY_DSN=
 ```
 
-Release builds always use REST. `USE_REST_API=false` is rejected, and a
-public non-loopback `API_BASE_URL` is mandatory so a store build cannot ship
-as mock or point at a developer machine.
+Release builds always use REST and `USE_REST_API=false` is rejected. Production
+defaults to `https://api-aruverse.arucad.edu.tr/api/v1`; an explicit
+`API_BASE_URL` can replace it, but loopback targets are rejected. Staging still
+requires an explicit public URL, so a store build cannot ship as mock or point
+at a developer machine.
 
 Use the matching `google-services.json` / `GoogleService-Info.plist` /
 `firebase_options.dart` per environment; those files stay gitignored.

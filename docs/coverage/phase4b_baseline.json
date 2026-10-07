@@ -1,0 +1,861 @@
+{
+    "frozen_at": "2026-10-06",
+    "phase": "4B",
+    "source": "local database; counts only",
+    "phpunit": {
+        "total": 2009,
+        "passed": 1988,
+        "failed": 0,
+        "skipped": 21,
+        "duration_s": 639.2
+    },
+    "metrics": {
+        "SUPPORTED": 5,
+        "PARTIALLY_SUPPORTED": 5,
+        "NOT_IMPLEMENTED": 2,
+        "DATA_UNAVAILABLE": 8,
+        "STALE": 1,
+        "SOURCE_UNAVAILABLE": 1
+    },
+    "summary": {
+        "capabilities": 22,
+        "implemented": 19,
+        "data_rows": 15,
+        "data_entities": 191,
+        "data_complete": 105
+    },
+    "matrix": [
+        {
+            "capability": "academic_dates",
+            "priority": "P0",
+            "fact_types": [
+                "academic_date"
+            ],
+            "implemented": true,
+            "exists": true,
+            "structured": true,
+            "authoritative": true,
+            "current": true,
+            "entities": 1,
+            "complete": 1,
+            "missing": 0,
+            "status": "SUPPORTED",
+            "gap": null,
+            "detail": "2026-2027: 36 dated entries from the official calendar page",
+            "affects": [
+                "dersler ne zaman başlıyor",
+                "finaller ne zaman",
+                "ekle-bırak son gün"
+            ],
+            "edit": {
+                "resource": null,
+                "where": "the official calendar page (arucad.edu.tr/lisans-akademik-takvim) — re-crawled automatically"
+            }
+        },
+        {
+            "capability": "required_documents",
+            "priority": "P0",
+            "fact_types": [
+                "required_documents"
+            ],
+            "implemented": true,
+            "exists": false,
+            "structured": false,
+            "authoritative": true,
+            "current": null,
+            "entities": null,
+            "complete": null,
+            "missing": null,
+            "status": "PARTIALLY_SUPPORTED",
+            "gap": "DATA_GAP",
+            "detail": "extracted only where an official page lists the documents; no per-office structured list",
+            "affects": [
+                "kayıt için hangi belgeler gerekli"
+            ],
+            "edit": null
+        },
+        {
+            "capability": "admission_requirements",
+            "priority": "P0",
+            "fact_types": [],
+            "implemented": false,
+            "exists": false,
+            "structured": false,
+            "authoritative": true,
+            "current": null,
+            "entities": null,
+            "complete": null,
+            "missing": null,
+            "status": "NOT_IMPLEMENTED",
+            "gap": "SOURCE_GAP",
+            "detail": "no structured admission criteria; only the international apply page lists them, and they differ by applicant type. The verifier rejects any score claim",
+            "affects": [
+                "başvuru şartları neler",
+                "IELTS kaç olmalı"
+            ],
+            "edit": null
+        },
+        {
+            "capability": "service_contacts",
+            "priority": "P0",
+            "fact_types": [
+                "contact_email",
+                "contact_phone"
+            ],
+            "implemented": true,
+            "exists": true,
+            "structured": true,
+            "authoritative": true,
+            "current": null,
+            "entities": 20,
+            "complete": 10,
+            "missing": 10,
+            "status": "PARTIALLY_SUPPORTED",
+            "gap": "DATA_GAP",
+            "detail": "10/10 services with an e-mail, 0/10 with a phone number",
+            "affects": [
+                "öğrenci işlerinin telefonu ne",
+                "kütüphanenin maili ne"
+            ],
+            "edit": {
+                "resource": "App\\Filament\\Resources\\ServiceItems\\ServiceItemResource",
+                "where": "Services → office → Phone"
+            }
+        },
+        {
+            "capability": "programme_language",
+            "priority": "P0",
+            "fact_types": [
+                "program_language"
+            ],
+            "implemented": true,
+            "exists": true,
+            "structured": true,
+            "authoritative": true,
+            "current": null,
+            "entities": 20,
+            "complete": 20,
+            "missing": 0,
+            "status": "SUPPORTED",
+            "gap": null,
+            "detail": "20/20 programmes with a language-of-instruction fact",
+            "affects": [
+                "mimarlık hangi dilde"
+            ],
+            "edit": {
+                "resource": null,
+                "where": "the official programme pages (re-crawled; facts re-extracted)"
+            }
+        },
+        {
+            "capability": "programme_duration",
+            "priority": "P0",
+            "fact_types": [
+                "programme_duration"
+            ],
+            "implemented": true,
+            "exists": true,
+            "structured": true,
+            "authoritative": true,
+            "current": null,
+            "entities": 20,
+            "complete": 18,
+            "missing": 2,
+            "status": "PARTIALLY_SUPPORTED",
+            "gap": "DATA_GAP",
+            "detail": "18/20 programmes with a stated duration",
+            "affects": [
+                "görsel iletişim tasarımı kaç yıl"
+            ],
+            "edit": {
+                "resource": null,
+                "where": "the official programme pages (re-crawled; facts re-extracted)"
+            }
+        },
+        {
+            "capability": "food_opening_hours",
+            "priority": "P1",
+            "fact_types": [
+                "current_opening_hours",
+                "is_open_now"
+            ],
+            "implemented": true,
+            "exists": false,
+            "structured": false,
+            "authoritative": true,
+            "current": null,
+            "entities": 1,
+            "complete": 0,
+            "missing": 1,
+            "status": "DATA_UNAVAILABLE",
+            "gap": "DATA_GAP",
+            "detail": "0/1 venues with hours (0 as structured weekly rows)",
+            "affects": [
+                "yemekhane bugün açık mı",
+                "şu an açık yemek yeri var mı",
+                "yarın açık mı"
+            ],
+            "edit": {
+                "resource": "App\\Filament\\Resources\\FoodVenues\\FoodVenueResource",
+                "where": "Food & Drink → venue → Weekly opening hours"
+            }
+        },
+        {
+            "capability": "food_location",
+            "priority": "P1",
+            "fact_types": [
+                "place_coordinates"
+            ],
+            "implemented": true,
+            "exists": false,
+            "structured": false,
+            "authoritative": true,
+            "current": null,
+            "entities": 1,
+            "complete": 0,
+            "missing": 1,
+            "status": "DATA_UNAVAILABLE",
+            "gap": "DATA_GAP",
+            "detail": "0/1 venues reach a campus place (0 by canonical place_id, the rest by name)",
+            "affects": [
+                "yemekhane nerede",
+                "en yakın yemek yeri",
+                "buradan yemekhaneye götür"
+            ],
+            "edit": {
+                "resource": "App\\Filament\\Resources\\FoodVenues\\FoodVenueResource",
+                "where": "Food & Drink → venue → Campus place"
+            }
+        },
+        {
+            "capability": "food_menu",
+            "priority": "P1",
+            "fact_types": [
+                "current_menu"
+            ],
+            "implemented": true,
+            "exists": false,
+            "structured": true,
+            "authoritative": true,
+            "current": false,
+            "entities": null,
+            "complete": null,
+            "missing": null,
+            "status": "DATA_UNAVAILABLE",
+            "gap": "DATA_GAP",
+            "detail": "0 daily menus for today or later",
+            "affects": [
+                "bugün yemekte ne var"
+            ],
+            "edit": {
+                "resource": "App\\Filament\\Resources\\FoodVenues\\FoodVenueResource",
+                "where": "Food & Drink → venue → Daily menus"
+            }
+        },
+        {
+            "capability": "club_social_profile",
+            "priority": "P1",
+            "fact_types": [
+                "club_social_profile"
+            ],
+            "implemented": true,
+            "exists": false,
+            "structured": true,
+            "authoritative": true,
+            "current": null,
+            "entities": 19,
+            "complete": 0,
+            "missing": 19,
+            "status": "DATA_UNAVAILABLE",
+            "gap": "DATA_GAP",
+            "detail": "0/19 clubs with an official Instagram URL",
+            "affects": [
+                "fotoğraf kulübünün instagramı ne"
+            ],
+            "edit": {
+                "resource": "App\\Filament\\Resources\\Clubs\\ClubResource",
+                "where": "Clubs → club → Contact & room → Instagram URL"
+            }
+        },
+        {
+            "capability": "club_contacts",
+            "priority": "P1",
+            "fact_types": [
+                "contact_email"
+            ],
+            "implemented": true,
+            "exists": false,
+            "structured": true,
+            "authoritative": true,
+            "current": null,
+            "entities": 19,
+            "complete": 0,
+            "missing": 19,
+            "status": "DATA_UNAVAILABLE",
+            "gap": "DATA_GAP",
+            "detail": "0/19 clubs with an e-mail",
+            "affects": [
+                "X kulübüne nasıl ulaşırım"
+            ],
+            "edit": {
+                "resource": "App\\Filament\\Resources\\Clubs\\ClubResource",
+                "where": "Clubs → club → Contact & room → E-mail"
+            }
+        },
+        {
+            "capability": "club_rooms",
+            "priority": "P1",
+            "fact_types": [
+                "place_coordinates"
+            ],
+            "implemented": true,
+            "exists": false,
+            "structured": true,
+            "authoritative": true,
+            "current": null,
+            "entities": 19,
+            "complete": 0,
+            "missing": 19,
+            "status": "DATA_UNAVAILABLE",
+            "gap": "DATA_GAP",
+            "detail": "0/19 clubs with a room / place",
+            "affects": [
+                "kulüp odası nerede"
+            ],
+            "edit": {
+                "resource": "App\\Filament\\Resources\\Clubs\\ClubResource",
+                "where": "Clubs → club → Contact & room → Room / place"
+            }
+        },
+        {
+            "capability": "staff_persons",
+            "priority": "P1",
+            "fact_types": [],
+            "implemented": false,
+            "exists": true,
+            "structured": true,
+            "authoritative": true,
+            "current": null,
+            "entities": 58,
+            "complete": 1,
+            "missing": 57,
+            "status": "NOT_IMPLEMENTED",
+            "gap": "DATA_GAP",
+            "detail": "1/58 staff records name a person (the rest are offices); no person fact type until names exist",
+            "affects": [
+                "mimarlık bölüm başkanı kim"
+            ],
+            "edit": {
+                "resource": null,
+                "where": "in-app admin → Staff (person records with a source)"
+            }
+        },
+        {
+            "capability": "service_opening_hours",
+            "priority": "P1",
+            "fact_types": [
+                "current_opening_hours",
+                "is_open_now"
+            ],
+            "implemented": true,
+            "exists": true,
+            "structured": false,
+            "authoritative": true,
+            "current": null,
+            "entities": 10,
+            "complete": 8,
+            "missing": 2,
+            "status": "PARTIALLY_SUPPORTED",
+            "gap": "DATA_GAP",
+            "detail": "8/10 services with hours",
+            "affects": [
+                "öğrenci işleri açık mı"
+            ],
+            "edit": {
+                "resource": "App\\Filament\\Resources\\ServiceItems\\ServiceItemResource",
+                "where": "Services → office → Hours"
+            }
+        },
+        {
+            "capability": "campus_locations",
+            "priority": "P1",
+            "fact_types": [
+                "place_coordinates"
+            ],
+            "implemented": true,
+            "exists": true,
+            "structured": true,
+            "authoritative": true,
+            "current": null,
+            "entities": 24,
+            "complete": 24,
+            "missing": 0,
+            "status": "SUPPORTED",
+            "gap": null,
+            "detail": "24/24 places with coordinates",
+            "affects": [
+                "titan binası nerede"
+            ],
+            "edit": {
+                "resource": "App\\Filament\\Resources\\Places\\PlaceResource",
+                "where": "Places → place → coordinates"
+            }
+        },
+        {
+            "capability": "walking_routes",
+            "priority": "P1",
+            "fact_types": [
+                "route_duration_min",
+                "route_distance_m"
+            ],
+            "implemented": true,
+            "exists": true,
+            "structured": true,
+            "authoritative": true,
+            "current": null,
+            "entities": null,
+            "complete": null,
+            "missing": null,
+            "status": "SUPPORTED",
+            "gap": null,
+            "detail": "routing service configured",
+            "affects": [
+                "buradan kütüphaneye nasıl giderim"
+            ],
+            "edit": null
+        },
+        {
+            "capability": "academic_year_record",
+            "priority": "P1",
+            "fact_types": [],
+            "implemented": true,
+            "exists": false,
+            "structured": true,
+            "authoritative": true,
+            "current": false,
+            "entities": 1,
+            "complete": 0,
+            "missing": 1,
+            "status": "STALE",
+            "gap": "STALE_DATA",
+            "detail": "active record 2025-2026 ends 2026-08-31 — ended; still used for event year tagging and temporal checks (not for dates)",
+            "affects": [
+                "(indirect) new events are tagged with this year; evidence staleness is judged against it"
+            ],
+            "edit": {
+                "resource": null,
+                "where": "in-app admin → Akademik Yıllar"
+            }
+        },
+        {
+            "capability": "announcements",
+            "priority": "P2",
+            "fact_types": [],
+            "implemented": false,
+            "exists": false,
+            "structured": false,
+            "authoritative": false,
+            "current": null,
+            "entities": null,
+            "complete": null,
+            "missing": null,
+            "status": "SOURCE_UNAVAILABLE",
+            "gap": "SOURCE_GAP",
+            "detail": "no announcements table or feed; official notices exist only as crawled pages (not structured, no validity dates)",
+            "affects": [
+                "bugün kütüphane kapalı mı (duyuru)",
+                "ders iptali var mı"
+            ],
+            "edit": null
+        },
+        {
+            "capability": "events",
+            "priority": "P2",
+            "fact_types": [
+                "current_events"
+            ],
+            "implemented": true,
+            "exists": false,
+            "structured": true,
+            "authoritative": true,
+            "current": false,
+            "entities": null,
+            "complete": null,
+            "missing": null,
+            "status": "DATA_UNAVAILABLE",
+            "gap": "DATA_GAP",
+            "detail": "0 published upcoming events",
+            "affects": [
+                "bugün hangi etkinlikler var"
+            ],
+            "edit": {
+                "resource": "App\\Filament\\Resources\\Events\\EventResource",
+                "where": "Events"
+            }
+        },
+        {
+            "capability": "sports_facilities",
+            "priority": "P2",
+            "fact_types": [
+                "place_coordinates"
+            ],
+            "implemented": true,
+            "exists": false,
+            "structured": true,
+            "authoritative": true,
+            "current": null,
+            "entities": 10,
+            "complete": 0,
+            "missing": 10,
+            "status": "DATA_UNAVAILABLE",
+            "gap": "DATA_GAP",
+            "detail": "0/10 teams linked to a campus place (5 facility names, none of them a place record)",
+            "affects": [
+                "basketbol takımı nerede antrenman yapıyor"
+            ],
+            "edit": {
+                "resource": "App\\Filament\\Resources\\Sports\\SportResource",
+                "where": "Sports → team → Campus place (create the Place first)"
+            }
+        },
+        {
+            "capability": "app_navigation",
+            "priority": "P2",
+            "fact_types": [],
+            "implemented": true,
+            "exists": true,
+            "structured": true,
+            "authoritative": true,
+            "current": null,
+            "entities": 16,
+            "complete": 16,
+            "missing": 0,
+            "status": "SUPPORTED",
+            "gap": null,
+            "detail": "16/16 trusted app destinations labelled in tr, en and ru (claims about other screens are rejected)",
+            "affects": [
+                "kulüplere uygulamada nereden bakarım"
+            ],
+            "edit": {
+                "resource": null,
+                "where": "config/aicad_navigation.php + Translations"
+            }
+        },
+        {
+            "capability": "service_aliases",
+            "priority": "P2",
+            "fact_types": [],
+            "implemented": true,
+            "exists": true,
+            "structured": true,
+            "authoritative": true,
+            "current": null,
+            "entities": 10,
+            "complete": 8,
+            "missing": 2,
+            "status": "PARTIALLY_SUPPORTED",
+            "gap": "DATA_GAP",
+            "detail": "8/10 offices with operator aliases (short and Russian names, beyond the built-in list)",
+            "affects": [
+                "kariyer merkezinin maili",
+                "телефон студенческого офиса"
+            ],
+            "edit": {
+                "resource": "App\\Filament\\Resources\\AiEntityAliases\\AiEntityAliasResource",
+                "where": "AICAD → Aliases"
+            }
+        }
+    ],
+    "evaluation_runs": [
+        {
+            "run": 70,
+            "what": "retrieval: all cases",
+            "passed": 183,
+            "failed": 0,
+            "latency": {
+                "retrieval": {
+                    "median": 869,
+                    "p95": 1309,
+                    "n": 183
+                },
+                "full": {
+                    "median": null,
+                    "p95": null,
+                    "n": 0
+                }
+            },
+            "request_outcomes": {
+                "PARTIAL": 24,
+                "UNAVAILABLE": 14,
+                "COMPLETE": 25
+            },
+            "cases": {
+                "probe: library typo": "passed",
+                "benchmark: burs imkanları nelerdir": "passed",
+                "benchmark: burs oranları ne kadar": "passed",
+                "benchmark: What scholarships are available?": "passed",
+                "benchmark: Какие есть стипендии?": "passed",
+                "benchmark: okul ücretleri ne kadar": "passed",
+                "benchmark: kütüphane nerede": "passed",
+                "benchmark: kutuphane calisma saatleri": "passed",
+                "benchmark: library opening hours": "passed",
+                "benchmark: Где библиотека?": "passed",
+                "benchmark: akademik takvim ne zaman başlıyor": "passed",
+                "benchmark: academic calendar": "passed",
+                "benchmark: dersler ne zaman başlıyor": "passed",
+                "benchmark: mimarlık bölümü hakkında bilgi": "passed",
+                "benchmark: architecture programme": "passed",
+                "benchmark: iç mimarlık bölümü": "passed",
+                "benchmark: seramik bölümü": "passed",
+                "benchmark: fotoğraf bölümü hakkında": "passed",
+                "benchmark: oyunculuk bölümü": "passed",
+                "benchmark: dijital oyun tasarımı": "passed",
+                "benchmark: endüstriyel tasarım programı": "passed",
+                "benchmark: dikey geçiş sınavı şartları": "passed",
+                "benchmark: yatay geçiş nasıl yapılır": "passed",
+                "benchmark: sıkça sorulan sorular": "passed",
+                "benchmark: iletişim bilgileri nedir": "passed",
+                "benchmark: contact information": "passed",
+                "benchmark: öğrenci kulüpleri hangileri": "passed",
+                "benchmark: student clubs": "passed",
+                "benchmark: uluslararası öğrenci olanakları": "passed",
+                "benchmark: ulaşım ve servis": "passed",
+                "benchmark: atölyeler hangi imkanlar var": "passed",
+                "benchmark: Grafik Tasarım bölümü hakkında bilgi": "passed",
+                "benchmark: graphic design department": "passed",
+                "benchmark: taban puanları": "passed",
+                "benchmark: проходные баллы": "passed",
+                "benchmark: eğitim dili nedir": "passed",
+                "benchmark: What is the language of instruction?": "passed",
+                "benchmark: international students": "passed",
+                "benchmark: перевод из другого университета": "passed",
+                "benchmark: psikolojik danışmanlık hizmeti": "passed",
+                "benchmark: kariyer ofisi": "passed",
+                "benchmark: sports facilities on campus": "passed",
+                "routing: öğrenci işleri nerede": "passed",
+                "routing: ogrenci isleri nerde": "passed",
+                "routing: where is student affairs": "passed",
+                "routing: spor salonu nerede": "passed",
+                "routing: gym var mı": "passed",
+                "routing: bugün ne etkinlik var": "passed",
+                "routing: what's on tonight": "passed",
+                "routing: yemek ne çıktı": "passed",
+                "routing: где столовая": "passed",
+                "routing: servis saatleri": "passed",
+                "routing: shuttle times": "passed",
+                "routing: staj ilanı var mı": "passed",
+                "routing: psikolojik destek almak istiyorum": "passed",
+                "probe: student affairs without diacritics": "passed",
+                "probe: library in English": "passed",
+                "probe: library in Russian": "passed",
+                "probe: weak semantic citation on library typo": "passed",
+                "probe: follow-up route to Titan": "passed",
+                "probe: follow-up route to student affairs": "passed",
+                "probe: follow-up club social account": "passed",
+                "probe: walking route between two places": "passed",
+                "probe: events today": "passed",
+                "probe: club membership": "passed",
+                "probe: table tennis team": "passed",
+                "probe: counselling centre": "passed",
+                "probe: department head (staff data has no names)": "passed",
+                "probe: Russian scholarship (inflected)": "passed",
+                "probe: classes start reads live term dates": "passed",
+                "probe: unsupported programme": "passed",
+                "probe: ambiguous administration building": "passed",
+                "probe: wifi alias to IT": "passed",
+                "probe: language of instruction reaches a programme or prep page": "passed",
+                "regression: grafik is not matched inside İnfografik": "passed",
+                "regression: food question is not answered with events": "passed",
+                "regression: kulübü (consonant softening)": "passed",
+                "regression: hocaya (short vowel word)": "passed",
+                "regression: menüde": "passed",
+                "regression: ringa is not the ring shuttle": "passed",
+                "3b: acceptance: hours, documents and route": "passed",
+                "3b: data gap: nearest open food place": "passed",
+                "3b: data gap: club social profile and room (follow-up)": "passed",
+                "3b: complete: library open and where": "passed",
+                "3b: ambiguous subject is not evidenced": "passed",
+                "regression: termos is not term": "passed",
+                "regression: opening hours are not career": "passed",
+                "regression: personal record without campus fallback": "passed",
+                "regression: işim is not career": "passed",
+                "regression: kaç is not food": "passed",
+                "regression: unrelated chat falls back visibly": "passed",
+                "prompt: scholarships page reaches the model": "passed",
+                "concept: semester start in English": "passed",
+                "concept: classes start in Russian": "passed",
+                "concept: language of instruction uses programme facts": "passed",
+                "ambiguity: clarification before generation": "passed",
+                "3a: fast path: today's menu": "passed",
+                "3a: fast path: student affairs location": "passed",
+                "3a: fast path: today's events": "passed",
+                "3a: fast path: library hours": "passed",
+                "3a: two tasks: hours and route": "passed",
+                "3a: three tasks: hours, documents, route": "passed",
+                "3a: dependency chain: nearest open food place": "passed",
+                "3a: menu and route to an unknown place": "passed",
+                "3a: library open and where": "passed",
+                "3a: club social profile and room (follow-up)": "passed",
+                "3a: conversation reference from a previous turn": "passed",
+                "3a: ambiguous subject keeps the clarification": "passed",
+                "3a: unresolved subject": "passed",
+                "3a: no diacritics": "passed",
+                "3a: English two tasks": "passed",
+                "3a: Russian two tasks": "passed",
+                "3b: unresolved subject is not evidenced": "passed",
+                "3b: documents and closing time": "passed",
+                "3b: synthetic phrasing: library without diacritics": "passed",
+                "3b: synthetic phrasing: colloquial documents clause": "passed",
+                "3b: English: hours, documents and route": "passed",
+                "3b: Russian: hours and route": "passed",
+                "3a: programme language composite (tr)": "passed",
+                "3a: programme language composite (en)": "passed",
+                "3a: programme language composite (ru)": "passed",
+                "3a: answer-language request is not a programme question": "passed",
+                "3a: bring phrasing with an explicit route": "passed",
+                "3c: acceptance: relevant passage is not a document list": "passed",
+                "3c: programme language from the programme fact": "passed",
+                "3c: programme language contradicts the question's presupposition": "passed",
+                "3c: unknown programme has no language fact": "passed",
+                "3c: data gap: club social profile and room": "passed",
+                "3c: data gap: food hours block the chain": "passed",
+                "3c: indirect colloquial question": "passed",
+                "3c: no diacritics: hours and what to bring": "passed",
+                "3c: English: library open and where": "passed",
+                "3c: Russian: route needs the student's location": "passed",
+                "3c1: open-now is its own fact": "passed",
+                "3c1: English programme name maps to the canonical programme": "passed",
+                "3c1: Russian programme name maps to the canonical programme": "passed",
+                "3c1: unofficial programme name is not guessed": "passed",
+                "3c1: programme not in the data is not found, not denied": "passed",
+                "staging: tomorrow, not now": "passed",
+                "staging: weekend status without diacritics": "passed",
+                "staging: Saturday in English": "passed",
+                "4b: unit short name": "passed",
+                "staging: Russian hours and place": "passed",
+                "staging: club insta short form": "passed",
+                "staging: somewhere open to eat": "passed",
+                "staging: nearest food without location": "passed",
+                "staging: programme fully in English, colloquial": "passed",
+                "4a: classes start": "passed",
+                "4a: colloquial school opening": "passed",
+                "4a: spring term start": "passed",
+                "4a: finals, short form": "passed",
+                "4a: add-drop deadline": "passed",
+                "4a: make-up exams": "passed",
+                "4a: semester start in English": "passed",
+                "4a: final exams in English": "passed",
+                "4a: classes start in Russian": "passed",
+                "4a: exam session in Russian": "passed",
+                "4a: club wording is not the calendar": "passed",
+                "4a: student affairs e-mail": "passed",
+                "4a: phone asked, none recorded": "passed",
+                "4a: how to call the library": "passed",
+                "4a: international office e-mail in English": "passed",
+                "4a: library e-mail in Russian": "passed",
+                "4a: planned: date and e-mail": "passed",
+                "4a: planned: no phone fact without a phone": "passed",
+                "4a: planned in English": "passed",
+                "4a: club profile only from the canonical field": "passed",
+                "4b: programme duration": "passed",
+                "4b: programme duration, colloquial": "passed",
+                "4b: programme duration in English": "passed",
+                "4b: programme duration in Russian": "passed",
+                "4b: prep school in semesters": "passed",
+                "4b: no such programme: nothing inferred": "passed",
+                "4b: planned: duration and language": "passed",
+                "4b: phone: none recorded, e-mail is the fact": "passed",
+                "4b: short office alias": "passed",
+                "4b: Russian office alias, inflected": "passed",
+                "4b: food open now: no hours recorded": "passed",
+                "4b: nearest food: no place link": "passed",
+                "4b: no menu is not inferred": "passed",
+                "4b: club account and e-mail: empty fields": "passed",
+                "4b: club room in English": "passed",
+                "4b: sports facility: no place link": "passed"
+            }
+        },
+        {
+            "run": 71,
+            "what": "full: legacy base set, facts off",
+            "passed": 11,
+            "failed": 0,
+            "latency": {
+                "retrieval": {
+                    "median": null,
+                    "p95": null,
+                    "n": 0
+                },
+                "full": {
+                    "median": 7242,
+                    "p95": 21611,
+                    "n": 11
+                }
+            },
+            "request_outcomes": {
+                "COMPLETE": 1,
+                "PARTIAL": 2
+            },
+            "cases": {
+                "full: scholarships are grounded": "passed",
+                "full: library typo answered with the right building": "passed",
+                "full: library question stays operational": "passed",
+                "full: Graphic Design is grounded in the programme page": "passed",
+                "full: language of instruction is not misattributed": "passed",
+                "full: ambiguous building is not resolved arbitrarily": "passed",
+                "full: Russian scholarship is grounded": "passed",
+                "full: programme language comes from the facts": "passed",
+                "3a: full: library open and where": "passed",
+                "3a: full: student affairs hours and route": "passed",
+                "3b: full: acceptance answer is partial, not invented": "passed"
+            }
+        },
+        {
+            "run": 72,
+            "what": "full: fact_generation, facts on",
+            "passed": 21,
+            "failed": 0,
+            "latency": {
+                "retrieval": {
+                    "median": null,
+                    "p95": null,
+                    "n": 0
+                },
+                "full": {
+                    "median": 3724,
+                    "p95": 6068,
+                    "n": 21
+                }
+            },
+            "request_outcomes": {
+                "PARTIAL": 5,
+                "COMPLETE": 10,
+                "UNAVAILABLE": 5
+            },
+            "cases": {
+                "3c: full: acceptance keeps the supported tasks and invents no documents": "passed",
+                "3c: full: programme language claim is verified": "passed",
+                "3c: full: club gaps are reported, not invented": "passed",
+                "3c: full: English library answer uses both facts": "passed",
+                "3c1: full: open now answered from the open-now fact": "passed",
+                "3c1: full: speculative bait about club rooms": "passed",
+                "3c1: full: English programme name, verified language claim": "passed",
+                "3c1: full: no absolute denial for a programme not in the data": "passed",
+                "3c1: full: partial answer keeps every task's verified part": "passed",
+                "staging: full: weekend question is not answered with open-now": "passed",
+                "staging: full: tomorrow and what to bring": "passed",
+                "staging: full: club insta, no invented account": "passed",
+                "staging: full: somewhere open to eat": "passed",
+                "4a: full: date and e-mail": "passed",
+                "4a: full: no invented person": "passed",
+                "4a: full: English date and e-mail": "passed",
+                "4a: full: app screen and club account": "passed",
+                "4b: full: duration and language": "passed",
+                "4b: full: English duration and language": "passed",
+                "4b: full: missing club data, nothing invented": "passed",
+                "4b: full: notifications screen is trusted": "passed"
+            }
+        }
+    ],
+    "privacy_tests": "AiPersonalAnswerCacheTest 7/7; cache filter 44/44"
+}

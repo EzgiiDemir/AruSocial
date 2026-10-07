@@ -1,0 +1,226 @@
+{
+    "_about": "Office (service) and club names AICAD should recognise, beyond canonical names and PlaceResolver's built-in list. Each entry states its basis: 'official' = the name as used on ARUCAD's own pages (indexed corpus); 'product' = the wording this application already uses; 'inflection' = a grammatical case of an existing official or product name (Russian nouns change form: 'студенческий офис' → 'студенческого офиса'), which whole-phrase matching cannot otherwise reach. Diacritic-free Turkish needs no entries: matching is on folded text. Seeded with php artisan db:seed --class=AiCampusAliasSeeder; editable afterwards in Admin → AICAD aliases.",
+    "services": [
+        {
+            "service": "career",
+            "basis": "official: 'Career and Alumni Office' (arucad.edu.tr); Turkish short form; Russian inflection of the built-in 'карьерный центр'",
+            "tr": [
+                "kariyer merkezi",
+                "kariyer ve mezun ilişkileri"
+            ],
+            "en": [
+                "career and alumni office",
+                "career centre",
+                "career center"
+            ],
+            "ru": [
+                "карьерного центра",
+                "центр карьеры"
+            ]
+        },
+        {
+            "service": "accessibility",
+            "basis": "Turkish short form of the official title 'Engelli Öğrenci Destek Birimi'; English equivalent of the unit's name",
+            "tr": [
+                "engelli destek birimi",
+                "engelli öğrenci birimi"
+            ],
+            "en": [
+                "disability support unit",
+                "disability support"
+            ]
+        },
+        {
+            "service": "pdr",
+            "basis": "official: 'Psychological Counseling and Guidance Centre (PDRM)' (arucad.edu.tr)",
+            "tr": [
+                "pdrm",
+                "rehberlik merkezi"
+            ],
+            "en": [
+                "psychological counseling and guidance centre",
+                "counselling centre",
+                "counseling center"
+            ]
+        },
+        {
+            "service": "student-affairs",
+            "basis": "inflection: Russian cases of the built-in names 'студенческий офис', 'отдел по работе со студентами' (the product's own wording)",
+            "ru": [
+                "студенческого офиса",
+                "студенческом офисе",
+                "отдела по работе со студентами",
+                "отделе по работе со студентами"
+            ]
+        },
+        {
+            "service": "international",
+            "basis": "inflection: Russian cases of the product's 'Международный отдел'",
+            "ru": [
+                "международного отдела",
+                "международном отделе"
+            ]
+        },
+        {
+            "service": "library",
+            "basis": "inflection: Russian cases of 'библиотека'",
+            "ru": [
+                "библиотеки",
+                "библиотеке",
+                "библиотеку"
+            ]
+        },
+        {
+            "service": "dormitory",
+            "basis": "official: 'студенческое общежитие' (ARUCAD Russian pages); inflections of 'общежитие'",
+            "ru": [
+                "студенческое общежитие",
+                "общежития",
+                "общежитии"
+            ]
+        }
+    ],
+    "clubs": [
+        {
+            "club": "club-architecture",
+            "basis": "official: ARUCAD Student Handbook 2026-2027 (ENG), list \"Student clubs currently available at ARUCAD\"",
+            "en": [
+                "architecture club"
+            ]
+        },
+        {
+            "club": "club-art",
+            "basis": "official: ARUCAD Student Handbook 2026-2027 (ENG), list \"Student clubs currently available at ARUCAD\"",
+            "en": [
+                "art club"
+            ]
+        },
+        {
+            "club": "club-blender",
+            "basis": "official: ARUCAD Student Handbook 2026-2027 (ENG), list \"Student clubs currently available at ARUCAD\"",
+            "en": [
+                "blender modelling & design club",
+                "blender modelling and design club"
+            ]
+        },
+        {
+            "club": "club-bouldering",
+            "basis": "official: ARUCAD Student Handbook 2026-2027 (ENG), list \"Student clubs currently available at ARUCAD\"",
+            "en": [
+                "bouldering club"
+            ]
+        },
+        {
+            "club": "club-charity",
+            "basis": "official: ARUCAD Student Handbook 2026-2027 (ENG), list \"Student clubs currently available at ARUCAD\"",
+            "en": [
+                "charity club"
+            ]
+        },
+        {
+            "club": "club-cinema",
+            "basis": "official: ARUCAD Student Handbook 2026-2027 (ENG), list \"Student clubs currently available at ARUCAD\"",
+            "en": [
+                "cinema club"
+            ]
+        },
+        {
+            "club": "club-comic",
+            "basis": "official: ARUCAD Student Handbook 2026-2027 (ENG), list \"Student clubs currently available at ARUCAD\"",
+            "en": [
+                "comic book and anime club"
+            ]
+        },
+        {
+            "club": "club-dance",
+            "basis": "official: ARUCAD Student Handbook 2026-2027 (ENG), list \"Student clubs currently available at ARUCAD\"",
+            "en": [
+                "dance club"
+            ]
+        },
+        {
+            "club": "club-drama",
+            "basis": "official: ARUCAD Student Handbook 2026-2027 (ENG), list \"Student clubs currently available at ARUCAD\"; \"theatre club\" from arucad.edu.tr/en (ARUCAD Theatre Club news)",
+            "en": [
+                "drama club",
+                "theatre club"
+            ]
+        },
+        {
+            "club": "club-esports",
+            "basis": "official: ARUCAD Student Handbook 2026-2027 (ENG), list \"Student clubs currently available at ARUCAD\"",
+            "en": [
+                "e-sports and game design club"
+            ]
+        },
+        {
+            "club": "club-fashion",
+            "basis": "official: ARUCAD Student Handbook 2026-2027 (ENG), list \"Student clubs currently available at ARUCAD\"",
+            "en": [
+                "fashion club"
+            ]
+        },
+        {
+            "club": "club-graffiti",
+            "basis": "official: ARUCAD Student Handbook 2026-2027 (ENG), list \"Student clubs currently available at ARUCAD\"",
+            "en": [
+                "graffiti club"
+            ]
+        },
+        {
+            "club": "club-hiphop",
+            "basis": "official: ARUCAD Student Handbook 2026-2027 (ENG), list \"Student clubs currently available at ARUCAD\"",
+            "en": [
+                "hip-hop club"
+            ]
+        },
+        {
+            "club": "club-martial-arts",
+            "basis": "official: ARUCAD Student Handbook 2026-2027 (ENG), list \"Student clubs currently available at ARUCAD\"",
+            "en": [
+                "martial arts club"
+            ]
+        },
+        {
+            "club": "club-music",
+            "basis": "official: ARUCAD Student Handbook 2026-2027 (ENG), list \"Student clubs currently available at ARUCAD\"",
+            "en": [
+                "music club"
+            ]
+        },
+        {
+            "club": "club-nature-sports",
+            "basis": "official: ARUCAD Student Handbook 2026-2027 (ENG), list \"Student clubs currently available at ARUCAD\"",
+            "en": [
+                "nature sports club"
+            ]
+        },
+        {
+            "club": "club-persian",
+            "basis": "official: ARUCAD Student Handbook 2026-2027 (ENG), list \"Student clubs currently available at ARUCAD\"; Turkish form from arucad.edu.tr/kampus-yasami/ogrenci-kulupleri",
+            "tr": [
+                "farsça kulübü"
+            ],
+            "en": [
+                "persian club"
+            ]
+        },
+        {
+            "club": "club-photography",
+            "basis": "official: ARUCAD Student Handbook 2026-2027 (ENG), list \"Student clubs currently available at ARUCAD\"; Turkish form from arucad.edu.tr/kampus-yasami/ogrenci-kulupleri",
+            "tr": [
+                "fotoğrafçılık kulübü"
+            ],
+            "en": [
+                "photography club"
+            ]
+        },
+        {
+            "club": "club-quality",
+            "basis": "official: ARUCAD Student Handbook 2026-2027 (ENG), list \"Student clubs currently available at ARUCAD\"",
+            "en": [
+                "quality club"
+            ]
+        }
+    ]
+}

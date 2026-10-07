@@ -1,0 +1,131 @@
+{
+    "_about": "Official English and Russian names of ARUCAD programmes, copied from the titles of the crawled programme pages (prospective.arucad.edu.tr and /ru/). Keyed by the Turkish programme name of the extracted programme facts. Loaded as `programme` aliases by AiProgrammeAliasSeeder; operators manage them in AICAD → Aliases. Deliberately no unofficial names: 'Graphic Design' is not an ARUCAD programme name.",
+    "programmes": [
+        {
+            "programme": "Film Tasarımı ve Yönetimi",
+            "en": [
+                "Film Design and Directing"
+            ],
+            "ru": [
+                "Кинодизайн и Режиссура"
+            ]
+        },
+        {
+            "programme": "Fotoğraf",
+            "en": [
+                "Photography"
+            ],
+            "ru": [
+                "Фотография"
+            ]
+        },
+        {
+            "programme": "Görsel İletişim Tasarımı",
+            "en": [
+                "Visual Communication Design"
+            ],
+            "ru": [
+                "Визуальный Дизайн и Коммуникация"
+            ]
+        },
+        {
+            "programme": "İç Mimarlık ve Çevre Tasarımı",
+            "en": [
+                "Interior Architecture and Environmental Design"
+            ],
+            "ru": [
+                "Архитектура Интерьера и Дизайн Среды"
+            ]
+        },
+        {
+            "programme": "İngilizce Hazırlık Okulu",
+            "en": [
+                "English Preparatory School"
+            ],
+            "ru": [
+                "Подготовительная школа английского языка"
+            ]
+        },
+        {
+            "programme": "Kentsel Tasarım ve Peyzaj Mimarlığı",
+            "en": [
+                "Urban Design and Landscape Architecture"
+            ],
+            "ru": [
+                "Городской Дизайн и Ландшафтная Архитектура"
+            ]
+        },
+        {
+            "programme": "Mimarlık",
+            "en": [
+                "Architecture"
+            ],
+            "ru": [
+                "Архитектура"
+            ]
+        },
+        {
+            "programme": "Modern Dans",
+            "en": [
+                "Contemporary Dance"
+            ],
+            "ru": [
+                "Современный Танец"
+            ]
+        },
+        {
+            "programme": "Oyunculuk",
+            "en": [
+                "Acting"
+            ],
+            "ru": [
+                "Актерское Мастерство"
+            ]
+        },
+        {
+            "programme": "Plastik Sanatlar",
+            "en": [
+                "Plastic Arts"
+            ],
+            "ru": [
+                "Пластические Искусства"
+            ]
+        },
+        {
+            "programme": "Seramik",
+            "en": [
+                "Ceramics"
+            ],
+            "ru": [
+                "Керамика"
+            ]
+        },
+        {
+            "programme": "Ses Sanatları Tasarımı",
+            "en": [
+                "Sound Arts and Design"
+            ],
+            "ru": [
+                "Звуковое Искусство и Дизайн"
+            ]
+        },
+        {
+            "programme": "Tekstil ve Moda Tasarımı",
+            "en": [
+                "Textile and Fashion Design"
+            ],
+            "ru": [
+                "Дизайн Одежды и Текстиля"
+            ]
+        },
+        {
+            "programme": "Yeni Medya ve İletişim",
+            "en": [
+                "New Media and Communication"
+            ],
+            "ru": [
+                "Новые Медиа и Коммуникации"
+            ]
+        }
+    ]
+}

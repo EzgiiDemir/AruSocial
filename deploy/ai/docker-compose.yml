@@ -1,0 +1,98 @@
+# ARUVERSE local inference server (vLLM, OpenAI-compatible).
+#
+# Runs on its OWN host — an NVIDIA L4 box — separate from the Laravel/web
+# and Postgres server. Laravel reaches it over the private network as
+# LOCAL_AI_BASE_URL; nothing here is exposed to the internet.
+#
+#   cd deploy/ai
+#   cp .env.example .env      # set VLLM_API_KEY and the bind address
+#   docker compose up -d
+#
+# See README.md for the one-time model preparation and the IT checklist.
+
+services:
+  vllm:
+    image: ${VLLM_IMAGE:-vllm/vllm-openai:v0.30.0-cu129}
+
+    # Bound to the PRIVATE interface only.
+    #
+    # The default is loopback so a misconfigured firewall cannot publish an
+    # unauthenticated GPU to the internet: someone who reaches this port can
+    # spend the whole campus's inference capacity and read every prompt that
+    # passes through it. Set VLLM_BIND to the private address the web server
+    # actually connects from (e.g. 10.0.0.12) — never 0.0.0.0.
+    ports:
+      - "${VLLM_BIND:-127.0.0.1}:${VLLM_PORT:-8000}:8000"
+
+    command:
+      - --model=${VLLM_MODEL:-Qwen/Qwen3.5-9B}
+      # Pinned, not floating. A silently updated checkpoint invalidates every
+      # number the evaluation harness produced against it — the same reason
+      # the moderation classifier pins its revisions.
+      - --revision=${VLLM_REVISION:-c202236235762e1c871ad0ccb60c8ee5ba337b9a}
+      # The name Laravel asks for (LOCAL_AI_MODEL). Stable across weight and
+      # quantisation changes, so swapping the checkpoint is not an app deploy.
+      - --served-model-name=${VLLM_SERVED_NAME:-arucad-ask}
+      # 16K: system prompt (~2K) + fenced sources (AI_CONTEXT_BUDGET_CHARS)
+      # + 6 turns of history + 800 generated tokens, with room to spare. NOT
+      # the model's maximum — a larger window costs KV cache per concurrent
+      # request and buys nothing the application sends.
+      - --max-model-len=${VLLM_MAX_MODEL_LEN:-16384}
+      - --gpu-memory-utilization=${VLLM_GPU_UTIL:-0.90}
+      - --max-num-seqs=${VLLM_MAX_SEQS:-16}
+      # Shared secret. A private network is not an authorisation boundary.
+      - --api-key=${VLLM_API_KEY:?set VLLM_API_KEY in deploy/ai/.env}
+      # Quantisation: see README. Empty = serve the checkpoint as-is (BF16,
+      # ~18 GB — fits an L4 but leaves little KV cache). "fp8" quantises on
+      # load and needs no prepared weights. A W4A16 checkpoint is passed via
+      # VLLM_MODEL instead and needs no flag, because compressed-tensors
+      # carries its own config.
+      - --quantization=${VLLM_QUANTIZATION:-fp8}
+      # Text-only product: the 9B is a VLM, and not reserving space for
+      # images leaves that memory for KV cache.
+      - --limit-mm-per-prompt={"image":0,"video":0}
+
+    environment:
+      HUGGING_FACE_HUB_TOKEN: ${HF_TOKEN:-}
+      # Weights land here; see the volume below.
+      HF_HOME: /root/.cache/huggingface
+      # Nothing about a prompt should reach a third party from this host.
+      DO_NOT_TRACK: "1"
+      VLLM_NO_USAGE_STATS: "1"
+
+    volumes:
+      # ~20 GB of weights. On a named volume so a container rebuild does not
+      # re-download them, and so the first start is the only slow one.
+      - hfcache:/root/.cache/huggingface
+
+    # vLLM needs a large /dev/shm for its worker IPC; the Docker default of
+    # 64 MB makes it fail on startup in ways that do not name the cause.
+    shm_size: ${VLLM_SHM_SIZE:-8gb}
+
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+    healthcheck:
+      # vLLM serves /health once the model is loaded and able to answer —
+      # which is the distinction that matters, because loading takes minutes
+      # and the port is open long before the model is ready.
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      # Generous: the first start downloads ~20 GB and then quantises it.
+      start_period: ${VLLM_START_PERIOD:-15m}
+      retries: 3
+
+    restart: unless-stopped
+
+    # A wedged CUDA context takes the whole process down rather than
+    # answering slowly forever; Laravel's circuit breaker handles the gap.
+    stop_grace_period: 30s
+
+volumes:
+  hfcache:

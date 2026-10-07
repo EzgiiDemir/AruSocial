@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\Admin\EmailController as AdminEmailController;
 use App\Http\Controllers\Api\Admin\EventController as AdminEventController;
 use App\Http\Controllers\Api\Admin\EventPosterDraftController;
 use App\Http\Controllers\Api\Admin\FeedModerationController;
+use App\Http\Controllers\Api\Admin\IntegrationsController;
 use App\Http\Controllers\Api\Admin\ModerationCaseController;
 use App\Http\Controllers\Api\Admin\ModerationEventsController;
 use App\Http\Controllers\Api\Admin\ModerationQueueController;
@@ -46,6 +47,7 @@ use App\Http\Controllers\Api\PageController;
 use App\Http\Controllers\Api\ParticipationApplicationController;
 use App\Http\Controllers\Api\PlaceController;
 use App\Http\Controllers\Api\PolicyConsentController;
+use App\Http\Controllers\Api\PresenceController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\PushTokenController;
 use App\Http\Controllers\Api\RoleController;
@@ -84,15 +86,30 @@ Route::prefix('v1')->middleware(['throttle:api', 'sentry-context'])->group(funct
         ->name('api.media.review-file');
     Route::get('/media/file/{filename}', [MediaController::class, 'fileByName'])
         ->where('filename', '[A-Za-z0-9._-]+');
-    // Real fix so 360 tours embed on Flutter web instead of only opening in
-    // an external tab — see TourProxyController's doc comment.
-    Route::get('/tour-proxy/{path}', [TourProxyController::class, 'show'])->where('path', '.*');
 
     // The one endpoint that can't require a token, because it's what hands
     // one out. Everything else in the API is behind `auth:sanctum` below.
     Route::post('/auth/session', [AuthController::class, 'session']);
     Route::get('/auth/entra/config', [EntraAuthController::class, 'config']);
     Route::post('/auth/entra', [EntraAuthController::class, 'session']);
+});
+
+/*
+ * 360 tour proxy — see TourProxyController for why it exists at all.
+ *
+ * Deliberately NOT in the group above. A 3DVista export is one small HTML
+ * document plus hundreds of panorama tiles, scripts and skin images, and
+ * the browser asks for them all at once: a single tour opening blows
+ * straight through `throttle:api`'s 300/min, and because this route is
+ * public the limit is keyed by IP, so one student on campus wifi would
+ * throttle everyone behind the same NAT. The tour then half-loads with no
+ * error anyone can see. These are cheap pass-through requests for public
+ * static media, most of which the browser now serves from its own cache
+ * (the response carries a real Cache-Control), so they get a budget sized
+ * for what a tour actually costs.
+ */
+Route::prefix('v1')->middleware(['throttle:tour-proxy', 'sentry-context'])->group(function () {
+    Route::get('/tour-proxy/{path}', [TourProxyController::class, 'show'])->where('path', '.*');
 });
 
 // Everything here is auto-prefixed with /api by bootstrap/app.php's
@@ -212,11 +229,20 @@ Route::prefix('v1')->middleware(['throttle:api', 'auth:sanctum', 'not-banned', '
 
     Route::post('/checkins', [CheckinController::class, 'store']);
 
+    // Live crowd on the map: where people actually are, as opposed to where
+    // they deliberately checked in. Ping writes only a resolved place id and
+    // is refused for anyone in ghost mode; the read is anonymous head counts.
+    Route::post('/presence/ping', [PresenceController::class, 'ping'])
+        ->middleware('throttle:presence');
+    Route::post('/presence/forget', [PresenceController::class, 'forget']);
+    Route::get('/presence/live', [PresenceController::class, 'live']);
+
     Route::post('/ai/query', [AiController::class, 'query'])->middleware('throttle:ai');
     Route::get('/ask/conversations', [AskConversationController::class, 'index']);
     Route::get('/ask/conversations/{id}', [AskConversationController::class, 'show']);
     Route::post('/ask/conversations/{id}/delete', [AskConversationController::class, 'destroy']);
     Route::post('/routing/directions', [RoutingController::class, 'directions']);
+    Route::post('/routing/match', [RoutingController::class, 'match']);
 
     // Clubs / Sports / Services / Food / Directory / Pages — public reads.
     Route::get('/clubs', [ClubController::class, 'index']);
@@ -499,6 +525,19 @@ Route::prefix('v1')->middleware(['throttle:api', 'auth:sanctum', 'not-banned', '
         Route::get('/admin/email-logs', [AdminEmailController::class, 'logs']);
         Route::post('/admin/email-logs/{id}/retry', [AdminEmailController::class, 'retry']);
         Route::post('/admin/email/bulk', [AdminEmailController::class, 'bulk']);
+    });
+
+    // Integrations. Read and write are separate canonical permissions so an
+    // auditor/analyst grant can see provider health without being able to
+    // switch a provider off or fire a connection test at it. No route here
+    // accepts a credential — configuring one is a deploy (env) or the
+    // existing /admin/settings/site endpoint.
+    Route::middleware('permission:system.integration.read')
+        ->get('/admin/integrations', [IntegrationsController::class, 'index']);
+
+    Route::middleware(['permission:system.integration.manage_settings', 'throttle:integration-tests'])->group(function () {
+        Route::post('/admin/integrations/{key}/test', [IntegrationsController::class, 'test']);
+        Route::post('/admin/integrations/{key}/enabled', [IntegrationsController::class, 'setEnabled']);
     });
 
 });

@@ -28,7 +28,7 @@ Each top-level folder has its own README with exact commands:
 cd backend
 composer install
 php artisan migrate:fresh --seed
-php artisan serve --port=4000
+composer serve            # NOT `php artisan serve` — see below
 
 # Frontend — local debug defaults to REST → http://localhost:4000/api/v1
 cd frontend
@@ -37,6 +37,37 @@ flutter run -d chrome
 # Offline mock only if you explicitly want it:
 # flutter run -d chrome --dart-define=USE_REST_API=false
 ```
+
+### Use `composer serve`, not `php artisan serve`
+
+PHP's OPcache is **disabled for the CLI** by default (`opcache.enable_cli=0`),
+and `php artisan serve` runs the built-in server through the CLI. Without it,
+every single request recompiles the whole Laravel framework from source.
+
+Measured on this project, same machine, same code:
+
+| Endpoint | `php artisan serve` | `composer serve` |
+| --- | --- | --- |
+| `GET /health` | 480 ms | **14 ms** |
+| `GET /events` | 506 ms | **2 ms** |
+| `GET /feed` | 519 ms | **19 ms** |
+| 16 endpoints, total | 8,209 ms | **133 ms** |
+
+That ~450 ms was a floor under *every* API call, so a screen making three of
+them started half a second behind before doing any of its own work. It is the
+single largest cause of the app feeling slow, and it is invisible: nothing
+errors, nothing warns, and every response is correct.
+
+`composer serve` is the same built-in server with `-d opcache.enable_cli=1`.
+`validate_timestamps` stays on, so edited files are still picked up normally.
+
+To get it globally instead, set `opcache.enable_cli=1` in whichever php.ini
+`php --ini` reports.
+
+Deliberately NOT part of this: `php artisan config:cache`. Measured at no
+benefit once OPcache is on (1–3 ms either way), and it makes a `.env` edit
+silently stale until someone remembers `config:clear`. Cache config in
+production, where that trade runs the other way.
 
 Full test/run instructions (Android, connecting the frontend to the real
 backend, resetting data, etc.): **[`docs/TESTING.md`](docs/TESTING.md)**.

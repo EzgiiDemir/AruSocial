@@ -17,10 +17,13 @@ class ServiceItem extends Model
 
     public $timestamps = false;
 
+    /** A phone number as staff type it: digits, spaces, + ( ) - . only. */
+    public const PHONE_RULE = 'regex:/^\+?[0-9][0-9 ().\-]{5,38}$/';
+
     protected $fillable = [
         'id', 'title', 'category', 'description', 'contact', 'building',
         'floor', 'room', 'contact_person', 'topics', 'hours', 'body',
-        'responsible_staff_id',
+        'responsible_staff_id', 'phone',
     ];
 
     protected function casts(): array

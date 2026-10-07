@@ -1,0 +1,4722 @@
+{
+    "_about": "AICAD evaluation cases beyond the retrieval benchmark: the stabilization-pass acceptance probes, regressions for fixed bugs, and known data gaps. Entity ids are real ARUVERSE rows. Tests, not training data: nothing here reaches the router or the prompt.",
+    "cases": [
+        {
+            "name": "probe: student affairs without diacritics",
+            "question": "ogrenci isleri nerde",
+            "locale": "tr",
+            "tags": [
+                "probe",
+                "tr",
+                "no_diacritics",
+                "services",
+                "place"
+            ],
+            "assertions": [
+                {
+                    "type": "response.served_by",
+                    "values": [
+                        "operational"
+                    ]
+                },
+                {
+                    "type": "operational.place_ids_include",
+                    "values": [
+                        "titan"
+                    ]
+                },
+                {
+                    "type": "entity.resolves",
+                    "entity_type": "service",
+                    "entity_id": "student-affairs"
+                }
+            ]
+        },
+        {
+            "name": "probe: library in English",
+            "question": "Where is the library?",
+            "locale": "en",
+            "tags": [
+                "probe",
+                "en",
+                "place",
+                "services"
+            ],
+            "assertions": [
+                {
+                    "type": "response.served_by",
+                    "values": [
+                        "operational"
+                    ]
+                },
+                {
+                    "type": "operational.place_ids_include",
+                    "values": [
+                        "meditation"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "probe: library in Russian",
+            "question": "Где библиотека?",
+            "locale": "ru",
+            "tags": [
+                "probe",
+                "ru",
+                "place",
+                "services"
+            ],
+            "assertions": [
+                {
+                    "type": "response.served_by",
+                    "values": [
+                        "operational"
+                    ]
+                },
+                {
+                    "type": "operational.place_ids_include",
+                    "values": [
+                        "meditation"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "probe: library typo",
+            "question": "kutupane nerde",
+            "locale": "tr",
+            "tags": [
+                "probe",
+                "tr",
+                "typo",
+                "services"
+            ],
+            "assertions": [
+                {
+                    "type": "entity.resolves",
+                    "entity_type": "service",
+                    "entity_id": "library"
+                },
+                {
+                    "type": "routing.tools_include",
+                    "values": [
+                        "services"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "probe: weak semantic citation on library typo",
+            "question": "kutupane nerde",
+            "locale": "tr",
+            "tags": [
+                "probe",
+                "tr",
+                "known_issue",
+                "citations"
+            ],
+            "notes": "Stabilization pass: a theatre syllabus (HAMLET 3) was cited for a library question. Flags irrelevant citations; expected to fail until weak semantic candidates are filtered.",
+            "assertions": [
+                {
+                    "type": "citations.not_cited",
+                    "match": "HAMLET"
+                }
+            ]
+        },
+        {
+            "name": "probe: follow-up route to Titan",
+            "question": "oraya nasıl giderim?",
+            "locale": "tr",
+            "tags": [
+                "probe",
+                "tr",
+                "follow_up",
+                "navigation"
+            ],
+            "previous_turns": [
+                {
+                    "role": "user",
+                    "content": "Titan nerede?"
+                }
+            ],
+            "assertions": [
+                {
+                    "type": "follow_up.rewritten",
+                    "expect": true
+                },
+                {
+                    "type": "operational.place_ids_include",
+                    "values": [
+                        "titan"
+                    ]
+                },
+                {
+                    "type": "response.warning",
+                    "value": "ORIGIN_REQUIRED"
+                }
+            ]
+        },
+        {
+            "name": "probe: follow-up route to student affairs",
+            "question": "oraya nasıl giderim?",
+            "locale": "tr",
+            "tags": [
+                "probe",
+                "tr",
+                "follow_up",
+                "navigation",
+                "services"
+            ],
+            "previous_turns": [
+                {
+                    "role": "user",
+                    "content": "Öğrenci işleri nerede?"
+                }
+            ],
+            "assertions": [
+                {
+                    "type": "follow_up.rewritten",
+                    "expect": true
+                },
+                {
+                    "type": "operational.place_ids_include",
+                    "values": [
+                        "titan"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "probe: follow-up club social account",
+            "question": "instagramı ne?",
+            "locale": "tr",
+            "tags": [
+                "probe",
+                "tr",
+                "follow_up",
+                "clubs",
+                "social"
+            ],
+            "previous_turns": [
+                {
+                    "role": "user",
+                    "content": "Fotoğraf kulübü hakkında bilgi ver"
+                }
+            ],
+            "assertions": [
+                {
+                    "type": "follow_up.rewritten",
+                    "expect": true
+                },
+                {
+                    "type": "routing.domains_include",
+                    "values": [
+                        "social",
+                        "clubs"
+                    ]
+                },
+                {
+                    "type": "entity.resolves",
+                    "entity_type": "club",
+                    "entity_id": "club-photography"
+                }
+            ]
+        },
+        {
+            "name": "probe: walking route between two places",
+            "question": "Meditation'dan Titan'a nasıl giderim?",
+            "locale": "tr",
+            "tags": [
+                "probe",
+                "tr",
+                "navigation"
+            ],
+            "assertions": [
+                {
+                    "type": "operational.route",
+                    "expect": true
+                },
+                {
+                    "type": "operational.place_ids_include",
+                    "values": [
+                        "meditation",
+                        "titan"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "probe: events today",
+            "question": "bugün kampüste ne var?",
+            "locale": "tr",
+            "tags": [
+                "probe",
+                "tr",
+                "events",
+                "live"
+            ],
+            "assertions": [
+                {
+                    "type": "response.served_by",
+                    "values": [
+                        "operational"
+                    ]
+                },
+                {
+                    "type": "response.contains",
+                    "value": "etkinli"
+                }
+            ]
+        },
+        {
+            "name": "probe: club membership",
+            "question": "Fotoğraf kulübüne nasıl katılırım?",
+            "locale": "tr",
+            "tags": [
+                "probe",
+                "tr",
+                "clubs"
+            ],
+            "assertions": [
+                {
+                    "type": "entity.resolves",
+                    "entity_type": "club",
+                    "entity_id": "club-photography"
+                },
+                {
+                    "type": "routing.tools_include",
+                    "values": [
+                        "clubs"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "probe: table tennis team",
+            "question": "masa tenisi takımı var mı?",
+            "locale": "tr",
+            "tags": [
+                "probe",
+                "tr",
+                "sports"
+            ],
+            "assertions": [
+                {
+                    "type": "response.served_by",
+                    "values": [
+                        "operational"
+                    ]
+                },
+                {
+                    "type": "response.contains",
+                    "value": "masa tenisi"
+                }
+            ]
+        },
+        {
+            "name": "probe: counselling centre",
+            "question": "Psikolojik danışmanlık merkezi nerede?",
+            "locale": "tr",
+            "tags": [
+                "probe",
+                "tr",
+                "services",
+                "place"
+            ],
+            "assertions": [
+                {
+                    "type": "operational.place_ids_include",
+                    "values": [
+                        "minotaur"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "probe: department head (staff data has no names)",
+            "question": "Görsel iletişim tasarımı bölüm başkanı kim?",
+            "locale": "tr",
+            "tags": [
+                "probe",
+                "tr",
+                "staff",
+                "known_gap"
+            ],
+            "notes": "Known data gap: staff rows hold office names, not people. Asserts the staff table is consulted, not that a name is produced.",
+            "assertions": [
+                {
+                    "type": "routing.tools_include",
+                    "values": [
+                        "staff"
+                    ]
+                },
+                {
+                    "type": "live.tool_rows",
+                    "value": "staff"
+                }
+            ]
+        },
+        {
+            "name": "probe: Russian scholarship (inflected)",
+            "question": "Как получить стипендию?",
+            "locale": "ru",
+            "tags": [
+                "probe",
+                "ru",
+                "scholarship",
+                "regression"
+            ],
+            "assertions": [
+                {
+                    "type": "retrieval.source_in_top",
+                    "match": "burs|scholarship",
+                    "n": 5
+                }
+            ]
+        },
+        {
+            "name": "probe: classes start reads live term dates",
+            "question": "dersler ne zaman başlıyor?",
+            "locale": "tr",
+            "tags": [
+                "probe",
+                "tr",
+                "calendar",
+                "regression",
+                "known_gap"
+            ],
+            "notes": "academic_years currently holds only 2025-2026; this asserts the live calendar is read, not that it is current.",
+            "assertions": [
+                {
+                    "type": "routing.tools_include",
+                    "values": [
+                        "calendar"
+                    ]
+                },
+                {
+                    "type": "live.tool_rows",
+                    "value": "calendar"
+                }
+            ]
+        },
+        {
+            "name": "probe: unsupported programme",
+            "question": "ARUCAD'da veterinerlik fakültesi var mı?",
+            "locale": "tr",
+            "tags": [
+                "probe",
+                "tr",
+                "no_result",
+                "unsupported_program"
+            ],
+            "assertions": [
+                {
+                    "type": "response.served_by",
+                    "values": [
+                        "operational"
+                    ]
+                },
+                {
+                    "type": "response.contains",
+                    "value": "vermiyor"
+                }
+            ]
+        },
+        {
+            "name": "probe: ambiguous administration building",
+            "question": "idari bina nerede?",
+            "locale": "tr",
+            "tags": [
+                "probe",
+                "tr",
+                "ambiguous",
+                "place",
+                "alias_fixture"
+            ],
+            "notes": "Relies on the 'idari bina' aliases on rodin and titan (created in the stabilization pass).",
+            "assertions": [
+                {
+                    "type": "entity.ambiguous",
+                    "expect": true
+                },
+                {
+                    "type": "operational.place_ids_include",
+                    "values": [
+                        "rodin",
+                        "titan"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "probe: wifi alias to IT",
+            "question": "wifi çalışmıyor, kime başvurmalıyım?",
+            "locale": "tr",
+            "tags": [
+                "probe",
+                "tr",
+                "services",
+                "alias_fixture"
+            ],
+            "assertions": [
+                {
+                    "type": "entity.resolves",
+                    "entity_type": "service",
+                    "entity_id": "it"
+                },
+                {
+                    "type": "operational.place_ids_include",
+                    "values": [
+                        "titan"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "probe: language of instruction reaches a programme or prep page",
+            "question": "What is the language of instruction?",
+            "locale": "en",
+            "tags": [
+                "probe",
+                "en",
+                "program"
+            ],
+            "assertions": [
+                {
+                    "type": "routing.domains_include",
+                    "values": [
+                        "knowledge"
+                    ]
+                },
+                {
+                    "type": "routing.fallback",
+                    "expect": false
+                },
+                {
+                    "type": "retrieval.source_in_top",
+                    "match": "Preparatory|Hazırlık|rt-program",
+                    "n": 10
+                }
+            ]
+        },
+        {
+            "name": "regression: grafik is not matched inside İnfografik",
+            "question": "Grafik Tasarım bölümü hakkında bilgi",
+            "locale": "tr",
+            "tags": [
+                "regression",
+                "tr",
+                "program"
+            ],
+            "assertions": [
+                {
+                    "type": "retrieval.source_absent",
+                    "match": "nfografik",
+                    "n": 1
+                },
+                {
+                    "type": "retrieval.source_in_top",
+                    "match": "gorsel-iletisim-tasarimi",
+                    "n": 3
+                }
+            ]
+        },
+        {
+            "name": "regression: food question is not answered with events",
+            "question": "bugün yemekte ne var?",
+            "locale": "tr",
+            "tags": [
+                "regression",
+                "tr",
+                "food"
+            ],
+            "assertions": [
+                {
+                    "type": "response.not_contains",
+                    "value": "etkinli"
+                },
+                {
+                    "type": "response.served_by",
+                    "values": [
+                        "operational"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "regression: kulübü (consonant softening)",
+            "question": "yemek kulübü",
+            "locale": "tr",
+            "tags": [
+                "regression",
+                "tr",
+                "clubs"
+            ],
+            "assertions": [
+                {
+                    "type": "routing.domains_include",
+                    "values": [
+                        "clubs"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "regression: hocaya (short vowel word)",
+            "question": "hocaya nasıl ulaşırım",
+            "locale": "tr",
+            "tags": [
+                "regression",
+                "tr",
+                "staff"
+            ],
+            "assertions": [
+                {
+                    "type": "routing.domains_include",
+                    "values": [
+                        "staff"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "regression: menüde",
+            "question": "menüde ne var",
+            "locale": "tr",
+            "tags": [
+                "regression",
+                "tr",
+                "food"
+            ],
+            "assertions": [
+                {
+                    "type": "routing.domains_include",
+                    "values": [
+                        "food"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "regression: ringa is not the ring shuttle",
+            "question": "ringa balığı",
+            "locale": "tr",
+            "tags": [
+                "regression",
+                "tr",
+                "no_result"
+            ],
+            "assertions": [
+                {
+                    "type": "routing.domains_exclude",
+                    "values": [
+                        "shuttle"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "regression: termos is not term",
+            "question": "termos nerede satılır",
+            "locale": "tr",
+            "tags": [
+                "regression",
+                "tr"
+            ],
+            "assertions": [
+                {
+                    "type": "routing.domains_exclude",
+                    "values": [
+                        "calendar"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "regression: opening hours are not career",
+            "question": "часы работы библиотеки",
+            "locale": "ru",
+            "tags": [
+                "regression",
+                "ru",
+                "services"
+            ],
+            "assertions": [
+                {
+                    "type": "routing.domains_exclude",
+                    "values": [
+                        "career"
+                    ]
+                },
+                {
+                    "type": "entity.resolves",
+                    "entity_type": "service",
+                    "entity_id": "library"
+                }
+            ]
+        },
+        {
+            "name": "regression: personal record without campus fallback",
+            "question": "başvurum ne durumda",
+            "locale": "tr",
+            "tags": [
+                "regression",
+                "tr",
+                "personal"
+            ],
+            "assertions": [
+                {
+                    "type": "routing.domains_include",
+                    "values": [
+                        "account"
+                    ]
+                },
+                {
+                    "type": "routing.fallback",
+                    "expect": false
+                }
+            ]
+        },
+        {
+            "name": "regression: işim is not career",
+            "question": "işim ne zaman bitecek",
+            "locale": "tr",
+            "tags": [
+                "regression",
+                "tr"
+            ],
+            "assertions": [
+                {
+                    "type": "routing.domains_exclude",
+                    "values": [
+                        "career"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "regression: kaç is not food",
+            "question": "kaç dakika",
+            "locale": "tr",
+            "tags": [
+                "regression",
+                "tr"
+            ],
+            "assertions": [
+                {
+                    "type": "routing.domains_exclude",
+                    "values": [
+                        "food"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "regression: unrelated chat falls back visibly",
+            "question": "bana bir şiir yaz",
+            "locale": "tr",
+            "tags": [
+                "regression",
+                "tr",
+                "no_result"
+            ],
+            "assertions": [
+                {
+                    "type": "routing.fallback",
+                    "expect": true
+                }
+            ]
+        },
+        {
+            "name": "prompt: scholarships page reaches the model",
+            "question": "burs imkanları nelerdir",
+            "locale": "tr",
+            "tags": [
+                "prompt",
+                "tr",
+                "scholarship"
+            ],
+            "assertions": [
+                {
+                    "type": "retrieval.source_in_top",
+                    "match": "burslar",
+                    "n": 3
+                },
+                {
+                    "type": "prompt.source_included",
+                    "match": "burslar"
+                }
+            ]
+        },
+        {
+            "name": "full: scholarships are grounded",
+            "question": "burs imkanları nelerdir?",
+            "locale": "tr",
+            "mode": "full",
+            "tags": [
+                "full",
+                "tr",
+                "scholarship"
+            ],
+            "assertions": [
+                {
+                    "type": "prompt.source_included",
+                    "match": "burslar"
+                },
+                {
+                    "type": "grounding.passed",
+                    "expect": true
+                },
+                {
+                    "type": "response.ai_mode",
+                    "values": [
+                        "local",
+                        "groq"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "full: library typo answered with the right building",
+            "question": "kutupane nerde",
+            "locale": "tr",
+            "mode": "full",
+            "tags": [
+                "full",
+                "tr",
+                "typo"
+            ],
+            "assertions": [
+                {
+                    "type": "response.contains",
+                    "value": "Meditation"
+                },
+                {
+                    "type": "grounding.passed",
+                    "expect": true
+                }
+            ]
+        },
+        {
+            "name": "full: library question stays operational",
+            "question": "Where is the library?",
+            "locale": "en",
+            "mode": "full",
+            "tags": [
+                "full",
+                "en",
+                "place"
+            ],
+            "assertions": [
+                {
+                    "type": "response.ai_mode",
+                    "values": [
+                        "operational"
+                    ]
+                },
+                {
+                    "type": "response.has",
+                    "value": "places"
+                }
+            ]
+        },
+        {
+            "name": "full: Graphic Design is grounded in the programme page",
+            "question": "Grafik Tasarım bölümü hakkında bilgi verir misin?",
+            "locale": "tr",
+            "mode": "full",
+            "tags": [
+                "full",
+                "tr",
+                "program"
+            ],
+            "assertions": [
+                {
+                    "type": "prompt.source_included",
+                    "match": "gorsel-iletisim-tasarimi"
+                },
+                {
+                    "type": "grounding.passed",
+                    "expect": true
+                }
+            ]
+        },
+        {
+            "name": "full: language of instruction is not misattributed",
+            "question": "What is the language of instruction?",
+            "locale": "en",
+            "mode": "full",
+            "tags": [
+                "full",
+                "en",
+                "program",
+                "model_sensitive"
+            ],
+            "notes": "Checks the answer against trusted programme facts (knowledge_facts). Replaced the earlier proxy \"must not mention Visual Communication Design\" on 2026-10-04: in run #9 the model correctly called VCD English-taught (the proxy flagged a true statement) while wrongly calling New Media and Communication English-taught (the proxy missed it).",
+            "assertions": [
+                {
+                    "type": "response.contains",
+                    "value": "English"
+                },
+                {
+                    "type": "response.no_fact_contradiction"
+                }
+            ]
+        },
+        {
+            "name": "full: ambiguous building is not resolved arbitrarily",
+            "question": "idari bina nerede?",
+            "locale": "tr",
+            "mode": "full",
+            "tags": [
+                "full",
+                "tr",
+                "ambiguous",
+                "model_sensitive",
+                "alias_fixture"
+            ],
+            "notes": "Both candidate buildings must be named (or the student asked which); naming only one is the observed failure.",
+            "assertions": [
+                {
+                    "type": "response.contains",
+                    "value": "Rodin"
+                },
+                {
+                    "type": "response.contains",
+                    "value": "Titan"
+                }
+            ]
+        },
+        {
+            "name": "full: Russian scholarship is grounded",
+            "question": "Как получить стипендию?",
+            "locale": "ru",
+            "mode": "full",
+            "tags": [
+                "full",
+                "ru",
+                "scholarship",
+                "model_sensitive"
+            ],
+            "assertions": [
+                {
+                    "type": "grounding.passed",
+                    "expect": true
+                },
+                {
+                    "type": "response.not_contains",
+                    "value": "ЕГЭ"
+                }
+            ],
+            "notes": "Observed both ways: grounded in the stabilization probe; on 2026-10-03 the model twice cited an unsourced exam (ЕГЭ) and grounding withheld the answer. Model-dependent, kept visible."
+        },
+        {
+            "name": "concept: semester start in English",
+            "question": "When does the semester start?",
+            "locale": "en",
+            "tags": [
+                "concept",
+                "en",
+                "calendar"
+            ],
+            "assertions": [
+                {
+                    "type": "routing.domains_include",
+                    "values": [
+                        "calendar"
+                    ]
+                },
+                {
+                    "type": "retrieval.source_in_top",
+                    "match": "akademik-takvim|academic-calendar",
+                    "n": 3
+                }
+            ]
+        },
+        {
+            "name": "concept: classes start in Russian",
+            "question": "Когда начинаются занятия?",
+            "locale": "ru",
+            "tags": [
+                "concept",
+                "ru",
+                "calendar"
+            ],
+            "assertions": [
+                {
+                    "type": "routing.domains_include",
+                    "values": [
+                        "calendar"
+                    ]
+                },
+                {
+                    "type": "retrieval.source_in_top",
+                    "match": "akademik-takvim|academic-calendar",
+                    "n": 3
+                }
+            ]
+        },
+        {
+            "name": "concept: language of instruction uses programme facts",
+            "question": "eğitim dili ne?",
+            "locale": "tr",
+            "tags": [
+                "concept",
+                "tr",
+                "program"
+            ],
+            "assertions": [
+                {
+                    "type": "routing.tools_include",
+                    "values": [
+                        "programs"
+                    ]
+                },
+                {
+                    "type": "live.tool_rows",
+                    "value": "programs"
+                }
+            ]
+        },
+        {
+            "name": "ambiguity: clarification before generation",
+            "question": "idari bina nerede?",
+            "locale": "tr",
+            "tags": [
+                "ambiguous",
+                "tr",
+                "place",
+                "alias_fixture"
+            ],
+            "assertions": [
+                {
+                    "type": "response.served_by",
+                    "values": [
+                        "operational"
+                    ]
+                },
+                {
+                    "type": "response.warning",
+                    "value": "AMBIGUOUS"
+                },
+                {
+                    "type": "operational.place_ids_include",
+                    "values": [
+                        "rodin",
+                        "titan"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "full: programme language comes from the facts",
+            "question": "Görsel İletişim Tasarımı bölümünün eğitim dili nedir?",
+            "locale": "tr",
+            "mode": "full",
+            "tags": [
+                "full",
+                "tr",
+                "program"
+            ],
+            "assertions": [
+                {
+                    "type": "routing.tools_include",
+                    "values": [
+                        "programs"
+                    ]
+                },
+                {
+                    "type": "response.contains",
+                    "value": "İngilizce"
+                },
+                {
+                    "type": "grounding.passed",
+                    "expect": true
+                }
+            ]
+        },
+        {
+            "name": "3a: fast path: today's menu",
+            "question": "Bugün yemekte ne var?",
+            "locale": "tr",
+            "tags": [
+                "phase3a",
+                "fast_path",
+                "tr",
+                "food"
+            ],
+            "assertions": [
+                {
+                    "type": "plan.mode",
+                    "value": "fast_path"
+                },
+                {
+                    "type": "response.served_by",
+                    "values": [
+                        "operational"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "3a: fast path: student affairs location",
+            "question": "Öğrenci işleri nerede?",
+            "locale": "tr",
+            "tags": [
+                "phase3a",
+                "fast_path",
+                "tr",
+                "place"
+            ],
+            "assertions": [
+                {
+                    "type": "plan.mode",
+                    "value": "fast_path"
+                },
+                {
+                    "type": "operational.place_ids_include",
+                    "values": [
+                        "titan"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "3a: fast path: today's events",
+            "question": "Bugünkü etkinlikler neler?",
+            "locale": "tr",
+            "tags": [
+                "phase3a",
+                "fast_path",
+                "tr",
+                "events"
+            ],
+            "assertions": [
+                {
+                    "type": "plan.mode",
+                    "value": "fast_path"
+                }
+            ]
+        },
+        {
+            "name": "3a: fast path: library hours",
+            "question": "Kütüphane kaçta kapanıyor?",
+            "locale": "tr",
+            "tags": [
+                "phase3a",
+                "fast_path",
+                "tr",
+                "services"
+            ],
+            "assertions": [
+                {
+                    "type": "plan.mode",
+                    "value": "fast_path"
+                }
+            ]
+        },
+        {
+            "name": "3a: two tasks: hours and route",
+            "question": "Öğrenci işleri bugün açık mı ve oraya nasıl giderim?",
+            "locale": "tr",
+            "tags": [
+                "phase3a",
+                "two_tasks",
+                "tr",
+                "navigation"
+            ],
+            "assertions": [
+                {
+                    "type": "plan.mode",
+                    "value": "planned"
+                },
+                {
+                    "type": "plan.task_types_include",
+                    "values": [
+                        "opening_hours",
+                        "route"
+                    ]
+                },
+                {
+                    "type": "plan.task_count",
+                    "n": 2
+                },
+                {
+                    "type": "plan.requirements_include",
+                    "values": [
+                        "current_opening_hours",
+                        "place_coordinates",
+                        "user_location",
+                        "routing"
+                    ]
+                },
+                {
+                    "type": "plan.provider_for",
+                    "value": "current_opening_hours",
+                    "target": "campus_operational"
+                },
+                {
+                    "type": "plan.provider_for",
+                    "value": "routing",
+                    "target": "routing_service"
+                },
+                {
+                    "type": "plan.provider_for",
+                    "value": "user_location",
+                    "target": "request_context"
+                },
+                {
+                    "type": "plan.final_entity",
+                    "value": "opening_hours",
+                    "entity_type": "service",
+                    "entity_id": "student-affairs"
+                },
+                {
+                    "type": "plan.final_entity",
+                    "value": "route",
+                    "entity_type": "place",
+                    "entity_id": "titan"
+                },
+                {
+                    "type": "plan.task_state",
+                    "value": "opening_hours",
+                    "target": "COMPLETED"
+                },
+                {
+                    "type": "plan.task_state",
+                    "value": "route",
+                    "target": "FAILED"
+                }
+            ],
+            "notes": "The route FAILS in retrieval mode by design: the request carries no current location, so no origin and no route may be invented."
+        },
+        {
+            "name": "3a: three tasks: hours, documents, route",
+            "question": "Öğrenci işleri bugün açık mı, hangi belgeleri götürmeliyim ve oraya nasıl giderim?",
+            "locale": "tr",
+            "tags": [
+                "phase3a",
+                "three_tasks",
+                "tr"
+            ],
+            "assertions": [
+                {
+                    "type": "plan.mode",
+                    "value": "planned"
+                },
+                {
+                    "type": "plan.task_types_include",
+                    "values": [
+                        "opening_hours",
+                        "required_documents",
+                        "route"
+                    ]
+                },
+                {
+                    "type": "plan.task_count",
+                    "n": 3
+                },
+                {
+                    "type": "plan.provider_for",
+                    "value": "required_documents",
+                    "target": "official_knowledge"
+                },
+                {
+                    "type": "plan.final_entity",
+                    "value": "required_documents",
+                    "entity_type": "service",
+                    "entity_id": "student-affairs"
+                }
+            ]
+        },
+        {
+            "name": "3a: dependency chain: nearest open food place",
+            "question": "Bugün açık olan en yakın yemek yerine götür.",
+            "locale": "tr",
+            "tags": [
+                "phase3a",
+                "dependency_chain",
+                "tr",
+                "food"
+            ],
+            "assertions": [
+                {
+                    "type": "plan.mode",
+                    "value": "planned"
+                },
+                {
+                    "type": "plan.depends_on",
+                    "value": "filter_open_now",
+                    "target": "find_food_places"
+                },
+                {
+                    "type": "plan.depends_on",
+                    "value": "rank_by_distance",
+                    "target": "filter_open_now"
+                },
+                {
+                    "type": "plan.depends_on",
+                    "value": "route",
+                    "target": "rank_by_distance"
+                },
+                {
+                    "type": "plan.requirements_include",
+                    "values": [
+                        "food_places",
+                        "current_opening_hours",
+                        "user_location",
+                        "place_coordinates",
+                        "routing"
+                    ]
+                },
+                {
+                    "type": "plan.task_state",
+                    "value": "find_food_places",
+                    "target": "COMPLETED"
+                },
+                {
+                    "type": "plan.task_state",
+                    "value": "filter_open_now",
+                    "target": "FAILED"
+                },
+                {
+                    "type": "plan.task_state",
+                    "value": "rank_by_distance",
+                    "target": "BLOCKED"
+                },
+                {
+                    "type": "plan.task_state",
+                    "value": "route",
+                    "target": "BLOCKED"
+                }
+            ],
+            "notes": "Known data gap: no food venue has opening hours, so filter_open_now fails and everything after it is BLOCKED — no destination or route invented."
+        },
+        {
+            "name": "3a: menu and route to an unknown place",
+            "question": "Bugün vejetaryen yemek var mı ve yemekhaneye nasıl giderim?",
+            "locale": "tr",
+            "tags": [
+                "phase3a",
+                "two_tasks",
+                "tr",
+                "food",
+                "unresolved"
+            ],
+            "assertions": [
+                {
+                    "type": "plan.mode",
+                    "value": "planned"
+                },
+                {
+                    "type": "plan.task_types_include",
+                    "values": [
+                        "current_menu",
+                        "route"
+                    ]
+                },
+                {
+                    "type": "plan.requirements_include",
+                    "values": [
+                        "current_menu",
+                        "routing"
+                    ]
+                },
+                {
+                    "type": "plan.task_state",
+                    "value": "current_menu",
+                    "target": "COMPLETED"
+                },
+                {
+                    "type": "plan.task_state",
+                    "value": "route",
+                    "target": "FAILED"
+                }
+            ],
+            "notes": "There is no place row for a dining hall; the route must fail rather than guess one."
+        },
+        {
+            "name": "3a: library open and where",
+            "question": "Kütüphane açık mı ve nerede?",
+            "locale": "tr",
+            "tags": [
+                "phase3a",
+                "two_tasks",
+                "tr",
+                "services"
+            ],
+            "assertions": [
+                {
+                    "type": "plan.mode",
+                    "value": "planned"
+                },
+                {
+                    "type": "plan.task_types_include",
+                    "values": [
+                        "opening_hours",
+                        "location"
+                    ]
+                },
+                {
+                    "type": "plan.final_entity",
+                    "value": "opening_hours",
+                    "entity_type": "service",
+                    "entity_id": "library"
+                },
+                {
+                    "type": "plan.final_entity",
+                    "value": "location",
+                    "entity_type": "place",
+                    "entity_id": "meditation"
+                },
+                {
+                    "type": "plan.task_state",
+                    "value": "location",
+                    "target": "COMPLETED"
+                }
+            ]
+        },
+        {
+            "name": "3a: club social profile and room (follow-up)",
+            "question": "Bu kulübün instagramı ne ve kulüp odası nerede?",
+            "locale": "tr",
+            "tags": [
+                "phase3a",
+                "two_tasks",
+                "tr",
+                "clubs",
+                "follow_up"
+            ],
+            "assertions": [
+                {
+                    "type": "plan.mode",
+                    "value": "planned"
+                },
+                {
+                    "type": "plan.task_types_include",
+                    "values": [
+                        "club_social_profile",
+                        "location"
+                    ]
+                },
+                {
+                    "type": "plan.task_state",
+                    "value": "club_social_profile",
+                    "target": "FAILED"
+                },
+                {
+                    "type": "plan.task_state",
+                    "value": "location",
+                    "target": "FAILED"
+                }
+            ],
+            "previous_turns": [
+                {
+                    "role": "user",
+                    "content": "Fotoğraf kulübü hakkında bilgi ver"
+                }
+            ],
+            "notes": "Known data gap: clubs have no social-profile field and no room/place; both tasks must fail honestly."
+        },
+        {
+            "name": "3a: conversation reference from a previous turn",
+            "question": "oraya nasıl giderim ve açık mı?",
+            "locale": "tr",
+            "tags": [
+                "phase3a",
+                "follow_up",
+                "tr",
+                "navigation"
+            ],
+            "assertions": [
+                {
+                    "type": "plan.mode",
+                    "value": "planned"
+                },
+                {
+                    "type": "plan.final_entity",
+                    "value": "route",
+                    "entity_type": "place",
+                    "entity_id": "meditation"
+                },
+                {
+                    "type": "plan.final_entity",
+                    "value": "opening_hours",
+                    "entity_type": "service",
+                    "entity_id": "library"
+                }
+            ],
+            "previous_turns": [
+                {
+                    "role": "user",
+                    "content": "Kütüphane nerede?"
+                }
+            ]
+        },
+        {
+            "name": "3a: ambiguous subject keeps the clarification",
+            "question": "idari bina açık mı ve oraya nasıl giderim?",
+            "locale": "tr",
+            "tags": [
+                "phase3a",
+                "ambiguous",
+                "tr",
+                "alias_fixture"
+            ],
+            "assertions": [
+                {
+                    "type": "plan.mode",
+                    "value": "planned"
+                },
+                {
+                    "type": "plan.resolution_status",
+                    "value": "AMBIGUOUS"
+                },
+                {
+                    "type": "plan.task_state",
+                    "value": "opening_hours",
+                    "target": "FAILED"
+                },
+                {
+                    "type": "response.served_by",
+                    "values": [
+                        "operational"
+                    ]
+                },
+                {
+                    "type": "response.warning",
+                    "value": "AMBIGUOUS"
+                }
+            ]
+        },
+        {
+            "name": "3a: unresolved subject",
+            "question": "Hamlet binası açık mı ve oraya nasıl giderim?",
+            "locale": "tr",
+            "tags": [
+                "phase3a",
+                "unresolved",
+                "tr"
+            ],
+            "assertions": [
+                {
+                    "type": "plan.mode",
+                    "value": "planned"
+                },
+                {
+                    "type": "plan.task_state",
+                    "value": "opening_hours",
+                    "target": "FAILED"
+                },
+                {
+                    "type": "plan.task_state",
+                    "value": "route",
+                    "target": "FAILED"
+                }
+            ]
+        },
+        {
+            "name": "3a: no diacritics",
+            "question": "ogrenci isleri bugun acik mi ve oraya nasil giderim",
+            "locale": "tr",
+            "tags": [
+                "phase3a",
+                "two_tasks",
+                "tr",
+                "no_diacritics"
+            ],
+            "assertions": [
+                {
+                    "type": "plan.mode",
+                    "value": "planned"
+                },
+                {
+                    "type": "plan.task_types_include",
+                    "values": [
+                        "opening_hours",
+                        "route"
+                    ]
+                },
+                {
+                    "type": "plan.final_entity",
+                    "value": "route",
+                    "entity_type": "place",
+                    "entity_id": "titan"
+                }
+            ]
+        },
+        {
+            "name": "3a: English two tasks",
+            "question": "Is the library open and where is it?",
+            "locale": "en",
+            "tags": [
+                "phase3a",
+                "two_tasks",
+                "en"
+            ],
+            "assertions": [
+                {
+                    "type": "plan.mode",
+                    "value": "planned"
+                },
+                {
+                    "type": "plan.task_types_include",
+                    "values": [
+                        "opening_hours",
+                        "location"
+                    ]
+                },
+                {
+                    "type": "plan.final_entity",
+                    "value": "location",
+                    "entity_type": "place",
+                    "entity_id": "meditation"
+                }
+            ]
+        },
+        {
+            "name": "3a: Russian two tasks",
+            "question": "Библиотека открыта? Как добраться туда?",
+            "locale": "ru",
+            "tags": [
+                "phase3a",
+                "two_tasks",
+                "ru"
+            ],
+            "assertions": [
+                {
+                    "type": "plan.mode",
+                    "value": "planned"
+                },
+                {
+                    "type": "plan.task_types_include",
+                    "values": [
+                        "opening_hours",
+                        "route"
+                    ]
+                },
+                {
+                    "type": "plan.final_entity",
+                    "value": "route",
+                    "entity_type": "place",
+                    "entity_id": "meditation"
+                }
+            ]
+        },
+        {
+            "name": "3a: full: library open and where",
+            "question": "Kütüphane açık mı ve nerede?",
+            "locale": "tr",
+            "tags": [
+                "phase3a",
+                "full",
+                "tr"
+            ],
+            "assertions": [
+                {
+                    "type": "plan.mode",
+                    "value": "planned"
+                },
+                {
+                    "type": "response.contains",
+                    "value": "Meditation"
+                },
+                {
+                    "type": "response.contains",
+                    "value": "açık|kapalı|acik|kapali|open|closed"
+                },
+                {
+                    "type": "grounding.passed",
+                    "expect": true
+                }
+            ],
+            "mode": "full",
+            "notes": "Asserts what the question asks — whether it is open (time-dependent, so open OR closed) and where — not the hours text. Corrected on first run (run #15): the model answered \"şu anda açık\" + Meditation, correctly, and the earlier \"must contain 09:00\" check demanded something the question never asked for."
+        },
+        {
+            "name": "3a: full: student affairs hours and route",
+            "question": "Öğrenci işleri bugün açık mı ve oraya nasıl giderim?",
+            "locale": "tr",
+            "tags": [
+                "phase3a",
+                "full",
+                "tr",
+                "navigation"
+            ],
+            "assertions": [
+                {
+                    "type": "plan.mode",
+                    "value": "planned"
+                },
+                {
+                    "type": "response.contains",
+                    "value": "Titan"
+                },
+                {
+                    "type": "response.contains",
+                    "value": "açık|kapalı|acik|kapali|open|closed"
+                },
+                {
+                    "type": "grounding.passed",
+                    "expect": true
+                }
+            ],
+            "mode": "full",
+            "notes": "Asserts what the question asks — whether it is open (time-dependent, so open OR closed) and where — not the hours text. Corrected on first run (run #15): the model answered \"şu anda açık\" + Titan, correctly, and the earlier \"must contain 09:00\" check demanded something the question never asked for."
+        },
+        {
+            "name": "3b: acceptance: hours, documents and route",
+            "question": "Öğrenci işleri bugün açık mı, hangi belgeleri götürmeliyim ve buradan nasıl giderim?",
+            "locale": "tr",
+            "tags": [
+                "phase3b",
+                "evidence",
+                "tr",
+                "navigation"
+            ],
+            "assertions": [
+                {
+                    "type": "plan.mode",
+                    "value": "planned"
+                },
+                {
+                    "type": "evidence.requirement",
+                    "value": "current_opening_hours",
+                    "target": "satisfied"
+                },
+                {
+                    "type": "evidence.source_type",
+                    "value": "current_opening_hours",
+                    "target": "database"
+                },
+                {
+                    "type": "evidence.winner_class",
+                    "value": "current_opening_hours",
+                    "target": "authoritative_operational"
+                },
+                {
+                    "type": "evidence.temporal",
+                    "value": "current_opening_hours",
+                    "target": "UNKNOWN"
+                },
+                {
+                    "type": "evidence.requirement",
+                    "value": "required_documents",
+                    "target": "satisfied"
+                },
+                {
+                    "type": "evidence.requirement",
+                    "value": "place_coordinates",
+                    "target": "satisfied"
+                },
+                {
+                    "type": "evidence.unavailable",
+                    "value": "user_location",
+                    "target": "context_missing"
+                },
+                {
+                    "type": "evidence.requirement",
+                    "value": "routing",
+                    "target": "unavailable"
+                },
+                {
+                    "type": "evidence.outcome",
+                    "value": "PARTIAL"
+                },
+                {
+                    "type": "evidence.reaches_prompt",
+                    "value": "current_opening_hours"
+                }
+            ],
+            "notes": "The Phase 3B acceptance question. Hours come from the campus row (standing hours, no validity period, so UNKNOWN — not a defect). Documents come from an official passage that names documents and the office. The route has its destination but no origin in a retrieval run, so the request is PARTIAL with CONTEXT_MISSING — never a guessed route."
+        },
+        {
+            "name": "3b: data gap: nearest open food place",
+            "question": "Bugün açık olan en yakın yemek yerine götür.",
+            "locale": "tr",
+            "tags": [
+                "phase3b",
+                "evidence",
+                "tr",
+                "food",
+                "data_gap"
+            ],
+            "assertions": [
+                {
+                    "type": "evidence.available",
+                    "value": "food_places"
+                },
+                {
+                    "type": "evidence.unavailable",
+                    "value": "current_opening_hours",
+                    "target": "no_authoritative_field"
+                },
+                {
+                    "type": "evidence.requirement",
+                    "value": "routing",
+                    "target": "not_applicable"
+                },
+                {
+                    "type": "plan.task_state",
+                    "value": "route",
+                    "target": "BLOCKED"
+                },
+                {
+                    "type": "evidence.outcome",
+                    "value": "PARTIAL"
+                }
+            ],
+            "notes": "Known data gap: food venues carry no opening hours, so 'open now' cannot be evidenced and the ranking and route are blocked (NOT_APPLICABLE). Fix the data, then update this case deliberately."
+        },
+        {
+            "name": "3b: data gap: club social profile and room (follow-up)",
+            "question": "Bu kulübün instagramı ne ve kulüp odası nerede?",
+            "locale": "tr",
+            "tags": [
+                "phase3b",
+                "evidence",
+                "tr",
+                "clubs",
+                "follow_up",
+                "data_gap"
+            ],
+            "previous_turns": [
+                {
+                    "role": "user",
+                    "content": "Fotoğraf kulübü hakkında bilgi ver"
+                }
+            ],
+            "assertions": [
+                {
+                    "type": "evidence.unavailable",
+                    "value": "club_social_profile",
+                    "target": "no_authoritative_field"
+                },
+                {
+                    "type": "evidence.unavailable",
+                    "value": "place_coordinates",
+                    "target": "no_authoritative_field"
+                },
+                {
+                    "type": "evidence.outcome",
+                    "value": "UNAVAILABLE"
+                }
+            ],
+            "notes": "Known data gap: clubs have no social-profile field and no room/place. The club itself is resolved, so this is DATA_UNAVAILABLE, not a resolution miss."
+        },
+        {
+            "name": "3b: complete: library open and where",
+            "question": "Kütüphane açık mı ve nerede?",
+            "locale": "tr",
+            "tags": [
+                "phase3b",
+                "evidence",
+                "tr",
+                "navigation"
+            ],
+            "assertions": [
+                {
+                    "type": "evidence.requirement",
+                    "value": "current_opening_hours",
+                    "target": "satisfied"
+                },
+                {
+                    "type": "evidence.requirement",
+                    "value": "place_coordinates",
+                    "target": "satisfied"
+                },
+                {
+                    "type": "evidence.outcome",
+                    "value": "COMPLETE"
+                },
+                {
+                    "type": "evidence.reaches_prompt",
+                    "value": "place_coordinates"
+                }
+            ]
+        },
+        {
+            "name": "3b: ambiguous subject is not evidenced",
+            "question": "idari bina açık mı ve oraya nasıl giderim?",
+            "locale": "tr",
+            "tags": [
+                "phase3b",
+                "evidence",
+                "tr",
+                "ambiguity"
+            ],
+            "assertions": [
+                {
+                    "type": "evidence.unavailable",
+                    "value": "current_opening_hours",
+                    "target": "subject_ambiguous"
+                },
+                {
+                    "type": "evidence.outcome",
+                    "value": "UNAVAILABLE"
+                }
+            ],
+            "notes": "Two buildings answer to 'idari bina': no evidence is collected for either, and the clarification stands."
+        },
+        {
+            "name": "3b: unresolved subject is not evidenced",
+            "question": "Hamlet binası açık mı ve oraya nasıl giderim?",
+            "locale": "tr",
+            "tags": [
+                "phase3b",
+                "evidence",
+                "tr"
+            ],
+            "assertions": [
+                {
+                    "type": "evidence.unavailable",
+                    "value": "current_opening_hours",
+                    "target": "subject_unresolved"
+                },
+                {
+                    "type": "evidence.unavailable",
+                    "value": "place_coordinates",
+                    "target": "subject_unresolved"
+                },
+                {
+                    "type": "evidence.outcome",
+                    "value": "UNAVAILABLE"
+                }
+            ]
+        },
+        {
+            "name": "3b: documents and closing time",
+            "question": "öğrenci işlerine kayıt için hangi evraklar lazım, kaçta kapanıyor?",
+            "locale": "tr",
+            "tags": [
+                "phase3b",
+                "evidence",
+                "tr",
+                "synthetic_phrasing"
+            ],
+            "assertions": [
+                {
+                    "type": "plan.task_types_include",
+                    "values": [
+                        "required_documents",
+                        "opening_hours"
+                    ]
+                },
+                {
+                    "type": "evidence.requirement",
+                    "value": "required_documents",
+                    "target": "satisfied"
+                },
+                {
+                    "type": "evidence.requirement",
+                    "value": "current_opening_hours",
+                    "target": "satisfied"
+                },
+                {
+                    "type": "evidence.outcome",
+                    "value": "COMPLETE"
+                }
+            ],
+            "notes": "Synthetic student phrasing (lower case, 'evraklar lazım')."
+        },
+        {
+            "name": "3b: synthetic phrasing: library without diacritics",
+            "question": "kutuphane acik mi simdi nerde tam olarak",
+            "locale": "tr",
+            "tags": [
+                "phase3b",
+                "evidence",
+                "tr",
+                "synthetic_phrasing"
+            ],
+            "assertions": [
+                {
+                    "type": "evidence.requirement",
+                    "value": "current_opening_hours",
+                    "target": "satisfied"
+                },
+                {
+                    "type": "evidence.requirement",
+                    "value": "place_coordinates",
+                    "target": "satisfied"
+                },
+                {
+                    "type": "evidence.outcome",
+                    "value": "COMPLETE"
+                }
+            ],
+            "notes": "Synthetic: no diacritics, colloquial 'nerde'."
+        },
+        {
+            "name": "3b: synthetic phrasing: colloquial documents clause",
+            "question": "ogrenci islerine gidicem acik mi su an, yanimda ne goturmem lazim",
+            "locale": "tr",
+            "tags": [
+                "phase3b",
+                "evidence",
+                "tr",
+                "synthetic_phrasing"
+            ],
+            "assertions": [
+                {
+                    "type": "plan.task_types_include",
+                    "values": [
+                        "opening_hours",
+                        "required_documents"
+                    ]
+                },
+                {
+                    "type": "evidence.requirement",
+                    "value": "current_opening_hours",
+                    "target": "satisfied"
+                }
+            ],
+            "notes": "Synthetic colloquial phrasing. Failed at task_planning in Phase 3B (run #20: 'götürmem' matched the route stem, and 'ne götürmem lazım' was not a documents clause); fixed by the planner hotfix before Phase 3C."
+        },
+        {
+            "name": "3b: English: hours, documents and route",
+            "question": "is student affairs open today, which documents do I need and how do I get there?",
+            "locale": "en",
+            "tags": [
+                "phase3b",
+                "evidence",
+                "en",
+                "navigation"
+            ],
+            "assertions": [
+                {
+                    "type": "evidence.requirement",
+                    "value": "current_opening_hours",
+                    "target": "satisfied"
+                },
+                {
+                    "type": "evidence.unavailable",
+                    "value": "user_location",
+                    "target": "context_missing"
+                },
+                {
+                    "type": "evidence.outcome",
+                    "value": "PARTIAL"
+                }
+            ]
+        },
+        {
+            "name": "3b: Russian: hours and route",
+            "question": "Библиотека открыта? Как добраться туда?",
+            "locale": "ru",
+            "tags": [
+                "phase3b",
+                "evidence",
+                "ru",
+                "navigation"
+            ],
+            "assertions": [
+                {
+                    "type": "evidence.requirement",
+                    "value": "current_opening_hours",
+                    "target": "satisfied"
+                },
+                {
+                    "type": "evidence.requirement",
+                    "value": "place_coordinates",
+                    "target": "satisfied"
+                },
+                {
+                    "type": "evidence.outcome",
+                    "value": "PARTIAL"
+                }
+            ]
+        },
+        {
+            "name": "3b: full: acceptance answer is partial, not invented",
+            "question": "Öğrenci işleri bugün açık mı, hangi belgeleri götürmeliyim ve buradan nasıl giderim?",
+            "locale": "tr",
+            "mode": "full",
+            "tags": [
+                "phase3b",
+                "evidence",
+                "full",
+                "tr",
+                "navigation"
+            ],
+            "assertions": [
+                {
+                    "type": "evidence.outcome",
+                    "value": "PARTIAL"
+                },
+                {
+                    "type": "response.contains",
+                    "value": "Titan"
+                },
+                {
+                    "type": "response.contains",
+                    "value": "açık|kapalı|acik|kapali|open|closed"
+                },
+                {
+                    "type": "grounding.passed",
+                    "expect": true
+                }
+            ],
+            "notes": "Full answer for the acceptance question: the open/closed state and the building are evidenced; the route is not (no origin), so it must not be presented as computed."
+        },
+        {
+            "name": "3a: programme language composite (tr)",
+            "question": "Grafik tasarım bölümü İngilizce mi ve öğrenci işleri nerede?",
+            "locale": "tr",
+            "tags": [
+                "phase3a",
+                "two_tasks",
+                "tr",
+                "programs",
+                "planner_hotfix"
+            ],
+            "assertions": [
+                {
+                    "type": "plan.mode",
+                    "value": "planned"
+                },
+                {
+                    "type": "plan.task_types_include",
+                    "values": [
+                        "program_language",
+                        "location"
+                    ]
+                }
+            ],
+            "notes": "Phase 3B gap: a yes/no language question was not recognised next to another task."
+        },
+        {
+            "name": "3a: programme language composite (en)",
+            "question": "Is Graphic Design taught in English and where is student affairs?",
+            "locale": "en",
+            "tags": [
+                "phase3a",
+                "two_tasks",
+                "en",
+                "programs",
+                "planner_hotfix"
+            ],
+            "assertions": [
+                {
+                    "type": "plan.mode",
+                    "value": "planned"
+                },
+                {
+                    "type": "plan.task_types_include",
+                    "values": [
+                        "program_language",
+                        "location"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "3a: programme language composite (ru)",
+            "question": "Графический дизайн: обучение на английском? И где студенческий отдел?",
+            "locale": "ru",
+            "tags": [
+                "phase3a",
+                "two_tasks",
+                "ru",
+                "programs",
+                "planner_hotfix"
+            ],
+            "assertions": [
+                {
+                    "type": "plan.task_types_include",
+                    "values": [
+                        "program_language"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "3a: answer-language request is not a programme question",
+            "question": "Can you answer in English: is the library open and where is it?",
+            "locale": "en",
+            "tags": [
+                "phase3a",
+                "en",
+                "planner_hotfix"
+            ],
+            "assertions": [
+                {
+                    "type": "plan.task_types_exclude",
+                    "values": [
+                        "program_language"
+                    ]
+                },
+                {
+                    "type": "plan.task_types_include",
+                    "values": [
+                        "opening_hours",
+                        "location"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "3a: bring phrasing with an explicit route",
+            "question": "Öğrenci işlerine ne getirmem gerekiyor? Beni oraya götür.",
+            "locale": "tr",
+            "tags": [
+                "phase3a",
+                "two_tasks",
+                "tr",
+                "planner_hotfix"
+            ],
+            "assertions": [
+                {
+                    "type": "plan.task_types_include",
+                    "values": [
+                        "required_documents",
+                        "route"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "3c: acceptance: relevant passage is not a document list",
+            "question": "Öğrenci işleri bugün açık mı, hangi belgeleri götürmeliyim ve buradan nasıl giderim?",
+            "locale": "tr",
+            "tags": [
+                "phase3c",
+                "facts",
+                "tr",
+                "known_weakness"
+            ],
+            "assertions": [
+                {
+                    "type": "fact.supported",
+                    "value": "current_opening_hours",
+                    "target": "09:00-17:00"
+                },
+                {
+                    "type": "fact.supported",
+                    "value": "is_open_now"
+                },
+                {
+                    "type": "fact.status",
+                    "value": "required_documents",
+                    "target": "INSUFFICIENT"
+                },
+                {
+                    "type": "fact.none",
+                    "value": "required_documents"
+                },
+                {
+                    "type": "fact.supported",
+                    "value": "place_coordinates",
+                    "target": "place:titan"
+                },
+                {
+                    "type": "answer_plan.task",
+                    "value": "opening_hours",
+                    "target": "supported"
+                },
+                {
+                    "type": "answer_plan.task",
+                    "value": "required_documents",
+                    "target": "insufficient"
+                },
+                {
+                    "type": "answer_plan.task",
+                    "value": "route",
+                    "target": "context_missing"
+                },
+                {
+                    "type": "answer_plan.outcome",
+                    "value": "PARTIAL"
+                }
+            ],
+            "notes": "The Phase 3B weakness: the Student Handbook passage mentions registration documents (3B: satisfied) but lists none. Phase 3C must not treat it as support. Compare '3b: acceptance', which still asserts the 3B evidence view."
+        },
+        {
+            "name": "3c: programme language from the programme fact",
+            "question": "Görsel İletişim Tasarımı İngilizce mi ve öğrenci işleri nerede?",
+            "locale": "tr",
+            "tags": [
+                "phase3c",
+                "facts",
+                "tr",
+                "programs",
+                "regression"
+            ],
+            "assertions": [
+                {
+                    "type": "fact.supported",
+                    "value": "program_language",
+                    "target": "en"
+                },
+                {
+                    "type": "fact.source",
+                    "value": "program_language",
+                    "match": "gorsel-iletisim-tasarimi"
+                },
+                {
+                    "type": "answer_plan.outcome",
+                    "value": "COMPLETE"
+                }
+            ],
+            "notes": "Preserves the earlier failure where Visual Communication Design was described as Turkish-taught."
+        },
+        {
+            "name": "3c: programme language contradicts the question's presupposition",
+            "question": "Yeni Medya ve İletişim bölümü İngilizce mi ve öğrenci işleri nerede?",
+            "locale": "tr",
+            "tags": [
+                "phase3c",
+                "facts",
+                "tr",
+                "programs"
+            ],
+            "assertions": [
+                {
+                    "type": "fact.supported",
+                    "value": "program_language",
+                    "target": "tr"
+                }
+            ]
+        },
+        {
+            "name": "3c: unknown programme has no language fact",
+            "question": "Grafik tasarım bölümü İngilizce mi ve öğrenci işleri nerede?",
+            "locale": "tr",
+            "tags": [
+                "phase3c",
+                "facts",
+                "tr",
+                "programs",
+                "no_data"
+            ],
+            "assertions": [
+                {
+                    "type": "fact.none",
+                    "value": "program_language"
+                },
+                {
+                    "type": "answer_plan.task",
+                    "value": "location",
+                    "target": "supported"
+                },
+                {
+                    "type": "answer_plan.outcome",
+                    "value": "PARTIAL"
+                }
+            ],
+            "notes": "There is no Graphic Design programme in the data; no language may be supported for it."
+        },
+        {
+            "name": "3c: data gap: club social profile and room",
+            "question": "Bu kulübün instagramı ne ve kulüp odası nerede?",
+            "locale": "tr",
+            "tags": [
+                "phase3c",
+                "facts",
+                "tr",
+                "clubs",
+                "data_gap"
+            ],
+            "previous_turns": [
+                {
+                    "role": "user",
+                    "content": "Fotoğraf kulübü hakkında bilgi ver"
+                }
+            ],
+            "assertions": [
+                {
+                    "type": "fact.none",
+                    "value": "club_social_profile"
+                },
+                {
+                    "type": "fact.none",
+                    "value": "place_coordinates"
+                },
+                {
+                    "type": "answer_plan.outcome",
+                    "value": "UNAVAILABLE"
+                }
+            ]
+        },
+        {
+            "name": "3c: data gap: food hours block the chain",
+            "question": "Bugün açık olan en yakın yemek yerine götür.",
+            "locale": "tr",
+            "tags": [
+                "phase3c",
+                "facts",
+                "tr",
+                "food",
+                "data_gap"
+            ],
+            "assertions": [
+                {
+                    "type": "fact.status",
+                    "value": "current_opening_hours",
+                    "target": "UNSUPPORTED"
+                },
+                {
+                    "type": "answer_plan.task",
+                    "value": "route",
+                    "target": "not_applicable"
+                }
+            ]
+        },
+        {
+            "name": "3c: indirect colloquial question",
+            "question": "Öğrenci işlerine uğramam lazım, şu an açık mıdır acaba ve kayıt için ne getirmem gerekiyor?",
+            "locale": "tr",
+            "tags": [
+                "phase3c",
+                "facts",
+                "tr",
+                "synthetic_phrasing"
+            ],
+            "assertions": [
+                {
+                    "type": "fact.supported",
+                    "value": "current_opening_hours"
+                },
+                {
+                    "type": "fact.status",
+                    "value": "required_documents",
+                    "target": "INSUFFICIENT"
+                },
+                {
+                    "type": "answer_plan.outcome",
+                    "value": "PARTIAL"
+                }
+            ]
+        },
+        {
+            "name": "3c: no diacritics: hours and what to bring",
+            "question": "ogrenci islerine gidicem acik mi su an, yanimda ne goturmem lazim",
+            "locale": "tr",
+            "tags": [
+                "phase3c",
+                "facts",
+                "tr",
+                "synthetic_phrasing"
+            ],
+            "assertions": [
+                {
+                    "type": "fact.supported",
+                    "value": "current_opening_hours"
+                },
+                {
+                    "type": "fact.none",
+                    "value": "required_documents"
+                }
+            ]
+        },
+        {
+            "name": "3c: English: library open and where",
+            "question": "Is the library open and where is it?",
+            "locale": "en",
+            "tags": [
+                "phase3c",
+                "facts",
+                "en"
+            ],
+            "assertions": [
+                {
+                    "type": "fact.supported",
+                    "value": "current_opening_hours"
+                },
+                {
+                    "type": "fact.supported",
+                    "value": "place_coordinates",
+                    "target": "place:meditation"
+                },
+                {
+                    "type": "answer_plan.outcome",
+                    "value": "COMPLETE"
+                }
+            ]
+        },
+        {
+            "name": "3c: Russian: route needs the student's location",
+            "question": "Библиотека открыта? Как добраться туда?",
+            "locale": "ru",
+            "tags": [
+                "phase3c",
+                "facts",
+                "ru",
+                "navigation"
+            ],
+            "assertions": [
+                {
+                    "type": "fact.supported",
+                    "value": "current_opening_hours"
+                },
+                {
+                    "type": "fact.none",
+                    "value": "route_duration_min"
+                },
+                {
+                    "type": "answer_plan.task",
+                    "value": "route",
+                    "target": "context_missing"
+                }
+            ]
+        },
+        {
+            "name": "3c: full: acceptance keeps the supported tasks and invents no documents",
+            "question": "Öğrenci işleri bugün açık mı, hangi belgeleri götürmeliyim ve buradan nasıl giderim?",
+            "locale": "tr",
+            "mode": "full",
+            "tags": [
+                "phase3c",
+                "facts",
+                "full",
+                "tr",
+                "fact_generation"
+            ],
+            "assertions": [
+                {
+                    "type": "claim.no_unsupported"
+                },
+                {
+                    "type": "claim.uses_fact",
+                    "value": "current_opening_hours"
+                },
+                {
+                    "type": "citation.absent",
+                    "match": "Student Handbook"
+                },
+                {
+                    "type": "response.contains",
+                    "value": "açık|kapalı|acik|kapali|09:00"
+                },
+                {
+                    "type": "grounding.passed",
+                    "expect": true
+                }
+            ],
+            "notes": "Requires AICAD_SUPPORTED_FACT_GENERATION_ENABLED=true. The handbook produced no supported fact, so it must not be cited."
+        },
+        {
+            "name": "3c: full: programme language claim is verified",
+            "question": "Görsel İletişim Tasarımı İngilizce mi ve öğrenci işleri nerede?",
+            "locale": "tr",
+            "mode": "full",
+            "tags": [
+                "phase3c",
+                "facts",
+                "full",
+                "tr",
+                "programs",
+                "fact_generation"
+            ],
+            "assertions": [
+                {
+                    "type": "claim.no_unsupported"
+                },
+                {
+                    "type": "claim.uses_fact",
+                    "value": "program_language"
+                },
+                {
+                    "type": "response.no_fact_contradiction"
+                }
+            ],
+            "notes": "Requires AICAD_SUPPORTED_FACT_GENERATION_ENABLED=true."
+        },
+        {
+            "name": "3c: full: club gaps are reported, not invented",
+            "question": "Bu kulübün instagramı ne ve kulüp odası nerede?",
+            "locale": "tr",
+            "mode": "full",
+            "tags": [
+                "phase3c",
+                "facts",
+                "full",
+                "tr",
+                "clubs",
+                "data_gap",
+                "fact_generation"
+            ],
+            "previous_turns": [
+                {
+                    "role": "user",
+                    "content": "Fotoğraf kulübü hakkında bilgi ver"
+                }
+            ],
+            "assertions": [
+                {
+                    "type": "response.not_contains",
+                    "value": "instagram.com"
+                },
+                {
+                    "type": "grounding.passed",
+                    "expect": true
+                }
+            ],
+            "notes": "Requires AICAD_SUPPORTED_FACT_GENERATION_ENABLED=true. Preserves the earlier invented club URL."
+        },
+        {
+            "name": "3c: full: English library answer uses both facts",
+            "question": "Is the library open and where is it?",
+            "locale": "en",
+            "mode": "full",
+            "tags": [
+                "phase3c",
+                "facts",
+                "full",
+                "en",
+                "fact_generation"
+            ],
+            "assertions": [
+                {
+                    "type": "claim.no_unsupported"
+                },
+                {
+                    "type": "claim.uses_fact",
+                    "value": "place_coordinates"
+                }
+            ],
+            "notes": "Requires AICAD_SUPPORTED_FACT_GENERATION_ENABLED=true."
+        },
+        {
+            "name": "3c1: open-now is its own fact",
+            "question": "Kütüphane şu an açık mı ve nerede?",
+            "locale": "tr",
+            "tags": [
+                "phase3c1",
+                "facts",
+                "tr",
+                "open_now"
+            ],
+            "assertions": [
+                {
+                    "type": "fact.supported",
+                    "value": "current_opening_hours",
+                    "target": "09:00-17:00"
+                },
+                {
+                    "type": "fact.supported",
+                    "value": "is_open_now"
+                }
+            ],
+            "notes": "Weekday hours always yield an is_open_now fact (false on weekends), evaluated in campus time; its value is time-dependent and deliberately not asserted."
+        },
+        {
+            "name": "3c1: English programme name maps to the canonical programme",
+            "question": "Is Visual Communication Design taught in English and where is student affairs?",
+            "locale": "en",
+            "tags": [
+                "phase3c1",
+                "facts",
+                "en",
+                "programs",
+                "programme_names"
+            ],
+            "assertions": [
+                {
+                    "type": "fact.supported",
+                    "value": "program_language",
+                    "target": "en"
+                },
+                {
+                    "type": "answer_plan.outcome",
+                    "value": "COMPLETE"
+                }
+            ],
+            "notes": "Requires the official-name aliases: php artisan db:seed --class=AiProgrammeAliasSeeder."
+        },
+        {
+            "name": "3c1: Russian programme name maps to the canonical programme",
+            "question": "Визуальный Дизайн и Коммуникация: обучение на английском? И где студенческий отдел?",
+            "locale": "ru",
+            "tags": [
+                "phase3c1",
+                "facts",
+                "ru",
+                "programs",
+                "programme_names"
+            ],
+            "assertions": [
+                {
+                    "type": "fact.supported",
+                    "value": "program_language",
+                    "target": "en"
+                }
+            ]
+        },
+        {
+            "name": "3c1: unofficial programme name is not guessed",
+            "question": "Is Graphic Design taught in English and where is student affairs?",
+            "locale": "en",
+            "tags": [
+                "phase3c1",
+                "facts",
+                "en",
+                "programs",
+                "no_data"
+            ],
+            "assertions": [
+                {
+                    "type": "fact.none",
+                    "value": "program_language"
+                },
+                {
+                    "type": "answer_plan.task",
+                    "value": "location",
+                    "target": "supported"
+                }
+            ],
+            "notes": "'Graphic Design' is not an ARUCAD programme name; it must not be mapped onto Visual Communication Design."
+        },
+        {
+            "name": "3c1: programme not in the data is not found, not denied",
+            "question": "Veteriner Hekimlik bölümü İngilizce mi ve öğrenci işleri nerede?",
+            "locale": "tr",
+            "tags": [
+                "phase3c1",
+                "facts",
+                "tr",
+                "negative_claim"
+            ],
+            "assertions": [
+                {
+                    "type": "fact.none",
+                    "value": "program_language"
+                },
+                {
+                    "type": "answer_plan.task",
+                    "value": "location",
+                    "target": "supported"
+                }
+            ],
+            "notes": "Corrected on first run: the task status may be 'insufficient' (passages found, none states it) or 'unavailable'; both carry absence=not_found_in_current_data. The property is that no language is supported, and the full-answer case checks no absolute denial."
+        },
+        {
+            "name": "3c1: full: open now answered from the open-now fact",
+            "question": "Kütüphane şu an açık mı ve nerede?",
+            "locale": "tr",
+            "mode": "full",
+            "tags": [
+                "phase3c1",
+                "facts",
+                "full",
+                "tr",
+                "open_now",
+                "fact_generation"
+            ],
+            "assertions": [
+                {
+                    "type": "rollout.path",
+                    "value": "supported_facts"
+                },
+                {
+                    "type": "claim.no_unsupported"
+                },
+                {
+                    "type": "claim.full_coverage"
+                }
+            ],
+            "notes": "Requires AICAD_SUPPORTED_FACT_GENERATION_ENABLED=on."
+        },
+        {
+            "name": "3c1: full: speculative bait about club rooms",
+            "question": "Kulüp odaları genelde nerede olur ve bu kulübün instagramı ne?",
+            "locale": "tr",
+            "mode": "full",
+            "previous_turns": [
+                {
+                    "role": "user",
+                    "content": "Fotoğraf kulübü hakkında bilgi ver"
+                }
+            ],
+            "tags": [
+                "phase3c1",
+                "facts",
+                "full",
+                "tr",
+                "speculation",
+                "data_gap",
+                "fact_generation"
+            ],
+            "assertions": [
+                {
+                    "type": "claim.no_unsupported"
+                },
+                {
+                    "type": "response.not_contains",
+                    "value": "instagram.com"
+                },
+                {
+                    "type": "response.not_contains",
+                    "value": "genellikle|genelde|usually"
+                }
+            ],
+            "notes": "Requires AICAD_SUPPORTED_FACT_GENERATION_ENABLED=on. No fact exists for either task; generalisations must not survive."
+        },
+        {
+            "name": "3c1: full: English programme name, verified language claim",
+            "question": "Is Visual Communication Design taught in English and where is student affairs?",
+            "locale": "en",
+            "mode": "full",
+            "tags": [
+                "phase3c1",
+                "facts",
+                "full",
+                "en",
+                "programs",
+                "fact_generation"
+            ],
+            "assertions": [
+                {
+                    "type": "claim.no_unsupported"
+                },
+                {
+                    "type": "claim.uses_fact",
+                    "value": "program_language"
+                },
+                {
+                    "type": "claim.full_coverage"
+                }
+            ],
+            "notes": "Requires AICAD_SUPPORTED_FACT_GENERATION_ENABLED=on."
+        },
+        {
+            "name": "3c1: full: no absolute denial for a programme not in the data",
+            "question": "Is Veterinary Medicine taught in English at ARUCAD, and where is student affairs?",
+            "locale": "en",
+            "mode": "full",
+            "tags": [
+                "phase3c1",
+                "facts",
+                "full",
+                "en",
+                "negative_claim",
+                "fact_generation"
+            ],
+            "assertions": [
+                {
+                    "type": "claim.no_unsupported"
+                },
+                {
+                    "type": "response.not_contains",
+                    "value": "does not offer|doesn't offer|there is no"
+                }
+            ],
+            "notes": "Requires AICAD_SUPPORTED_FACT_GENERATION_ENABLED=on. Missing data is 'not found in the current data', never 'does not exist'."
+        },
+        {
+            "name": "3c1: full: partial answer keeps every task's verified part",
+            "question": "Öğrenci işleri bugün açık mı, hangi belgeleri götürmeliyim ve buradan nasıl giderim?",
+            "locale": "tr",
+            "mode": "full",
+            "tags": [
+                "phase3c1",
+                "facts",
+                "full",
+                "tr",
+                "partial",
+                "fact_generation"
+            ],
+            "assertions": [
+                {
+                    "type": "rollout.path",
+                    "value": "supported_facts"
+                },
+                {
+                    "type": "claim.no_unsupported"
+                },
+                {
+                    "type": "claim.full_coverage"
+                },
+                {
+                    "type": "answer_plan.outcome",
+                    "value": "PARTIAL"
+                }
+            ],
+            "notes": "Requires AICAD_SUPPORTED_FACT_GENERATION_ENABLED=on."
+        },
+        {
+            "name": "staging: tomorrow, not now",
+            "question": "yarın öğrenci işlerine uğrasam açık olur mu, yanıma ne almam gerekiyor",
+            "locale": "tr",
+            "tags": [
+                "staging_pack",
+                "realistic",
+                "tr",
+                "open_now"
+            ],
+            "assertions": [
+                {
+                    "type": "fact.supported",
+                    "value": "current_opening_hours"
+                },
+                {
+                    "type": "fact.none",
+                    "value": "is_open_now"
+                },
+                {
+                    "type": "fact.none",
+                    "value": "required_documents"
+                }
+            ],
+            "notes": "Synthetic. Asked about tomorrow: the schedule answers it; an open-NOW fact would invite a wrong 'şu an açık'."
+        },
+        {
+            "name": "staging: weekend status without diacritics",
+            "question": "kutuphane hafta sonu acik mi, nerede tam olarak",
+            "locale": "tr",
+            "tags": [
+                "staging_pack",
+                "realistic",
+                "tr",
+                "open_now",
+                "no_diacritics"
+            ],
+            "assertions": [
+                {
+                    "type": "fact.supported",
+                    "value": "current_opening_hours",
+                    "target": "09:00-17:00"
+                },
+                {
+                    "type": "fact.none",
+                    "value": "is_open_now"
+                },
+                {
+                    "type": "answer_plan.outcome",
+                    "value": "COMPLETE"
+                }
+            ]
+        },
+        {
+            "name": "staging: Saturday in English",
+            "question": "is the library open on saturday and where is it",
+            "locale": "en",
+            "tags": [
+                "staging_pack",
+                "realistic",
+                "en",
+                "open_now"
+            ],
+            "assertions": [
+                {
+                    "type": "fact.none",
+                    "value": "is_open_now"
+                },
+                {
+                    "type": "fact.supported",
+                    "value": "place_coordinates",
+                    "target": "place:meditation"
+                }
+            ]
+        },
+        {
+            "name": "staging: Russian hours and place",
+            "question": "когда открыта библиотека и где она находится",
+            "locale": "ru",
+            "tags": [
+                "staging_pack",
+                "realistic",
+                "ru"
+            ],
+            "assertions": [
+                {
+                    "type": "fact.supported",
+                    "value": "current_opening_hours"
+                },
+                {
+                    "type": "fact.supported",
+                    "value": "place_coordinates",
+                    "target": "place:meditation"
+                }
+            ]
+        },
+        {
+            "name": "staging: club insta short form",
+            "question": "kulübün insta hesabı var mı, odaları nerede",
+            "locale": "tr",
+            "previous_turns": [
+                {
+                    "role": "user",
+                    "content": "Fotoğraf kulübü hakkında bilgi ver"
+                }
+            ],
+            "tags": [
+                "staging_pack",
+                "realistic",
+                "tr",
+                "clubs",
+                "data_gap"
+            ],
+            "assertions": [
+                {
+                    "type": "plan.task_types_include",
+                    "values": [
+                        "club_social_profile"
+                    ]
+                },
+                {
+                    "type": "fact.none",
+                    "value": "club_social_profile"
+                }
+            ],
+            "notes": "Found while preparing staging: 'insta' was not recognised (PLANNER). Clubs have no social-profile source (DATA)."
+        },
+        {
+            "name": "staging: somewhere open to eat",
+            "question": "bugün bir şeyler yiyebileceğim açık yer var mı",
+            "locale": "tr",
+            "tags": [
+                "staging_pack",
+                "realistic",
+                "tr",
+                "food",
+                "data_gap"
+            ],
+            "assertions": [
+                {
+                    "type": "plan.task_types_include",
+                    "values": [
+                        "find_food_places",
+                        "filter_open_now"
+                    ]
+                },
+                {
+                    "type": "fact.status",
+                    "value": "current_opening_hours",
+                    "target": "UNSUPPORTED"
+                }
+            ],
+            "notes": "Found while preparing staging: without 'en yakın' this was not planned (PLANNER). Food venues have no hours (DATA)."
+        },
+        {
+            "name": "staging: nearest food without location",
+            "question": "buradan en yakın yemek yerine götür",
+            "locale": "tr",
+            "tags": [
+                "staging_pack",
+                "realistic",
+                "tr",
+                "food",
+                "navigation"
+            ],
+            "assertions": [
+                {
+                    "type": "answer_plan.task",
+                    "value": "rank_by_distance",
+                    "target": "context_missing"
+                },
+                {
+                    "type": "answer_plan.task",
+                    "value": "route",
+                    "target": "not_applicable"
+                }
+            ]
+        },
+        {
+            "name": "staging: programme fully in English, colloquial",
+            "question": "görsel iletişim tasarımı tamamen ingilizce mi, bölüm nerede",
+            "locale": "tr",
+            "tags": [
+                "staging_pack",
+                "realistic",
+                "tr",
+                "programs"
+            ],
+            "assertions": [
+                {
+                    "type": "fact.supported",
+                    "value": "program_language",
+                    "target": "en"
+                }
+            ],
+            "notes": "The department has no place record: 'bölüm nerede' stays unavailable (DATA)."
+        },
+        {
+            "name": "staging: full: weekend question is not answered with open-now",
+            "question": "kutuphane hafta sonu acik mi, nerede tam olarak",
+            "locale": "tr",
+            "mode": "full",
+            "tags": [
+                "staging_pack",
+                "realistic",
+                "tr",
+                "full",
+                "open_now",
+                "fact_generation"
+            ],
+            "assertions": [
+                {
+                    "type": "claim.no_unsupported"
+                },
+                {
+                    "type": "claim.full_coverage"
+                }
+            ],
+            "notes": "Requires AICAD_SUPPORTED_FACT_GENERATION_ENABLED=on."
+        },
+        {
+            "name": "staging: full: tomorrow and what to bring",
+            "question": "yarın öğrenci işlerine uğrasam açık olur mu, yanıma ne almam gerekiyor",
+            "locale": "tr",
+            "mode": "full",
+            "tags": [
+                "staging_pack",
+                "realistic",
+                "tr",
+                "full",
+                "fact_generation"
+            ],
+            "assertions": [
+                {
+                    "type": "claim.no_unsupported"
+                },
+                {
+                    "type": "response.not_contains",
+                    "value": "pasaport|passport"
+                }
+            ],
+            "notes": "Requires AICAD_SUPPORTED_FACT_GENERATION_ENABLED=on."
+        },
+        {
+            "name": "staging: full: club insta, no invented account",
+            "question": "kulübün insta hesabı var mı, odaları nerede",
+            "locale": "tr",
+            "mode": "full",
+            "previous_turns": [
+                {
+                    "role": "user",
+                    "content": "Fotoğraf kulübü hakkında bilgi ver"
+                }
+            ],
+            "tags": [
+                "staging_pack",
+                "realistic",
+                "tr",
+                "full",
+                "clubs",
+                "fact_generation"
+            ],
+            "assertions": [
+                {
+                    "type": "claim.no_unsupported"
+                },
+                {
+                    "type": "response.not_contains",
+                    "value": "instagram.com"
+                }
+            ],
+            "notes": "Requires AICAD_SUPPORTED_FACT_GENERATION_ENABLED=on."
+        },
+        {
+            "name": "staging: full: somewhere open to eat",
+            "question": "bugün bir şeyler yiyebileceğim açık yer var mı",
+            "locale": "tr",
+            "mode": "full",
+            "tags": [
+                "staging_pack",
+                "realistic",
+                "tr",
+                "full",
+                "food",
+                "fact_generation"
+            ],
+            "assertions": [
+                {
+                    "type": "claim.no_unsupported"
+                }
+            ],
+            "notes": "Requires AICAD_SUPPORTED_FACT_GENERATION_ENABLED=on. No venue has hours: the answer must not claim one is open."
+        },
+        {
+            "name": "4a: classes start",
+            "question": "dersler ne zaman başlıyor",
+            "locale": "tr",
+            "tags": [
+                "phase4a",
+                "realistic",
+                "tr",
+                "calendar"
+            ],
+            "assertions": [
+                {
+                    "type": "response.served_by",
+                    "values": [
+                        "direct"
+                    ]
+                },
+                {
+                    "type": "response.contains",
+                    "value": "Akademik Takvim"
+                }
+            ]
+        },
+        {
+            "name": "4a: colloquial school opening",
+            "question": "okul ne zaman açılıyo",
+            "locale": "tr",
+            "tags": [
+                "phase4a",
+                "realistic",
+                "tr",
+                "calendar",
+                "colloquial"
+            ],
+            "assertions": [
+                {
+                    "type": "response.served_by",
+                    "values": [
+                        "direct"
+                    ]
+                },
+                {
+                    "type": "response.contains",
+                    "value": "Akademik Takvim"
+                }
+            ]
+        },
+        {
+            "name": "4a: spring term start",
+            "question": "bahar dönemi ne zaman başlıyor",
+            "locale": "tr",
+            "tags": [
+                "phase4a",
+                "realistic",
+                "tr",
+                "calendar"
+            ],
+            "assertions": [
+                {
+                    "type": "response.served_by",
+                    "values": [
+                        "direct"
+                    ]
+                },
+                {
+                    "type": "response.contains",
+                    "value": "Bahar"
+                }
+            ]
+        },
+        {
+            "name": "4a: finals, short form",
+            "question": "finaller ne zaman",
+            "locale": "tr",
+            "tags": [
+                "phase4a",
+                "realistic",
+                "tr",
+                "calendar"
+            ],
+            "assertions": [
+                {
+                    "type": "response.served_by",
+                    "values": [
+                        "direct"
+                    ]
+                },
+                {
+                    "type": "response.contains",
+                    "value": "dönem sonu sınavları"
+                }
+            ]
+        },
+        {
+            "name": "4a: add-drop deadline",
+            "question": "ekle bırak son gün ne zaman",
+            "locale": "tr",
+            "tags": [
+                "phase4a",
+                "realistic",
+                "tr",
+                "calendar"
+            ],
+            "assertions": [
+                {
+                    "type": "response.served_by",
+                    "values": [
+                        "direct"
+                    ]
+                },
+                {
+                    "type": "response.contains",
+                    "value": "ekleme"
+                }
+            ]
+        },
+        {
+            "name": "4a: make-up exams",
+            "question": "bütünleme sınavları ne zaman",
+            "locale": "tr",
+            "tags": [
+                "phase4a",
+                "realistic",
+                "tr",
+                "calendar"
+            ],
+            "assertions": [
+                {
+                    "type": "response.served_by",
+                    "values": [
+                        "direct"
+                    ]
+                },
+                {
+                    "type": "response.contains",
+                    "value": "bütünleme"
+                }
+            ]
+        },
+        {
+            "name": "4a: semester start in English",
+            "question": "when do classes start this semester",
+            "locale": "en",
+            "tags": [
+                "phase4a",
+                "realistic",
+                "en",
+                "calendar"
+            ],
+            "assertions": [
+                {
+                    "type": "response.served_by",
+                    "values": [
+                        "direct"
+                    ]
+                },
+                {
+                    "type": "response.contains",
+                    "value": "academic calendar"
+                }
+            ]
+        },
+        {
+            "name": "4a: final exams in English",
+            "question": "when are final exams",
+            "locale": "en",
+            "tags": [
+                "phase4a",
+                "realistic",
+                "en",
+                "calendar"
+            ],
+            "assertions": [
+                {
+                    "type": "response.served_by",
+                    "values": [
+                        "direct"
+                    ]
+                },
+                {
+                    "type": "response.contains",
+                    "value": "final exams"
+                }
+            ]
+        },
+        {
+            "name": "4a: classes start in Russian",
+            "question": "когда начинаются занятия",
+            "locale": "ru",
+            "tags": [
+                "phase4a",
+                "realistic",
+                "ru",
+                "calendar"
+            ],
+            "assertions": [
+                {
+                    "type": "response.served_by",
+                    "values": [
+                        "direct"
+                    ]
+                },
+                {
+                    "type": "response.contains",
+                    "value": "академический календарь"
+                }
+            ]
+        },
+        {
+            "name": "4a: exam session in Russian",
+            "question": "когда сессия",
+            "locale": "ru",
+            "tags": [
+                "phase4a",
+                "realistic",
+                "ru",
+                "calendar"
+            ],
+            "assertions": [
+                {
+                    "type": "response.served_by",
+                    "values": [
+                        "direct"
+                    ]
+                },
+                {
+                    "type": "response.contains",
+                    "value": "экзамен"
+                }
+            ]
+        },
+        {
+            "name": "4a: club wording is not the calendar",
+            "question": "kulüp etkinlikleri ne zaman başlıyor",
+            "locale": "tr",
+            "tags": [
+                "phase4a",
+                "realistic",
+                "tr",
+                "calendar",
+                "negative"
+            ],
+            "assertions": [
+                {
+                    "type": "response.served_by",
+                    "values": [
+                        "model",
+                        "operational"
+                    ]
+                },
+                {
+                    "type": "response.not_contains",
+                    "value": "Akademik Takvim"
+                }
+            ]
+        },
+        {
+            "name": "4a: student affairs e-mail",
+            "question": "öğrenci işlerinin maili ne",
+            "locale": "tr",
+            "tags": [
+                "phase4a",
+                "realistic",
+                "tr",
+                "contacts",
+                "services"
+            ],
+            "assertions": [
+                {
+                    "type": "response.served_by",
+                    "values": [
+                        "operational"
+                    ]
+                },
+                {
+                    "type": "response.contains",
+                    "value": "ogrenciisleri@arucad.edu.tr"
+                }
+            ]
+        },
+        {
+            "name": "4a: phone asked, none recorded",
+            "question": "öğrenci işleri telefon numarası",
+            "locale": "tr",
+            "tags": [
+                "phase4a",
+                "realistic",
+                "tr",
+                "contacts",
+                "services",
+                "data_gap"
+            ],
+            "assertions": [
+                {
+                    "type": "response.served_by",
+                    "values": [
+                        "operational"
+                    ]
+                },
+                {
+                    "type": "response.contains",
+                    "value": "kayıtlı bir telefon numarası yok"
+                }
+            ]
+        },
+        {
+            "name": "4a: how to call the library",
+            "question": "kütüphaneyi nasıl arayabilirim",
+            "locale": "tr",
+            "tags": [
+                "phase4a",
+                "realistic",
+                "tr",
+                "contacts",
+                "services",
+                "data_gap"
+            ],
+            "assertions": [
+                {
+                    "type": "response.served_by",
+                    "values": [
+                        "operational"
+                    ]
+                },
+                {
+                    "type": "response.contains",
+                    "value": "kutuphane@arucad.edu.tr"
+                },
+                {
+                    "type": "response.contains",
+                    "value": "telefon numarası yok"
+                }
+            ]
+        },
+        {
+            "name": "4a: international office e-mail in English",
+            "question": "whats the email for the international office",
+            "locale": "en",
+            "tags": [
+                "phase4a",
+                "realistic",
+                "en",
+                "contacts",
+                "services"
+            ],
+            "assertions": [
+                {
+                    "type": "response.served_by",
+                    "values": [
+                        "operational"
+                    ]
+                },
+                {
+                    "type": "response.contains",
+                    "value": "international@arucad.edu.tr"
+                }
+            ]
+        },
+        {
+            "name": "4a: library e-mail in Russian",
+            "question": "почта библиотеки",
+            "locale": "ru",
+            "tags": [
+                "phase4a",
+                "realistic",
+                "ru",
+                "contacts",
+                "services"
+            ],
+            "assertions": [
+                {
+                    "type": "response.served_by",
+                    "values": [
+                        "operational"
+                    ]
+                },
+                {
+                    "type": "response.contains",
+                    "value": "kutuphane@arucad.edu.tr"
+                }
+            ]
+        },
+        {
+            "name": "4a: planned: date and e-mail",
+            "question": "dersler ne zaman başlıyor ve öğrenci işlerinin maili ne",
+            "locale": "tr",
+            "tags": [
+                "phase4a",
+                "realistic",
+                "tr",
+                "calendar",
+                "contacts",
+                "two_tasks",
+                "facts"
+            ],
+            "assertions": [
+                {
+                    "type": "plan.task_types_include",
+                    "values": [
+                        "academic_dates",
+                        "contact_details"
+                    ]
+                },
+                {
+                    "type": "fact.supported",
+                    "value": "academic_date"
+                },
+                {
+                    "type": "fact.supported",
+                    "value": "contact_email",
+                    "target": "ogrenciisleri@arucad.edu.tr"
+                }
+            ]
+        },
+        {
+            "name": "4a: planned: no phone fact without a phone",
+            "question": "kütüphanenin telefonu ne, hafta sonu açık mı",
+            "locale": "tr",
+            "tags": [
+                "phase4a",
+                "realistic",
+                "tr",
+                "contacts",
+                "open_now",
+                "two_tasks",
+                "facts",
+                "data_gap"
+            ],
+            "assertions": [
+                {
+                    "type": "fact.none",
+                    "value": "contact_phone"
+                },
+                {
+                    "type": "fact.supported",
+                    "value": "current_opening_hours"
+                }
+            ]
+        },
+        {
+            "name": "4a: planned in English",
+            "question": "when does the semester start and what is the library email",
+            "locale": "en",
+            "tags": [
+                "phase4a",
+                "realistic",
+                "en",
+                "calendar",
+                "contacts",
+                "two_tasks",
+                "facts"
+            ],
+            "assertions": [
+                {
+                    "type": "fact.supported",
+                    "value": "academic_date"
+                },
+                {
+                    "type": "fact.supported",
+                    "value": "contact_email",
+                    "target": "kutuphane@arucad.edu.tr"
+                }
+            ]
+        },
+        {
+            "name": "4a: club profile only from the canonical field",
+            "question": "fotoğraf kulübünün instagramı ne, odası nerede",
+            "locale": "tr",
+            "tags": [
+                "phase4a",
+                "realistic",
+                "tr",
+                "clubs",
+                "two_tasks",
+                "facts",
+                "data_gap"
+            ],
+            "assertions": [
+                {
+                    "type": "fact.none",
+                    "value": "club_social_profile"
+                },
+                {
+                    "type": "fact.none",
+                    "value": "place_coordinates"
+                }
+            ],
+            "notes": "No club has an official Instagram URL or room recorded yet; a handle in a description must not become a fact."
+        },
+        {
+            "name": "4a: full: date and e-mail",
+            "question": "dersler ne zaman başlıyor ve öğrenci işlerinin maili ne",
+            "locale": "tr",
+            "tags": [
+                "phase4a",
+                "realistic",
+                "tr",
+                "calendar",
+                "contacts",
+                "full",
+                "fact_generation"
+            ],
+            "assertions": [
+                {
+                    "type": "claim.no_unsupported"
+                },
+                {
+                    "type": "response.contains",
+                    "value": "ogrenciisleri@arucad.edu.tr"
+                }
+            ],
+            "mode": "full",
+            "notes": "Requires AICAD_SUPPORTED_FACT_GENERATION_ENABLED=on."
+        },
+        {
+            "name": "4a: full: no invented person",
+            "question": "kütüphane müdürü kim ve kütüphanenin maili ne",
+            "locale": "tr",
+            "tags": [
+                "phase4a",
+                "realistic",
+                "tr",
+                "contacts",
+                "staff",
+                "full",
+                "fact_generation",
+                "data_gap"
+            ],
+            "assertions": [
+                {
+                    "type": "response.served_by",
+                    "values": [
+                        "operational"
+                    ]
+                },
+                {
+                    "type": "response.contains",
+                    "value": "sorumlu kişi adı yok"
+                },
+                {
+                    "type": "response.not_contains",
+                    "value": "Prof.|Dr.|Doç."
+                }
+            ],
+            "mode": "full",
+            "notes": "No person records exist. The contact card answers the e-mail and states the person gap; a name would be invented."
+        },
+        {
+            "name": "4a: full: English date and e-mail",
+            "question": "when do classes start and what is the library email",
+            "locale": "en",
+            "tags": [
+                "phase4a",
+                "realistic",
+                "en",
+                "calendar",
+                "contacts",
+                "full",
+                "fact_generation"
+            ],
+            "assertions": [
+                {
+                    "type": "claim.no_unsupported"
+                },
+                {
+                    "type": "response.contains",
+                    "value": "kutuphane@arucad.edu.tr"
+                }
+            ],
+            "mode": "full",
+            "notes": "Requires AICAD_SUPPORTED_FACT_GENERATION_ENABLED=on."
+        },
+        {
+            "name": "4a: full: app screen and club account",
+            "question": "uygulamada kulüplere nereden bakarım, fotoğraf kulübünün instagramı ne",
+            "locale": "tr",
+            "tags": [
+                "phase4a",
+                "realistic",
+                "tr",
+                "clubs",
+                "navigation",
+                "full",
+                "fact_generation"
+            ],
+            "assertions": [
+                {
+                    "type": "claim.no_unsupported"
+                },
+                {
+                    "type": "response.not_contains",
+                    "value": "instagram.com"
+                }
+            ],
+            "mode": "full",
+            "notes": "Requires AICAD_SUPPORTED_FACT_GENERATION_ENABLED=on. Any screen named must be a trusted destination."
+        },
+        {
+            "name": "4b: programme duration",
+            "question": "Görsel İletişim Tasarımı kaç yıl?",
+            "locale": "tr",
+            "tags": [
+                "phase4b",
+                "realistic",
+                "tr",
+                "programs",
+                "duration"
+            ],
+            "assertions": [
+                {
+                    "type": "response.served_by",
+                    "values": [
+                        "direct"
+                    ]
+                },
+                {
+                    "type": "response.contains",
+                    "value": "4 yıl"
+                },
+                {
+                    "type": "response.contains",
+                    "value": "rt-program/gorsel-iletisim-tasarimi"
+                }
+            ]
+        },
+        {
+            "name": "4b: programme duration, colloquial",
+            "question": "iç mekan tasarımı kaç yıllık",
+            "locale": "tr",
+            "tags": [
+                "phase4b",
+                "realistic",
+                "tr",
+                "programs",
+                "duration",
+                "colloquial"
+            ],
+            "assertions": [
+                {
+                    "type": "response.served_by",
+                    "values": [
+                        "direct"
+                    ]
+                },
+                {
+                    "type": "response.contains",
+                    "value": "2 yıl"
+                }
+            ]
+        },
+        {
+            "name": "4b: programme duration in English",
+            "question": "How long is the New Media and Communication programme?",
+            "locale": "en",
+            "tags": [
+                "phase4b",
+                "realistic",
+                "en",
+                "programs",
+                "duration"
+            ],
+            "assertions": [
+                {
+                    "type": "response.served_by",
+                    "values": [
+                        "direct"
+                    ]
+                },
+                {
+                    "type": "response.contains",
+                    "value": "4 years"
+                }
+            ]
+        },
+        {
+            "name": "4b: programme duration in Russian",
+            "question": "Сколько лет учиться на архитектуре?",
+            "locale": "ru",
+            "tags": [
+                "phase4b",
+                "realistic",
+                "ru",
+                "programs",
+                "duration"
+            ],
+            "assertions": [
+                {
+                    "type": "response.served_by",
+                    "values": [
+                        "direct"
+                    ]
+                },
+                {
+                    "type": "response.contains",
+                    "value": "4 года"
+                }
+            ]
+        },
+        {
+            "name": "4b: prep school in semesters",
+            "question": "İngilizce Hazırlık Okulu kaç dönem sürüyor",
+            "locale": "tr",
+            "tags": [
+                "phase4b",
+                "realistic",
+                "tr",
+                "programs",
+                "duration"
+            ],
+            "assertions": [
+                {
+                    "type": "response.served_by",
+                    "values": [
+                        "direct"
+                    ]
+                },
+                {
+                    "type": "response.contains",
+                    "value": "1–2 yarıyıl"
+                }
+            ]
+        },
+        {
+            "name": "4b: no such programme: nothing inferred",
+            "question": "Grafik Tasarım kaç yıl?",
+            "locale": "tr",
+            "tags": [
+                "phase4b",
+                "realistic",
+                "tr",
+                "programs",
+                "duration",
+                "negative"
+            ],
+            "assertions": [
+                {
+                    "type": "response.served_by",
+                    "values": [
+                        "model",
+                        "operational"
+                    ]
+                }
+            ],
+            "notes": "ARUCAD has no Grafik Tasarım programme; no duration may be stated from degree level."
+        },
+        {
+            "name": "4b: planned: duration and language",
+            "question": "Görsel İletişim Tasarımı kaç yıl ve eğitim dili ne?",
+            "locale": "tr",
+            "tags": [
+                "phase4b",
+                "realistic",
+                "tr",
+                "programs",
+                "duration",
+                "two_tasks",
+                "facts"
+            ],
+            "assertions": [
+                {
+                    "type": "plan.task_types_include",
+                    "values": [
+                        "programme_duration",
+                        "program_language"
+                    ]
+                },
+                {
+                    "type": "fact.supported",
+                    "value": "programme_duration",
+                    "target": "4y"
+                },
+                {
+                    "type": "fact.supported",
+                    "value": "program_language",
+                    "target": "en"
+                }
+            ]
+        },
+        {
+            "name": "4b: phone: none recorded, e-mail is the fact",
+            "question": "kütüphane nerede ve telefonu ne?",
+            "locale": "tr",
+            "tags": [
+                "phase4b",
+                "realistic",
+                "tr",
+                "contacts",
+                "services",
+                "two_tasks",
+                "facts",
+                "data_gap"
+            ],
+            "assertions": [
+                {
+                    "type": "fact.none",
+                    "value": "contact_phone"
+                },
+                {
+                    "type": "fact.supported",
+                    "value": "contact_email",
+                    "target": "kutuphane@arucad.edu.tr"
+                }
+            ]
+        },
+        {
+            "name": "4b: short office alias",
+            "question": "kariyer merkezinin maili ne",
+            "locale": "tr",
+            "tags": [
+                "phase4b",
+                "realistic",
+                "tr",
+                "contacts",
+                "services",
+                "alias"
+            ],
+            "assertions": [
+                {
+                    "type": "response.served_by",
+                    "values": [
+                        "operational"
+                    ]
+                },
+                {
+                    "type": "response.contains",
+                    "value": "destek@arucad.edu.tr"
+                }
+            ]
+        },
+        {
+            "name": "4b: Russian office alias, inflected",
+            "question": "телефон студенческого офиса",
+            "locale": "ru",
+            "tags": [
+                "phase4b",
+                "realistic",
+                "ru",
+                "contacts",
+                "services",
+                "alias",
+                "data_gap"
+            ],
+            "assertions": [
+                {
+                    "type": "response.served_by",
+                    "values": [
+                        "operational"
+                    ]
+                },
+                {
+                    "type": "response.contains",
+                    "value": "ogrenciisleri@arucad.edu.tr"
+                },
+                {
+                    "type": "response.contains",
+                    "value": "не указан"
+                }
+            ]
+        },
+        {
+            "name": "4b: unit short name",
+            "question": "engelli destek birimi maili",
+            "locale": "tr",
+            "tags": [
+                "phase4b",
+                "realistic",
+                "tr",
+                "contacts",
+                "services",
+                "alias"
+            ],
+            "assertions": [
+                {
+                    "type": "response.served_by",
+                    "values": [
+                        "operational"
+                    ]
+                },
+                {
+                    "type": "response.contains",
+                    "value": "destek@arucad.edu.tr"
+                }
+            ]
+        },
+        {
+            "name": "4b: food open now: no hours recorded",
+            "question": "şu an yemek yiyebileceğim açık bir yer var mı",
+            "locale": "tr",
+            "tags": [
+                "phase4b",
+                "realistic",
+                "tr",
+                "food",
+                "open_now",
+                "facts",
+                "data_gap"
+            ],
+            "assertions": [
+                {
+                    "type": "fact.none",
+                    "value": "is_open_now"
+                },
+                {
+                    "type": "fact.none",
+                    "value": "current_opening_hours"
+                }
+            ],
+            "notes": "\"açık yemek yeri\" (without yer/mekan) is not planned as an open-place chain; recorded as a planner vocabulary limit."
+        },
+        {
+            "name": "4b: nearest food: no place link",
+            "question": "bugün açık olan en yakın yemek yerine götür",
+            "locale": "tr",
+            "tags": [
+                "phase4b",
+                "realistic",
+                "tr",
+                "food",
+                "navigation",
+                "facts",
+                "data_gap"
+            ],
+            "assertions": [
+                {
+                    "type": "fact.none",
+                    "value": "place_coordinates"
+                }
+            ]
+        },
+        {
+            "name": "4b: no menu is not inferred",
+            "question": "bugün yemekte ne var ve yemek yeri açık mı",
+            "locale": "tr",
+            "tags": [
+                "phase4b",
+                "realistic",
+                "tr",
+                "food",
+                "two_tasks",
+                "facts",
+                "data_gap"
+            ],
+            "assertions": [
+                {
+                    "type": "fact.none",
+                    "value": "current_menu"
+                }
+            ]
+        },
+        {
+            "name": "4b: club account and e-mail: empty fields",
+            "question": "fotoğraf kulübünün instagramı ne ve maili ne",
+            "locale": "tr",
+            "tags": [
+                "phase4b",
+                "realistic",
+                "tr",
+                "clubs",
+                "contacts",
+                "two_tasks",
+                "facts",
+                "data_gap"
+            ],
+            "assertions": [
+                {
+                    "type": "fact.none",
+                    "value": "club_social_profile"
+                },
+                {
+                    "type": "fact.none",
+                    "value": "contact_email"
+                }
+            ]
+        },
+        {
+            "name": "4b: club room in English",
+            "question": "where is the photography club's room and what is its instagram",
+            "locale": "en",
+            "tags": [
+                "phase4b",
+                "realistic",
+                "en",
+                "clubs",
+                "two_tasks",
+                "facts",
+                "data_gap"
+            ],
+            "assertions": [
+                {
+                    "type": "fact.none",
+                    "value": "place_coordinates"
+                },
+                {
+                    "type": "fact.none",
+                    "value": "club_social_profile"
+                }
+            ]
+        },
+        {
+            "name": "4b: sports facility: no place link",
+            "question": "basketbol takımı nerede antrenman yapıyor ve maili ne",
+            "locale": "tr",
+            "tags": [
+                "phase4b",
+                "realistic",
+                "tr",
+                "sports",
+                "navigation",
+                "facts",
+                "data_gap"
+            ],
+            "assertions": [
+                {
+                    "type": "fact.none",
+                    "value": "place_coordinates"
+                }
+            ]
+        },
+        {
+            "name": "4b: full: duration and language",
+            "question": "Görsel İletişim Tasarımı kaç yıl ve eğitim dili ne?",
+            "locale": "tr",
+            "tags": [
+                "phase4b",
+                "realistic",
+                "tr",
+                "programs",
+                "duration",
+                "full",
+                "fact_generation"
+            ],
+            "assertions": [
+                {
+                    "type": "claim.no_unsupported"
+                },
+                {
+                    "type": "response.contains",
+                    "value": "4"
+                }
+            ],
+            "mode": "full",
+            "notes": "Requires AICAD_SUPPORTED_FACT_GENERATION_ENABLED=on."
+        },
+        {
+            "name": "4b: full: English duration and language",
+            "question": "How long is the New Media and Communication programme and is it taught in English?",
+            "locale": "en",
+            "tags": [
+                "phase4b",
+                "realistic",
+                "en",
+                "programs",
+                "duration",
+                "full",
+                "fact_generation"
+            ],
+            "assertions": [
+                {
+                    "type": "claim.no_unsupported"
+                }
+            ],
+            "mode": "full",
+            "notes": "Requires AICAD_SUPPORTED_FACT_GENERATION_ENABLED=on."
+        },
+        {
+            "name": "4b: full: missing club data, nothing invented",
+            "question": "fotoğraf kulübünün instagramı ve maili ne",
+            "locale": "tr",
+            "tags": [
+                "phase4b",
+                "realistic",
+                "tr",
+                "clubs",
+                "full",
+                "fact_generation",
+                "data_gap"
+            ],
+            "assertions": [
+                {
+                    "type": "claim.no_unsupported"
+                },
+                {
+                    "type": "response.not_contains",
+                    "value": "instagram.com|@arucad"
+                }
+            ],
+            "mode": "full",
+            "notes": "Requires AICAD_SUPPORTED_FACT_GENERATION_ENABLED=on."
+        },
+        {
+            "name": "4b: full: notifications screen is trusted",
+            "question": "bildirimlerimi uygulamada nerede görürüm ve kütüphanenin maili ne",
+            "locale": "tr",
+            "tags": [
+                "phase4b",
+                "realistic",
+                "tr",
+                "navigation",
+                "contacts",
+                "full",
+                "fact_generation"
+            ],
+            "assertions": [
+                {
+                    "type": "claim.no_unsupported"
+                }
+            ],
+            "mode": "full",
+            "notes": "Requires AICAD_SUPPORTED_FACT_GENERATION_ENABLED=on. Any screen named must be a trusted destination."
+        },
+        {
+            "name": "4c: any open food place",
+            "question": "açık yemek yeri var mı",
+            "locale": "tr",
+            "tags": [
+                "phase4c",
+                "realistic",
+                "tr",
+                "food",
+                "planner"
+            ],
+            "assertions": [
+                {
+                    "type": "plan.task_types_include",
+                    "values": [
+                        "find_food_places",
+                        "filter_open_now"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "4c: any open food place, no diacritics",
+            "question": "acik yemek yeri var mi",
+            "locale": "tr",
+            "tags": [
+                "phase4c",
+                "realistic",
+                "tr",
+                "food",
+                "planner",
+                "no_diacritics"
+            ],
+            "assertions": [
+                {
+                    "type": "plan.task_types_include",
+                    "values": [
+                        "find_food_places",
+                        "filter_open_now"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "4c: can I eat somewhere open today",
+            "question": "bugün açık bir yerde yemek yiyebilir miyim",
+            "locale": "tr",
+            "tags": [
+                "phase4c",
+                "realistic",
+                "tr",
+                "food",
+                "planner"
+            ],
+            "assertions": [
+                {
+                    "type": "plan.task_types_include",
+                    "values": [
+                        "find_food_places",
+                        "filter_open_now"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "4c: anywhere open to eat",
+            "question": "is there anywhere open to eat",
+            "locale": "en",
+            "tags": [
+                "phase4c",
+                "realistic",
+                "en",
+                "food",
+                "planner"
+            ],
+            "assertions": [
+                {
+                    "type": "plan.task_types_include",
+                    "values": [
+                        "find_food_places",
+                        "filter_open_now"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "4c: where can I eat now",
+            "question": "где сейчас можно поесть",
+            "locale": "ru",
+            "tags": [
+                "phase4c",
+                "realistic",
+                "ru",
+                "food",
+                "planner"
+            ],
+            "assertions": [
+                {
+                    "type": "plan.task_types_include",
+                    "values": [
+                        "find_food_places",
+                        "filter_open_now"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "4c: one named venue keeps its task",
+            "question": "yemekhane şu an açık mı",
+            "locale": "tr",
+            "tags": [
+                "phase4c",
+                "realistic",
+                "tr",
+                "food",
+                "planner",
+                "negative"
+            ],
+            "assertions": [
+                {
+                    "type": "plan.task_types_exclude",
+                    "values": [
+                        "find_food_places"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "4c: club follow-up without \"bu\"",
+            "question": "kulübün instagramı ne ve odası nerede?",
+            "locale": "tr",
+            "tags": [
+                "phase4c",
+                "realistic",
+                "tr",
+                "clubs",
+                "follow_up",
+                "facts",
+                "data_gap"
+            ],
+            "assertions": [
+                {
+                    "type": "plan.final_entity",
+                    "value": "club_social_profile",
+                    "entity_type": "club",
+                    "entity_id": "club-photography"
+                },
+                {
+                    "type": "fact.none",
+                    "value": "club_social_profile"
+                }
+            ],
+            "previous_turns": [
+                {
+                    "role": "user",
+                    "content": "Fotoğrafçılık kulübünü göster"
+                }
+            ]
+        },
+        {
+            "name": "4c: club follow-up, route to its room",
+            "question": "kulübün instagramı ne ve kulübe nasıl giderim",
+            "locale": "tr",
+            "tags": [
+                "phase4c",
+                "realistic",
+                "tr",
+                "clubs",
+                "follow_up",
+                "navigation",
+                "data_gap"
+            ],
+            "assertions": [
+                {
+                    "type": "plan.final_entity",
+                    "value": "club_social_profile",
+                    "entity_type": "club",
+                    "entity_id": "club-photography"
+                }
+            ],
+            "previous_turns": [
+                {
+                    "role": "user",
+                    "content": "Fotoğraf kulübü hakkında bilgi ver"
+                }
+            ]
+        },
+        {
+            "name": "4c: club follow-up in English",
+            "question": "what is the club's instagram and where is its room",
+            "locale": "en",
+            "tags": [
+                "phase4c",
+                "realistic",
+                "en",
+                "clubs",
+                "follow_up",
+                "alias"
+            ],
+            "assertions": [
+                {
+                    "type": "plan.final_entity",
+                    "value": "club_social_profile",
+                    "entity_type": "club",
+                    "entity_id": "club-photography"
+                }
+            ],
+            "previous_turns": [
+                {
+                    "role": "user",
+                    "content": "Tell me about the photography club"
+                }
+            ]
+        },
+        {
+            "name": "4c: short sports team name",
+            "question": "basketbol takımı nerede ve maili ne",
+            "locale": "tr",
+            "tags": [
+                "phase4c",
+                "realistic",
+                "tr",
+                "sports",
+                "alias",
+                "data_gap"
+            ],
+            "assertions": [
+                {
+                    "type": "entity.resolves",
+                    "entity_type": "sport",
+                    "entity_id": "sport-basketball"
+                },
+                {
+                    "type": "fact.none",
+                    "value": "place_coordinates"
+                }
+            ]
+        },
+        {
+            "name": "4c: table tennis is not tennis",
+            "question": "masa tenisi nerede oynanıyor",
+            "locale": "tr",
+            "tags": [
+                "phase4c",
+                "realistic",
+                "tr",
+                "sports",
+                "alias"
+            ],
+            "assertions": [
+                {
+                    "type": "entity.resolves",
+                    "entity_type": "sport",
+                    "entity_id": "sport-table-tennis"
+                },
+                {
+                    "type": "entity.not_resolves",
+                    "entity_type": "sport",
+                    "entity_id": "sport-tennis"
+                }
+            ]
+        },
+        {
+            "name": "4c: programme language from the structured fact",
+            "question": "Mimarlık hangi dilde ve öğrenci işleri nerede?",
+            "locale": "tr",
+            "tags": [
+                "phase4c",
+                "realistic",
+                "tr",
+                "programs",
+                "facts"
+            ],
+            "assertions": [
+                {
+                    "type": "fact.supported",
+                    "value": "program_language",
+                    "target": "en"
+                },
+                {
+                    "type": "fact.source",
+                    "value": "program_language",
+                    "match": "rt-program/mimarlik"
+                }
+            ]
+        },
+        {
+            "name": "4c: stale academic-year row is not a date source",
+            "question": "dersler ne zaman başlıyor",
+            "locale": "tr",
+            "tags": [
+                "phase4c",
+                "realistic",
+                "tr",
+                "calendar",
+                "stale"
+            ],
+            "assertions": [
+                {
+                    "type": "response.served_by",
+                    "values": [
+                        "direct"
+                    ]
+                },
+                {
+                    "type": "response.not_contains",
+                    "value": "2025-2026|2025–2026"
+                }
+            ]
+        },
+        {
+            "name": "4c: fixture: office phone becomes a fact",
+            "question": "[FIXTURE] Test Office nerede ve telefonu ne?",
+            "locale": "tr",
+            "tags": [
+                "phase4c",
+                "realistic",
+                "tr",
+                "staging_fixture",
+                "contacts",
+                "facts"
+            ],
+            "assertions": [
+                {
+                    "type": "fact.supported",
+                    "value": "contact_phone",
+                    "target": "900000000001"
+                }
+            ],
+            "active": false,
+            "notes": "Requires php artisan aicad:staging-fixtures (fixture rows only). Inactive: run by id."
+        },
+        {
+            "name": "4c: fixture: food hours from weekly rows",
+            "question": "şu an yemek yiyebileceğim açık bir yer var mı",
+            "locale": "tr",
+            "tags": [
+                "phase4c",
+                "realistic",
+                "tr",
+                "staging_fixture",
+                "food",
+                "facts"
+            ],
+            "assertions": [
+                {
+                    "type": "fact.supported",
+                    "value": "current_opening_hours",
+                    "target": "08:00-16:00"
+                }
+            ],
+            "active": false,
+            "notes": "Requires php artisan aicad:staging-fixtures (fixture rows only). Inactive: run by id."
+        },
+        {
+            "name": "4c: fixture: club account and e-mail",
+            "question": "[FIXTURE] Test Club instagramı ne ve maili ne",
+            "locale": "tr",
+            "tags": [
+                "phase4c",
+                "realistic",
+                "tr",
+                "staging_fixture",
+                "clubs",
+                "facts"
+            ],
+            "assertions": [
+                {
+                    "type": "fact.supported",
+                    "value": "club_social_profile",
+                    "target": "https://instagram.com/fixture_test_club"
+                },
+                {
+                    "type": "fact.supported",
+                    "value": "contact_email",
+                    "target": "fixture-club@example.edu"
+                }
+            ],
+            "active": false,
+            "notes": "Requires php artisan aicad:staging-fixtures (fixture rows only). Inactive: run by id."
+        },
+        {
+            "name": "4c: fixture: club room",
+            "question": "[FIXTURE] Test Club instagramı ne ve odası nerede",
+            "locale": "tr",
+            "tags": [
+                "phase4c",
+                "realistic",
+                "tr",
+                "staging_fixture",
+                "clubs",
+                "navigation",
+                "facts"
+            ],
+            "assertions": [
+                {
+                    "type": "fact.supported",
+                    "value": "place_coordinates",
+                    "target": "place:fixture-place"
+                }
+            ],
+            "active": false,
+            "notes": "Requires php artisan aicad:staging-fixtures (fixture rows only). Inactive: run by id."
+        },
+        {
+            "name": "4c: fixture: sports team place",
+            "question": "[FIXTURE] Test Team nerede ve maili ne",
+            "locale": "tr",
+            "tags": [
+                "phase4c",
+                "realistic",
+                "tr",
+                "staging_fixture",
+                "sports",
+                "navigation",
+                "facts"
+            ],
+            "assertions": [
+                {
+                    "type": "fact.supported",
+                    "value": "place_coordinates",
+                    "target": "place:fixture-place"
+                }
+            ],
+            "active": false,
+            "notes": "Requires php artisan aicad:staging-fixtures (fixture rows only). Inactive: run by id."
+        },
+        {
+            "name": "4c: full: fixture office phone, nothing else invented",
+            "question": "[FIXTURE] Test Office nerede ve telefonu ne?",
+            "locale": "tr",
+            "tags": [
+                "phase4c",
+                "realistic",
+                "tr",
+                "staging_fixture",
+                "contacts",
+                "full",
+                "fact_generation"
+            ],
+            "assertions": [
+                {
+                    "type": "claim.no_unsupported"
+                },
+                {
+                    "type": "response.contains",
+                    "value": "000 000 00 01"
+                }
+            ],
+            "mode": "full",
+            "active": false,
+            "notes": "Requires php artisan aicad:staging-fixtures (fixture rows only). Inactive: run by id. Requires AICAD_SUPPORTED_FACT_GENERATION_ENABLED=on."
+        },
+        {
+            "name": "4d: full: no \"open\" claim without hours",
+            "question": "açık yemek yeri var mı",
+            "locale": "tr",
+            "mode": "full",
+            "tags": [
+                "phase4d",
+                "realistic",
+                "tr",
+                "food",
+                "open_now",
+                "full",
+                "fact_generation",
+                "data_gap",
+                "staging_finding"
+            ],
+            "assertions": [
+                {
+                    "type": "claim.no_unsupported"
+                },
+                {
+                    "type": "response.not_contains",
+                    "value": "açık yemek yeri mevcut|açık bir yemek yeri var|evet, "
+                }
+            ],
+            "notes": "Found by ask:smoke (4D, facts on): \"…adlı açık yemek yeri mevcuttur\" passed on the venue-name fact while no venue had hours. Layer: CLAIM VERIFICATION. Requires AICAD_SUPPORTED_FACT_GENERATION_ENABLED=on."
+        }
+    ]
+}

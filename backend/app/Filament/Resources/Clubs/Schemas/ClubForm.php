@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Clubs\Schemas;
 
 use App\Models\Club;
+use App\Models\Place;
 use App\Models\StaffProfile;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -48,6 +49,19 @@ class ClubForm
                         ->rows(4)
                         ->columnSpanFull()
                         ->dehydrateStateUsing(fn (?string $state): string => $state ?? ''),
+                ])
+                ->columns(2),
+
+            Section::make(__('panel.clubs.contact_section'))
+                ->description(__('panel.clubs.contact_help'))
+                ->schema([
+                    TextInput::make('email')->label(__('panel.clubs.email'))->email()->maxLength(160),
+                    TextInput::make('website')->label(__('panel.clubs.website'))->url()->maxLength(500),
+                    TextInput::make('instagram_url')->label(__('panel.clubs.instagram_url'))->url()->maxLength(500)
+                        ->rule('regex:~^https://(www\.)?instagram\.com/[A-Za-z0-9._]+/?$~'),
+                    Select::make('place_id')->label(__('panel.clubs.room'))
+                        ->options(fn () => Place::query()->orderBy('name')->pluck('name', 'id')->all())
+                        ->searchable(),
                 ])
                 ->columns(2),
         ]);

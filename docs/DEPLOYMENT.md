@@ -76,7 +76,18 @@ MAIL_FROM_NAME=
 SENTRY_DSN=                               # real backend DSN (P3-11)
 
 # Optional Mega-2 providers (empty = honest 501, never fake)
-# ROUTING_BASE_URL=https://routing.example.com   # OSRM-compatible base; Flutter never holds this
+# Routing runs TWO OSRM graphs off the Cyprus extract (the whole island,
+# TRNC included) — one foot.lua, one car.lua. An OSRM serves one profile
+# and answers /route/v1/driving/ from a pedestrian graph regardless, so
+# the graph is chosen by host. Vehicles never fall back to the foot graph;
+# an unset mode returns 501. See deploy/osrm/README.md.
+# ROUTING_BASE_URL=http://osrm-foot:5000          # walking; Flutter never holds this
+# ROUTING_DRIVING_BASE_URL=http://osrm-car:5000   # car and bus
+# KNOWLEDGE_MAX_PDF_BYTES=15000000                # reject oversized PDFs before parsing
+# KNOWLEDGE_MAX_PDF_CHARS=250000                  # bounded extracted text per PDF
+# KNOWLEDGE_PDF_PARSER_MEMORY=192M                # isolated parser-worker ceiling
+# KNOWLEDGE_PDF_PARSER_TIMEOUT=30                 # seconds; failure is recorded in source health
+# SIS_PROVIDER=unavailable                        # keep until IT approves a real read-only provider
 # GROQ_API_KEY=                                  # vision poster → draft; also Ask ARUCAD text
 # GROQ_VISION_MODEL=meta-llama/llama-4-scout-17b-16e-instruct
 
@@ -316,6 +327,19 @@ POST /push-tokens                 registration
 
 Unauthorized checks: no token → 401 `AUTH_REQUIRED`; wrong role on an
 `/admin/*` route → 403 `FORBIDDEN`.
+
+### 10. AICAD (Ask ARUCAD) deploy steps
+
+After `migrate --force`:
+
+```
+php artisan db:seed --class=AiProgrammeAliasSeeder   # idempotent; official programme names
+php artisan ask:readiness --live                      # no FAIL expected; data-gap WARN is normal
+```
+
+The SupportedFacts mode (`AICAD_SUPPORTED_FACT_GENERATION_ENABLED` =
+`off` | `staff_only` | `on`), campus timezone, staging checklist, gates and
+rollback are in [AICAD_ROLLOUT.md](AICAD_ROLLOUT.md).
 
 ---
 

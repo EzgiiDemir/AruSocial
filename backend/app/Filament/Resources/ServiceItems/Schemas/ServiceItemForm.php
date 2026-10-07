@@ -60,6 +60,20 @@ class ServiceItemForm
                         ->helperText(__('panel.services.contact_help'))
                         ->dehydrateStateUsing(fn (?string $state): string => $state ?? ''),
 
+                    // Kept exactly as typed: AICAD repeats it digit for digit.
+                    TextInput::make('phone')
+                        ->label(__('panel.services.phone'))
+                        ->helperText(__('panel.services.phone_help'))
+                        // Not ->tel(): its built-in pattern rejects "+90 (392) …".
+                        ->inputMode('tel')
+                        ->maxLength(40)
+                        ->rule(ServiceItem::PHONE_RULE)
+                        ->rule(fn () => function (string $attribute, mixed $value, \Closure $fail): void {
+                            if (filled($value) && strlen((string) preg_replace('/\D+/', '', (string) $value)) < 7) {
+                                $fail(__('panel.services.phone_invalid'));
+                            }
+                        }),
+
                     Select::make('responsible_staff_id')
                         ->label(__('panel.common.responsible_staff'))
                         ->options(fn () => StaffProfile::query()

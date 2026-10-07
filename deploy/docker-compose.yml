@@ -70,19 +70,112 @@ services:
       postgres:
         condition: service_healthy
 
-  # Walking routes. Needs an OSM extract imported before the container
-  # serves traffic — see deploy/osrm/README.md. Disabled until that data
-  # exists so `docker compose up` does not pretend to route.
-  osrm:
+  # --- Routing (profile: routing) -----------------------------------------
+  #
+  # An OSRM instance serves exactly ONE profile, and it will answer
+  # /route/v1/driving/ from a pedestrian graph without complaint. So the
+  # campus runs two instances from the same Cyprus extract: osrm-foot for
+  # walking, osrm-car for car and bus. The backend picks between them by
+  # HOST (ROUTING_BASE_URL / ROUTING_DRIVING_BASE_URL), never by the
+  # profile name in the URL — see App\Services\RoutingService.
+  #
+  # Cyprus, not Turkey: Geofabrik's europe/cyprus extract is the whole
+  # island in one file, Northern Cyprus included.
+  #
+  # Bring the whole thing up with:
+  #   docker compose --profile routing up -d
+  # The two one-shot builders below download the extract and build each
+  # graph before the servers start; both are no-ops once built.
+
+  # Downloads cyprus-latest.osm.pbf into a shared, read-only-to-consumers
+  # volume. Its own service because the OSRM image ships no download tool.
+  osrm-data:
     profiles: ["routing"]
-    image: osrm/osrm-backend:v5.27.1
-    command: osrm-routed --algorithm mld /data/cyprus-latest.osrm
+    image: curlimages/curl:8.11.1
+    entrypoint: ["sh", "/scripts/fetch-extract.sh"]
+    environment:
+      OSRM_PBF_URL: ${OSRM_PBF_URL:-https://download.geofabrik.de/europe/cyprus-latest.osm.pbf}
+      OSRM_PBF: ${OSRM_PBF_BASE:-cyprus-latest}.osm.pbf
     volumes:
-      - osrmdata:/data
+      - osrmsrc:/src
+      - ./osrm:/scripts:ro
+    restart: "no"
+
+  # Builds the pedestrian graph (foot.lua) into its OWN volume. Separate
+  # volumes are not tidiness: osrm-extract writes its output next to the
+  # input using the same basename, so one shared volume would have the
+  # second profile overwrite the first.
+  osrm-foot-data:
+    profiles: ["routing"]
+    # v5.25.0, not v5.27.1: the latter was pinned here but has never been
+    # published to Docker Hub, so `--profile routing up` failed on
+    # "manifest unknown" before anything could route. v5.25.0 is the
+    # newest released tag and supports MLD. Override with OSRM_IMAGE.
+    image: ${OSRM_IMAGE:-osrm/osrm-backend:v5.25.0}
+    entrypoint: ["bash", "/scripts/build-graph.sh"]
+    environment:
+      OSRM_PROFILE: foot
+      OSRM_PBF: ${OSRM_PBF_BASE:-cyprus-latest}.osm.pbf
+    volumes:
+      - osrmfoot:/data
+      - osrmsrc:/src:ro
+      - ./osrm:/scripts:ro
+    restart: "no"
+    depends_on:
+      osrm-data:
+        condition: service_completed_successfully
+
+  # Builds the vehicle graph (car.lua) into its own volume.
+  osrm-car-data:
+    profiles: ["routing"]
+    image: ${OSRM_IMAGE:-osrm/osrm-backend:v5.25.0}
+    entrypoint: ["bash", "/scripts/build-graph.sh"]
+    environment:
+      OSRM_PROFILE: car
+      OSRM_PBF: ${OSRM_PBF_BASE:-cyprus-latest}.osm.pbf
+    volumes:
+      - osrmcar:/data
+      - osrmsrc:/src:ro
+      - ./osrm:/scripts:ro
+    restart: "no"
+    depends_on:
+      osrm-data:
+        condition: service_completed_successfully
+
+  # Walking routes — ROUTING_BASE_URL=http://osrm-foot:5000
+  osrm-foot:
+    profiles: ["routing"]
+    image: ${OSRM_IMAGE:-osrm/osrm-backend:v5.25.0}
+    command: osrm-routed --algorithm mld /data/${OSRM_PBF_BASE:-cyprus-latest}-foot.osrm
+    volumes:
+      - osrmfoot:/data
     ports:
       - "5000:5000"
+    restart: unless-stopped
+    depends_on:
+      osrm-foot-data:
+        condition: service_completed_successfully
+
+  # Car and bus routes — ROUTING_DRIVING_BASE_URL=http://osrm-car:5000
+  osrm-car:
+    profiles: ["routing"]
+    image: ${OSRM_IMAGE:-osrm/osrm-backend:v5.25.0}
+    command: osrm-routed --algorithm mld /data/${OSRM_PBF_BASE:-cyprus-latest}-car.osrm
+    volumes:
+      - osrmcar:/data
+    ports:
+      - "5001:5000"
+    restart: unless-stopped
+    depends_on:
+      osrm-car-data:
+        condition: service_completed_successfully
 
 volumes:
   pgdata:
   media:
-  osrmdata:
+  # The downloaded .osm.pbf, shared read-only by both builders.
+  osrmsrc:
+  # One graph per volume: see osrm-foot-data above for why they cannot
+  # share one.
+  osrmfoot:
+  osrmcar:

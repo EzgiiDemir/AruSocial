@@ -100,16 +100,27 @@ banner bastırılır.
 
 ---
 
-## 3b. Walking routing (OSRM-compatible)
+## 3b. Routing (OSRM — yürüme + araç, iki ayrı grafik)
 
 **Kod tarafı hazır (P4 Mega-2):** `POST /api/v1/routing/directions` →
-`RoutingService` (`ROUTING_BASE_URL`). Flutter asla routing secret/base
-tutmaz. Boşsa API **501** `ROUTING_NOT_CONFIGURED` — sahte turn-by-turn yok.
+`RoutingService`. Flutter asla routing secret/base tutmaz. İlgili modun
+grafiği tanımlı değilse API **501** `ROUTING_NOT_CONFIGURED` — sahte
+turn-by-turn yok.
 
-**ARUCAD'in yapması gereken:** Self-hosted veya yönetilen OSRM-compatible
-base URL.
+Bir OSRM örneği **tek** profil sunar ve yaya grafiğinden gelen isteklere de
+`/route/v1/driving/` yanıtı verir. Bu yüzden grafik, URL'deki profil adına
+değil **host'a** göre seçilir: araç rotaları hiçbir koşulda yaya grafiğine
+düşmez (yoksa araba, merdivenden ve yaya yolundan geçen "gerçek görünümlü"
+bir rota alıyordu).
 
-**Nereye giriliyor:** `backend/.env` → `ROUTING_BASE_URL=...`
+**ARUCAD'in yapması gereken:** Kıbrıs OSM extract'inden (`europe/cyprus`,
+tüm ada — KKTC dahil) iki OSRM örneği: `foot.lua` ve `car.lua`.
+`deploy/osrm/` bunu indirip kuran compose servislerini içerir:
+`docker compose --profile routing up -d`.
+
+**Nereye giriliyor:** `backend/.env` →
+`ROUTING_BASE_URL=http://osrm-foot:5000` ve
+`ROUTING_DRIVING_BASE_URL=http://osrm-car:5000`
 
 ---
 

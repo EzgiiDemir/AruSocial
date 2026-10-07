@@ -140,10 +140,11 @@ Body fields such as `actorName`, `assignedBy`, `adminName`, `userId`, `editorNam
 | `AUTH_REQUIRED` | 401 | Missing/invalid Sanctum token |
 | `INVALID_CREDENTIALS` | 401 | Wrong password on session |
 | `FORBIDDEN` | 403 | Permission middleware or in-controller ACL |
-| `ACCOUNT_BANNED` | 403 | Ban flag |
+| `ACCOUNT_BANNED` | 403 | Suspension (timed, from the points ladder) or a permanent ban set by a human |
+| `POSTING_RESTRICTED` | 403 | The 3-point rung: may not submit content; reading and every other route still work. Never a session failure |
 | `DOMAIN_NOT_ALLOWED` | 403 | Email domain on session |
 | `VALIDATION` | 400 or 422 | Controller `fail` or Laravel `validate` |
-| `CONTENT_BLOCKED` | 400 | Text/image moderation |
+| `CONTENT_BLOCKED` | 400 | Text/image moderation. The error body carries `points` (what this violation cost), `penalty` (`warning`, `posting_restriction`, `temporary_suspension`) and `until` when a lock was applied |
 | `FILE_TOO_LARGE` / `UNSUPPORTED_FILE_TYPE` | 400 | Media / image check |
 | `PLACE_UNAVAILABLE` | 409 | Place already booked (own activity or admin upsert) |
 | `*_NOT_FOUND` | 404 | Missing entity (`EVENT_NOT_FOUND`, `PLACE_NOT_FOUND`, `FOOD_VENUE_NOT_FOUND`, `MEDIA_NOT_FOUND`, `POST_NOT_FOUND`, `STORY_NOT_FOUND`, …) — `POST_NOT_FOUND`/`STORY_NOT_FOUND` on the owner-only edit/delete routes also cover "exists but isn't yours" |
@@ -155,7 +156,7 @@ Body fields such as `actorName`, `assignedBy`, `adminName`, `userId`, `editorNam
 | `WORDPRESS_NOT_CONFIGURED` | 501 | WP URL/token missing for form snapshot |
 | `WORDPRESS_UPSTREAM_ERROR` | 502 | WP forms fetch failed |
 | `ASK_CONVERSATION_NOT_FOUND` | 404 | Ask ARUCAD thread missing or not owned |
-| `ROUTING_NOT_CONFIGURED` | 501 | `ROUTING_BASE_URL` unset |
+| `ROUTING_NOT_CONFIGURED` | 501 | No graph for the requested `mode`. `walking` needs `ROUTING_BASE_URL` (foot.lua graph); `driving`/`transit` need `ROUTING_DRIVING_BASE_URL` (car.lua graph) and never fall back to the pedestrian graph. `error.details` carries `{mode, missing}` naming the variable to set. |
 | `ROUTING_UNAVAILABLE` | 502 | Routing provider returned no route |
 | `INVALID_COORDINATE` | 400 | Lat/lng out of range |
 | `BUILDING_NOT_FOUND` / `FLOOR_NOT_FOUND` | 404 | Directory hierarchy miss |
@@ -247,6 +248,9 @@ The app also holds a device-local acknowledgement so the notice can be shown bef
 | POST | `/api/v1/admin/places/{id}/workshop/posts/{postId}/delete` | `perm:places.manage` | — | `{ deleted: true }` |
 | POST | `/api/v1/admin/reviews/{id}/delete` | `perm:moderation.moderate` | — | `{ deleted: true }` |
 | POST | `/api/v1/checkins` | Auth | `{ placeId, visibleToOthers? }` | `{ checkedIn: true }`; 404 `PLACE_NOT_FOUND` |
+| POST | `/api/v1/presence/ping` | Auth (`throttle:presence`) | `{ latitude, longitude }` | `{ placeId, placeName, sharing }` — `placeId` is null in ghost mode, off campus, or when no place is within `PRESENCE_RADIUS_METERS`; 400 `VALIDATION` |
+| POST | `/api/v1/presence/forget` | Auth | — | `{ placeId: null, sharing: false }` |
+| GET | `/api/v1/presence/live` | Auth | — | `{ places: [{placeId,name,category,lat,lng,count}], total, windowMinutes }` — anonymous head counts only, never who or when |
 
 Place: `{ id, name, category, lat, lng, description, distance, density, street, tourUrl, accessible, photos, rating, coverUrl, recentCheckins, recentCheckinEntries }`.
 
@@ -343,17 +347,18 @@ Notification: `{ id, kind, title, body, read, createdAt, actorUserId }`.
 | GET | `/api/v1/directory/buildings` | Auth | `[{ id, name, entryCount }]` soft hierarchy |
 | GET | `/api/v1/directory/buildings/{building}/floors` | Auth | floors; 404 `BUILDING_NOT_FOUND` |
 | GET | `/api/v1/directory/buildings/{building}/floors/{floor}/rooms` | Auth | rooms; 404 `FLOOR_NOT_FOUND` |
-| POST | `/api/v1/routing/directions` | Auth | `{ fromLat, fromLng, toLat, toLng }` → route or 501/502 |
+| POST | `/api/v1/routing/directions` | Auth | `{ fromLat, fromLng, toLat, toLng, mode? }` (`mode`: `walking` (default) / `driving` / `transit`) → `{ points: [{lat,lng}], distanceMeters, durationSeconds, steps: [{instruction, type, modifier, name, distanceMeters, durationSeconds}], provider, mode }`; 501 `ROUTING_NOT_CONFIGURED` when no OSRM base URL is set, 502 `ROUTING_UNAVAILABLE` when the provider answers with no route. `type`/`modifier` are the raw OSRM maneuver fields, so the client can phrase the turn in the student's own language instead of pattern-matching English. |
+| POST | `/api/v1/routing/match` | Auth | `{ samples: [{lat, lng, accuracy?, timestamp}] (2-8), mode? }` (`mode` as above) → `{ lat, lng, confidence, points: [{lat,lng}] }` — snaps a raw GPS trace onto the walked path, so the blue dot follows a route rather than drifting through buildings; 501 `ROUTING_NOT_CONFIGURED` when no OSRM base URL is set for that mode, 502 `MAP_MATCHING_UNAVAILABLE` when the trace cannot be matched. |
 | GET | `/api/v1/tour-proxy/{path}` | None (rate-limited) | `{path}` mirrors 360.arucad.edu.tr's own path (e.g. `vista_export/Main/index.htm`) | proxied response from that same path upstream, with the same content type; HTML gets a `<base href>` rewritten to this same route tree (not the external host) and no `X-Frame-Options`, so both the document and every relative sub-resource it loads (scripts/images/XHR) stay same-origin and embed on Flutter web; 400 for a path-traversal attempt, 502 if the tour host itself fails |
 | GET | `/api/v1/pages` | Auth | pages; query `publishedOnly=true` filters to published |
 | GET | `/api/v1/pages/{slug}` | Auth | page; 404 `PAGE_NOT_FOUND` |
 | GET | `/api/v1/academic-years` | Auth | years |
 | GET | `/api/v1/surveys/active` | Auth | currently active surveys |
 | POST | `/api/v1/surveys/{id}/vote` | Auth | `{ optionIds }` | updated survey |
-| POST | `/api/v1/ai/query` | Auth + `throttle:ai` | `{ prompt }` or `{ messages, conversationId? }` | `{ answer, conversationId }`; 501 `AI_NOT_CONFIGURED`; 502 `AI_UPSTREAM_ERROR` |
+| POST | `/api/v1/ai/query` | Auth + `throttle:ai` | `{ prompt }` or `{ messages, conversationId?, currentLocation?: {lat,lng}, travelMode?: walking\|driving\|transit }` | Backward-compatible `{ answer, conversationId, aiMode, sources }` plus optional deterministic `places`, `route`, `events`, `warnings`. `route` comes only from `RoutingService`/OSRM. `aiMode` may also be `operational` when no model was needed |
 | GET | `/api/v1/ask/conversations` | Auth | page/perPage | Ask threads for this account |
 | GET | `/api/v1/ask/conversations/{id}` | Auth | thread + messages; 404 `ASK_CONVERSATION_NOT_FOUND` |
-| POST | `/api/v1/ask/conversations/{id}/delete` | Auth | `{ deleted: true }` |
+| POST | `/api/v1/ask/conversations/{id}/delete` | Auth | `{ deleted: true }`. **Idempotent**: always 200, including for an id that is already deleted, never existed, or belongs to another user — deleting something already gone is the outcome the caller asked for, and it used to surface in the app as a network error on an ordinary double tap. The reply is identical in all three cases, so nothing is revealed about other accounts, and the delete itself is still scoped to the owner. `GET /ask/conversations/{id}` keeps its 404. |
 | POST | `/api/v1/moderation/check-image` | Auth | `{ imageBase64, mimeType? }` | `{ allowed: true }` or 400 `CONTENT_BLOCKED` |
 
 Club: `{ id, name, category, description, body }`. Membership (`club_members`: `user_id` + `club_id`, unique pair) is the real, shared join — bound to `currentUser()`, never a client-supplied user id. Join/leave are idempotent, same rule as `/saved-posts/toggle`'s underlying row-exists semantics but with distinct join/leave actions instead of a toggle (so a duplicate "join" tap never flips a member back to "left").  
@@ -702,7 +707,7 @@ Track in `docs/AUDIT_GERCEK_URUN.md`, not as live `/api/v1` paths.
 
 ---
 
-## Route inventory (canonical, 255)
+## Route inventory (canonical, 258)
 
 Machine-readable. One `METHOD /api/v1/...` per line. `tests/Feature/ApiContractInventoryTest.php` compares this list to `php artisan route:list --path=api` (HEAD omitted).
 
@@ -723,6 +728,7 @@ GET /api/v1/admin/consultations
 GET /api/v1/admin/email-logs
 GET /api/v1/admin/events/pending
 GET /api/v1/admin/events/{eventId}/participants
+GET /api/v1/admin/integrations
 GET /api/v1/admin/moderation/appeals
 GET /api/v1/admin/moderation/cases
 GET /api/v1/admin/moderation/cases/{id}
@@ -802,6 +808,7 @@ GET /api/v1/places/{id}
 GET /api/v1/places/{id}/availability
 GET /api/v1/places/{id}/reviews
 GET /api/v1/places/{id}/workshop
+GET /api/v1/presence/live
 GET /api/v1/saved-posts
 GET /api/v1/services
 GET /api/v1/services/{id}
@@ -856,6 +863,8 @@ POST /api/v1/admin/food-venues
 POST /api/v1/admin/food-venues/{id}/delete
 POST /api/v1/admin/food-venues/{venueId}/menus
 POST /api/v1/admin/food-venues/{venueId}/menus/{date}/delete
+POST /api/v1/admin/integrations/{key}/enabled
+POST /api/v1/admin/integrations/{key}/test
 POST /api/v1/admin/moderation/appeals/{id}/decide
 POST /api/v1/admin/moderation/cases/{id}/decide
 POST /api/v1/admin/moderation/events/{id}/remove-strike
@@ -948,9 +957,12 @@ POST /api/v1/places/{id}/cover
 POST /api/v1/places/{id}/report
 POST /api/v1/places/{id}/reviews
 POST /api/v1/places/{id}/workshop/posts
+POST /api/v1/presence/forget
+POST /api/v1/presence/ping
 POST /api/v1/push-tokens
 POST /api/v1/push-tokens/unregister
 POST /api/v1/routing/directions
+POST /api/v1/routing/match
 POST /api/v1/saved-posts/toggle
 POST /api/v1/social/block
 POST /api/v1/social/follow

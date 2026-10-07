@@ -41,7 +41,7 @@ if (-not $javaExecutable -or -not (Test-Path -LiteralPath $javaExecutable)) {
 }
 
 if ([string]::IsNullOrWhiteSpace($ApiBaseUrl)) {
-    throw 'API_BASE_URL is required. Use the public HTTPS API URL, e.g. https://api.example.edu/api/v1.'
+    $ApiBaseUrl = 'https://api-aruverse.arucad.edu.tr/api/v1'
 }
 
 $uri = [Uri]$ApiBaseUrl

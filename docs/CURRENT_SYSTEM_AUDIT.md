@@ -81,10 +81,11 @@ permission-gated REST endpoints.
 ## Runtime configuration
 
 `USE_REST_API=false` remains only as an explicit debug/test fixture. Normal
-debug and every release build use REST; release builds fail before mounting if
-`API_BASE_URL` is absent or loopback. The Android release script embeds a
-public HTTPS API address, and the sign-in settings page has no host/port
-controls, so students never configure a server manually.
+debug and every release build use REST. Production releases default to
+`https://api-aruverse.arucad.edu.tr/api/v1`; explicit loopback endpoints are
+rejected, and staging still requires its own public URL. The Android release
+script embeds the same public HTTPS address, and the sign-in settings page has
+no host/port controls, so students never configure a server manually.
 
 ## Remaining delivery work
 

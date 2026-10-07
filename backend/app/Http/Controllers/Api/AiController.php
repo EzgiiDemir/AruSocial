@@ -338,11 +338,20 @@ class AiController extends Controller
             $absence !== null => new AiResult($absence, 'deterministic', 'facts_unavailable'),
             default => app(AiResponder::class)->generate(
                 $buildPayload,
-                $cacheBasis,
+                // A personal question is never shared through the cache (read or write).
+                $privacy->carriesPersonalData ? null : $cacheBasis,
                 // Never cache an answer whose links, addresses or figures were
-                // invented.
-                fn (?string $text) => $systemPrompt === null || $text === null
-                    || $grounding->isClean($grounding->ungrounded($text, $systemPrompt)),
+                // invented, nor one whose prompt turned out to carry personal
+                // data. By reference: both are known only once the payload is
+                // built (an arrow function would capture them as null).
+                function (?string $text) use (&$systemPrompt, &$carriesPersonalData, $grounding): bool {
+                    if ($carriesPersonalData) {
+                        return false;
+                    }
+
+                    return $systemPrompt === null || $text === null
+                        || $grounding->isClean($grounding->ungrounded($text, $systemPrompt));
+                },
                 $privacy,
             ),
         };

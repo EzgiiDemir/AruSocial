@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Services\Ai\AiBudget;
+use App\Services\Ai\AiPrivacy;
 use App\Services\Ai\AiResponder;
 use App\Services\Ai\AiResult;
 use App\Services\Ai\AiTelemetry;
@@ -158,13 +159,18 @@ class AiCapacityTest extends TestCase
         config(['ai.cache.enabled' => true, 'ai.budget.daily_requests' => 1]);
         $this->groqAnswers('yemekhane 08:00 - 19:00');
 
+        // A public question: an unclassified call is treated as personal and never cached.
         $first = app(AiResponder::class)->generate(
             fn () => [['role' => 'user', 'content' => 'yemekhane saatleri']],
             'yemekhane saatleri',
+            null,
+            AiPrivacy::public(),
         );
         $second = app(AiResponder::class)->generate(
             fn () => [['role' => 'user', 'content' => 'yemekhane saatleri']],
             'yemekhane saatleri',
+            null,
+            AiPrivacy::public(),
         );
 
         $this->assertSame($first->text, $second->text);

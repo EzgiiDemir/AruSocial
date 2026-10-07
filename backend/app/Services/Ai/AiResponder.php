@@ -57,7 +57,11 @@ class AiResponder
 
         $this->telemetry->bump(AiTelemetry::REQUESTS);
 
-        $cacheKey = $this->cacheKey($cacheBasis);
+        // A personal answer belongs to one student: it is never read from or
+        // written to the shared cache, whatever the caller passed. (Measured:
+        // a second student asking "profilim ne durumda?" was served the
+        // first student's department and level from cache.)
+        $cacheKey = $privacy->carriesPersonalData ? null : $this->cacheKey($cacheBasis);
         if ($cacheKey !== null) {
             $cached = Cache::get($cacheKey);
             if (is_string($cached) && $cached !== '') {
@@ -255,7 +259,10 @@ class AiResponder
             return null;
         }
 
-        return 'ai:answer:'.sha1(
+        // v2: namespace bumped with the personal-answer cache fix, so no entry
+        // written before it (possibly personal) can ever be read again —
+        // without flushing any other cache.
+        return 'ai:answer:v2:'.sha1(
             $basis
             .'|kv:'.$this->knowledgeStamp()
 

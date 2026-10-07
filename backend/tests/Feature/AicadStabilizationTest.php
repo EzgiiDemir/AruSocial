@@ -255,7 +255,8 @@ class AicadStabilizationTest extends TestCase
                 $built++;
 
                 return [['role' => 'system', 'content' => 'kurallar'], ['role' => 'user', 'content' => 'gym nerede']];
-            }, 'gym nerede');
+                // A public question: an unclassified call is treated as personal and never cached.
+            }, 'gym nerede', null, AiPrivacy::public());
         };
 
         $ask();

@@ -560,6 +560,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                               if (created == true) _load();
                             },
                             style: OutlinedButton.styleFrom(
+                              backgroundColor: Colors.white,
                               foregroundColor:
                                   Theme.of(context).colorScheme.onSurface,
                               side: BorderSide(

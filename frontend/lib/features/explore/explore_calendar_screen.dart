@@ -351,12 +351,6 @@ class _MonthGrid extends StatelessWidget {
         ExploreCalendarKind.event => ArucadColors.campusGreen,
       };
 
-  String _kindHint(ExploreCalendarKind kind) => switch (kind) {
-        ExploreCalendarKind.appointment => 'R',
-        ExploreCalendarKind.application => 'B',
-        ExploreCalendarKind.event => 'E',
-      };
-
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -431,7 +425,12 @@ class _MonthGrid extends StatelessWidget {
                 ),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Column(
+                  // A Stack keeps the day and its indicators inside very
+                  // short web calendar cells. The old Column needed 35+ px
+                  // and overflowed when the responsive grid supplied ~18 px.
+                  child: Stack(
+                    clipBehavior: Clip.hardEdge,
+                    alignment: Alignment.topCenter,
                     children: [
                       Text(
                         '$dayNum',
@@ -442,38 +441,27 @@ class _MonthGrid extends StatelessWidget {
                           fontSize: 13,
                         ),
                       ),
-                      const Spacer(),
                       if (ordered.isNotEmpty)
-                        Wrap(
-                          spacing: 2,
-                          runSpacing: 2,
-                          alignment: WrapAlignment.center,
-                          children: [
-                            for (final kind in ordered)
-                              Container(
-                                width: 14,
-                                height: 14,
-                                alignment: Alignment.center,
-                                decoration: BoxDecoration(
-                                  color: _kindColor(kind),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(
-                                  _kindHint(kind),
-                                  style: TextStyle(
-                                    color:
-                                        kind == ExploreCalendarKind.application
-                                            ? ArucadColors.ink
-                                            : Colors.white,
-                                    fontSize: 8.5,
-                                    fontWeight: FontWeight.w900,
-                                    height: 1,
+                        Positioned(
+                          left: 1,
+                          right: 1,
+                          bottom: 0,
+                          child: Wrap(
+                            spacing: 2,
+                            alignment: WrapAlignment.center,
+                            children: [
+                              for (final kind in ordered)
+                                Container(
+                                  width: 8,
+                                  height: 4,
+                                  decoration: BoxDecoration(
+                                    color: _kindColor(kind),
+                                    borderRadius: BorderRadius.circular(3),
                                   ),
                                 ),
-                              ),
-                          ],
+                            ],
+                          ),
                         ),
-                      const SizedBox(height: 2),
                     ],
                   ),
                 ),

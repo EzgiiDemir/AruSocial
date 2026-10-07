@@ -99,6 +99,66 @@ class _PopularPlacesScreenState extends State<PopularPlacesScreen> {
     return out;
   }
 
+  Future<void> _openFilters() async {
+    final strings = AppLocale.of(context);
+    final selected = await showModalBottomSheet<String?>(
+      context: context,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+              child: Text(
+                strings.t('popular_places_filter'),
+                style:
+                    const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+              ),
+            ),
+            ListTile(
+              title: Text(
+                strings.t('category_all'),
+                style: TextStyle(
+                  fontWeight:
+                      _category == null ? FontWeight.w800 : FontWeight.w500,
+                ),
+              ),
+              trailing: _category == null
+                  ? const Icon(Icons.check, color: ArucadColors.primary)
+                  : null,
+              onTap: () => Navigator.pop(ctx, ''),
+            ),
+            for (final category in _categories)
+              ListTile(
+                title: Text(
+                  category,
+                  style: TextStyle(
+                    fontWeight: _category == category
+                        ? FontWeight.w800
+                        : FontWeight.w500,
+                  ),
+                ),
+                trailing: _category == category
+                    ? const Icon(Icons.check, color: ArucadColors.primary)
+                    : null,
+                onTap: () => Navigator.pop(ctx, category),
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || selected == null) return;
+    setState(() {
+      _category = selected.isEmpty ? null : selected;
+      _resetPage();
+    });
+  }
+
   void _open(CampusPlace place) {
     Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => PlaceDetailScreen(
@@ -155,87 +215,97 @@ class _PopularPlacesScreenState extends State<PopularPlacesScreen> {
                               child: ConstrainedBox(
                                 constraints:
                                     const BoxConstraints(maxWidth: 520),
-                                child: TextField(
-                                  controller: _searchController,
-                                  textInputAction: TextInputAction.search,
-                                  onChanged: (v) => setState(() {
-                                    _query = v;
-                                    _resetPage();
-                                  }),
-                                  decoration: InputDecoration(
-                                    hintText:
-                                        strings.t('popular_places_search_hint'),
-                                    prefixIcon:
-                                        const Icon(Icons.search_rounded),
-                                    suffixIcon: _query.isEmpty
-                                        ? null
-                                        : IconButton(
-                                            icon:
-                                                const Icon(Icons.close_rounded),
-                                            tooltip: strings.t('action_clear'),
-                                            onPressed: () => setState(() {
-                                              _searchController.clear();
-                                              _query = '';
-                                              _resetPage();
-                                            }),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: TextField(
+                                        controller: _searchController,
+                                        textInputAction: TextInputAction.search,
+                                        onChanged: (v) => setState(() {
+                                          _query = v;
+                                          _resetPage();
+                                        }),
+                                        decoration: InputDecoration(
+                                          hintText: strings
+                                              .t('popular_places_search_hint'),
+                                          prefixIcon:
+                                              const Icon(Icons.search_rounded),
+                                          suffixIcon: _query.isEmpty
+                                              ? null
+                                              : IconButton(
+                                                  icon: const Icon(
+                                                      Icons.close_rounded),
+                                                  tooltip:
+                                                      strings.t('action_clear'),
+                                                  onPressed: () => setState(() {
+                                                    _searchController.clear();
+                                                    _query = '';
+                                                    _resetPage();
+                                                  }),
+                                                ),
+                                          filled: true,
+                                          fillColor: Colors.white,
+                                          contentPadding:
+                                              const EdgeInsets.symmetric(
+                                                  horizontal: 14, vertical: 12),
+                                          border: OutlineInputBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(14),
+                                            borderSide: BorderSide.none,
                                           ),
-                                    filled: true,
-                                    fillColor: ArucadColors.mist,
-                                    contentPadding: const EdgeInsets.symmetric(
-                                        horizontal: 14, vertical: 12),
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(14),
-                                      borderSide: BorderSide.none,
+                                          enabledBorder: OutlineInputBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(14),
+                                            borderSide: BorderSide.none,
+                                          ),
+                                          focusedBorder: OutlineInputBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(14),
+                                            borderSide: const BorderSide(
+                                                color: ArucadColors.primary,
+                                                width: 1.2),
+                                          ),
+                                        ),
+                                      ),
                                     ),
-                                    enabledBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(14),
-                                      borderSide: BorderSide.none,
+                                    const SizedBox(width: 4),
+                                    IconButton(
+                                      tooltip:
+                                          strings.t('popular_places_filter'),
+                                      onPressed: _openFilters,
+                                      icon: Badge(
+                                        isLabelVisible: _category != null,
+                                        smallSize: 8,
+                                        backgroundColor: ArucadColors.primary,
+                                        child: Icon(
+                                          Icons.filter_list_rounded,
+                                          color: _category != null
+                                              ? ArucadColors.primary
+                                              : ArucadColors.ink,
+                                        ),
+                                      ),
                                     ),
-                                    focusedBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(14),
-                                      borderSide: const BorderSide(
-                                          color: ArucadColors.primary,
-                                          width: 1.2),
-                                    ),
-                                  ),
+                                  ],
                                 ),
                               ),
                             ),
                           ),
                         ),
-                        if (_categories.isNotEmpty)
+                        if (_category != null)
                           SliverToBoxAdapter(
-                            child: SizedBox(
-                              height: 42,
-                              child: ListView(
-                                scrollDirection: Axis.horizontal,
-                                padding:
-                                    const EdgeInsets.fromLTRB(20, 10, 20, 0),
-                                children: [
-                                  Padding(
-                                    padding: const EdgeInsets.only(right: 8),
-                                    child: SelectableChip(
-                                      label: strings.t('category_all'),
-                                      selected: _category == null,
-                                      onSelected: (_) => setState(() {
-                                        _category = null;
-                                        _resetPage();
-                                      }),
-                                    ),
-                                  ),
-                                  for (final cat in _categories)
-                                    Padding(
-                                      padding: const EdgeInsets.only(right: 8),
-                                      child: SelectableChip(
-                                        label: cat,
-                                        selected: _category == cat,
-                                        onSelected: (_) => setState(() {
-                                          _category = cat;
-                                          _resetPage();
-                                        }),
-                                      ),
-                                    ),
-                                ],
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: InputChip(
+                                  label: Text(_category!),
+                                  deleteIcon: const Icon(Icons.close, size: 16),
+                                  onDeleted: () => setState(() {
+                                    _category = null;
+                                    _resetPage();
+                                  }),
+                                  onPressed: _openFilters,
+                                ),
                               ),
                             ),
                           ),
@@ -308,6 +378,7 @@ class _PaginationBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (pageCount <= 1) return const SizedBox(height: 8);
+    final strings = AppLocale.of(context);
 
     final first =
         (page - 2).clamp(0, (pageCount - 5).clamp(0, pageCount)).toInt();
@@ -320,7 +391,7 @@ class _PaginationBar extends StatelessWidget {
         children: [
           _PageButton(
             icon: Icons.chevron_left_rounded,
-            tooltip: 'Önceki sayfa',
+            tooltip: strings.t('pagination_previous'),
             enabled: page > 0,
             onTap: () => onChanged(page - 1),
           ),
@@ -335,7 +406,7 @@ class _PaginationBar extends StatelessWidget {
           const SizedBox(width: 6),
           _PageButton(
             icon: Icons.chevron_right_rounded,
-            tooltip: 'Sonraki sayfa',
+            tooltip: strings.t('pagination_next'),
             enabled: page < pageCount - 1,
             onTap: () => onChanged(page + 1),
           ),

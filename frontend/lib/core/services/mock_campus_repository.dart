@@ -917,6 +917,23 @@ class MockCampusRepository implements CampusRepository {
     await _evaluateAchievements();
   }
 
+  // Live crowd counts come from other people's real location pings, which
+  // a single offline device has none of. Mock mode therefore records
+  // nothing and reports an empty snapshot — an honest "no live data here",
+  // not an invented crowd.
+  @override
+  Future<String?> pingPresence({
+    required double latitude,
+    required double longitude,
+  }) async =>
+      null;
+
+  @override
+  Future<void> forgetPresence() async {}
+
+  @override
+  Future<CampusLiveCrowd> getLiveCrowd() async => const CampusLiveCrowd();
+
   @override
   Future<List<Review>> getReviews(String placeId) async =>
       List.unmodifiable(_reviews[placeId] ?? const []);
@@ -1164,8 +1181,6 @@ class MockCampusRepository implements CampusRepository {
   }
 
   // Mock mode has no multi-account/department concept (MockAuthProvider
-
-
 
   @override
   Future<List<CampusClub>> getClubs({String? category}) async {
@@ -1913,6 +1928,13 @@ class MockCampusRepository implements CampusRepository {
     // Mock has no OSRM provider — honest null so UI uses straight-line fallback.
     return null;
   }
+
+  @override
+  Future<Map<String, dynamic>?> matchRouteTrace({
+    required List<Map<String, dynamic>> samples,
+    TravelMode mode = TravelMode.walking,
+  }) async =>
+      null;
 
   @override
   Future<void> upsertDirectoryEntry(DirectoryEntry entry) =>
@@ -3213,7 +3235,7 @@ class MockCampusRepository implements CampusRepository {
             '${todayMenu.price != null ? ' · ${todayMenu.price}' : ''}';
       }
     }
-    return 'Aicad olarak kampüs, yerler, etkinlikler, kulüpler, spor, yemek, hizmetler, rotalar ve görevler konusunda yardımcı olabilirim.';
+    return 'AICAD olarak kampüs, yerler, etkinlikler, kulüpler, spor, yemek, hizmetler, rotalar ve görevler konusunda yardımcı olabilirim.';
   }
 
   @override

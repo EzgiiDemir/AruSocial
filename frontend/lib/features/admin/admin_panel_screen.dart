@@ -1,3 +1,4 @@
+import 'package:arucad_campus_prototype/features/widgets/top_notice.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';

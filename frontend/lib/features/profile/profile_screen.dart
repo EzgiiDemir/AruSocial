@@ -575,7 +575,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   for (final level in CampusVisibility.values)
                     RadioListTile<CampusVisibility>(
                       dense: true,
-                      title: Text(level.label),
+                      title: Text(level.labelFor(strings)),
                       value: level,
                     ),
                 ],

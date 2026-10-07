@@ -43,6 +43,7 @@ class _BuildingDirectoryScreenState extends State<BuildingDirectoryScreen> {
   String? _building;
   String? _floor;
   late Future<List<CampusBuilding>> _buildingsFuture;
+  late Future<List<DirectoryEntry>> _directoryFuture;
   Future<List<CampusFloor>>? _floorsFuture;
   Future<List<CampusRoom>>? _roomsFuture;
   List<CampusPlace> _places = const [];
@@ -52,6 +53,7 @@ class _BuildingDirectoryScreenState extends State<BuildingDirectoryScreen> {
   void initState() {
     super.initState();
     _buildingsFuture = widget.repository.getDirectoryBuildings();
+    _directoryFuture = widget.repository.getDirectoryEntries();
     unawaited(_loadMapContext());
   }
 
@@ -100,12 +102,48 @@ class _BuildingDirectoryScreenState extends State<BuildingDirectoryScreen> {
   }
 
   CampusPlace? _placeNearBuilding(String buildingName) {
-    final target = buildingName.toLowerCase();
-    for (final p in _places) {
-      final n = p.name.toLowerCase();
-      if (n == target || n.contains(target) || target.contains(n)) return p;
+    return campusPlaceForDirectoryBuilding(_places, buildingName);
+  }
+
+  String _searchKey(String value) => value
+      .toLowerCase()
+      .replaceAll('ı', 'i')
+      .replaceAll('ğ', 'g')
+      .replaceAll('ü', 'u')
+      .replaceAll('ş', 's')
+      .replaceAll('ö', 'o')
+      .replaceAll('ç', 'c')
+      .trim();
+
+  bool _entryMatches(DirectoryEntry entry) {
+    final needle = _searchKey(_query);
+    return <String>[
+      entry.building,
+      entry.floor ?? '',
+      entry.room ?? '',
+      entry.occupantName,
+      entry.occupantRole ?? '',
+      entry.categoryName ?? '',
+      entry.roomNumber ?? '',
+      entry.campusName ?? '',
+    ].any((value) => _searchKey(value).contains(needle));
+  }
+
+  void _openEntryNavigation(DirectoryEntry entry) {
+    final place = _placeNearBuilding(entry.building);
+    if (place == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Bu bina için doğrulanmış harita koordinatı bulunamadı.'),
+      ));
+      return;
     }
-    return null;
+    _openNavigation(
+      (entry.room ?? entry.occupantName).trim().isEmpty
+          ? entry.building
+          : (entry.room ?? entry.occupantName),
+      place.lat,
+      place.lng,
+    );
   }
 
   void _selectBuilding(String building) {
@@ -206,7 +244,7 @@ class _BuildingDirectoryScreenState extends State<BuildingDirectoryScreen> {
             const SizedBox(height: 12),
             TextField(
               decoration: const InputDecoration(
-                hintText: 'Bina ara',
+                hintText: 'Bina, oda, birim veya personel ara',
                 prefixIcon: Icon(Icons.search),
                 border: OutlineInputBorder(),
               ),
@@ -215,6 +253,65 @@ class _BuildingDirectoryScreenState extends State<BuildingDirectoryScreen> {
             ),
           ],
           const SizedBox(height: 16),
+          if (_building == null && _query.isNotEmpty)
+            FutureBuilder<List<DirectoryEntry>>(
+              future: _directoryFuture,
+              builder: (context, snap) {
+                if (!snap.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                final matches =
+                    snap.data!.where(_entryMatches).take(40).toList();
+                if (matches.isEmpty) return const SizedBox.shrink();
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Text('Oda ve birim sonuçları',
+                        style: TextStyle(fontWeight: FontWeight.w900)),
+                    const SizedBox(height: 8),
+                    for (final entry in matches)
+                      Card(
+                        child: ListTile(
+                          leading: const Icon(Icons.meeting_room_outlined),
+                          title: Text((entry.room ?? '').trim().isNotEmpty
+                              ? entry.room!
+                              : entry.occupantName),
+                          subtitle: Text(<String>[
+                            entry.building,
+                            if ((entry.floor ?? '').isNotEmpty) entry.floor!,
+                            if ((entry.categoryName ?? entry.occupantRole ?? '')
+                                .isNotEmpty)
+                              (entry.categoryName ?? entry.occupantRole)!,
+                            if (entry.occupantName.isNotEmpty &&
+                                entry.occupantName != entry.room)
+                              entry.occupantName,
+                          ].join(' · ')),
+                          onTap: () => _openEntryNavigation(entry),
+                          trailing:
+                              (entry.tourUrl ?? entry.splatSceneUrl) == null
+                                  ? const Icon(Icons.directions_outlined)
+                                  : IconButton(
+                                      tooltip: 'Bu odayı 360° aç',
+                                      icon: const Icon(Icons.threesixty),
+                                      onPressed: () => open360Tour(
+                                        context,
+                                        entry.tourUrl ?? entry.splatSceneUrl!,
+                                        tourTarget: entry.tourTarget,
+                                        title: entry.room ?? entry.occupantName,
+                                      ),
+                                    ),
+                        ),
+                      ),
+                    const SizedBox(height: 16),
+                    const Divider(),
+                    const SizedBox(height: 8),
+                    const Text('Binalar',
+                        style: TextStyle(fontWeight: FontWeight.w900)),
+                    const SizedBox(height: 8),
+                  ],
+                );
+              },
+            ),
           if (_roomsFuture != null)
             FutureBuilder<List<CampusRoom>>(
               future: _roomsFuture,
@@ -247,13 +344,13 @@ class _BuildingDirectoryScreenState extends State<BuildingDirectoryScreen> {
                         ].where((s) => s.isNotEmpty).join(' · ')),
                         trailing:
                             Row(mainAxisSize: MainAxisSize.min, children: [
-                          if (room.tourUrl != null)
+                          if ((room.tourUrl ?? room.splatSceneUrl) != null)
                             IconButton(
                               tooltip: '360° Tur',
                               icon: const Icon(Icons.threesixty),
                               onPressed: () => open360Tour(
                                 context,
-                                room.tourUrl!,
+                                room.tourUrl ?? room.splatSceneUrl!,
                                 tourTarget: room.tourTarget,
                                 title: room.occupantName.isNotEmpty
                                     ? room.occupantName
@@ -267,7 +364,7 @@ class _BuildingDirectoryScreenState extends State<BuildingDirectoryScreen> {
                               ? null
                               : _placeNearBuilding(_building!);
                           if (match != null) {
-                            _openNavigation(match.name, match.lat, match.lng);
+                            _openNavigation(room.title, match.lat, match.lng);
                           } else {
                             ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
@@ -316,7 +413,8 @@ class _BuildingDirectoryScreenState extends State<BuildingDirectoryScreen> {
                   return const Center(child: CircularProgressIndicator());
                 }
                 final buildings = snap.data!
-                    .where((b) => b.name.toLowerCase().contains(_query))
+                    .where(
+                        (b) => _searchKey(b.name).contains(_searchKey(_query)))
                     .toList();
                 if (buildings.isEmpty) {
                   return const Text('Bina bulunamadı.',

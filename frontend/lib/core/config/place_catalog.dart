@@ -230,7 +230,17 @@ List<CampusPlace> campusMapPlaces(List<CampusPlace> fromApi) {
     byName[_mapNameKey(place.name)] = place;
   }
   for (final poi in pois) {
-    byName.putIfAbsent(_mapNameKey(poi.name), () => campusPlaceFromPoi(poi));
+    final key = _mapNameKey(poi.name);
+    final live = byName[key];
+    if (live == null) {
+      byName[key] = campusPlaceFromPoi(poi);
+    } else {
+      // Names, density and content stay live from the API, while map
+      // geometry for catalogued ARUCAD places comes from the reviewed
+      // coordinate catalog. This prevents a stale/admin typo in a database
+      // row from moving a known building to the wrong street or country.
+      byName[key] = live.copyWith(lat: poi.lat, lng: poi.lng);
+    }
   }
   var list = byName.values.toList();
   final names = list.map((p) => p.name).toSet();

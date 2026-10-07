@@ -10,6 +10,9 @@ enum AppEnvironment {
 }
 
 class AppConfig {
+  static const productionApiBaseUrl =
+      'https://api-aruverse.arucad.edu.tr/api/v1';
+
   final String appName;
   final AppEnvironment environment;
   final String apiBaseUrl;
@@ -151,8 +154,11 @@ class AppConfig {
     String? firebaseProjectId,
     String? tlsPinSha256,
   }) {
+    const compiledEnvironment = String.fromEnvironment('APP_ENV');
     final envRaw = appEnv ??
-        const String.fromEnvironment('APP_ENV', defaultValue: 'local');
+        (compiledEnvironment.isEmpty
+            ? (isRelease ? 'production' : 'local')
+            : compiledEnvironment);
     final environment = parseEnvironment(envRaw, strict: isRelease);
     final useRestRaw =
         useRestApi ?? const String.fromEnvironment('USE_REST_API');
@@ -164,7 +170,13 @@ class AppConfig {
       );
     }
 
-    final override = apiBaseUrl ?? const String.fromEnvironment('API_BASE_URL');
+    final configuredUrl =
+        apiBaseUrl ?? const String.fromEnvironment('API_BASE_URL');
+    final override = configuredUrl.trim().isEmpty &&
+            isRelease &&
+            environment == AppEnvironment.production
+        ? productionApiBaseUrl
+        : configuredUrl;
     final resolvedUrl = resolveApiBaseUrl(
       override: override,
       isWeb: isWeb,

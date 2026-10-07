@@ -13,5 +13,19 @@ void main() {
     ));
     await tester.tap(find.byType(AskArucadBubble));
     expect(tapped, isTrue);
+    expect(tester.getSize(find.byType(AskArucadBubble)), const Size(60, 60));
+
+    final logo = tester.widget<Image>(find.byType(Image));
+    expect(logo.width, 52);
+    expect(logo.height, 52);
+    expect(logo.alignment, Alignment.center);
+
+    // The PNG's coloured pixels are visually left/low inside its square.
+    // The image box is shifted right/up so the artwork itself—not merely the
+    // transparent canvas—lands at the circle's centre.
+    final bubbleCenter = tester.getCenter(find.byType(AskArucadBubble));
+    final imageCenter = tester.getCenter(find.byType(Image));
+    expect(imageCenter.dx - bubbleCenter.dx, closeTo(5, .1));
+    expect(imageCenter.dy - bubbleCenter.dy, closeTo(-4, .1));
   });
 }

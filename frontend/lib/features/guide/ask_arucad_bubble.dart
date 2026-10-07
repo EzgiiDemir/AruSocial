@@ -25,17 +25,25 @@ class AskArucadBubble extends StatelessWidget {
             splashColor: ArucadColors.primary.withValues(alpha: .12),
             highlightColor: ArucadColors.primary.withValues(alpha: .08),
             child: SizedBox(
-              width: 52,
-              height: 52,
-              child: ClipOval(
-                // The supplied mark has white canvas around it. Zoom it just
-                // enough inside the circle so its coloured form is visually
-                // centred rather than leaving an empty lower edge.
-                child: Transform.scale(
-                  scale: 1.32,
-                  child: Image(
-                    image: AssetImage('assets/images/galatea.png'),
-                    fit: BoxFit.cover,
+              width: 60,
+              height: 60,
+              child: Center(
+                child: Transform.translate(
+                  // The artwork's alpha-weighted visual centre is left and
+                  // below its square canvas centre. This small optical offset
+                  // centres the coloured mark, not merely the PNG bounds.
+                  offset: const Offset(5, -4),
+                  child: Transform.scale(
+                    scale: 1.12,
+                    alignment: Alignment.center,
+                    child: Image.asset(
+                      'assets/images/aruverse_mark.png',
+                      width: 52,
+                      height: 52,
+                      fit: BoxFit.contain,
+                      alignment: Alignment.center,
+                      filterQuality: FilterQuality.high,
+                    ),
                   ),
                 ),
               ),

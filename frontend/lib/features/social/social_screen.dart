@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:arucad_campus_prototype/features/widgets/top_notice.dart';
 
 import 'package:flutter/material.dart';
 
@@ -661,8 +662,7 @@ class _SocialScreenState extends State<SocialScreen> {
       );
     } on ContentModerationException catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(e.reason)));
+      showTopNotice(context, message: e.reason, kind: TopNoticeKind.error);
       return;
     } catch (_) {
       if (!context.mounted) return;
@@ -778,8 +778,7 @@ class _SocialScreenState extends State<SocialScreen> {
                       } on ContentModerationException catch (e) {
                         setSheetState(() => comments = previous);
                         if (!ctx.mounted) return;
-                        ScaffoldMessenger.of(ctx)
-                            .showSnackBar(SnackBar(content: Text(e.reason)));
+                        showTopNotice(ctx, message: e.reason, kind: TopNoticeKind.error);
                       } catch (_) {
                         setSheetState(() => comments = previous);
                         if (!ctx.mounted) return;
@@ -850,8 +849,7 @@ class _SocialScreenState extends State<SocialScreen> {
           _posts.map((p) => p.id == updated.id ? updated : p).toList());
     } on ContentModerationException catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(e.reason)));
+      showTopNotice(context, message: e.reason, kind: TopNoticeKind.error);
     } catch (_) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

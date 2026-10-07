@@ -21,6 +21,64 @@ class CampusCheckinEntry {
   }
 }
 
+/// How many people are at one place right now, from real location pings
+/// rather than from the handful of students who deliberately check in.
+///
+/// The backend (`GET /presence/live`, `App\Services\LiveCrowd`) only ever
+/// returns a place and a head count: no names, no timestamps, nobody's
+/// coordinates. A student in ghost mode is not counted at all.
+class LivePlaceCrowd {
+  final String placeId;
+  final String name;
+  final String category;
+  final double lat;
+  final double lng;
+  final int count;
+
+  const LivePlaceCrowd({
+    required this.placeId,
+    required this.name,
+    required this.category,
+    required this.lat,
+    required this.lng,
+    required this.count,
+  });
+
+  factory LivePlaceCrowd.fromJson(Map<String, dynamic> json) => LivePlaceCrowd(
+        placeId: json['placeId'] as String,
+        name: json['name'] as String? ?? '',
+        category: json['category'] as String? ?? '',
+        lat: (json['lat'] as num?)?.toDouble() ?? 0,
+        lng: (json['lng'] as num?)?.toDouble() ?? 0,
+        count: (json['count'] as num?)?.toInt() ?? 0,
+      );
+}
+
+/// The whole live-crowd snapshot: the busiest places, how many people are
+/// sharing campus-wide, and how recent a ping has to be to count.
+class CampusLiveCrowd {
+  final List<LivePlaceCrowd> places;
+  final int total;
+  final int windowMinutes;
+
+  const CampusLiveCrowd({
+    this.places = const [],
+    this.total = 0,
+    this.windowMinutes = 10,
+  });
+
+  bool get isEmpty => places.isEmpty && total == 0;
+
+  factory CampusLiveCrowd.fromJson(Map<String, dynamic> json) =>
+      CampusLiveCrowd(
+        places: (json['places'] as List<dynamic>? ?? const [])
+            .map((e) => LivePlaceCrowd.fromJson(e as Map<String, dynamic>))
+            .toList(),
+        total: (json['total'] as num?)?.toInt() ?? 0,
+        windowMinutes: (json['windowMinutes'] as num?)?.toInt() ?? 10,
+      );
+}
+
 class CampusPlace {
   final String id;
   final String name;
@@ -92,6 +150,8 @@ class CampusPlace {
   }
 
   CampusPlace copyWith({
+    double? lat,
+    double? lng,
     String? density,
     double? rating,
     String? coverUrl,
@@ -104,8 +164,8 @@ class CampusPlace {
         id: id,
         name: name,
         category: category,
-        lat: lat,
-        lng: lng,
+        lat: lat ?? this.lat,
+        lng: lng ?? this.lng,
         description: description,
         distance: distance,
         density: density ?? this.density,
@@ -543,8 +603,9 @@ class PostMedia {
   final Map<String, dynamic>? style;
   final String? altText;
 
-  double? get aspectRatio =>
-      (width != null && height != null && height! > 0) ? width! / height! : null;
+  double? get aspectRatio => (width != null && height != null && height! > 0)
+      ? width! / height!
+      : null;
 
   factory PostMedia.fromJson(Map<String, dynamic> json) {
     return PostMedia(
@@ -1207,6 +1268,15 @@ class DirectoryEntry {
   final String? relatedServiceId;
   final String? tourUrl;
   final String? tourTarget;
+  final String? campusName;
+  final String? categoryName;
+  final String? roomNumber;
+  final String? notes;
+  final String? splatSceneId;
+  final String? splatSceneUrl;
+  final Map<String, dynamic>? location;
+  final Map<String, dynamic>? navigationMarker;
+  final DateTime? directorySyncedAt;
 
   const DirectoryEntry({
     required this.id,
@@ -1218,6 +1288,15 @@ class DirectoryEntry {
     this.relatedServiceId,
     this.tourUrl,
     this.tourTarget,
+    this.campusName,
+    this.categoryName,
+    this.roomNumber,
+    this.notes,
+    this.splatSceneId,
+    this.splatSceneUrl,
+    this.location,
+    this.navigationMarker,
+    this.directorySyncedAt,
   });
 
   factory DirectoryEntry.fromJson(Map<String, dynamic> json) => DirectoryEntry(
@@ -1230,6 +1309,18 @@ class DirectoryEntry {
         relatedServiceId: json['relatedServiceId'] as String?,
         tourUrl: json['tourUrl'] as String?,
         tourTarget: json['tourTarget'] as String?,
+        campusName: json['campusName'] as String?,
+        categoryName: json['categoryName'] as String?,
+        roomNumber: json['roomNumber'] as String?,
+        notes: json['notes'] as String?,
+        splatSceneId: json['splatSceneId'] as String?,
+        splatSceneUrl: json['splatSceneUrl'] as String?,
+        location: (json['location'] as Map?)?.cast<String, dynamic>(),
+        navigationMarker:
+            (json['navigationMarker'] as Map?)?.cast<String, dynamic>(),
+        directorySyncedAt: json['directorySyncedAt'] == null
+            ? null
+            : DateTime.tryParse(json['directorySyncedAt'] as String),
       );
 
   Map<String, dynamic> toJson() => {
@@ -1242,5 +1333,15 @@ class DirectoryEntry {
         if (relatedServiceId != null) 'relatedServiceId': relatedServiceId,
         if (tourUrl != null) 'tourUrl': tourUrl,
         if (tourTarget != null) 'tourTarget': tourTarget,
+        if (campusName != null) 'campusName': campusName,
+        if (categoryName != null) 'categoryName': categoryName,
+        if (roomNumber != null) 'roomNumber': roomNumber,
+        if (notes != null) 'notes': notes,
+        if (splatSceneId != null) 'splatSceneId': splatSceneId,
+        if (splatSceneUrl != null) 'splatSceneUrl': splatSceneUrl,
+        if (location != null) 'location': location,
+        if (navigationMarker != null) 'navigationMarker': navigationMarker,
+        if (directorySyncedAt != null)
+          'directorySyncedAt': directorySyncedAt!.toIso8601String(),
       };
 }

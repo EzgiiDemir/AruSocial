@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:collection/collection.dart';
 
+import 'package:arucad_campus_prototype/features/widgets/linkified_text.dart';
 import 'package:arucad_campus_prototype/core/l10n/app_strings.dart';
 import 'package:arucad_campus_prototype/core/config/campus_life_config.dart';
 import 'package:arucad_campus_prototype/core/config/place_catalog.dart';
+import 'package:arucad_campus_prototype/core/config/place_tour.dart';
 import 'package:arucad_campus_prototype/core/models/campus_models.dart';
 import 'package:arucad_campus_prototype/core/models/geo_point.dart';
 import 'package:arucad_campus_prototype/core/network/api_client.dart';
@@ -11,6 +15,7 @@ import 'package:arucad_campus_prototype/core/services/ask_arucad_store.dart';
 import 'package:arucad_campus_prototype/core/services/contracts.dart';
 import 'package:arucad_campus_prototype/core/services/groq_ai_service.dart';
 import 'package:arucad_campus_prototype/core/services/rest_campus_repository.dart';
+import 'package:arucad_campus_prototype/core/services/tour_launcher.dart';
 import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
 import 'package:arucad_campus_prototype/features/clubs/club_detail_screen.dart';
 import 'package:arucad_campus_prototype/features/guide/guide_context.dart';
@@ -86,13 +91,19 @@ class _AskArucadScreenState extends State<AskArucadScreen> {
       if (conversations.isEmpty) {
         conversations = await AskArucadStore.all();
       }
+      // The list carries no messages, so the thread we are about to show has
+      // to be fetched in full first — otherwise the tab opens on an empty
+      // chat and the history looks lost.
+      AskArucadConversation? active;
+      if (conversations.isNotEmpty) {
+        active = await _withMessages(conversations.first);
+        conversations[0] = active;
+      }
       if (!mounted) return;
       setState(() {
         _ctx = ctx;
         _conversations = conversations;
-        _active = conversations.isNotEmpty
-            ? conversations.first
-            : _draftConversation();
+        _active = active ?? _draftConversation();
         _loadingContext = false;
       });
     } catch (_) {
@@ -123,6 +134,36 @@ class _AskArucadScreenState extends State<AskArucadScreen> {
     });
   }
 
+  /// Fills in a conversation's messages.
+  ///
+  /// The list endpoint returns summaries only, so a thread picked from it has
+  /// an empty body until it is fetched by id. When that fetch fails — offline,
+  /// or the server lost it — the locally stored copy is used instead: it is
+  /// written after every turn under the same id and keeps the whole thread, so
+  /// history stays on screen rather than blanking out.
+  Future<AskArucadConversation> _withMessages(
+      AskArucadConversation conversation) async {
+    if (conversation.messages.isNotEmpty) return conversation;
+
+    if (conversation.id.startsWith('ask-')) {
+      try {
+        final full =
+            await widget.repository.getAskConversation(conversation.id);
+        if (full != null && full.messages.isNotEmpty) return full;
+      } catch (_) {
+        // Fall through to the stored copy.
+      }
+    }
+
+    for (final stored in await AskArucadStore.all()) {
+      if (stored.id == conversation.id && stored.messages.isNotEmpty) {
+        return stored;
+      }
+    }
+
+    return conversation;
+  }
+
   void _openConversation(AskArucadConversation conversation) {
     if (_sending) return;
     setState(() {
@@ -132,18 +173,26 @@ class _AskArucadScreenState extends State<AskArucadScreen> {
       _matchedClub = null;
       _matchedSport = null;
     });
-    if (conversation.messages.isEmpty && conversation.id.startsWith('ask-')) {
-      widget.repository.getAskConversation(conversation.id).then((full) {
-        if (!mounted || full == null || _active?.id != conversation.id) return;
+    if (conversation.messages.isEmpty) {
+      _withMessages(conversation).then((full) {
+        if (!mounted || _active?.id != conversation.id) return;
+        if (full.messages.isEmpty) {
+          // A brand-new draft simply has nothing yet; only a saved thread
+          // coming back empty is a failure worth reporting.
+          if (conversation.id.startsWith('ask-')) {
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content:
+                  Text(AppLocale.of(context).t('ask_conversation_load_failed')),
+            ));
+          }
+
+          return;
+        }
         setState(() {
           _active = full;
           _conversations.removeWhere((c) => c.id == full.id);
           _conversations.insert(0, full);
         });
-      }).catchError((Object error) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Sohbet yüklenemedi. Tekrar seçerek deneyin.')));
       });
     }
   }
@@ -207,6 +256,10 @@ class _AskArucadScreenState extends State<AskArucadScreen> {
     ];
 
     String answer;
+    var answerSources = const <AskArucadSource>[];
+    var answerPlaces = const <AskPlaceComponent>[];
+    AskRouteComponent? answerRoute;
+    var answerEvents = const <AskEventComponent>[];
     try {
       if (widget.repository is RestCampusRepository) {
         answer = await widget.repository.askGuide(
@@ -215,12 +268,18 @@ class _AskArucadScreenState extends State<AskArucadScreen> {
           conversationId:
               conversation.id.startsWith('ask-') ? conversation.id : null,
         );
-        final sid =
-            (widget.repository as RestCampusRepository).lastAskConversationId;
+        final rest = widget.repository as RestCampusRepository;
+        final sid = rest.lastAskConversationId;
         if (sid != null && sid != conversation.id) {
           conversation = conversation.withId(sid);
           _active = conversation;
         }
+        // What the backend actually retrieved for this answer. Read here,
+        // next to the call, because the field is per-request state.
+        answerSources = rest.lastAskSources;
+        answerPlaces = rest.lastAskPlaces;
+        answerRoute = rest.lastAskRoute;
+        answerEvents = rest.lastAskEvents;
       } else {
         try {
           answer = await _groq.askConversation(
@@ -254,7 +313,17 @@ class _AskArucadScreenState extends State<AskArucadScreen> {
     answer = stripAskArucadMarkdown(answer);
     if (!mounted) return;
 
-    final place = _ctx.matchPlace(value) ?? _ctx.matchPlace(answer);
+    // The question wins when it names a place. Otherwise take the subject of
+    // the answer — the FIRST building it names, not the longest, so
+    // "Titan'da, Rodin'in yanında" navigates to Titan.
+    final structuredPlace = answerPlaces.isEmpty
+        ? null
+        : (answerRoute == null ? answerPlaces.first : answerPlaces.last);
+    final structuredPlaceId = structuredPlace?.id;
+    final place = structuredPlaceId == null
+        ? (_ctx.matchPlace(value) ?? _ctx.firstMentionedPlace(answer))
+        : (_ctx.places.where((p) => p.id == structuredPlaceId).firstOrNull ??
+            _ctx.matchPlace(structuredPlace!.name));
     final service = place == null
         ? (_ctx.matchService(value) ?? _ctx.matchService(answer))
         : null;
@@ -265,8 +334,15 @@ class _AskArucadScreenState extends State<AskArucadScreen> {
         ? (_ctx.matchSport(value) ?? _ctx.matchSport(answer))
         : null;
 
-    conversation.messages.add(
-        AskArucadMessage(fromUser: false, text: answer, at: DateTime.now()));
+    conversation.messages.add(AskArucadMessage(
+      fromUser: false,
+      text: answer,
+      at: DateTime.now(),
+      sources: answerSources,
+      places: answerPlaces,
+      route: answerRoute,
+      events: answerEvents,
+    ));
     conversation.updatedAt = DateTime.now();
     if (conversation.messages.where((m) => m.fromUser).length == 1) {
       conversation.title =
@@ -350,6 +426,16 @@ class _AskArucadScreenState extends State<AskArucadScreen> {
     );
   }
 
+  Future<void> _openPlaceTour(CampusPlace place) async {
+    final tour = resolvePlaceTour(place);
+    await open360Tour(
+      context,
+      tour.url,
+      tourTarget: tour.target,
+      title: place.name,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final wide = MediaQuery.sizeOf(context).width >= _wideBreakpoint;
@@ -376,6 +462,11 @@ class _AskArucadScreenState extends State<AskArucadScreen> {
       onOpenPlace: _matchedPlace == null
           ? null
           : () => _openPlaceDetails(_matchedPlace!),
+      // Every resolved campus place has a deterministic 360 fallback via
+      // resolvePlaceTour(). Restored conversations and backend-normalised
+      // commands must expose the same action as a freshly typed 360 request.
+      onOpenTour:
+          _matchedPlace == null ? null : () => _openPlaceTour(_matchedPlace!),
       onContactService: _matchedService == null
           ? null
           : () => _contactService(_matchedService!),
@@ -450,10 +541,12 @@ class _Sidebar extends StatelessWidget {
             child: Row(children: [
               const CircleAvatar(
                   radius: 16,
-                  backgroundImage: AssetImage('assets/images/galatea.png')),
+                  backgroundColor: Colors.white,
+                  backgroundImage:
+                      AssetImage('assets/images/aruverse_mark.png')),
               const SizedBox(width: 10),
               Expanded(
-                child: Text('Aicad',
+                child: Text(AppLocale.of(context).t('nav_ask'),
                     style: TextStyle(
                         color: ArucadColors.ink,
                         fontWeight: FontWeight.w900,
@@ -540,6 +633,7 @@ class _ChatArea extends StatelessWidget {
   final CampusSport? matchedSport;
   final VoidCallback? onNavigate;
   final VoidCallback? onOpenPlace;
+  final VoidCallback? onOpenTour;
   final VoidCallback? onContactService;
   final VoidCallback? onOpenService;
   final VoidCallback? onOpenClub;
@@ -558,6 +652,7 @@ class _ChatArea extends StatelessWidget {
     this.matchedSport,
     this.onNavigate,
     this.onOpenPlace,
+    this.onOpenTour,
     this.onContactService,
     this.onOpenService,
     this.onOpenClub,
@@ -592,6 +687,13 @@ class _ChatArea extends StatelessWidget {
                             : CrossAxisAlignment.start,
                         children: [
                           _MessageBubble(message: m),
+                          if (!m.fromUser && m.sources.isNotEmpty)
+                            _AnswerSources(sources: m.sources),
+                          if (!m.fromUser &&
+                              (m.places.isNotEmpty ||
+                                  m.events.isNotEmpty ||
+                                  m.route != null))
+                            _RichAnswerComponents(message: m),
                           if (isLastAssistant)
                             _MatchedActions(
                               matchedPlace: matchedPlace,
@@ -600,6 +702,7 @@ class _ChatArea extends StatelessWidget {
                               matchedSport: matchedSport,
                               onNavigate: onNavigate,
                               onOpenPlace: onOpenPlace,
+                              onOpenTour: onOpenTour,
                               onContactService: onContactService,
                               onOpenService: onOpenService,
                               onOpenClub: onOpenClub,
@@ -667,10 +770,12 @@ class _EmptyState extends StatelessWidget {
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           const CircleAvatar(
               radius: 28,
-              backgroundImage: AssetImage('assets/images/galatea.png')),
+              backgroundColor: Colors.white,
+              backgroundImage: AssetImage('assets/images/aruverse_mark.png')),
           const SizedBox(height: 14),
-          const Text('Aicad',
-              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20)),
+          Text(strings.t('nav_ask'),
+              style:
+                  const TextStyle(fontWeight: FontWeight.w900, fontSize: 20)),
           const SizedBox(height: 6),
           Text(strings.t('ask_intro'),
               textAlign: TextAlign.center,
@@ -714,6 +819,223 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
+/// The pages and internal tables an answer was built from.
+///
+/// Shown from the backend's own record of what it retrieved, not from
+/// links parsed out of the answer: an invented URL would otherwise arrive
+/// with an invented citation attached. A web source opens; a campus source
+/// (the events table, the place directory) has nothing to open and simply
+/// names itself, which is a more honest citation than silence.
+class _AnswerSources extends StatelessWidget {
+  final List<AskArucadSource> sources;
+
+  const _AnswerSources({required this.sources});
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = AppLocale.of(context);
+    final scheme = Theme.of(context).colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, left: 4, right: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Icon(Icons.library_books_outlined,
+                size: 13, color: scheme.onSurfaceVariant),
+            const SizedBox(width: 5),
+            Text(
+              strings.t('ask_sources_title'),
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+          ]),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final source in sources) _SourceChip(source: source)
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SourceChip extends StatelessWidget {
+  final AskArucadSource source;
+
+  const _SourceChip({required this.source});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final openable = source.isWeb;
+
+    final chip = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      constraints: const BoxConstraints(maxWidth: 240),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHighest.withValues(alpha: .7),
+        borderRadius: BorderRadius.circular(ArucadRadius.pill),
+        border: Border.all(color: scheme.outlineVariant.withValues(alpha: .6)),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(
+          openable ? Icons.link : Icons.storage_outlined,
+          size: 12,
+          color: openable ? ArucadColors.primary : scheme.onSurfaceVariant,
+        ),
+        const SizedBox(width: 5),
+        Flexible(
+          child: Text(
+            source.page == null
+                ? source.title
+                : '${source.title} · p. ${source.page}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: scheme.onSurface,
+            ),
+          ),
+        ),
+      ]),
+    );
+
+    if (!openable) return chip;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(ArucadRadius.pill),
+      onTap: () => _open(context, source.url),
+      child: chip,
+    );
+  }
+
+  Future<void> _open(BuildContext context, String url) async {
+    final strings = AppLocale.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final uri = Uri.parse(url);
+      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!opened) throw StateError('could not launch');
+    } catch (_) {
+      messenger.showSnackBar(
+          SnackBar(content: Text(strings.t('ask_source_open_failed'))));
+    }
+  }
+}
+
+class _RichAnswerComponents extends StatelessWidget {
+  final AskArucadMessage message;
+  const _RichAnswerComponents({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        if (message.route case final route?)
+          Container(
+            padding: const EdgeInsets.all(12),
+            margin: const EdgeInsets.only(bottom: 8),
+            decoration: BoxDecoration(
+              color: scheme.primaryContainer.withValues(alpha: .45),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: scheme.primary.withValues(alpha: .22)),
+            ),
+            child: Row(children: [
+              Icon(Icons.route_outlined, color: scheme.primary),
+              const SizedBox(width: 10),
+              Expanded(
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                    Text('${route.originName} → ${route.destinationName}',
+                        style: const TextStyle(fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 3),
+                    Text(
+                        '${(route.distanceMeters / 1000).toStringAsFixed(2)} km · '
+                        '${(route.durationSeconds / 60).ceil()} min · ${route.travelMode}',
+                        style: TextStyle(
+                            fontSize: 12, color: scheme.onSurfaceVariant)),
+                  ])),
+            ]),
+          ),
+        for (final place in message.places.take(3))
+          Container(
+            padding: const EdgeInsets.all(12),
+            margin: const EdgeInsets.only(bottom: 8),
+            decoration: BoxDecoration(
+              color: scheme.surfaceContainerHighest.withValues(alpha: .55),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: scheme.outlineVariant),
+            ),
+            child: Row(children: [
+              Icon(Icons.place_outlined, color: ArucadColors.primary),
+              const SizedBox(width: 10),
+              Expanded(
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                    Text(place.name,
+                        style: const TextStyle(fontWeight: FontWeight.w800)),
+                    Text(
+                        [
+                          place.category,
+                          if (place.building != null) place.building!,
+                          if (place.floor != null) place.floor!,
+                          if (place.room != null) place.room!,
+                        ].join(' · '),
+                        style: TextStyle(
+                            fontSize: 12, color: scheme.onSurfaceVariant)),
+                    if (place.hours != null)
+                      Text(place.hours!, style: const TextStyle(fontSize: 12)),
+                  ])),
+            ]),
+          ),
+        for (final event in message.events.take(4))
+          Container(
+            padding: const EdgeInsets.all(12),
+            margin: const EdgeInsets.only(bottom: 8),
+            decoration: BoxDecoration(
+              color: scheme.surfaceContainerHighest.withValues(alpha: .55),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: scheme.outlineVariant),
+            ),
+            child: Row(children: [
+              Icon(Icons.event_outlined, color: ArucadColors.primary),
+              const SizedBox(width: 10),
+              Expanded(
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                    Text(event.title,
+                        style: const TextStyle(fontWeight: FontWeight.w800)),
+                    Text(
+                        [
+                          if (event.date != null) event.date!,
+                          if (event.time != null) event.time!,
+                          if (event.placeName != null) event.placeName!,
+                        ].join(' · '),
+                        style: TextStyle(
+                            fontSize: 12, color: scheme.onSurfaceVariant)),
+                  ])),
+            ]),
+          ),
+      ]),
+    );
+  }
+}
+
 class _MessageBubble extends StatelessWidget {
   final AskArucadMessage message;
   const _MessageBubble({required this.message});
@@ -740,7 +1062,8 @@ class _MessageBubble extends StatelessWidget {
         children: [
           const CircleAvatar(
               radius: 14,
-              backgroundImage: AssetImage('assets/images/galatea.png')),
+              backgroundColor: Colors.white,
+              backgroundImage: AssetImage('assets/images/aruverse_mark.png')),
           const SizedBox(width: 8),
           Flexible(
             child: ConstrainedBox(
@@ -753,7 +1076,9 @@ class _MessageBubble extends StatelessWidget {
                     color:
                         Theme.of(context).colorScheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(18)),
-                child: Text(message.text,
+                // Source URLs are the whole point of a grounded answer, so
+                // they have to be openable rather than read-only text.
+                child: LinkifiedText(message.text,
                     style: TextStyle(
                         fontSize: 14.5,
                         color: Theme.of(context).colorScheme.onSurface)),
@@ -773,7 +1098,8 @@ class _TypingBubble extends StatelessWidget {
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           const CircleAvatar(
               radius: 14,
-              backgroundImage: AssetImage('assets/images/galatea.png')),
+              backgroundColor: Colors.white,
+              backgroundImage: AssetImage('assets/images/aruverse_mark.png')),
           const SizedBox(width: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -796,6 +1122,7 @@ class _MatchedActions extends StatelessWidget {
   final CampusSport? matchedSport;
   final VoidCallback? onNavigate;
   final VoidCallback? onOpenPlace;
+  final VoidCallback? onOpenTour;
   final VoidCallback? onContactService;
   final VoidCallback? onOpenService;
   final VoidCallback? onOpenClub;
@@ -808,6 +1135,7 @@ class _MatchedActions extends StatelessWidget {
     this.matchedSport,
     this.onNavigate,
     this.onOpenPlace,
+    this.onOpenTour,
     this.onContactService,
     this.onOpenService,
     this.onOpenClub,
@@ -837,6 +1165,12 @@ class _MatchedActions extends StatelessWidget {
             icon: const Icon(Icons.info_outline, size: 16),
             label: Text(s.t('ask_open')),
           ),
+          if (onOpenTour != null)
+            FilledButton.icon(
+              onPressed: onOpenTour,
+              icon: const Icon(Icons.threesixty, size: 16),
+              label: Text(s.t('ask_open_360')),
+            ),
         ],
         if (matchedService != null) ...[
           FilledButton.icon(

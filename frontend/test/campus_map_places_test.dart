@@ -95,6 +95,164 @@ void main() {
     expect(pins.any((p) => p.name == 'ARUCAD Workshops'), isFalse);
   });
 
+  test('campusMapPlaces repairs known building coordinates from the catalog',
+      () {
+    final pins = campusMapPlaces([
+      _place(id: 'titan', name: 'Titan', lat: 0, lng: 0),
+    ]);
+    final titan = pins.singleWhere((p) => p.name == 'Titan');
+    expect(titan.id, 'titan', reason: 'Live API identity must be preserved.');
+    expect(titan.lat, 35.337170);
+    expect(titan.lng, 33.321633);
+  });
+
+  test('map search covers the rendered catalog and ignores Turkish accents',
+      () {
+    final matches = mapSearchTargets(const [], const [], 'atolye');
+    expect(matches, isNotEmpty);
+    expect(matches.any((result) => result.place.category == 'Atölye'), isTrue);
+  });
+
+  test('map search resolves an event to its real venue', () {
+    const event = CampusEvent(
+      id: 'event-1',
+      title: 'Bahar Sergisi',
+      time: '14:00',
+      placeName: 'Titan',
+      placeId: 'titan',
+      category: 'Sergi',
+      attendees: 24,
+      xp: 10,
+    );
+    final matches = mapSearchTargets(const [], const [event], 'bahar');
+    expect(matches, hasLength(1));
+    expect(matches.single.event, event);
+    expect(matches.single.place.id, 'titan');
+  });
+
+  test('map search resolves a live room to its verified building pin', () {
+    const studentAffairs = DirectoryEntry(
+      id: '360-student-affairs',
+      building: 'TITAN',
+      floor: 'Kat belirtilmemiş',
+      room: 'TI OFFO1 Öğrenci İşleri',
+      occupantName: '',
+      categoryName: 'Öğrenci Hizmetleri',
+      tourUrl:
+          'https://360.arucad.edu.tr/Main/index.htm?media-name=MG_INT_1#media-name=MG_INT_1',
+      tourTarget: 'panorama_TITAN_1',
+    );
+
+    final matches = mapSearchTargets(
+      const [],
+      const [],
+      'ogrenci isleri',
+      directory: const [studentAffairs],
+    );
+
+    expect(matches, hasLength(1));
+    expect(matches.single.directory, studentAffairs);
+    expect(matches.single.place.id, 'titan');
+    expect(matches.single.title, 'TI OFFO1 Öğrenci İşleri');
+  });
+
+  test('map search hides a curated duplicate when the official room exists',
+      () {
+    const curated = DirectoryEntry(
+      id: 'dir-student-affairs',
+      building: 'Titan',
+      room: 'Öğrenci İşleri Ofisi',
+      occupantName: 'Öğrenci İşleri Ofisi',
+      relatedServiceId: 'student-affairs',
+    );
+    const official = DirectoryEntry(
+      id: '360-GCKCZ8',
+      building: 'TITAN',
+      room: 'TI OFFO1 Öğrenci İşleri',
+      occupantName: '',
+      tourUrl: 'https://360.arucad.edu.tr/exact-room',
+    );
+
+    final matches = mapSearchTargets(const [], const [], 'ogrenci isleri',
+        directory: const [curated, official]);
+
+    expect(matches, hasLength(1));
+    expect(matches.single.directory?.id, '360-GCKCZ8');
+  });
+
+  test('directory building aliases resolve official 360 labels', () {
+    expect(campusPlaceForDirectoryBuilding(const [], 'DANIEDE')?.id, 'daniele');
+    expect(campusPlaceForDirectoryBuilding(const [], 'IRIS')?.id,
+        'iris-atelier-building');
+    expect(campusPlaceForDirectoryBuilding(const [], 'BANDABULIYA KAMPÜS')?.id,
+        'nicosia-bandabuliya-campus');
+  });
+
+  test('map filters expose live people, events, places and popular venues', () {
+    final titan =
+        campusMapPlaces(const []).singleWhere((place) => place.id == 'titan');
+    const event = CampusEvent(
+      id: 'event-1',
+      title: 'Bahar Sergisi',
+      time: '14:00',
+      placeName: 'Titan',
+      placeId: 'titan',
+      category: 'Sergi',
+      attendees: 24,
+      xp: 10,
+    );
+
+    expect(
+      mapPlaceMatchesFilter(
+        filter: MapContentFilter.people,
+        place: titan,
+        events: const [event],
+        liveCount: 4,
+      ),
+      isTrue,
+    );
+    expect(
+      mapPlaceMatchesFilter(
+        filter: MapContentFilter.people,
+        place: titan,
+        events: const [event],
+        liveCount: 0,
+      ),
+      isFalse,
+    );
+    expect(
+      mapPlaceMatchesFilter(
+        filter: MapContentFilter.events,
+        place: titan,
+        events: const [event],
+        liveCount: 0,
+      ),
+      isTrue,
+    );
+    for (final filter in [
+      MapContentFilter.all,
+      MapContentFilter.places,
+      MapContentFilter.popular,
+    ]) {
+      expect(
+        mapPlaceMatchesFilter(
+          filter: filter,
+          place: titan,
+          events: const [event],
+          liveCount: filter == MapContentFilter.popular ? 1 : 0,
+        ),
+        isTrue,
+      );
+    }
+  });
+
+  test('travel modes separate bird-eye walking from road navigation', () {
+    expect(TravelMode.walking.usesBirdsEyeLine, isTrue);
+    expect(TravelMode.walking.usesRoadNetwork, isFalse);
+    expect(TravelMode.driving.usesRoadNetwork, isTrue);
+    expect(TravelMode.transit.usesRoadNetwork, isTrue);
+  });
+
   test('spreadOverlappingMapPins nudges shared workshop coordinates', () {
     final pins = spreadOverlappingMapPins([
       _place(
@@ -256,7 +414,8 @@ void main() {
       'PlaceInfoSheet loads real workshop equipment and collaboration posts',
       (tester) async {
     final repository = MockCampusRepository();
-    final place = _place(id: 'w1', name: 'Carpentry Studio', category: 'Workshop');
+    final place =
+        _place(id: 'w1', name: 'Carpentry Studio', category: 'Workshop');
     await repository.upsertWorkshopEquipment('w1',
         name: 'Lazer Kesici', available: false);
     await repository.addCollaborationPost('w1', 'Malzeme takası: kil ⇄ ahşap');
@@ -286,8 +445,7 @@ void main() {
     expect(find.text('Malzeme takası: kil ⇄ ahşap'), findsOneWidget);
   });
 
-  testWidgets(
-      'PlaceInfoSheet shows honest empty workshop states with no data',
+  testWidgets('PlaceInfoSheet shows honest empty workshop states with no data',
       (tester) async {
     final repository = MockCampusRepository();
     final place = _place(id: 'w2', name: 'Empty Studio', category: 'Workshop');
@@ -377,7 +535,8 @@ void main() {
       ),
     ));
     await tester.pump();
-    expect(find.text('ARUCAD Social Map'), findsOneWidget);
+    expect(find.text('Mekan, kişi veya etkinlik ara'), findsOneWidget);
+    expect(find.text('Yakınındaki hareketlilik'), findsOneWidget);
   });
 
   testWidgets('Home Haritayı Aç opens the full-screen map', (tester) async {
@@ -418,18 +577,16 @@ void main() {
     // Personalised/social sections intentionally precede the large map on
     // phones, so the lazily-built map header may not exist in the first
     // viewport yet. Scroll the Home list until it is materialised.
-    for (var i = 0;
-        i < 6 && find.text('Haritayı Aç').evaluate().isEmpty;
-        i++) {
-      await tester.drag(
-          find.byType(ListView).first, const Offset(0, -420));
+    for (var i = 0; i < 6 && find.text('Haritayı Aç').evaluate().isEmpty; i++) {
+      await tester.drag(find.byType(ListView).first, const Offset(0, -420));
       await tester.pump();
     }
     expect(find.text('Haritayı Aç'), findsOneWidget);
     await tester.tap(find.text('Haritayı Aç'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
-    expect(find.text('ARUCAD Social Map'), findsOneWidget);
+    expect(find.text('Mekan, kişi veya etkinlik ara'), findsOneWidget);
+    expect(find.text('Yakınındaki hareketlilik'), findsOneWidget);
   });
 
   testWidgets('Home header brand fits a phone and has no language toggle',

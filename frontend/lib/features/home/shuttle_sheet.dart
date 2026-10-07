@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 
 import 'package:arucad_campus_prototype/core/config/shuttle_config.dart';
@@ -25,7 +23,6 @@ class ShuttleSheet extends StatefulWidget {
 }
 
 class _ShuttleSheetState extends State<ShuttleSheet> {
-  Timer? _ticker;
   String? _expanded;
   late Future<List<ShuttleRoute>> _future;
 
@@ -33,21 +30,10 @@ class _ShuttleSheetState extends State<ShuttleSheet> {
   void initState() {
     super.initState();
     _future = widget.repository.getShuttleRoutes();
-    // Keep the countdowns fresh while the sheet is open.
-    _ticker = Timer.periodic(const Duration(seconds: 30), (_) {
-      if (mounted) setState(() {});
-    });
-  }
-
-  @override
-  void dispose() {
-    _ticker?.cancel();
-    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final now = DateTime.now();
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
       constraints:
@@ -63,7 +49,7 @@ class _ShuttleSheetState extends State<ShuttleSheet> {
                 color: ArucadColors.primary),
             const SizedBox(width: 10),
             const Expanded(
-                child: Text('Servis Saatleri',
+                child: Text('Servis Güzergâhları',
                     style:
                         TextStyle(fontWeight: FontWeight.w900, fontSize: 18))),
             IconButton(
@@ -84,7 +70,7 @@ class _ShuttleSheetState extends State<ShuttleSheet> {
                 if (snap.hasError) {
                   return const Padding(
                     padding: EdgeInsets.symmetric(vertical: 24),
-                    child: Text('Servis saatleri yüklenemedi.',
+                    child: Text('Servis güzergâhları yüklenemedi.',
                         style: TextStyle(color: ArucadColors.muted)),
                   );
                 }
@@ -103,78 +89,64 @@ class _ShuttleSheetState extends State<ShuttleSheet> {
                   itemBuilder: (context, index) {
                     final route = routes[index];
                     final expanded = _expanded == route.id;
-                final outbound = nextDeparture(route.departures, now);
-                final inbound = route.returns == null
-                    ? null
-                    : nextDeparture(route.returns!, now);
-
-                return Card(
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(18),
-                    onTap: () =>
-                        setState(() => _expanded = expanded ? null : route.id),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(children: [
-                              Container(
-                                width: 12,
-                                height: 12,
-                                decoration: BoxDecoration(
-                                    color: route.color, shape: BoxShape.circle),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                  child: Text(route.name,
-                                      style: const TextStyle(
-                                          fontWeight: FontWeight.w800))),
-                              Icon(expanded
-                                  ? Icons.expand_less
-                                  : Icons.expand_more),
-                            ]),
-                            const SizedBox(height: 8),
-                            _DepartureLine(
-                              label: inbound == null
-                                  ? 'Sıradaki kalkış'
-                                  : 'Kampüsten kalkış',
-                              time: outbound.label,
-                              countdown: formatCountdown(outbound.until),
-                              color: route.color,
-                            ),
-                            if (inbound != null) ...[
-                              const SizedBox(height: 4),
-                              _DepartureLine(
-                                label: 'Dönüş',
-                                time: inbound.label,
-                                countdown: formatCountdown(inbound.until),
-                                color: route.color,
-                              ),
-                            ],
-                            if (expanded) ...[
-                              const SizedBox(height: 12),
-                              const Divider(height: 1),
-                              const SizedBox(height: 10),
-                              for (final stop in route.stops)
-                                Padding(
-                                  padding: const EdgeInsets.only(bottom: 6),
-                                  child: Row(children: [
-                                    const Icon(Icons.place_outlined,
-                                        size: 14, color: ArucadColors.muted),
-                                    const SizedBox(width: 6),
-                                    Expanded(
-                                        child: Text(stop,
-                                            style: const TextStyle(
-                                                fontSize: 13,
-                                                color: ArucadColors.muted))),
-                                  ]),
-                                ),
-                            ],
-                          ]),
-                    ),
-                  ),
-                );
+                    return Card(
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(18),
+                        onTap: () => setState(
+                            () => _expanded = expanded ? null : route.id),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(children: [
+                                  Container(
+                                    width: 12,
+                                    height: 12,
+                                    decoration: BoxDecoration(
+                                        color: route.color,
+                                        shape: BoxShape.circle),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                      child: Text(route.name,
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.w800))),
+                                  Icon(expanded
+                                      ? Icons.expand_less
+                                      : Icons.expand_more),
+                                ]),
+                                const SizedBox(height: 8),
+                                Text(route.stops.join(' → '),
+                                    style: const TextStyle(
+                                        fontSize: 12,
+                                        color: ArucadColors.muted,
+                                        height: 1.35)),
+                                if (expanded) ...[
+                                  const SizedBox(height: 12),
+                                  const Divider(height: 1),
+                                  const SizedBox(height: 10),
+                                  for (final stop in route.stops)
+                                    Padding(
+                                      padding: const EdgeInsets.only(bottom: 6),
+                                      child: Row(children: [
+                                        const Icon(Icons.place_outlined,
+                                            size: 14,
+                                            color: ArucadColors.muted),
+                                        const SizedBox(width: 6),
+                                        Expanded(
+                                            child: Text(stop,
+                                                style: const TextStyle(
+                                                    fontSize: 13,
+                                                    color:
+                                                        ArucadColors.muted))),
+                                      ]),
+                                    ),
+                                ],
+                              ]),
+                        ),
+                      ),
+                    );
                   },
                 );
               },
@@ -184,32 +156,4 @@ class _ShuttleSheetState extends State<ShuttleSheet> {
       ),
     );
   }
-}
-
-class _DepartureLine extends StatelessWidget {
-  final String label;
-  final String time;
-  final String countdown;
-  final Color color;
-
-  const _DepartureLine({
-    required this.label,
-    required this.time,
-    required this.countdown,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) => Row(children: [
-        Text('$label: ',
-            style:
-                const TextStyle(fontSize: 12, color: ArucadColors.muted)),
-        Text(time,
-            style: const TextStyle(
-                fontWeight: FontWeight.w800, fontSize: 12)),
-        const SizedBox(width: 6),
-        Text('· $countdown',
-            style: TextStyle(
-                fontWeight: FontWeight.w800, fontSize: 12, color: color)),
-      ]);
 }

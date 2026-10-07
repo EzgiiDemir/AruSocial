@@ -164,7 +164,7 @@ class _PrivacyNoticeScreenState extends State<PrivacyNoticeScreen> {
                     padding: const EdgeInsets.fromLTRB(24, 36, 24, 8),
                     children: [
                       Image.asset(
-                        'assets/images/arucad_home_logo.png',
+                        'assets/images/aruverse_mark.png',
                         height: 44,
                         filterQuality: FilterQuality.high,
                       ),

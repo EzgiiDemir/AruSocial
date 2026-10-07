@@ -1,11 +1,13 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:arucad_campus_prototype/core/l10n/app_strings.dart';
 import 'package:arucad_campus_prototype/core/models/campus_directory.dart';
 import 'package:arucad_campus_prototype/core/models/media_item.dart';
 import 'package:arucad_campus_prototype/core/network/api_client.dart';
@@ -51,13 +53,55 @@ void main() {
       'distanceMeters': 120.5,
       'durationSeconds': 90,
       'steps': [
-        {'instruction': 'left turn', 'distanceMeters': 60},
+        {
+          'instruction': 'left turn',
+          'type': 'turn',
+          'modifier': 'left',
+          'name': 'Campus Rd',
+          'distanceMeters': 60,
+        },
       ],
       'provider': 'osrm',
     });
     expect(route.points.length, 2);
     expect(route.toRouteResult().fromProvider, isTrue);
-    expect(route.toRouteResult().steps.first, 'left turn');
+
+    // The maneuver, not the provider's English sentence, is what the
+    // navigation screen phrases and draws an arrow for.
+    final step = route.toRouteResult().steps.first;
+    expect(step.type, 'turn');
+    expect(step.modifier, 'left');
+    expect(step.labelFor(const AppStrings(AppLanguage.tr).t),
+        'Sola dön · Campus Rd');
+    expect(step.labelFor(const AppStrings(AppLanguage.en).t),
+        'Turn left · Campus Rd');
+    expect(step.icon, Icons.turn_left);
+    expect(step.distanceLabel, '60 m');
+  });
+
+  test('a route step falls back to the provider wording for an unknown '
+      'maneuver', () {
+    const step = RouteStep(instruction: 'exit rotary');
+    // Nothing invented: an unrecognised maneuver is shown as the provider
+    // worded it rather than guessed at.
+    expect(step.labelFor(const AppStrings(AppLanguage.tr).t),
+        AppStrings(AppLanguage.tr).t('nav_step_roundabout'));
+
+    const unknown = RouteStep(instruction: 'use lane');
+    expect(unknown.labelFor(const AppStrings(AppLanguage.tr).t), 'use lane');
+    expect(unknown.icon, Icons.straight);
+  });
+
+  test('a legacy steps payload of plain strings still parses', () {
+    final route = WalkingRoute.fromJson({
+      'points': [
+        {'lat': 35.33, 'lng': 33.32},
+        {'lat': 35.34, 'lng': 33.31},
+      ],
+      'steps': ['left turn'],
+    });
+    expect(route.steps.single.instruction, 'left turn');
+    expect(route.steps.single.icon, Icons.turn_left);
   });
 
   // `isVideo` went with the rest of video support on 14 September 2026.

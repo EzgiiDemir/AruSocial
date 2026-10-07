@@ -58,7 +58,7 @@ void main() {
   group('API error display', () {
     test('401 AUTH_REQUIRED invalidates session', () async {
       String? seen;
-      ApiClient.onSessionInvalid = (code) => seen = code;
+      ApiClient.onSessionInvalid = (code, _) => seen = code;
       final client = ApiClient(
         baseUrl: 'http://example.com/api/v1',
         client: MockClient((_) async => http.Response(
@@ -79,17 +79,21 @@ void main() {
 
     test('403 ACCOUNT_BANNED invalidates session', () async {
       String? seen;
-      ApiClient.onSessionInvalid = (code) => seen = code;
+      ApiClient.onSessionInvalid = (code, _) => seen = code;
       final client = ApiClient(
         baseUrl: 'http://example.com/api/v1',
-        client: MockClient((_) async => http.Response(
-              jsonEncode({
+        // Turkish characters need a UTF-8 body; http.Response(String) encodes
+        // as Latin-1 and would throw on 'ı'/'ş'.
+        client: MockClient((_) async => http.Response.bytes(
+              utf8.encode(jsonEncode({
                 'error': {
                   'code': 'ACCOUNT_BANNED',
-                  'message': 'banned',
+                  'message':
+                      'Hesabın geçici olarak askıya alındı. Tekrar erişebileceğin zaman: 20.09.2026 14:00.',
                 },
-              }),
+              })),
               403,
+              headers: {'content-type': 'application/json; charset=utf-8'},
             )),
       );
       try {
@@ -97,13 +101,15 @@ void main() {
         fail('expected throw');
       } on ApiClientException catch (e) {
         expect(seen, 'ACCOUNT_BANNED');
+        // The user must see the real reason AND when they can return.
         expect(e.displayMessage, contains('askıya'));
+        expect(e.displayMessage, contains('20.09.2026 14:00'));
       }
     });
 
     test('403 permission denied does not invalidate session', () async {
       var fired = false;
-      ApiClient.onSessionInvalid = (_) => fired = true;
+      ApiClient.onSessionInvalid = (_, __) => fired = true;
       final client = ApiClient(
         baseUrl: 'http://example.com/api/v1',
         client: MockClient((_) async => http.Response(

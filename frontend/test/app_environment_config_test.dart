@@ -70,6 +70,29 @@ void main() {
     expect(config.apiBaseUrl, 'https://api.example.com/api/v1');
   });
 
+  test('production release defaults to the public ARUVERSE API', () {
+    final config = AppConfig.fromEnvironment(
+      isRelease: true,
+      useRestApi: '',
+      appEnv: 'production',
+      apiBaseUrl: '',
+    );
+    expect(config.useRestApi, isTrue);
+    expect(config.environment, AppEnvironment.production);
+    expect(config.apiBaseUrl, AppConfig.productionApiBaseUrl);
+  });
+
+  test('plain release build defaults to production and the public API', () {
+    final config = AppConfig.fromEnvironment(
+      isRelease: true,
+      useRestApi: '',
+      appEnv: null,
+      apiBaseUrl: '',
+    );
+    expect(config.environment, AppEnvironment.production);
+    expect(config.apiBaseUrl, AppConfig.productionApiBaseUrl);
+  });
+
   test('release + localhost API URL is rejected', () {
     expect(
       () => AppConfig.fromEnvironment(
@@ -113,7 +136,7 @@ void main() {
     expect(config.apiBaseUrl, 'http://192.168.1.8:4000/api/v1');
   });
 
-  test('release staging/production REST without URL is rejected', () {
+  test('release staging REST without URL is rejected', () {
     expect(
       () => AppConfig.fromEnvironment(
         isRelease: true,

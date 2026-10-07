@@ -52,16 +52,16 @@ class AppStrings {
       AppLanguage.ru: 'Профиль'
     },
     'nav_ask': {
-      AppLanguage.tr: 'Aicad',
-      AppLanguage.en: 'Aicad',
-      AppLanguage.ru: 'Aicad'
+      AppLanguage.tr: 'AICAD',
+      AppLanguage.en: 'AICAD',
+      AppLanguage.ru: 'AICAD'
     },
     // Shorter form of nav_ask for the bottom nav on narrow phones, where the
     // full label would wrap and force the bar taller than the other items.
     'nav_ask_short': {
-      AppLanguage.tr: 'Aicad',
-      AppLanguage.en: 'Aicad',
-      AppLanguage.ru: 'Aicad'
+      AppLanguage.tr: 'AICAD',
+      AppLanguage.en: 'AICAD',
+      AppLanguage.ru: 'AICAD'
     },
 
     // Home — timeline
@@ -499,6 +499,11 @@ class AppStrings {
       AppLanguage.en: 'Search a place or category',
       AppLanguage.ru: 'Поиск места или категории'
     },
+    'popular_places_filter': {
+      AppLanguage.tr: 'Kategori filtresi',
+      AppLanguage.en: 'Category filter',
+      AppLanguage.ru: 'Фильтр по категории'
+    },
     'popular_places_empty': {
       AppLanguage.tr:
           'Henüz check-in yok. Bir yere gidip check-in yapan ilk kişi sen ol.',
@@ -514,6 +519,16 @@ class AppStrings {
       AppLanguage.tr: 'check-in',
       AppLanguage.en: 'check-in',
       AppLanguage.ru: 'отметка'
+    },
+    'pagination_previous': {
+      AppLanguage.tr: 'Önceki sayfa',
+      AppLanguage.en: 'Previous page',
+      AppLanguage.ru: 'Предыдущая страница'
+    },
+    'pagination_next': {
+      AppLanguage.tr: 'Sonraki sayfa',
+      AppLanguage.en: 'Next page',
+      AppLanguage.ru: 'Следующая страница'
     },
     'sp_archives_tab': {
       AppLanguage.tr: 'Arşiv',
@@ -1333,9 +1348,9 @@ class AppStrings {
       AppLanguage.ru: 'Добавить фото (камера/галерея)'
     },
     'compose_add_media': {
-      AppLanguage.tr: 'Fotoğraf veya video ekle',
-      AppLanguage.en: 'Add photo or video',
-      AppLanguage.ru: 'Добавить фото или видео'
+      AppLanguage.tr: 'Fotoğraf Ekle',
+      AppLanguage.en: 'Add photo',
+      AppLanguage.ru: 'Добавить фото'
     },
     'compose_video_attached': {
       AppLanguage.tr: 'Video eklendi (onay kuyruğu)',
@@ -1679,6 +1694,45 @@ class AppStrings {
       AppLanguage.en: 'Continue',
       AppLanguage.ru: 'Продолжить'
     },
+    'common_not_now': {
+      AppLanguage.tr: 'Şimdi değil',
+      AppLanguage.en: 'Not now',
+      AppLanguage.ru: 'Не сейчас'
+    },
+    'location_soft_disabled': {
+      AppLanguage.tr:
+          'Yakınındaki yerler ve kampüs özellikleri için konum kapalı. Ayarlardan açabilirsin.',
+      AppLanguage.en:
+          'Location is off for nearby places and campus features. You can enable it in Settings.',
+      AppLanguage.ru:
+          'Геолокация для мест рядом и функций кампуса отключена. Её можно включить в настройках.'
+    },
+    'location_required_title': {
+      AppLanguage.tr: 'Konum gerekli',
+      AppLanguage.en: 'Location required',
+      AppLanguage.ru: 'Требуется геолокация'
+    },
+    'location_required_body': {
+      AppLanguage.tr:
+          'Yakınındaki yerler, canlı harita, navigasyon ve check-in için cihaz konumunun açık olması gerekir.',
+      AppLanguage.en:
+          'Device location must be enabled for nearby places, the live map, navigation and check-in.',
+      AppLanguage.ru:
+          'Для мест рядом, живой карты, навигации и отметок необходимо включить геолокацию устройства.'
+    },
+    'location_permission_title': {
+      AppLanguage.tr: 'Konum izni',
+      AppLanguage.en: 'Location permission',
+      AppLanguage.ru: 'Доступ к геолокации'
+    },
+    'location_permission_body': {
+      AppLanguage.tr:
+          'Yakınındaki yerler ve kampüs özellikleri konumuna ihtiyaç duyar. Devam ederek konum izni isteyeceğiz.',
+      AppLanguage.en:
+          'Nearby places and campus features need your location. Continue to request permission.',
+      AppLanguage.ru:
+          'Для мест рядом и функций кампуса нужна геолокация. Продолжите, чтобы запросить разрешение.'
+    },
     'common_cancel': {
       AppLanguage.tr: 'Vazgeç',
       AppLanguage.en: 'Cancel',
@@ -1870,15 +1924,45 @@ class AppStrings {
       AppLanguage.en: 'Done',
       AppLanguage.ru: 'Готово'
     },
+    'nav_mute': {
+      AppLanguage.tr: 'Sesi kapat',
+      AppLanguage.en: 'Mute guidance',
+      AppLanguage.ru: 'Выключить звук'
+    },
+    'nav_unmute': {
+      AppLanguage.tr: 'Sesi aç',
+      AppLanguage.en: 'Unmute guidance',
+      AppLanguage.ru: 'Включить звук'
+    },
+    'nav_overview': {
+      AppLanguage.tr: 'Rota özeti',
+      AppLanguage.en: 'Route overview',
+      AppLanguage.ru: 'Обзор маршрута'
+    },
+    'nav_route_to': {
+      AppLanguage.tr: '{place} konumuna rota',
+      AppLanguage.en: 'Route to {place}',
+      AppLanguage.ru: 'Маршрут до {place}'
+    },
+    'nav_arrival': {
+      AppLanguage.tr: '{time} varış',
+      AppLanguage.en: 'arrive {time}',
+      AppLanguage.ru: 'прибытие {time}'
+    },
+    'nav_route_ready': {
+      AppLanguage.tr: 'Yol çizgisi hazır',
+      AppLanguage.en: 'Route line ready',
+      AppLanguage.ru: 'Маршрут готов'
+    },
     'nav_campus_entrance': {
       AppLanguage.tr: 'Kampüs girişi',
       AppLanguage.en: 'Campus entrance',
       AppLanguage.ru: 'Вход в кампус'
     },
     'nav_ask_needs_session': {
-      AppLanguage.tr: 'Aicad için oturum açık olmalı.',
-      AppLanguage.en: 'Sign in to use Aicad.',
-      AppLanguage.ru: 'Войдите, чтобы использовать Aicad.'
+      AppLanguage.tr: 'AICAD için oturum açık olmalı.',
+      AppLanguage.en: 'Sign in to use AICAD.',
+      AppLanguage.ru: 'Войдите, чтобы использовать AICAD.'
     },
     'nav_calculating': {
       AppLanguage.tr: '{mode} rotası hesaplanıyor…',
@@ -1889,6 +1973,126 @@ class AppStrings {
       AppLanguage.tr: 'Konum alınamadı; kampüs girişinden gösteriliyor.',
       AppLanguage.en: 'Location unavailable; showing from campus entrance.',
       AppLanguage.ru: 'Геолокация недоступна; старт от входа в кампус.'
+    },
+    'home_weather_loading': {
+      AppLanguage.tr: 'Girne · Hava durumu alınıyor…',
+      AppLanguage.en: 'Kyrenia · Loading weather…',
+      AppLanguage.ru: 'Кирения · Загружаем погоду…'
+    },
+    'home_weather_unavailable': {
+      AppLanguage.tr: 'Girne · Hava durumu geçici olarak alınamıyor',
+      AppLanguage.en: 'Kyrenia · Weather is temporarily unavailable',
+      AppLanguage.ru: 'Кирения · Погода временно недоступна'
+    },
+
+    // Turn-by-turn. The provider sends an OSRM maneuver (type + modifier),
+    // never a sentence, so the wording lives here in all three languages.
+    'nav_directions': {
+      AppLanguage.tr: 'Yol tarifi',
+      AppLanguage.en: 'Directions',
+      AppLanguage.ru: 'Маршрут'
+    },
+    'nav_steps_count': {
+      AppLanguage.tr: '{count} adım',
+      AppLanguage.en: '{count} steps',
+      AppLanguage.ru: '{count} шаг.'
+    },
+    'nav_steps_unavailable': {
+      AppLanguage.tr:
+          'Bu rota için adım adım tarif alınamadı; harita üzerindeki çizgiyi takip et.',
+      AppLanguage.en:
+          'No turn-by-turn directions for this route; follow the line on the map.',
+      AppLanguage.ru: 'Пошаговых указаний нет; следуйте линии на карте.'
+    },
+    'nav_route_unavailable': {
+      AppLanguage.tr:
+          'Yol ağına şu anda ulaşılamıyor. Araç veya otobüs için düz çizgi gösterilmiyor; lütfen tekrar deneyin.',
+      AppLanguage.en:
+          'The road network is unavailable right now. No straight-line substitute is shown for car or bus; please try again.',
+      AppLanguage.ru:
+          'Дорожная сеть временно недоступна. Для автомобиля и автобуса прямая линия не подменяет маршрут; повторите попытку.'
+    },
+    'nav_step_depart': {
+      AppLanguage.tr: 'Yola çık',
+      AppLanguage.en: 'Start',
+      AppLanguage.ru: 'Начните движение'
+    },
+    'nav_step_arrive': {
+      AppLanguage.tr: 'Varış',
+      AppLanguage.en: 'Arrive',
+      AppLanguage.ru: 'Прибытие'
+    },
+    'nav_step_straight': {
+      AppLanguage.tr: 'Düz devam et',
+      AppLanguage.en: 'Continue straight',
+      AppLanguage.ru: 'Прямо'
+    },
+    'nav_step_left': {
+      AppLanguage.tr: 'Sola dön',
+      AppLanguage.en: 'Turn left',
+      AppLanguage.ru: 'Налево'
+    },
+    'nav_step_right': {
+      AppLanguage.tr: 'Sağa dön',
+      AppLanguage.en: 'Turn right',
+      AppLanguage.ru: 'Направо'
+    },
+    'nav_step_slight_left': {
+      AppLanguage.tr: 'Hafif sola',
+      AppLanguage.en: 'Slight left',
+      AppLanguage.ru: 'Плавно налево'
+    },
+    'nav_step_slight_right': {
+      AppLanguage.tr: 'Hafif sağa',
+      AppLanguage.en: 'Slight right',
+      AppLanguage.ru: 'Плавно направо'
+    },
+    'nav_step_sharp_left': {
+      AppLanguage.tr: 'Keskin sola',
+      AppLanguage.en: 'Sharp left',
+      AppLanguage.ru: 'Резко налево'
+    },
+    'nav_step_sharp_right': {
+      AppLanguage.tr: 'Keskin sağa',
+      AppLanguage.en: 'Sharp right',
+      AppLanguage.ru: 'Резко направо'
+    },
+    'nav_step_uturn': {
+      AppLanguage.tr: 'U dönüşü yap',
+      AppLanguage.en: 'Make a U-turn',
+      AppLanguage.ru: 'Разворот'
+    },
+    'nav_step_roundabout': {
+      AppLanguage.tr: 'Kavşağa gir',
+      AppLanguage.en: 'Enter the roundabout',
+      AppLanguage.ru: 'На круговом движении'
+    },
+    // Map legend while navigating: which mark is me, which is the route,
+    // which is where I am going.
+    'nav_legend_you': {
+      AppLanguage.tr: 'Sen',
+      AppLanguage.en: 'You',
+      AppLanguage.ru: 'Вы'
+    },
+    'nav_legend_route': {
+      AppLanguage.tr: 'Rota',
+      AppLanguage.en: 'Route',
+      AppLanguage.ru: 'Маршрут'
+    },
+    'nav_legend_destination': {
+      AppLanguage.tr: 'Hedef',
+      AppLanguage.en: 'Destination',
+      AppLanguage.ru: 'Цель'
+    },
+    'nav_follow_on': {
+      AppLanguage.tr: 'Kuş bakışı takip açık',
+      AppLanguage.en: "Bird's-eye follow on",
+      AppLanguage.ru: 'Слежение сверху вкл.'
+    },
+    'nav_follow_off': {
+      AppLanguage.tr: 'Kuş bakışı takip kapalı',
+      AppLanguage.en: "Bird's-eye follow off",
+      AppLanguage.ru: 'Слежение сверху выкл.'
     },
 
     'common_retry': {
@@ -2013,45 +2217,91 @@ class AppStrings {
       AppLanguage.ru: 'Доброй ночи'
     },
 
-    // One line per weekday (1 = Monday, matching DateTime.weekday).
-    'greet_line_1': {
-      AppLanguage.tr: 'Yeni hafta, yeni fikirler için boş bir tuval.',
-      AppLanguage.en: 'A new week: an empty canvas for new ideas.',
-      AppLanguage.ru: 'Новая неделя — чистый холст для новых идей.'
-    },
-    'greet_line_2': {
-      AppLanguage.tr: 'Küçük bir adım bile seni yeni bir yere götürebilir.',
-      AppLanguage.en: 'Even a small step can take you somewhere new.',
-      AppLanguage.ru: 'Даже маленький шаг может привести вас к новому.'
-    },
-    'greet_line_3': {
-      AppLanguage.tr: 'Haftanın ortası; ritmini bul ve devam et.',
-      AppLanguage.en: 'Midweek — find your rhythm and keep going.',
-      AppLanguage.ru: 'Середина недели: найдите свой ритм и продолжайте.'
-    },
-    'greet_line_4': {
-      AppLanguage.tr: 'Merak ettiğin şeylerin peşinden git.',
-      AppLanguage.en: 'Follow the things you are curious about.',
-      AppLanguage.ru: 'Идите за тем, что вам любопытно.'
-    },
-    'greet_line_5': {
-      AppLanguage.tr: 'Haftayı güzel bir iz bırakarak tamamla.',
-      AppLanguage.en: 'Finish the week leaving a good mark.',
-      AppLanguage.ru: 'Завершите неделю, оставив добрый след.'
-    },
-    'greet_line_6': {
+    // One quote per local calendar day. The 14-day collection loops after
+    // the final entry; GreetingCard owns the stable date-to-number mapping.
+    'greet_quote_1': {
       AppLanguage.tr:
-          'Biraz keşfet, biraz dinlen, biraz da kendine zaman ayır.',
+          'Sadece hayatını yaşamak yetmez, bir amaç için yaşamalısın.',
       AppLanguage.en:
-          'Explore a little, rest a little, keep some time for yourself.',
-      AppLanguage.ru:
-          'Немного исследуйте, немного отдохните, оставьте время себе.'
+          'It is not enough to just live life; you must live for a purpose.',
+      AppLanguage.ru: 'Недостаточно просто жить; нужно жить ради цели.'
     },
-    'greet_line_7': {
-      AppLanguage.tr: 'Yeni haftaya yer açmak için bugün biraz yavaşla.',
-      AppLanguage.en: 'Slow down today to make room for the week ahead.',
+    'greet_quote_2': {
+      AppLanguage.tr: 'Olmak ya da olmamak, işte bütün mesele bu.',
+      AppLanguage.en: 'To be, or not to be, that is the question.',
+      AppLanguage.ru: 'Быть или не быть — вот в чём вопрос.'
+    },
+    'greet_quote_3': {
+      AppLanguage.tr:
+          'Kendi yolunda yanlış gitmek, başkasının yolunda doğru gitmekten iyidir.',
+      AppLanguage.en:
+          "To go wrong in one's own way is better than to go right in someone else's.",
       AppLanguage.ru:
-          'Сбавьте темп сегодня, чтобы освободить место новой неделе.'
+          'Идти своим путем, пусть и ошибочным, лучше, чем идти чужим, пусть и правильным.'
+    },
+    'greet_quote_4': {
+      AppLanguage.tr: 'Sorgulanmamış bir hayat, yaşanmaya değmez.',
+      AppLanguage.en: 'The unexamined life is not worth living.',
+      AppLanguage.ru: 'Неосмысленная жизнь не стоит того, чтобы её жить.'
+    },
+    'greet_quote_5': {
+      AppLanguage.tr: 'Bilebildiğim tek şey, hiçbir şey bilmediğimdir.',
+      AppLanguage.en: 'I know one thing, that I know nothing.',
+      AppLanguage.ru: 'Я знаю только то, что ничего не знаю.'
+    },
+    'greet_quote_6': {
+      AppLanguage.tr:
+          'Büyük zihinler fikirleri tartışır, küçük zihinler ise insanları.',
+      AppLanguage.en: 'Great minds discuss ideas; small minds discuss people.',
+      AppLanguage.ru:
+          'Великие умы обсуждают идеи, а мелкие умы обсуждают людей.'
+    },
+    'greet_quote_7': {
+      AppLanguage.tr:
+          'Bizi yöneten şeyler başımıza gelenler değil, onlara verdiğimiz tepkilerdir.',
+      AppLanguage.en:
+          'We are not disturbed by things, but by the views which we take of things.',
+      AppLanguage.ru: 'Меняют нас не сами вещи, а наше отношение к ним.'
+    },
+    'greet_quote_8': {
+      AppLanguage.tr: 'Ruhun rengi, düşüncelerinin rengidir.',
+      AppLanguage.en: 'The soul becomes dyed with the color of its thoughts.',
+      AppLanguage.ru: 'Душа окрашивается цветом своих мыслей.'
+    },
+    'greet_quote_9': {
+      AppLanguage.tr: 'Seni sen yapan şey, zorluklara karşı verdiğin tepkidir.',
+      AppLanguage.en: 'What does not kill me makes me stronger.',
+      AppLanguage.ru: 'То, что меня не убивает, делает меня сильнее.'
+    },
+    'greet_quote_10': {
+      AppLanguage.tr: 'Düşüncelerine dikkat et, zira onlar senin kaderin olur.',
+      AppLanguage.en:
+          'Keep your thoughts positive, because your thoughts become your destiny.',
+      AppLanguage.ru:
+          'Следите за своими мыслями, ибо они становятся вашей судьбой.'
+    },
+    'greet_quote_11': {
+      AppLanguage.tr: 'Geleceği tahmin etmenin en iyi yolu, onu inşa etmektir.',
+      AppLanguage.en: 'The best way to predict the future is to invent it.',
+      AppLanguage.ru: 'Лучший способ предсказать будущее — создать его.'
+    },
+    'greet_quote_12': {
+      AppLanguage.tr: 'Bilgiyle donanmış bir zihin, asla tutsak edilemez.',
+      AppLanguage.en: 'Knowledge is power.',
+      AppLanguage.ru: 'Знание — сила.'
+    },
+    'greet_quote_13': {
+      AppLanguage.tr:
+          'Karanlıktan korkan bir çocuğu kolayca affedebiliriz; hayatın gerçek trajedisi, insanların ışıktan korkmasıdır.',
+      AppLanguage.en:
+          'We can easily forgive a child who is afraid of the dark; the real tragedy of life is when men are afraid of the light.',
+      AppLanguage.ru:
+          'Легко простить ребенка, который боится темноты; настоящая трагедия жизни — когда взрослые боятся света.'
+    },
+    'greet_quote_14': {
+      AppLanguage.tr: 'Dünyada görmek istediğin değişimin kendisi ol.',
+      AppLanguage.en: 'Be the change that you wish to see in the world.',
+      AppLanguage.ru: 'Будь тем изменением, которое ты хочешь видеть в мире.'
     },
 
     // Home — feedback / surveys
@@ -2217,6 +2467,17 @@ class AppStrings {
       AppLanguage.tr: 'Aç',
       AppLanguage.en: 'Open',
       AppLanguage.ru: 'Открыть'
+    },
+    'ask_open_360': {
+      AppLanguage.tr: '360° Aç',
+      AppLanguage.en: 'Open 360°',
+      AppLanguage.ru: 'Открыть 360°'
+    },
+    'ask_conversation_load_failed': {
+      AppLanguage.tr: 'Sohbet yüklenemedi. Tekrar seçerek deneyin.',
+      AppLanguage.en:
+          'The conversation could not be loaded. Select it again to retry.',
+      AppLanguage.ru: 'Не удалось загрузить чат. Выберите его снова.'
     },
     'ask_preapply': {
       AppLanguage.tr: 'Ön Başvuru',
@@ -2609,9 +2870,11 @@ class AppStrings {
       AppLanguage.ru: 'Вместить'
     },
     'story_frame_hint': {
-      AppLanguage.tr: 'Yakınlaştırmak için parmaklarınızı kullanın, konumlandırmak için sürükleyin',
+      AppLanguage.tr:
+          'Yakınlaştırmak için parmaklarınızı kullanın, konumlandırmak için sürükleyin',
       AppLanguage.en: 'Pinch to zoom, drag to position',
-      AppLanguage.ru: 'Сведите пальцы для масштаба, перетащите чтобы переместить'
+      AppLanguage.ru:
+          'Сведите пальцы для масштаба, перетащите чтобы переместить'
     },
     'social_remove_photo': {
       AppLanguage.tr: 'Fotoğrafı kaldır',
@@ -3080,10 +3343,84 @@ class AppStrings {
       AppLanguage.en: 'Moderate',
       AppLanguage.ru: 'Средне'
     },
+    // Citations under an Ask answer. The backend reports which pages and
+    // internal tables it retrieved; this labels them.
+    'ask_sources_title': {
+      AppLanguage.tr: 'Kaynaklar',
+      AppLanguage.en: 'Sources',
+      AppLanguage.ru: 'Источники'
+    },
+    'ask_source_open_failed': {
+      AppLanguage.tr: 'Kaynak açılamadı.',
+      AppLanguage.en: 'Could not open the source.',
+      AppLanguage.ru: 'Не удалось открыть источник.'
+    },
     'clm_map_info': {
       AppLanguage.tr: 'Harita bilgisi',
       AppLanguage.en: 'Map info',
       AppLanguage.ru: 'О карте'
+    },
+    'clm_map_information': {
+      AppLanguage.tr: 'Harita Bilgileri',
+      AppLanguage.en: 'Map Information',
+      AppLanguage.ru: 'Информация о карте'
+    },
+    'clm_online_count': {
+      AppLanguage.tr: '{count} çevrimiçi',
+      AppLanguage.en: '{count} online',
+      AppLanguage.ru: '{count} в сети'
+    },
+    'clm_shuttle_times': {
+      AppLanguage.tr: 'Servis Güzergâhları',
+      AppLanguage.en: 'Shuttle Routes',
+      AppLanguage.ru: 'Маршруты автобусов'
+    },
+    'clm_shuttle_outbound': {
+      AppLanguage.tr: 'Gidiş',
+      AppLanguage.en: 'Outbound',
+      AppLanguage.ru: 'Туда'
+    },
+    'clm_shuttle_return': {
+      AppLanguage.tr: 'Dönüş',
+      AppLanguage.en: 'Return',
+      AppLanguage.ru: 'Обратно'
+    },
+    // Live crowd — real location pings, not check-ins. See LiveCrowd on
+    // the backend for what is counted and what is refused.
+    'clm_busiest_now': {
+      AppLanguage.tr: 'Şu an en kalabalık',
+      AppLanguage.en: 'Busiest right now',
+      AppLanguage.ru: 'Сейчас многолюдно'
+    },
+    'clm_people_count': {
+      AppLanguage.tr: '{count} kişi',
+      AppLanguage.en: '{count} people',
+      AppLanguage.ru: '{count} чел.'
+    },
+    'clm_people_on_campus': {
+      AppLanguage.tr: 'Kampüste {count} kişi',
+      AppLanguage.en: '{count} people on campus',
+      AppLanguage.ru: 'На кампусе {count} чел.'
+    },
+    'clm_crowd_window': {
+      AppLanguage.tr: 'Son {minutes} dakika',
+      AppLanguage.en: 'Last {minutes} minutes',
+      AppLanguage.ru: 'За последние {minutes} мин.'
+    },
+    'clm_crowd_empty': {
+      AppLanguage.tr: 'Şu anda konumunu paylaşan kimse yok.',
+      AppLanguage.en: 'Nobody is sharing their location right now.',
+      AppLanguage.ru: 'Сейчас никто не делится местоположением.'
+    },
+    'clm_crowd_ghost_hint': {
+      AppLanguage.tr: 'Gizli moddasın — sayıma katılmıyorsun.',
+      AppLanguage.en: 'You are hidden, so you are not counted.',
+      AppLanguage.ru: 'Вы в скрытом режиме и не учитываетесь.'
+    },
+    'clm_people_here': {
+      AppLanguage.tr: 'Burada {count} kişi',
+      AppLanguage.en: '{count} people here',
+      AppLanguage.ru: 'Здесь {count} чел.'
     },
     'clm_all': {
       AppLanguage.tr: 'Tümü',
@@ -3094,6 +3431,38 @@ class AppStrings {
       AppLanguage.tr: 'Görünürlük',
       AppLanguage.en: 'Visibility',
       AppLanguage.ru: 'Видимость'
+    },
+    'clm_visibility_public': {
+      AppLanguage.tr: 'Herkes',
+      AppLanguage.en: 'Everyone',
+      AppLanguage.ru: 'Все'
+    },
+    'clm_visibility_friends': {
+      AppLanguage.tr: 'Arkadaşlarım',
+      AppLanguage.en: 'My friends',
+      AppLanguage.ru: 'Мои друзья'
+    },
+    'clm_visibility_community': {
+      AppLanguage.tr: 'Topluluğum',
+      AppLanguage.en: 'My community',
+      AppLanguage.ru: 'Моё сообщество'
+    },
+    'clm_visibility_ghost': {
+      AppLanguage.tr: 'Gizli',
+      AppLanguage.en: 'Hidden',
+      AppLanguage.ru: 'Скрыто'
+    },
+    'clm_ghost_status': {
+      AppLanguage.tr: 'Hayalet modundasınız · konumunuz kimseyle paylaşılmıyor',
+      AppLanguage.en:
+          'You are in ghost mode · your location is not shared with anyone',
+      AppLanguage.ru:
+          'Вы в скрытом режиме · ваше местоположение никому не показывается'
+    },
+    'clm_visibility_status': {
+      AppLanguage.tr: 'Görünürlük: {visibility}',
+      AppLanguage.en: 'Visibility: {visibility}',
+      AppLanguage.ru: 'Видимость: {visibility}'
     },
     'clm_just_now': {
       AppLanguage.tr: 'Az önce',
@@ -3119,6 +3488,54 @@ class AppStrings {
       AppLanguage.tr: 'Ekipman bilgisi henüz eklenmedi',
       AppLanguage.en: 'No equipment information yet',
       AppLanguage.ru: 'Информации об оборудовании пока нет'
+    },
+    'clm_available': {
+      AppLanguage.tr: 'Müsait',
+      AppLanguage.en: 'Available',
+      AppLanguage.ru: 'Доступно'
+    },
+    'clm_unavailable': {
+      AppLanguage.tr: 'Dolu',
+      AppLanguage.en: 'Unavailable',
+      AppLanguage.ru: 'Недоступно'
+    },
+    'clm_ask_aicad': {
+      AppLanguage.tr: "AICAD'a Sor",
+      AppLanguage.en: 'Ask AICAD',
+      AppLanguage.ru: 'Спросить AICAD'
+    },
+    'clm_buildings': {
+      AppLanguage.tr: 'Binalar',
+      AppLanguage.en: 'Buildings',
+      AppLanguage.ru: 'Здания'
+    },
+    'clm_details': {
+      AppLanguage.tr: 'Detay',
+      AppLanguage.en: 'Details',
+      AppLanguage.ru: 'Подробнее'
+    },
+    'clm_social_map_title': {
+      AppLanguage.tr: 'ARUVERSE Sosyal Harita',
+      AppLanguage.en: 'ARUVERSE Social Map',
+      AppLanguage.ru: 'Социальная карта ARUVERSE'
+    },
+    'clm_search_places': {
+      AppLanguage.tr: 'Yer ara',
+      AppLanguage.en: 'Search places',
+      AppLanguage.ru: 'Поиск мест'
+    },
+    'clm_show_my_location': {
+      AppLanguage.tr: 'Konumumu göster',
+      AppLanguage.en: 'Show my location',
+      AppLanguage.ru: 'Показать моё местоположение'
+    },
+    'clm_location_unavailable': {
+      AppLanguage.tr:
+          'Konum alınamadı. Tarayıcı veya cihaz ayarlarından konum iznini açın.',
+      AppLanguage.en:
+          'Location is unavailable. Enable location permission in your browser or device settings.',
+      AppLanguage.ru:
+          'Местоположение недоступно. Разрешите доступ к геопозиции в настройках браузера или устройства.'
     },
     'clm_collab_board': {
       AppLanguage.tr: 'İş Birliği Panosu',
@@ -3154,6 +3571,46 @@ class AppStrings {
       AppLanguage.tr: 'Sonuç bulunamadı',
       AppLanguage.en: 'No results found',
       AppLanguage.ru: 'Ничего не найдено'
+    },
+    'clm_search_everything': {
+      AppLanguage.tr: 'Mekan, kişi veya etkinlik ara',
+      AppLanguage.en: 'Search places, people or events',
+      AppLanguage.ru: 'Поиск мест, людей или событий'
+    },
+    'clm_people': {
+      AppLanguage.tr: 'Kişiler',
+      AppLanguage.en: 'People',
+      AppLanguage.ru: 'Люди'
+    },
+    'clm_events': {
+      AppLanguage.tr: 'Etkinlikler',
+      AppLanguage.en: 'Events',
+      AppLanguage.ru: 'События'
+    },
+    'clm_places': {
+      AppLanguage.tr: 'Mekanlar',
+      AppLanguage.en: 'Places',
+      AppLanguage.ru: 'Места'
+    },
+    'clm_popular': {
+      AppLanguage.tr: 'Popüler',
+      AppLanguage.en: 'Popular',
+      AppLanguage.ru: 'Популярное'
+    },
+    'clm_nearby_activity': {
+      AppLanguage.tr: 'Yakınındaki hareketlilik',
+      AppLanguage.en: 'Activity near you',
+      AppLanguage.ru: 'Активность рядом'
+    },
+    'clm_activity_summary': {
+      AppLanguage.tr: '{people} kişi · {events} etkinlik · {places} mekan',
+      AppLanguage.en: '{people} people · {events} events · {places} places',
+      AppLanguage.ru: '{people} чел. · {events} событий · {places} мест'
+    },
+    'clm_live_now': {
+      AppLanguage.tr: 'Şu an canlı',
+      AppLanguage.en: 'Live now',
+      AppLanguage.ru: 'Сейчас'
     },
 
     // Group chat
@@ -3221,9 +3678,12 @@ class AppStrings {
       AppLanguage.ru: 'Прокрутите до конца'
     },
     'consent_read_first': {
-      AppLanguage.tr: 'Devam etmeden önce iki belgeyi de açıp sonuna kadar oku.',
-      AppLanguage.en: 'Open both documents and read them to the end before continuing.',
-      AppLanguage.ru: 'Откройте оба документа и прочитайте их до конца, прежде чем продолжить.'
+      AppLanguage.tr:
+          'Devam etmeden önce iki belgeyi de açıp sonuna kadar oku.',
+      AppLanguage.en:
+          'Open both documents and read them to the end before continuing.',
+      AppLanguage.ru:
+          'Откройте оба документа и прочитайте их до конца, прежде чем продолжить.'
     },
     'consent_doc_read': {
       AppLanguage.tr: 'Okundu',
@@ -3268,9 +3728,12 @@ class AppStrings {
       AppLanguage.ru: 'Кадрирование'
     },
     'frame_explain': {
-      AppLanguage.tr: 'Fotoğrafın kendisi değişmez. Sadece nasıl görüneceğini seçersin.',
-      AppLanguage.en: 'The photo itself never changes. You only choose how it is shown.',
-      AppLanguage.ru: 'Само фото не меняется. Вы выбираете только то, как оно показано.'
+      AppLanguage.tr:
+          'Fotoğrafın kendisi değişmez. Sadece nasıl görüneceğini seçersin.',
+      AppLanguage.en:
+          'The photo itself never changes. You only choose how it is shown.',
+      AppLanguage.ru:
+          'Само фото не меняется. Вы выбираете только то, как оно показано.'
     },
     'frame_ratio': {
       AppLanguage.tr: 'Oran',
@@ -3353,9 +3816,12 @@ class AppStrings {
       AppLanguage.ru: 'Этот файл не удалось открыть как изображение.'
     },
     'compose_low_resolution': {
-      AppLanguage.tr: 'Bu fotoğraf düşük çözünürlüklü ve akışta bulanık görünebilir.',
-      AppLanguage.en: 'This photo is low resolution and may look blurry in the feed.',
-      AppLanguage.ru: 'Это фото низкого разрешения и может выглядеть размытым в ленте.'
+      AppLanguage.tr:
+          'Bu fotoğraf düşük çözünürlüklü ve akışta bulanık görünebilir.',
+      AppLanguage.en:
+          'This photo is low resolution and may look blurry in the feed.',
+      AppLanguage.ru:
+          'Это фото низкого разрешения и может выглядеть размытым в ленте.'
     },
     'compose_add_more_photos': {
       AppLanguage.tr: 'Fotoğraf ekle',

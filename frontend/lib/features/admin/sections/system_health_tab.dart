@@ -65,7 +65,7 @@ class _SystemHealthTabState extends State<_SystemHealthTab> {
                       ? null
                       : 'Entegrasyonlar sekmesinden ekle'),
               _HealthRow(
-                  label: 'Aicad (Groq anahtarı)',
+                  label: 'AICAD (Groq anahtarı)',
                   ok: health.aiConfigured,
                   hint: health.aiConfigured
                       ? null

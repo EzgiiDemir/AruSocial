@@ -360,57 +360,32 @@ class _RootNavigationBar extends StatelessWidget {
           onDestinationSelected: onDestinationSelected,
           destinations: [
             NavigationDestination(
-                icon: ArucadLineIcon(
-                    icon: ArucadLineIconKind.home,
-                    semanticLabel: strings.t('nav_home')),
+                icon: ArucadLineIcon(icon: ArucadLineIconKind.home),
                 selectedIcon: ArucadLineIcon(
                     icon: ArucadLineIconKind.home,
                     filled: true,
-                    color: Colors.white,
-                    semanticLabel: strings.t('nav_home')),
+                    color: Colors.white),
                 label: strings.t('nav_home')),
             NavigationDestination(
-                icon: ArucadLineIcon(
-                    icon: ArucadLineIconKind.explore,
-                    semanticLabel: strings.t('nav_explore')),
+                icon: ArucadLineIcon(icon: ArucadLineIconKind.explore),
                 selectedIcon: ArucadLineIcon(
-                    icon: ArucadLineIconKind.explore,
-                    color: Colors.white,
-                    semanticLabel: strings.t('nav_explore')),
+                    icon: ArucadLineIconKind.explore, color: Colors.white),
                 label: strings.t('nav_explore')),
             NavigationDestination(
-                icon: ArucadLineIcon(
-                    icon: ArucadLineIconKind.social,
-                    semanticLabel: strings.t('nav_social')),
+                icon: ArucadLineIcon(icon: ArucadLineIconKind.social),
                 selectedIcon: ArucadLineIcon(
-                    icon: ArucadLineIconKind.social,
-                    color: Colors.white,
-                    semanticLabel: strings.t('nav_social')),
+                    icon: ArucadLineIconKind.social, color: Colors.white),
                 label: strings.t('nav_social')),
             NavigationDestination(
-                icon: ArucadLineIcon(
-                    icon: ArucadLineIconKind.ask,
-                    semanticLabel: strings.t('nav_ask')),
+                icon: ArucadLineIcon(icon: ArucadLineIconKind.ask),
                 selectedIcon: ArucadLineIcon(
-                    icon: ArucadLineIconKind.ask,
-                    color: Colors.white,
-                    semanticLabel: strings.t('nav_ask')),
-                // "Arucad'a Sor" is the longest label by some margin and is
-                // what makes the bar overflow first. Rather than shrink every
-                // label until they are all hard to read, this one falls back
-                // to its short form once the space per tab (after the user's
-                // font-size setting) can no longer hold it. The full wording
-                // stays as the semantic label, so a screen reader still says
-                // "Arucad'a Sor".
+                    icon: ArucadLineIconKind.ask, color: Colors.white),
+                // Preserve the AICAD product name whenever it fits the slot.
                 label: _askLabel(context, strings, perTab)),
             NavigationDestination(
-                icon: ArucadLineIcon(
-                    icon: ArucadLineIconKind.profile,
-                    semanticLabel: strings.t('nav_profile')),
+                icon: ArucadLineIcon(icon: ArucadLineIconKind.profile),
                 selectedIcon: ArucadLineIcon(
-                    icon: ArucadLineIconKind.profile,
-                    color: Colors.white,
-                    semanticLabel: strings.t('nav_profile')),
+                    icon: ArucadLineIconKind.profile, color: Colors.white),
                 // The tab carries the signed-in student's own first name
                 // rather than "Ayarlar" — it is their account, and a name is
                 // what makes the tab read as theirs. Falls back to the

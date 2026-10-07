@@ -7,7 +7,6 @@ import 'package:sentry_flutter/sentry_flutter.dart';
 
 import 'app/app.dart';
 import 'app/config/app_config.dart';
-import 'core/auth/app_settings_store.dart';
 import 'app/config_error_app.dart';
 import 'core/auth/entra_auth_provider.dart';
 import 'core/auth/rest_auth_provider.dart';
@@ -76,7 +75,10 @@ Future<void> _runApp() async {
   // §7) — this is an expected, disclosed condition, not an error to alert on.
   try {
     await Firebase.initializeApp().timeout(const Duration(seconds: 4));
-    await bootstrapPush();
+    // Also bounded: Firebase had a ceiling and the push registration that
+    // follows it did not, so a hung token request could block launch with no
+    // limit at all. Push simply stays unregistered until the next start.
+    await bootstrapPush().timeout(const Duration(seconds: 4));
   } catch (_) {
     // Push notifications simply stay unavailable until a real project exists.
   }
@@ -98,46 +100,13 @@ Future<void> _mountApp() async {
   // Entra sign-in switches on when the backend/site configuration supplies
   // Tenant ID, Client ID and Redirect URI. The student app no longer embeds
   // a management panel; administrators configure these values in Filament.
-  // API configuration is compiled into the build, and that stays the
-  // default. A saved host/port from the login screen's settings can point
-  // this build at a different server — how a phone reaches a laptop running
-  // the backend on the same WiFi, where the compiled-in address is either a
-  // loopback the phone cannot route to or an IP that changed since the
-  // build. The override is stored on the device and survives restarts, so
-  // it is entered once rather than every launch.
-  final config = await _withSavedApiOverride(AppConfig.fromEnvironment());
+  // The backend endpoint is a build/deployment concern. Students never enter
+  // an IP address: release builds use ARUVERSE's public HTTPS API, while local
+  // developers can still provide API_BASE_URL with --dart-define.
+  final config = AppConfig.fromEnvironment();
   await _mountAppWithConfig(
     config: config,
   );
-}
-
-/// Applies a host/port the student saved on the login screen.
-///
-/// Returns the config unchanged when nothing is saved, so a normal install
-/// still uses whatever the build was configured with.
-Future<AppConfig> _withSavedApiOverride(AppConfig config) async {
-  // Simulator/repro builds must use the endpoint they were compiled with.
-  // Otherwise an old SharedPreferences value (often a stale Wi-Fi, VPN or
-  // Hyper-V address) silently wins and the status panel tests one server
-  // while the application talks to another.
-  const lockCompiledTarget =
-      bool.fromEnvironment('LOCK_API_BASE_URL', defaultValue: false);
-  if (lockCompiledTarget) return config;
-
-  try {
-    final host = (await AppSettingsStore.runtimeApiHost()).trim();
-    if (host.isEmpty) return config;
-    final port = await AppSettingsStore.runtimeApiPort();
-
-    return config.copyWith(
-      useRestApi: true,
-      apiBaseUrl: AppConfig.buildLocalApiBaseUrl(host, port: port),
-    );
-  } catch (_) {
-    // A device that cannot read its own preferences should still start on
-    // the compiled-in configuration rather than refusing to launch.
-    return config;
-  }
 }
 
 Future<void> _mountAppWithConfig({
@@ -166,7 +135,20 @@ Future<void> _mountAppWithConfig({
     );
     EntraAuthProvider? entra;
     try {
-      final cfg = await client.get('/auth/entra/config');
+      /*
+       * Bounded, because this runs BEFORE the first frame.
+       *
+       * ApiClient's own timeout is 20 seconds, which is right for a request a
+       * student is waiting on inside the app and badly wrong here: on a slow
+       * or unreachable network this held the launch screen blank for the full
+       * twenty before anything was painted. All it decides is whether the
+       * "Sign in with Microsoft" button appears, and email/password sign-in
+       * works regardless — so the app starting is worth more than that button
+       * being right on the very first try.
+       */
+      final cfg = await client
+          .get('/auth/entra/config')
+          .timeout(const Duration(seconds: 3));
       final data = cfg['data'];
       if (data is Map<String, dynamic> && data['configured'] == true) {
         final tenant = (data['tenantId'] as String? ?? '').trim();

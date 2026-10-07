@@ -169,15 +169,34 @@ class LocationService {
     return position;
   }
 
+  /// A map marker may show the signed-in user wherever they currently are,
+  /// including while travelling outside Cyprus. Route/check-in callers still
+  /// use [_remember] and therefore keep the stricter campus-region guard.
+  static Position? _displayableAnywhere(Position? position) {
+    if (position == null) return null;
+    if (position.accuracy > plausibleAccuracyMeters) {
+      _lastRejected = position;
+      return null;
+    }
+    return position;
+  }
+
   /// Null when permission isn't granted — callers already all treated a
   /// denial as "this one feature just doesn't show," never as an error.
-  Future<Position?> getCurrentPosition({LocationSettings? settings}) async {
-    final status = await checkAndRequestPermission();
+  Future<Position?> getCurrentPosition({
+    LocationSettings? settings,
+    bool requestAgain = false,
+    bool allowOutsideCampus = false,
+  }) async {
+    final status = await checkAndRequestPermission(requestAgain: requestAgain);
     if (!status.isGranted) return null;
-    return _remember(await Geolocator.getCurrentPosition(
+    final position = await Geolocator.getCurrentPosition(
       locationSettings:
           settings ?? const LocationSettings(accuracy: LocationAccuracy.medium),
-    ));
+    );
+    return allowOutsideCampus
+        ? _displayableAnywhere(position)
+        : _remember(position);
   }
 
   /// One-shot fix without prompting — for Home/Explore after app-level grant.
@@ -210,12 +229,15 @@ class LocationService {
   /// on. Subscribers draw the user's position directly from this, so one
   /// bad IP-derived fix would jump the marker to another continent and
   /// then jump back.
-  Stream<Position> positionStream({LocationSettings? settings}) =>
+  Stream<Position> positionStream({
+    LocationSettings? settings,
+    bool allowOutsideCampus = false,
+  }) =>
       Geolocator.getPositionStream(
         locationSettings:
             settings ?? const LocationSettings(accuracy: LocationAccuracy.high),
       )
-          .map(_remember)
+          .map(allowOutsideCampus ? _displayableAnywhere : _remember)
           .where((position) => position != null)
           .cast<Position>();
 }

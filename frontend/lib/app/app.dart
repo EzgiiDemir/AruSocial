@@ -31,6 +31,7 @@ import '../features/place/place_detail_screen.dart';
 import '../features/social/chat_screen.dart';
 import '../features/social/notifications_screen.dart';
 import '../features/widgets/moderation_notice.dart';
+import '../features/widgets/top_notice.dart';
 
 /// Lets code below the login screen show feedback (e.g. "location denied")
 /// without needing a Scaffold ancestor at the exact point it's called from.
@@ -248,20 +249,23 @@ class _DemoSessionState extends State<_DemoSession>
   void _onModerationNotice(String status, String message) {
     if (!mounted) return;
 
-    if (status == 'support') {
-      final context = rootMessengerKey.currentContext;
-      if (context != null) {
-        unawaited(
-            showModerationNotice(context, message: message, code: status));
+    final context = rootMessengerKey.currentContext;
+    if (context == null) return;
 
-        return;
-      }
+    if (status == 'support') {
+      unawaited(showModerationNotice(context, message: message, code: status));
+
+      return;
     }
 
-    rootMessengerKey.currentState?.showSnackBar(SnackBar(
-      content: Text(message),
-      duration: const Duration(seconds: 6),
-    ));
+    // Warnings and "queued for review" now appear as a white notice at the TOP
+    // of the screen (black text), where a refusal message is actually noticed —
+    // instead of a dark snackbar at the bottom that is easy to miss.
+    showTopNotice(
+      context,
+      message: message,
+      kind: status == 'warned' ? TopNoticeKind.warning : TopNoticeKind.info,
+    );
   }
 
   void _popToRoot() {
@@ -287,10 +291,14 @@ class _DemoSessionState extends State<_DemoSession>
     setState(() => hasStoredSession = token != null && token.isNotEmpty);
   }
 
-  void _onSessionInvalid(String code) {
+  void _onSessionInvalid(String code, String? serverMessage) {
     if (!mounted || !signedIn) return;
+    // For a ban, prefer the server's detailed reason (it says when the user
+    // can return); only fall back to a generic line if it sent nothing.
     final message = code == 'ACCOUNT_BANNED'
-        ? 'Bu hesap askıya alındı. Lütfen öğrenci işleri ile iletişime geç.'
+        ? ((serverMessage != null && serverMessage.trim().isNotEmpty)
+            ? serverMessage
+            : 'Bu hesap askıya alındı. Lütfen öğrenci işleri ile iletişime geç.')
         : 'Oturumunuz sona erdi. Lütfen tekrar giriş yapın.';
     _resetSessionUi(message: message);
     unawaited(_push.stopAndUnregister());
@@ -494,6 +502,7 @@ class _DemoSessionState extends State<_DemoSession>
   /// app entries do not re-prompt (OS also won't re-ask deniedForever).
   Future<void> _ensureLocationPermission() async {
     const location = LocationService();
+    final strings = AppLocale.of(context);
     try {
       if (await location.hasGranted()) {
         await location.markPermissionHandled();
@@ -508,10 +517,9 @@ class _DemoSessionState extends State<_DemoSession>
             .track('location_permission', {'result': 'handled_still_denied'});
         if (!await location.wasSoftBannerShown()) {
           await location.markSoftBannerShown();
-          rootMessengerKey.currentState?.showSnackBar(const SnackBar(
-            content: Text(
-                'Yakınındaki yerler ve kampüs özellikleri için konum kapalı. Ayarlardan açabilirsin.'),
-            duration: Duration(seconds: 4),
+          rootMessengerKey.currentState?.showSnackBar(SnackBar(
+            content: Text(strings.t('location_soft_disabled')),
+            duration: const Duration(seconds: 4),
           ));
         }
         return;
@@ -527,13 +535,12 @@ class _DemoSessionState extends State<_DemoSession>
           await showDialog<void>(
             context: context,
             builder: (ctx) => AlertDialog(
-              title: const Text('Konum gerekli'),
-              content: const Text(
-                  'Yakınındaki yerler, canlı harita, navigasyon ve check-in için cihaz konumunun açık olması gerekir.'),
+              title: Text(strings.t('location_required_title')),
+              content: Text(strings.t('location_required_body')),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(ctx).pop(),
-                  child: const Text('Tamam'),
+                  child: Text(strings.t('common_ok')),
                 ),
               ],
             ),
@@ -547,17 +554,16 @@ class _DemoSessionState extends State<_DemoSession>
         final proceed = await showDialog<bool>(
           context: context,
           builder: (ctx) => AlertDialog(
-            title: const Text('Konum izni'),
-            content: const Text(
-                'Yakınındaki yerler ve kampüs özellikleri konumuna ihtiyaç duyar. Devam ederek konum izni isteyeceğiz.'),
+            title: Text(strings.t('location_permission_title')),
+            content: Text(strings.t('location_permission_body')),
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(ctx).pop(false),
-                child: const Text('Şimdi değil'),
+                child: Text(strings.t('common_not_now')),
               ),
               TextButton(
                 onPressed: () => Navigator.of(ctx).pop(true),
-                child: const Text('Devam'),
+                child: Text(strings.t('common_continue')),
               ),
             ],
           ),
@@ -664,7 +670,6 @@ class _DemoSessionState extends State<_DemoSession>
         authProvider: widget.authProvider,
         language: language,
         onLanguageChanged: widget.onLanguageChanged,
-        apiBaseUrl: widget.config.apiBaseUrl,
       ),
     ));
   }
@@ -855,16 +860,25 @@ class _DemoLoginScreenState extends State<_DemoLoginScreen> {
                   children: [
                     const SizedBox(height: 24),
                     Image.asset(
-                      'assets/images/arucad_logo.png',
-                      width: 190,
-                      errorBuilder: (_, __, ___) => Image.asset(
-                        'assets/images/ARUCAD_MAIN_LOGO.png',
-                        width: 190,
-                        errorBuilder: (_, __, ___) =>
-                            const SizedBox(height: 72),
+                      'assets/images/aruverse_mark.png',
+                      width: 112,
+                      height: 112,
+                      alignment: Alignment.center,
+                      filterQuality: FilterQuality.high,
+                      errorBuilder: (_, __, ___) =>
+                          const SizedBox.square(dimension: 112),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'ARUVERSE',
+                      style: TextStyle(
+                        color: ArucadColors.primary,
+                        fontSize: 26,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 2.4,
                       ),
                     ),
-                    const SizedBox(height: 36),
+                    const SizedBox(height: 28),
                     if (widget.error != null) ...[
                       Text(widget.error!,
                           textAlign: TextAlign.center,

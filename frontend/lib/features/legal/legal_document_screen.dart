@@ -135,7 +135,7 @@ class _LegalDocumentScreenState extends State<LegalDocumentScreen> {
         // the first thing in the body, and repeating it in the bar wastes
         // the one place the student can confirm which app they are in.
         title: Image.asset(
-          'assets/images/arucad_home_logo.png',
+          'assets/images/aruverse_mark.png',
           height: 26,
           filterQuality: FilterQuality.high,
         ),

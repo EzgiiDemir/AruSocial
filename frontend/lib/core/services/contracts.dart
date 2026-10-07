@@ -267,6 +267,31 @@ abstract class CampusRepository {
     double? accuracy,
   });
 
+  /// Tell the backend where I am right now, so the map can show how busy
+  /// each building actually is.
+  ///
+  /// This is not a check-in: nothing is posted, no XP is awarded and no
+  /// history is kept. The server resolves the fix to the nearest place,
+  /// stores only that place id against my account, and overwrites it on the
+  /// next ping. It refuses outright when my location visibility is "ghost"
+  /// — the client not sending is a courtesy, the server not recording is
+  /// the actual guarantee.
+  ///
+  /// Returns the place the server resolved me to, or null when nothing was
+  /// recorded (ghost mode, off campus, or not near any place).
+  Future<String?> pingPresence({
+    required double latitude,
+    required double longitude,
+  });
+
+  /// Drop my presence immediately — leaving the map, or turning sharing
+  /// off — instead of waiting for the row to age out.
+  Future<void> forgetPresence();
+
+  /// Anonymous live head counts for the busiest places right now. Never
+  /// names anybody; a place nobody is at is simply absent.
+  Future<CampusLiveCrowd> getLiveCrowd();
+
   /// [participationTypeId] selects one of the event's real, admin-defined
   /// participation options (if it has any — see [CampusEvent.participationTypes]).
   /// The returned status reflects what the backend actually did: whether the
@@ -584,6 +609,14 @@ abstract class CampusRepository {
     required double toLng,
     TravelMode mode = TravelMode.walking,
   });
+
+  /// OSRM map matching for a short rolling GPS trace. The untyped payload
+  /// keeps the repository contract independent from presentation/domain
+  /// classes; [MatchedLocation] owns parsing in the navigation feature.
+  Future<Map<String, dynamic>?> matchRouteTrace({
+    required List<Map<String, dynamic>> samples,
+    TravelMode mode = TravelMode.walking,
+  }) async => null;
 
   Future<List<AdminPage>> getPages();
   Future<void> upsertPage(AdminPage page);

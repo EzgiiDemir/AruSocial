@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 
 import 'package:arucad_campus_prototype/core/config/place_catalog.dart';
 import 'package:arucad_campus_prototype/core/config/place_tour.dart';
@@ -18,10 +19,11 @@ import 'package:arucad_campus_prototype/core/services/location_service.dart';
 import 'package:arucad_campus_prototype/core/services/tour_launcher.dart';
 import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
 import 'package:arucad_campus_prototype/core/utils/relative_time.dart';
-import 'package:arucad_campus_prototype/features/guide/ask_arucad_bubble.dart';
 import 'package:arucad_campus_prototype/features/guide/guide_sheet.dart';
 import 'package:arucad_campus_prototype/features/home/shuttle_sheet.dart';
 import 'package:arucad_campus_prototype/features/map/heatmap_adapter.dart';
+import 'package:arucad_campus_prototype/features/map/activity_point.dart'
+    as activity;
 import 'package:arucad_campus_prototype/features/map/in_app_navigation_screen.dart';
 import 'package:arucad_campus_prototype/features/map/map_pointer_guard.dart';
 import 'package:arucad_campus_prototype/features/map/maplibre_campus_map.dart';
@@ -33,6 +35,193 @@ import 'package:arucad_campus_prototype/features/widgets/campus_widgets.dart';
 /// (community) / Herkes (public), en kısıtlıdan en açığa doğru sıralı.
 enum CampusVisibility { ghost, friends, community, public }
 
+enum MapContentFilter { all, people, events, places, popular }
+
+List<CampusEvent> _eventsAtMapPlace(
+    List<CampusEvent> events, CampusPlace place) {
+  return events.where((event) {
+    if (event.placeId != null && event.placeId == place.id) return true;
+    final eventPlace = event.placeName.trim().toLowerCase();
+    final placeName = place.name.trim().toLowerCase();
+    if (eventPlace.isEmpty || placeName.isEmpty) return false;
+    return eventPlace == placeName ||
+        eventPlace.contains(placeName) ||
+        placeName.contains(eventPlace);
+  }).toList();
+}
+
+bool mapPlaceMatchesFilter({
+  required MapContentFilter filter,
+  required CampusPlace place,
+  required List<CampusEvent> events,
+  required int liveCount,
+}) =>
+    switch (filter) {
+      MapContentFilter.all || MapContentFilter.places => true,
+      MapContentFilter.people || MapContentFilter.popular => liveCount > 0,
+      MapContentFilter.events => _eventsAtMapPlace(events, place).isNotEmpty,
+    };
+
+String _mapSearchKey(String value) => value
+    .toLowerCase()
+    .replaceAll('ı', 'i')
+    .replaceAll('ğ', 'g')
+    .replaceAll('ü', 'u')
+    .replaceAll('ş', 's')
+    .replaceAll('ö', 'o')
+    .replaceAll('ç', 'c')
+    .replaceAll(RegExp(r'\s+'), ' ')
+    .trim();
+
+Set<String> _directoryIdentityTerms(DirectoryEntry entry) {
+  const ignored = {'ofis', 'ofisi', 'office', 'oda', 'room'};
+  return _mapSearchKey('${entry.room ?? ''} ${entry.occupantName}')
+      .split(RegExp(r'[^a-z0-9]+'))
+      .where((word) => word.length > 2 && !ignored.contains(word))
+      .toSet();
+}
+
+bool _hasAuthoritativeRoomEquivalent(
+  DirectoryEntry curated,
+  List<DirectoryEntry> directory,
+) {
+  if (curated.id.startsWith('360-') || curated.relatedServiceId == null) {
+    return false;
+  }
+  final terms = _directoryIdentityTerms(curated);
+  if (terms.isEmpty) return false;
+  return directory.any((candidate) {
+    if (!candidate.id.startsWith('360-') ||
+        _mapSearchKey(candidate.building) != _mapSearchKey(curated.building)) {
+      return false;
+    }
+    return terms.intersection(_directoryIdentityTerms(candidate)).length >= 2;
+  });
+}
+
+class MapSearchTarget {
+  final CampusPlace place;
+  final CampusEvent? event;
+  final DirectoryEntry? directory;
+
+  const MapSearchTarget({required this.place, this.event, this.directory});
+
+  String get title {
+    if (event != null) return event!.title;
+    final entry = directory;
+    if (entry == null) return place.name;
+    if ((entry.room ?? '').trim().isNotEmpty) return entry.room!.trim();
+    if (entry.occupantName.trim().isNotEmpty) return entry.occupantName.trim();
+    return entry.building;
+  }
+
+  String get subtitle {
+    if (event != null) return '${event!.placeName} · ${event!.category}';
+    final entry = directory;
+    if (entry == null) return place.category;
+    return <String>[
+      entry.building,
+      if ((entry.floor ?? '').trim().isNotEmpty) entry.floor!.trim(),
+      if ((entry.categoryName ?? entry.occupantRole ?? '').trim().isNotEmpty)
+        (entry.categoryName ?? entry.occupantRole)!.trim(),
+      if (entry.occupantName.trim().isNotEmpty &&
+          entry.occupantName.trim() != title)
+        entry.occupantName.trim(),
+    ].join(' · ');
+  }
+}
+
+/// Resolve an official directory building onto a verified map pin. The 360
+/// API currently has no coordinates, so room searches deliberately inherit
+/// their building's curated coordinates instead of inventing room pins.
+CampusPlace? campusPlaceForDirectoryBuilding(
+  List<CampusPlace> places,
+  String building,
+) {
+  final aliases = <String, String>{
+    'iris': 'iris (atelier building)',
+    'bandabuliya': 'nicosia bandabuliya campus',
+    'bandabuliya kampus': 'nicosia bandabuliya campus',
+    'daniede': 'daniele',
+  };
+  final key = _mapSearchKey(building);
+  final target = aliases[key] ?? key;
+  for (final place in campusMapPlaces(places)) {
+    final placeKey = _mapSearchKey(place.name);
+    if (placeKey == key || placeKey == target) return place;
+  }
+  for (final place in campusMapPlaces(places)) {
+    final placeKey = _mapSearchKey(place.name);
+    if (placeKey.contains(key) ||
+        key.contains(placeKey) ||
+        placeKey.contains(target) ||
+        target.contains(placeKey)) {
+      return place;
+    }
+  }
+  return null;
+}
+
+List<MapSearchTarget> mapSearchTargets(
+    List<CampusPlace> places, List<CampusEvent> events, String query,
+    {List<DirectoryEntry> directory = const []}) {
+  final mappedPlaces = campusMapPlaces(places);
+  final needle = _mapSearchKey(query);
+  bool contains(String value) => _mapSearchKey(value).contains(needle);
+  final results = <MapSearchTarget>[
+    for (final place in mappedPlaces)
+      if (needle.isEmpty ||
+          contains(place.name) ||
+          contains(place.category) ||
+          contains(place.street))
+        MapSearchTarget(place: place),
+  ];
+  for (final event in events) {
+    if (needle.isNotEmpty &&
+        !contains(event.title) &&
+        !contains(event.placeName) &&
+        !contains(event.category)) {
+      continue;
+    }
+    CampusPlace? venue;
+    for (final place in mappedPlaces) {
+      if ((event.placeId != null && event.placeId == place.id) ||
+          _eventsAtMapPlace([event], place).isNotEmpty) {
+        venue = place;
+        break;
+      }
+    }
+    if (venue != null) results.add(MapSearchTarget(place: venue, event: event));
+  }
+  // The empty search remains a compact list of map POIs. Once a student
+  // types, include rooms, services and staff from the live 360 directory.
+  if (needle.isNotEmpty) {
+    final seen = <String>{};
+    for (final entry in directory) {
+      // A curated service row and its newly synced official room can both
+      // describe the same destination. Show the authoritative room once,
+      // including its official code, instead of two confusing results.
+      if (_hasAuthoritativeRoomEquivalent(entry, directory)) continue;
+      if (![
+        entry.building,
+        entry.floor ?? '',
+        entry.room ?? '',
+        entry.occupantName,
+        entry.occupantRole ?? '',
+        entry.categoryName ?? '',
+        entry.roomNumber ?? '',
+        entry.campusName ?? ''
+      ].any(contains)) {
+        continue;
+      }
+      final place = campusPlaceForDirectoryBuilding(places, entry.building);
+      if (place == null || !seen.add(entry.id)) continue;
+      results.add(MapSearchTarget(place: place, directory: entry));
+    }
+  }
+  return results;
+}
+
 extension CampusVisibilityLabel on CampusVisibility {
   IconData get icon => switch (this) {
         CampusVisibility.public => Icons.public,
@@ -40,11 +229,11 @@ extension CampusVisibilityLabel on CampusVisibility {
         CampusVisibility.community => Icons.diversity_3_outlined,
         CampusVisibility.ghost => Icons.visibility_off_outlined,
       };
-  String get label => switch (this) {
-        CampusVisibility.public => 'Herkes',
-        CampusVisibility.friends => 'Arkadaşlarım',
-        CampusVisibility.community => 'Topluluğum',
-        CampusVisibility.ghost => 'Gizli',
+  String labelFor(AppStrings strings) => switch (this) {
+        CampusVisibility.public => strings.t('clm_visibility_public'),
+        CampusVisibility.friends => strings.t('clm_visibility_friends'),
+        CampusVisibility.community => strings.t('clm_visibility_community'),
+        CampusVisibility.ghost => strings.t('clm_visibility_ghost'),
       };
 }
 
@@ -62,6 +251,7 @@ Future<void> showPlaceInfoSheet(
   VoidCallback? onDetails,
   VoidCallback? onRequestAppointment,
   CampusVisibility visibility = CampusVisibility.friends,
+  int? liveCount,
 }) {
   return showModalBottomSheet<void>(
     context: context,
@@ -73,6 +263,7 @@ Future<void> showPlaceInfoSheet(
       events: events,
       visibility: visibility,
       repository: repository,
+      liveCount: liveCount,
       onNavigate: onNavigate,
       onOpenDirectory: onOpenDirectory,
       onDetails: onDetails,
@@ -156,6 +347,9 @@ class CampusLiveMap extends StatefulWidget {
   final AnalyticsTracker analyticsTracker;
   final VoidCallback onOpenGalatea;
   final GeoPoint? userLocation;
+  final bool followUserLocation;
+  final MapContentFilter contentFilter;
+  final CampusMapController? controller;
 
   /// Fixed height for the home-screen preview card. Pass null (used by the
   /// full-screen page) to let the map expand to fill its parent instead.
@@ -177,6 +371,9 @@ class CampusLiveMap extends StatefulWidget {
     required this.analyticsTracker,
     required this.onOpenGalatea,
     this.userLocation,
+    this.followUserLocation = false,
+    this.contentFilter = MapContentFilter.all,
+    this.controller,
     this.mapHeight = 400,
     this.initialVisibility = CampusVisibility.friends,
     this.focusPlaceId,
@@ -187,17 +384,135 @@ class CampusLiveMap extends StatefulWidget {
 }
 
 class _CampusLiveMapState extends State<CampusLiveMap> {
+  /// How often the map refreshes the crowd counts, and how often it tells
+  /// the backend where this phone is. One minute is well inside the
+  /// server's presence window (`LiveCrowd.WINDOW_MINUTES`), so a student
+  /// standing still never flickers out of the count, and it is slow
+  /// enough that an open map is not a radio drain.
+  static const _presenceInterval = Duration(minutes: 1);
+
+  /// Don't re-ping for a fix that has barely moved — GPS jitter alone
+  /// would otherwise write a row every tick for a phone on a desk.
+  static const _presenceMoveMeters = 15.0;
+
   late List<CampusPulseZone> _pulseZones =
       HeatmapAdapter.pulseZones(widget.places);
+  DateTime _activitySnapshotAt = DateTime.now();
   late CampusVisibility _visibility = widget.initialVisibility;
-  final _mapController = CampusMapController();
+  final _internalMapController = CampusMapController();
+  CampusMapController get _mapController =>
+      widget.controller ?? _internalMapController;
+
+  CampusLiveCrowd _crowd = const CampusLiveCrowd();
+  Timer? _presenceTimer;
+  GeoPoint? _lastPingedFrom;
+  bool _presenceBusy = false;
+  CampusUser? _me;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadIdentity());
+    unawaited(_syncPresence());
+    _presenceTimer = Timer.periodic(_presenceInterval, (_) {
+      unawaited(_syncPresence());
+    });
+  }
+
+  Future<void> _loadIdentity() async {
+    try {
+      final me = await widget.repository.getMe();
+      if (mounted) setState(() => _me = me);
+    } catch (_) {
+      // A map still works without an avatar; the renderer uses an initial.
+    }
+  }
+
+  @override
+  void dispose() {
+    _presenceTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   void didUpdateWidget(covariant CampusLiveMap oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.places != widget.places) {
-      _pulseZones = HeatmapAdapter.pulseZones(widget.places);
+      _rebuildPulseZones();
     }
+    // A first fix (or a real move) is worth reporting straight away rather
+    // than at the next tick — that is the difference between the crowd
+    // list being right when the panel opens and being a minute stale.
+    if (oldWidget.userLocation != widget.userLocation && _movedEnoughToPing()) {
+      unawaited(_syncPresence());
+    }
+  }
+
+  bool _movedEnoughToPing() {
+    final here = widget.userLocation;
+    if (here == null) return false;
+    final last = _lastPingedFrom;
+    if (last == null) return true;
+    return Geolocator.distanceBetween(last.lat, last.lng, here.lat, here.lng) >=
+        _presenceMoveMeters;
+  }
+
+  /// Report where we are (when sharing is on) and read back the anonymous
+  /// crowd counts. Both halves are best-effort: the map is still a map
+  /// without them, so a failure leaves the last good snapshot on screen
+  /// rather than throwing an error banner over the campus.
+  Future<void> _syncPresence() async {
+    if (_presenceBusy) return;
+    _presenceBusy = true;
+    try {
+      final here = widget.userLocation;
+      // Ghost mode is enforced server-side too (it deletes any row this
+      // account has); not sending is simply the honest client half of the
+      // same promise.
+      if (_visibility == CampusVisibility.ghost) {
+        if (_lastPingedFrom != null) {
+          _lastPingedFrom = null;
+          await widget.repository.forgetPresence();
+        }
+      } else if (here != null) {
+        await widget.repository
+            .pingPresence(latitude: here.lat, longitude: here.lng);
+        _lastPingedFrom = here;
+      }
+
+      final crowd = await widget.repository.getLiveCrowd();
+      if (!mounted) return;
+      setState(() {
+        _crowd = crowd;
+        // The glow is the Campus Pulse. Rebuilt here so it shows where
+        // people actually are, rather than where the few who check in
+        // chose to announce themselves.
+        _rebuildPulseZones();
+      });
+    } catch (_) {
+      // Keep whatever counts are already on screen.
+    } finally {
+      _presenceBusy = false;
+    }
+  }
+
+  void _rebuildPulseZones() {
+    _activitySnapshotAt = DateTime.now();
+    _pulseZones = HeatmapAdapter.pulseZones(
+      widget.places,
+      live: {for (final entry in _crowd.places) entry.placeId: entry.count},
+    );
+  }
+
+  /// Live head count at [place] from location pings, or null when this
+  /// place is not in the current snapshot — which the place sheet shows
+  /// as its own honest fallback rather than as zero.
+  int? _liveCountAt(CampusPlace? place) {
+    if (place == null) return null;
+    for (final entry in _crowd.places) {
+      if (entry.placeId == place.id) return entry.count;
+    }
+    return null;
   }
 
   CampusPlace? _matchPlace(String name) {
@@ -212,9 +527,6 @@ class _CampusLiveMapState extends State<CampusLiveMap> {
     }
     return null;
   }
-
-  int get _totalOnline =>
-      pois.fold<int>(0, (sum, p) => sum + campusOnlineCount(p.name));
 
   void _openDirectory() {
     Navigator.of(context).push(MaterialPageRoute(
@@ -236,11 +548,21 @@ class _CampusLiveMapState extends State<CampusLiveMap> {
     final labelMarkers = <CampusMapMarker>[];
     for (final pin in pins) {
       final place = pin.place;
+      final liveCount = _liveCountAt(place) ?? 0;
+      final visible = mapPlaceMatchesFilter(
+        filter: widget.contentFilter,
+        place: place,
+        events: widget.events,
+        liveCount: liveCount,
+      );
+      if (!visible) continue;
       labelMarkers.add(CampusMapMarker(
         id: 'place-${place.id}',
         position: pin.display,
         label: place.name,
-        color: campusDensityInfo(place).$1,
+        color: _liveCountAt(place) != null
+            ? crowdColorForCount(_liveCountAt(place)!)
+            : campusDensityInfo(place).$1,
         // A compact home preview must not layer a modal over the feed. Its
         // interactive POIs always continue in the dedicated map instead.
         onTap: isPreview
@@ -249,6 +571,7 @@ class _CampusLiveMapState extends State<CampusLiveMap> {
       ));
     }
     const contextDots = <CampusMapContextDot>[];
+    final activityPoints = _activityPointsForFilter(pins);
 
     final extentPoints = mainCampusCameraExtent(mapPlaces);
     GeoPoint? focusPoint;
@@ -260,6 +583,9 @@ class _CampusLiveMapState extends State<CampusLiveMap> {
           break;
         }
       }
+    }
+    if (widget.followUserLocation && widget.userLocation != null) {
+      focusPoint = widget.userLocation;
     }
 
     // Campus Pulse is a live map, full stop. The 360 tour used to sit behind
@@ -277,29 +603,32 @@ class _CampusLiveMapState extends State<CampusLiveMap> {
             markers: labelMarkers,
             contextDots: contextDots,
             pulseZones: _pulseZones,
+            activityPoints: activityPoints,
             userLocation: widget.userLocation,
             showUserLocation: true,
+            userName: _me?.name ?? '',
+            userAvatarUrl: _me?.avatarUrl,
             controller: _mapController,
           ),
         ),
         Positioned(
           left: 14,
-          top: 14,
+          top: isPreview ? 14 : 154,
           child: _MapControlButton(
-            onlineCount: _totalOnline,
+            crowd: _crowd,
             visibility: _visibility,
             repository: widget.repository,
-            onVisibilityChanged: (v) => setState(() => _visibility = v),
+            onVisibilityChanged: (v) {
+              setState(() => _visibility = v);
+              // Going hidden has to take effect now, not at the next
+              // tick — "I am invisible" is not a promise to keep for
+              // up to a minute.
+              unawaited(_syncPresence());
+            },
             onOpenShuttle: () =>
                 showShuttleSheet(context, repository: widget.repository),
             onOpenFullMap: isPreview ? () => _openFullMap() : null,
           ),
-        ),
-        Positioned(
-          right: 14,
-          top: 14,
-          child: AskArucadBubble(
-              onTap: isPreview ? () => _openFullMap() : _openAskArucad),
         ),
         if (widget.mapHeight != null)
           const Positioned(
@@ -307,12 +636,75 @@ class _CampusLiveMapState extends State<CampusLiveMap> {
             bottom: 14,
             child: _MapPreviewLegend(),
           ),
+        if (!isPreview)
+          Positioned(
+            left: 14,
+            right: 14,
+            bottom: 18,
+            child: _NearbyActivityCard(
+              people: _crowd.total,
+              events: widget.events.length,
+              places: widget.places.length,
+            ),
+          ),
       ]),
     );
 
     return widget.mapHeight == null
         ? mapBox
         : SizedBox(height: widget.mapHeight, child: mapBox);
+  }
+
+  List<activity.ActivityPoint> _activityPointsForFilter(
+      List<CampusMapPin> pins) {
+    final now = _activitySnapshotAt;
+    if (widget.contentFilter == MapContentFilter.events) {
+      return [
+        for (final pin in pins)
+          if (_eventsAtMapPlace(widget.events, pin.place).isNotEmpty)
+            activity.ActivityPoint(
+              id: 'event-${pin.place.id}',
+              position: pin.display,
+              weight: (_eventsAtMapPlace(widget.events, pin.place)
+                          .fold<int>(0, (sum, event) => sum + event.attendees) /
+                      40)
+                  .clamp(.35, 1.0)
+                  .toDouble(),
+              timestamp: now,
+              type: activity.ActivityType.event,
+              privacyRadiusMeters: 0,
+            ),
+      ];
+    }
+    if (widget.contentFilter == MapContentFilter.places) {
+      return [
+        for (final pin in pins)
+          activity.ActivityPoint(
+            id: 'place-${pin.place.id}',
+            position: pin.display,
+            weight: .3,
+            timestamp: now,
+            type: activity.ActivityType.place,
+            privacyRadiusMeters: 0,
+          ),
+      ];
+    }
+
+    final minimumWeight =
+        widget.contentFilter == MapContentFilter.popular ? .55 : 0.0;
+    return [
+      for (var i = 0; i < _pulseZones.length; i++)
+        if (_pulseZones[i].intensity >= minimumWeight)
+          activity.ActivityPoint(
+            id: 'campus-activity-$i',
+            position: _pulseZones[i].center,
+            weight: _pulseZones[i].intensity,
+            timestamp: now,
+            type: activity.ActivityType.user,
+            // Aggregated crowd data should never reveal an exact person's fix.
+            privacyRadiusMeters: 8,
+          ),
+    ];
   }
 
   void _openInfo(Poi poi, {GeoPoint? display}) {
@@ -326,6 +718,7 @@ class _CampusLiveMapState extends State<CampusLiveMap> {
       events: events,
       visibility: _visibility,
       repository: widget.repository,
+      liveCount: _liveCountAt(place),
       onNavigate: (mode) => _navigate(poi, mode),
       // 360 tours are reached through the building directory now, not from
       // the map sheet — one place to browse buildings, floors and rooms.
@@ -397,6 +790,72 @@ class _CampusLiveMapState extends State<CampusLiveMap> {
   }
 }
 
+class _NearbyActivityCard extends StatelessWidget {
+  final int people;
+  final int events;
+  final int places;
+
+  const _NearbyActivityCard({
+    required this.people,
+    required this.events,
+    required this.places,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = AppLocale.of(context);
+    final scheme = Theme.of(context).colorScheme;
+    return MapPointerGuard(
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 13, 16, 13),
+        decoration: BoxDecoration(
+          color: scheme.surface.withValues(alpha: .96),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: const [
+            BoxShadow(
+                color: Colors.black26, blurRadius: 16, offset: Offset(0, 5)),
+          ],
+        ),
+        child: Row(children: [
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(strings.t('clm_nearby_activity'),
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w900, fontSize: 14)),
+                const SizedBox(height: 4),
+                Text(
+                  strings.t('clm_activity_summary', {
+                    'people': people,
+                    'events': events,
+                    'places': places,
+                  }),
+                  style:
+                      TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            width: 9,
+            height: 9,
+            decoration: const BoxDecoration(
+              color: Color(0xFF16A34A),
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(strings.t('clm_live_now'),
+              style:
+                  const TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
+        ]),
+      ),
+    );
+  }
+}
+
 /// Home map previews stay compact but still expose the live map's essential
 /// reading tools: campus regions plus the green/yellow/red density scale.
 class _MapPreviewLegend extends StatelessWidget {
@@ -439,19 +898,30 @@ class _MapPreviewLegend extends StatelessWidget {
       );
 }
 
-/// Everything the map knows right now, in one panel: live presence, today's
-/// weather over campus, and the next departure on every shuttle line with
-/// its stops. This replaced a sheet that only showed a single "next service"
-/// countdown and made the rest of the timetable a separate journey.
-class _MapInfoSheet extends StatefulWidget {
-  final int onlineCount;
+/// Everything the map knows right now, in one panel: who is actually on
+/// campus and where the crowd is, today's weather, and every shuttle line
+/// with its stops and departure times.
+///
+/// Public for the same reason [PlaceInfoSheet] is: the map itself cannot
+/// be pumped in a widget test (MapLibre needs a platform view), so this
+/// panel's behaviour is tested by building it directly.
+///
+/// Two things it deliberately does NOT do. It does not count down to the
+/// next departure: the timetable is the useful fact on a map panel, and a
+/// live countdown implied a vehicle feed that does not exist (the
+/// dedicated shuttle sheet behind "Tümü" still does the arithmetic for
+/// anyone actually catching one). And the crowd list is not built from
+/// check-ins — see [CampusLiveCrowd].
+class MapInfoSheet extends StatefulWidget {
+  final CampusLiveCrowd crowd;
   final CampusVisibility visibility;
   final CampusRepository repository;
   final VoidCallback onOpenShuttle;
   final VoidCallback onChangeVisibility;
 
-  const _MapInfoSheet({
-    required this.onlineCount,
+  const MapInfoSheet({
+    super.key,
+    required this.crowd,
     required this.visibility,
     required this.repository,
     required this.onOpenShuttle,
@@ -459,10 +929,10 @@ class _MapInfoSheet extends StatefulWidget {
   });
 
   @override
-  State<_MapInfoSheet> createState() => _MapInfoSheetState();
+  State<MapInfoSheet> createState() => _MapInfoSheetState();
 }
 
-class _MapInfoSheetState extends State<_MapInfoSheet> {
+class _MapInfoSheetState extends State<MapInfoSheet> {
   CampusWeather? _weather;
   List<ShuttleRoute> _routes = shuttleRoutes;
 
@@ -490,7 +960,8 @@ class _MapInfoSheetState extends State<_MapInfoSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final now = DateTime.now();
+    final strings = AppLocale.of(context);
+    final crowd = widget.crowd;
     return SafeArea(
       child: ConstrainedBox(
         constraints:
@@ -501,13 +972,14 @@ class _MapInfoSheetState extends State<_MapInfoSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Harita Bilgileri',
-                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
+              Text(strings.t('clm_map_information'),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w900, fontSize: 18)),
               const SizedBox(height: 14),
               Row(children: [
                 const Icon(Icons.circle, size: 10, color: ArucadColors.success),
                 const SizedBox(width: 10),
-                Text('${widget.onlineCount} çevrimiçi',
+                Text(strings.t('clm_people_on_campus', {'count': crowd.total}),
                     style: const TextStyle(fontWeight: FontWeight.w700)),
               ]),
               if (_weather case final weather?) ...[
@@ -526,26 +998,30 @@ class _MapInfoSheetState extends State<_MapInfoSheet> {
                 ]),
               ],
               const Divider(height: 28),
+              _CrowdSection(
+                crowd: crowd,
+                hidden: widget.visibility == CampusVisibility.ghost,
+              ),
+              const Divider(height: 28),
               Row(children: [
-                const Expanded(
-                  child: Text('Servis Saatleri',
-                      style:
-                          TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
+                Expanded(
+                  child: Text(strings.t('clm_shuttle_times'),
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w900, fontSize: 14)),
                 ),
                 TextButton(
                     onPressed: widget.onOpenShuttle,
-                    child: Text(AppLocale.of(context).t('clm_all'))),
+                    child: Text(strings.t('clm_all'))),
               ]),
               const SizedBox(height: 4),
-              for (final route in _routes)
-                _ShuttleLineRow(route: route, now: now),
+              for (final route in _routes) _ShuttleLineRow(route: route),
               const Divider(height: 28),
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading:
                     Icon(widget.visibility.icon, color: ArucadColors.primary),
-                title: Text(AppLocale.of(context).t('clm_visibility')),
-                subtitle: Text(widget.visibility.label),
+                title: Text(strings.t('clm_visibility')),
+                subtitle: Text(widget.visibility.labelFor(strings)),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: widget.onChangeVisibility,
               ),
@@ -570,23 +1046,125 @@ class _MapInfoSheetState extends State<_MapInfoSheet> {
   }
 }
 
-/// One shuttle line: its colour, next departure countdown, and the stops it
-/// actually calls at — the detail students were previously sent to another
-/// screen to find.
-class _ShuttleLineRow extends StatelessWidget {
-  final ShuttleRoute route;
-  final DateTime now;
+/// Where the busiest places are right now, and how many people are at
+/// each — from real location pings (`GET /presence/live`), not from the
+/// few students who deliberately check in.
+///
+/// An empty list is shown as an empty list. Nobody sharing is a real state
+/// of the campus at 3am, and inventing a crowd to fill the panel would
+/// make every other number here untrustworthy too.
+class _CrowdSection extends StatelessWidget {
+  final CampusLiveCrowd crowd;
 
-  const _ShuttleLineRow({required this.route, required this.now});
+  /// The reader is in ghost mode, so they are not part of these counts.
+  final bool hidden;
+
+  const _CrowdSection({required this.crowd, required this.hidden});
 
   @override
   Widget build(BuildContext context) {
-    final next = nextDeparture(route.departures, now);
-    final back =
-        route.returns == null ? null : nextDeparture(route.returns!, now);
+    final strings = AppLocale.of(context);
+    final busiest = crowd.places.isEmpty ? 1 : crowd.places.first.count;
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Expanded(
+          child: Text(strings.t('clm_busiest_now'),
+              style:
+                  const TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
+        ),
+        Text(
+          strings.t('clm_crowd_window', {'minutes': crowd.windowMinutes}),
+          style: const TextStyle(color: ArucadColors.muted, fontSize: 11),
+        ),
+      ]),
+      const SizedBox(height: 8),
+      if (crowd.places.isEmpty)
+        Text(strings.t('clm_crowd_empty'),
+            style: const TextStyle(color: ArucadColors.muted, fontSize: 12.5))
+      else
+        for (final place in crowd.places)
+          _CrowdRow(place: place, busiest: busiest),
+      if (hidden) ...[
+        const SizedBox(height: 8),
+        Row(children: [
+          const Icon(Icons.visibility_off_outlined,
+              size: 14, color: ArucadColors.muted),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(strings.t('clm_crowd_ghost_hint'),
+                style:
+                    const TextStyle(color: ArucadColors.muted, fontSize: 11.5)),
+          ),
+        ]),
+      ],
+    ]);
+  }
+}
+
+/// One place in the crowd list: a bar scaled against the busiest place, so
+/// the ranking is readable at a glance rather than by comparing numbers.
+class _CrowdRow extends StatelessWidget {
+  final LivePlaceCrowd place;
+  final int busiest;
+
+  const _CrowdRow({required this.place, required this.busiest});
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = AppLocale.of(context);
+    final fraction =
+        busiest <= 0 ? 0.0 : (place.count / busiest).clamp(0.0, 1.0);
+    // The same three bands the density legend uses, so a red bar here
+    // means what a red glow means on the map itself.
+    final color = fraction >= 0.67
+        ? ArucadColors.danger
+        : fraction >= 0.34
+            ? ArucadColors.yellow
+            : ArucadColors.campusGreen;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Expanded(
+            child: Text(place.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style:
+                    const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+          ),
+          const SizedBox(width: 8),
+          Text(strings.t('clm_people_count', {'count': place.count}),
+              style: TextStyle(
+                  fontWeight: FontWeight.w800, fontSize: 12.5, color: color)),
+        ]),
+        const SizedBox(height: 4),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: LinearProgressIndicator(
+            value: fraction,
+            minHeight: 6,
+            backgroundColor: color.withValues(alpha: .15),
+            valueColor: AlwaysStoppedAnimation<Color>(color),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+/// One shuttle line: colour and ordered stops only. No minute/hour estimate,
+/// countdown, or departure timetable is rendered in the map information UI.
+class _ShuttleLineRow extends StatelessWidget {
+  final ShuttleRoute route;
+
+  const _ShuttleLineRow({required this.route});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Container(
           width: 10,
@@ -600,19 +1178,13 @@ class _ShuttleLineRow extends StatelessWidget {
             Text(route.name,
                 style: const TextStyle(
                     fontWeight: FontWeight.w800, fontSize: 13.5)),
-            const SizedBox(height: 2),
-            Text(
-              back == null
-                  ? 'Sıradaki ${next.label} · ${formatCountdown(next.until)}'
-                  : 'Gidiş ${next.label} · Dönüş ${back.label}',
-              style: const TextStyle(color: ArucadColors.muted, fontSize: 11.5),
-            ),
-            const SizedBox(height: 2),
+            const SizedBox(height: 4),
             Text(
               route.stops.join(' → '),
-              maxLines: 2,
+              maxLines: 3,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: ArucadColors.muted, fontSize: 11),
+              style: const TextStyle(
+                  color: ArucadColors.muted, fontSize: 11, height: 1.4),
             ),
           ]),
         ),
@@ -644,7 +1216,7 @@ class _DensityDot extends StatelessWidget {
 /// on top of the map — tapping it pops up all the map's live details in one
 /// place, so the map surface itself stays uncluttered.
 class _MapControlButton extends StatelessWidget {
-  final int onlineCount;
+  final CampusLiveCrowd crowd;
   final CampusVisibility visibility;
   final ValueChanged<CampusVisibility> onVisibilityChanged;
   final VoidCallback onOpenShuttle;
@@ -652,7 +1224,7 @@ class _MapControlButton extends StatelessWidget {
   final CampusRepository repository;
 
   const _MapControlButton({
-    required this.onlineCount,
+    required this.crowd,
     required this.visibility,
     required this.onVisibilityChanged,
     required this.onOpenShuttle,
@@ -696,8 +1268,8 @@ class _MapControlButton extends StatelessWidget {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      builder: (sheetContext) => _MapInfoSheet(
-        onlineCount: onlineCount,
+      builder: (sheetContext) => MapInfoSheet(
+        crowd: crowd,
         visibility: visibility,
         repository: repository,
         onOpenShuttle: () {
@@ -723,7 +1295,7 @@ class _MapControlButton extends StatelessWidget {
                   color: v == visibility
                       ? ArucadColors.primary
                       : ArucadColors.muted),
-              title: Text(v.label),
+              title: Text(v.labelFor(AppLocale.of(context))),
               trailing: v == visibility
                   ? const Icon(Icons.check, color: ArucadColors.primary)
                   : null,
@@ -749,6 +1321,12 @@ class PlaceInfoSheet extends StatefulWidget {
   final VoidCallback? onDetails;
   final VoidCallback? onRequestAppointment;
 
+  /// People here right now from real location pings (`GET /presence/live`),
+  /// when the caller has a current snapshot. Null means "not counted in
+  /// this snapshot", which falls back to the check-in count rather than
+  /// claiming the place is empty.
+  final int? liveCount;
+
   const PlaceInfoSheet({
     super.key,
     required this.poi,
@@ -760,6 +1338,7 @@ class PlaceInfoSheet extends StatefulWidget {
     this.onOpenDirectory,
     required this.onDetails,
     this.onRequestAppointment,
+    this.liveCount,
   });
 
   @override
@@ -834,9 +1413,13 @@ class _PlaceInfoSheetState extends State<PlaceInfoSheet> {
     final (densityColor, densityLabel) = campusDensityInfo(widget.place);
     final activeCount =
         widget.events.fold<int>(0, (sum, e) => sum + e.attendees);
-    final onlineHere = widget.place != null
-        ? campusPresenceCount(widget.place!)
-        : campusOnlineCount(widget.poi.name);
+    // Where people actually are beats who announced themselves: prefer
+    // the live ping count, fall back to recent check-ins, and only then
+    // to the name-derived estimate for a POI with no place row at all.
+    final onlineHere = widget.liveCount ??
+        (widget.place != null
+            ? campusPresenceCount(widget.place!)
+            : campusOnlineCount(widget.poi.name));
     final checkins = widget.place?.recentCheckinEntries ?? const [];
     final floors = _floorPlanFor(widget.poi.category);
     final isWorkshop = _isWorkshopCategory(widget.poi.category);
@@ -881,7 +1464,8 @@ class _PlaceInfoSheetState extends State<PlaceInfoSheet> {
                       color: densityColor),
                   _InfoChip(
                       icon: Icons.wifi_tethering,
-                      label: '$onlineHere kişi burada',
+                      label: AppLocale.of(context)
+                          .t('clm_people_here', {'count': onlineHere}),
                       color: ArucadColors.blue),
                   _InfoChip(
                       icon: Icons.event_outlined,
@@ -989,7 +1573,10 @@ class _PlaceInfoSheetState extends State<PlaceInfoSheet> {
                                   : ArucadColors.danger),
                           const SizedBox(width: 8),
                           Expanded(child: Text(eq.name)),
-                          Text(eq.available ? 'Müsait' : 'Dolu',
+                          Text(
+                              AppLocale.of(context).t(eq.available
+                                  ? 'clm_available'
+                                  : 'clm_unavailable'),
                               style: TextStyle(
                                   fontWeight: FontWeight.w800,
                                   fontSize: 12,
@@ -1006,7 +1593,7 @@ class _PlaceInfoSheetState extends State<PlaceInfoSheet> {
                         widget.onRequestAppointment!();
                       },
                       icon: const Icon(Icons.calendar_month_outlined),
-                      label: const Text("Aicad'a Sor"),
+                      label: Text(AppLocale.of(context).t('clm_ask_aicad')),
                     ),
                   const SizedBox(height: 6),
                   Text(AppLocale.of(context).t('clm_collab_board'),
@@ -1064,8 +1651,11 @@ class _PlaceInfoSheetState extends State<PlaceInfoSheet> {
                 const SizedBox(height: 6),
                 Text(
                     widget.visibility == CampusVisibility.ghost
-                        ? 'Hayalet modundasınız · konumunuz kimseyle paylaşılmıyor'
-                        : 'Görünürlük: ${widget.visibility.label}',
+                        ? AppLocale.of(context).t('clm_ghost_status')
+                        : AppLocale.of(context).t('clm_visibility_status', {
+                            'visibility': widget.visibility
+                                .labelFor(AppLocale.of(context))
+                          }),
                     style: const TextStyle(
                         fontSize: 11, color: ArucadColors.muted)),
                 const SizedBox(height: 12),
@@ -1116,18 +1706,18 @@ class _PlaceInfoSheetState extends State<PlaceInfoSheet> {
                         );
                       },
                       icon: const Icon(Icons.threesixty_rounded, size: 18),
-                      label: const Text('360° Tur'),
+                      label: Text(AppLocale.of(context).t('explore_tour')),
                     ),
                   if (widget.onOpenDirectory != null)
                     OutlinedButton.icon(
                       onPressed: widget.onOpenDirectory,
                       icon: const Icon(Icons.apartment_outlined, size: 18),
-                      label: const Text('Binalar'),
+                      label: Text(AppLocale.of(context).t('clm_buildings')),
                     ),
                   if (widget.onDetails != null)
                     OutlinedButton(
                         onPressed: widget.onDetails,
-                        child: const Text('Detay')),
+                        child: Text(AppLocale.of(context).t('clm_details'))),
                 ]),
               ]),
         ),
@@ -1194,18 +1784,39 @@ class CampusMapFullScreen extends StatefulWidget {
 class _CampusMapFullScreenState extends State<CampusMapFullScreen> {
   late List<CampusPlace> _places = widget.places;
   late List<CampusEvent> _events = widget.events;
+  List<DirectoryEntry> _directory = const [];
   late String? _focusPlaceId = widget.focusPlaceId;
   ChatRealtimeService? _realtime;
   StreamSubscription<List<String>>? _campusChanges;
+  StreamSubscription<Position>? _positionSub;
+  final _mapController = CampusMapController();
   bool _refreshing = false;
   GeoPoint? _userLocation;
+  bool _followUserLocation = false;
+  MapContentFilter _contentFilter = MapContentFilter.all;
 
   @override
   void initState() {
     super.initState();
-    _userLocation = widget.userLocation;
+    final cached = LocationService.lastKnown;
+    _userLocation = widget.userLocation ??
+        (cached == null ? null : GeoPoint(cached.latitude, cached.longitude));
     unawaited(_startRealtime());
-    unawaited(_resolveUserLocation());
+    unawaited(_loadDirectory());
+    if (_userLocation != null) {
+      unawaited(_startLocationTracking());
+    } else {
+      unawaited(_resolveUserLocation());
+    }
+  }
+
+  Future<void> _loadDirectory() async {
+    try {
+      final entries = await widget.repository.getDirectoryEntries();
+      if (mounted) setState(() => _directory = entries);
+    } catch (_) {
+      // Place/event search remains available during a directory outage.
+    }
   }
 
   // Someone who doesn't know a building's name can still find it — a
@@ -1213,17 +1824,17 @@ class _CampusMapFullScreenState extends State<CampusMapFullScreen> {
   // having to recognize a pin among 20+ on the map.
   Future<void> _openSearch() async {
     var query = '';
-    final selected = await showModalBottomSheet<CampusPlace>(
+    final selected = await showModalBottomSheet<MapSearchTarget>(
       context: context,
       isScrollControlled: true,
       builder: (sheetContext) {
         return StatefulBuilder(builder: (sheetContext, setSheetState) {
-          final matches = query.trim().isEmpty
-              ? _places
-              : _places
-                  .where(
-                      (p) => p.name.toLowerCase().contains(query.toLowerCase()))
-                  .toList();
+          final matches = mapSearchTargets(
+            _places,
+            _events,
+            query,
+            directory: _directory,
+          );
           return SafeArea(
             child: Padding(
               padding: EdgeInsets.only(
@@ -1253,10 +1864,10 @@ class _CampusMapFullScreenState extends State<CampusMapFullScreen> {
                             itemCount: matches.length,
                             itemBuilder: (context, i) => ListTile(
                               leading: const Icon(Icons.location_on_outlined),
-                              title: Text(matches[i].name),
-                              subtitle: matches[i].category.isEmpty
+                              title: Text(matches[i].title),
+                              subtitle: matches[i].subtitle.isEmpty
                                   ? null
-                                  : Text(matches[i].category),
+                                  : Text(matches[i].subtitle),
                               onTap: () =>
                                   Navigator.of(sheetContext).pop(matches[i]),
                             ),
@@ -1270,20 +1881,164 @@ class _CampusMapFullScreenState extends State<CampusMapFullScreen> {
       },
     );
     if (selected != null && mounted) {
-      setState(() => _focusPlaceId = selected.id);
+      GeoPoint? display;
+      for (final pin in spreadOverlappingMapPins(campusMapPlaces(_places))) {
+        if (pin.place.id == selected.place.id) {
+          display = pin.display;
+          break;
+        }
+      }
+      setState(() {
+        _followUserLocation = false;
+        _contentFilter = selected.event == null
+            ? MapContentFilter.places
+            : MapContentFilter.events;
+        _focusPlaceId = selected.place.id;
+      });
+      // Imperative camera movement makes repeated selection of the same
+      // result work too; relying only on a changed widget value meant the
+      // second selection was ignored because the id had not changed.
+      await _mapController.centerOn(
+        display ?? GeoPoint(selected.place.lat, selected.place.lng),
+        zoom: 18.2,
+      );
+      if (selected.directory != null && mounted) {
+        await _showDirectoryTarget(selected);
+      }
     }
   }
 
-  Future<void> _resolveUserLocation() async {
+  Future<void> _showDirectoryTarget(MapSearchTarget target) async {
+    final entry = target.directory!;
+    final tourUrl = entry.tourUrl ?? entry.splatSceneUrl;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Container(
+              width: 42,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Theme.of(sheetContext).colorScheme.outlineVariant,
+                borderRadius: BorderRadius.circular(99),
+              ),
+            ),
+            const SizedBox(height: 18),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(target.title,
+                  style: Theme.of(sheetContext).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      )),
+            ),
+            const SizedBox(height: 6),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(target.subtitle,
+                  style: TextStyle(
+                      color:
+                          Theme.of(sheetContext).colorScheme.onSurfaceVariant)),
+            ),
+            const SizedBox(height: 10),
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Harita rotası doğrulanmış bina girişine gider. 360° düğmesi seçtiğiniz oda veya hizmet noktasını açar.',
+                style: TextStyle(color: ArucadColors.muted, fontSize: 12),
+              ),
+            ),
+            const SizedBox(height: 18),
+            Row(children: [
+              Expanded(
+                child: FilledButton.icon(
+                  icon: const Icon(Icons.directions),
+                  label: const Text('Bina girişine rota'),
+                  onPressed: () {
+                    Navigator.of(sheetContext).pop();
+                    Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => InAppNavigationScreen(
+                        destinationName: target.title,
+                        destination:
+                            GeoPoint(target.place.lat, target.place.lng),
+                        repository: widget.repository,
+                      ),
+                    ));
+                  },
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.threesixty),
+                  label: const Text('Odayı 360° aç'),
+                  onPressed: tourUrl == null
+                      ? null
+                      : () => open360Tour(
+                            sheetContext,
+                            tourUrl,
+                            tourTarget: entry.tourTarget,
+                            title: target.title,
+                          ),
+                ),
+              ),
+            ]),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _resolveUserLocation({bool requestAgain = false}) async {
     try {
-      final position =
-          await const LocationService().getCurrentPositionIfGranted();
-      if (position == null || !mounted) return;
-      setState(() =>
-          _userLocation = GeoPoint(position.latitude, position.longitude));
+      final position = await const LocationService().getCurrentPosition(
+        requestAgain: requestAgain,
+        allowOutsideCampus: true,
+        settings: const LocationSettings(accuracy: LocationAccuracy.high),
+      );
+      if (position == null || !mounted) {
+        if (requestAgain && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(AppLocale.of(context).t('clm_location_unavailable')),
+          ));
+        }
+        return;
+      }
+      setState(() {
+        _focusPlaceId = null;
+        // Opening the map shows the whole campus heat field. Only the
+        // explicit location button opts into the close, live-follow camera.
+        _followUserLocation = requestAgain;
+        _userLocation = GeoPoint(position.latitude, position.longitude);
+      });
+      if (requestAgain) {
+        await _mapController.centerOn(_userLocation!, zoom: 18.2);
+      }
+      await _startLocationTracking();
     } catch (_) {
       // The map remains usable without an OS location permission.
     }
+  }
+
+  Future<void> _startLocationTracking() async {
+    await _positionSub?.cancel();
+    _positionSub = const LocationService()
+        .positionStream(
+      allowOutsideCampus: true,
+      settings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 2,
+      ),
+    )
+        .listen((live) {
+      if (!mounted) return;
+      setState(() {
+        _focusPlaceId = null;
+        _userLocation = GeoPoint(live.latitude, live.longitude);
+      });
+    });
   }
 
   Future<void> _startRealtime() async {
@@ -1293,7 +2048,9 @@ class _CampusMapFullScreenState extends State<CampusMapFullScreen> {
       final realtime = ChatRealtimeService.forRepository(widget.repository);
       _realtime = realtime;
       _campusChanges = realtime.campusChanged.listen((resources) {
-        if (resources.contains('events') || resources.contains('places')) {
+        if (resources.contains('events') ||
+            resources.contains('places') ||
+            resources.contains('directory')) {
           unawaited(_refreshMapData(resources));
         }
       });
@@ -1309,15 +2066,20 @@ class _CampusMapFullScreenState extends State<CampusMapFullScreen> {
     try {
       final wantsPlaces = resources.contains('places');
       final wantsEvents = resources.contains('events');
+      final wantsDirectory = resources.contains('directory');
       final values = await Future.wait([
         if (wantsPlaces) widget.repository.getPlaces(),
         if (wantsEvents) widget.repository.getEvents(),
+        if (wantsDirectory) widget.repository.getDirectoryEntries(),
       ]);
       if (!mounted) return;
       var offset = 0;
       setState(() {
         if (wantsPlaces) _places = values[offset++] as List<CampusPlace>;
         if (wantsEvents) _events = values[offset++] as List<CampusEvent>;
+        if (wantsDirectory) {
+          _directory = values[offset++] as List<DirectoryEntry>;
+        }
       });
     } catch (_) {
       // REST data is authoritative; keep the existing view on a transient failure.
@@ -1329,36 +2091,195 @@ class _CampusMapFullScreenState extends State<CampusMapFullScreen> {
   @override
   void dispose() {
     unawaited(_campusChanges?.cancel() ?? Future.value());
+    unawaited(_positionSub?.cancel() ?? Future.value());
     unawaited(_realtime?.dispose() ?? Future.value());
     super.dispose();
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(
-          title: const Text('ARUCAD Social Map'),
-          actions: [
-            IconButton(
-              tooltip: 'Yer ara',
-              icon: const Icon(Icons.search),
-              onPressed: _openSearch,
-            ),
-          ],
+  Widget build(BuildContext context) {
+    final strings = AppLocale.of(context);
+    return Scaffold(
+      extendBodyBehindAppBar: true,
+      body: Stack(children: [
+        Positioned.fill(
+          child: CampusLiveMap(
+            places: _places,
+            events: _events,
+            repository: widget.repository,
+            mapProvider: widget.mapProvider,
+            analyticsTracker: widget.analyticsTracker,
+            onOpenGalatea: widget.onOpenGalatea,
+            mapHeight: null,
+            initialVisibility: widget.initialVisibility,
+            focusPlaceId: _focusPlaceId,
+            userLocation: _userLocation,
+            followUserLocation: _followUserLocation,
+            contentFilter: _contentFilter,
+            controller: _mapController,
+          ),
         ),
-        body: Padding(
-          padding: const EdgeInsets.all(12),
-          child: SizedBox.expand(
-            child: CampusLiveMap(
-              places: _places,
-              events: _events,
-              repository: widget.repository,
-              mapProvider: widget.mapProvider,
-              analyticsTracker: widget.analyticsTracker,
-              onOpenGalatea: widget.onOpenGalatea,
-              mapHeight: null,
-              initialVisibility: widget.initialVisibility,
-              focusPlaceId: _focusPlaceId,
-              userLocation: _userLocation,
+        Positioned(
+          top: MediaQuery.paddingOf(context).top + 10,
+          left: 12,
+          right: 12,
+          child: Column(children: [
+            Row(children: [
+              _FullMapCircleButton(
+                icon: Icons.arrow_back,
+                tooltip: MaterialLocalizations.of(context).backButtonTooltip,
+                onTap: () => Navigator.of(context).pop(),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Material(
+                  color: Theme.of(context)
+                      .colorScheme
+                      .surface
+                      .withValues(alpha: .97),
+                  elevation: 5,
+                  borderRadius: BorderRadius.circular(18),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(18),
+                    onTap: _openSearch,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 13),
+                      child: Row(children: [
+                        const Icon(Icons.search, size: 21),
+                        const SizedBox(width: 9),
+                        Expanded(
+                          child: Text(strings.t('clm_search_everything'),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
+                                  fontWeight: FontWeight.w600)),
+                        ),
+                      ]),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              _FullMapCircleButton(
+                icon: Icons.my_location,
+                tooltip: strings.t('clm_show_my_location'),
+                onTap: () => _resolveUserLocation(requestAgain: true),
+              ),
+            ]),
+            const SizedBox(height: 9),
+            SizedBox(
+              height: 38,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: [
+                  _MapFilterChip(
+                    icon: Icons.people_alt_outlined,
+                    label: strings.t('clm_people'),
+                    selected: _contentFilter == MapContentFilter.people,
+                    onTap: () => setState(() => _contentFilter =
+                        _contentFilter == MapContentFilter.people
+                            ? MapContentFilter.all
+                            : MapContentFilter.people),
+                  ),
+                  _MapFilterChip(
+                    icon: Icons.event_outlined,
+                    label: strings.t('clm_events'),
+                    selected: _contentFilter == MapContentFilter.events,
+                    onTap: () => setState(() => _contentFilter =
+                        _contentFilter == MapContentFilter.events
+                            ? MapContentFilter.all
+                            : MapContentFilter.events),
+                  ),
+                  _MapFilterChip(
+                    icon: Icons.place_outlined,
+                    label: strings.t('clm_places'),
+                    selected: _contentFilter == MapContentFilter.places,
+                    onTap: () => setState(() => _contentFilter =
+                        _contentFilter == MapContentFilter.places
+                            ? MapContentFilter.all
+                            : MapContentFilter.places),
+                  ),
+                  _MapFilterChip(
+                    icon: Icons.local_fire_department_outlined,
+                    label: strings.t('clm_popular'),
+                    selected: _contentFilter == MapContentFilter.popular,
+                    onTap: () => setState(() => _contentFilter =
+                        _contentFilter == MapContentFilter.popular
+                            ? MapContentFilter.all
+                            : MapContentFilter.popular),
+                  ),
+                ],
+              ),
+            ),
+          ]),
+        ),
+      ]),
+    );
+  }
+}
+
+class _FullMapCircleButton extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  const _FullMapCircleButton(
+      {required this.icon, required this.tooltip, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) => MapPointerGuard(
+        child: Material(
+          color: Theme.of(context).colorScheme.surface.withValues(alpha: .97),
+          elevation: 5,
+          shape: const CircleBorder(),
+          child:
+              IconButton(icon: Icon(icon), tooltip: tooltip, onPressed: onTap),
+        ),
+      );
+}
+
+class _MapFilterChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _MapFilterChip({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(right: 8),
+        child: Material(
+          color: selected
+              ? ArucadColors.primary
+              : Theme.of(context).colorScheme.surface.withValues(alpha: .96),
+          elevation: 3,
+          borderRadius: BorderRadius.circular(999),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(999),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(children: [
+                Icon(icon,
+                    size: 16,
+                    color: selected ? Colors.white : ArucadColors.primary),
+                const SizedBox(width: 6),
+                Text(label,
+                    style: TextStyle(
+                        color: selected ? Colors.white : null,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800)),
+              ]),
             ),
           ),
         ),

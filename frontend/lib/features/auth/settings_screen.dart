@@ -13,16 +13,11 @@ class SettingsScreen extends StatefulWidget {
   final String language;
   final ValueChanged<String> onLanguageChanged;
 
-  /// Shown so the student can see what the app is currently talking to
-  /// before deciding whether to change it.
-  final String apiBaseUrl;
-
   const SettingsScreen({
     super.key,
     required this.authProvider,
     required this.language,
     required this.onLanguageChanged,
-    this.apiBaseUrl = '',
   });
 
   @override
@@ -38,65 +33,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   BiometricMethod? _enrolledMethod;
   String? _enrolledEmail;
 
-  final _hostC = TextEditingController();
-  final _portC = TextEditingController();
-  String _apiStatus = '';
-
   @override
   void initState() {
     super.initState();
     _loadBiometricState();
-    _loadApiTarget();
-  }
-
-  @override
-  void dispose() {
-    _hostC.dispose();
-    _portC.dispose();
-    super.dispose();
-  }
-
-  Future<void> _loadApiTarget() async {
-    final host = await AppSettingsStore.runtimeApiHost();
-    final port = await AppSettingsStore.runtimeApiPort();
-    if (!mounted) return;
-    setState(() {
-      _hostC.text = host;
-      _portC.text = '$port';
-    });
-  }
-
-  Future<void> _saveApiTarget() async {
-    final host = _hostC.text.trim();
-    final port = int.tryParse(_portC.text.trim());
-
-    if (host.isEmpty) {
-      setState(() => _apiStatus = 'Bir IP adresi gir.');
-
-      return;
-    }
-    if (port == null || port < 1 || port > 65535) {
-      setState(() => _apiStatus = 'Port 1 ile 65535 arasında olmalı.');
-
-      return;
-    }
-
-    await AppSettingsStore.setRuntimeApi(
-        useRestApi: true, host: host, port: port);
-    if (!mounted) return;
-    // Applied when the app next builds its API client, which happens at
-    // launch — saying so avoids the student assuming it did nothing.
-    setState(() => _apiStatus =
-        'Kaydedildi: http://$host:$port/api/v1 · Uygulamayı yeniden başlat.');
-  }
-
-  Future<void> _clearApiTarget() async {
-    await AppSettingsStore.setRuntimeApi(useRestApi: true, host: '');
-    if (!mounted) return;
-    setState(() {
-      _hostC.clear();
-      _apiStatus = 'Sıfırlandı. Uygulamayı yeniden başlat.';
-    });
   }
 
   @override
@@ -257,69 +197,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               color: ArucadColors.muted),
                     ),
                 ]),
-              ),
-              const SizedBox(height: 22),
-
-              // Where this install talks to. On a phone the compiled-in
-              // address is often unreachable — a loopback the device cannot
-              // route to, or a laptop IP that changed since the build — so
-              // this has to be editable without rebuilding the APK. Saved
-              // on the device and applied at the next launch.
-              Text('Sunucu bağlantısı',
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w900, fontSize: 16)),
-              const SizedBox(height: 10),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
-                  child: Column(children: [
-                    TextField(
-                      controller: _hostC,
-                      keyboardType: TextInputType.url,
-                      decoration: const InputDecoration(
-                        labelText: 'Sunucu IP adresi',
-                        hintText: 'örn. 10.43.47.142',
-                        prefixIcon: Icon(Icons.dns_outlined),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: _portC,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: 'Port',
-                        hintText: '4000',
-                        prefixIcon: Icon(Icons.settings_ethernet),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        _apiStatus.isEmpty
-                            ? 'Şu an: ${widget.apiBaseUrl}'
-                            : _apiStatus,
-                        style: const TextStyle(
-                            color: ArucadColors.muted, fontSize: 11.5),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(children: [
-                      Expanded(
-                        child: FilledButton.icon(
-                          onPressed: _saveApiTarget,
-                          icon: const Icon(Icons.save_outlined, size: 18),
-                          label: const Text('Kaydet'),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      OutlinedButton(
-                        onPressed: _clearApiTarget,
-                        child: const Text('Sıfırla'),
-                      ),
-                    ]),
-                  ]),
-                ),
               ),
               const SizedBox(height: 22),
               Text(s.t('settings_account'),

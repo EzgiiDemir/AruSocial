@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:arucad_campus_prototype/core/config/poi_config.dart';
 import 'package:arucad_campus_prototype/features/widgets/campus_widgets.dart';
 
 /// Every campus place that has artwork must actually get it.
@@ -75,5 +78,44 @@ void main() {
       );
       assets[art.asset] = name;
     }
+  });
+
+  /// Every place in the catalogue must get a real photo file. The path is
+  /// derived from the line-art asset name, so a photo that was never added
+  /// (or renamed) would only surface as a grey box at runtime.
+  test('every catalogue place resolves a bundled photo that exists', () {
+    final missing = <String>[];
+
+    for (final poi in pois) {
+      final photo = placePhoto(poi.name);
+      if (photo == null || !File(photo).existsSync()) {
+        missing.add('${poi.name} -> ${photo ?? 'no match'}');
+      }
+    }
+
+    expect(
+      missing,
+      isEmpty,
+      reason: '${missing.length} place(s) have no usable photo: '
+          '${missing.join(', ')}',
+    );
+  });
+
+  test('different places do not share one photo', () {
+    final photos = <String, String>{};
+
+    for (final poi in pois) {
+      final photo = placePhoto(poi.name);
+      if (photo == null) continue;
+
+      final existing = photos[photo];
+      expect(existing, isNull,
+          reason: '"${poi.name}" and "$existing" both render $photo.');
+      photos[photo] = poi.name;
+    }
+  });
+
+  test('a place with no artwork has no photo either', () {
+    expect(placePhoto('Somewhere Nobody Drew'), isNull);
   });
 }

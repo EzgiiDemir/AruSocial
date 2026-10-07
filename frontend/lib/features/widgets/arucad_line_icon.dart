@@ -9,13 +9,11 @@ class ArucadLineIcon extends StatelessWidget {
   final ArucadLineIconKind icon;
   final double size;
   final Color? color;
-  final String semanticLabel;
   final bool filled;
 
   const ArucadLineIcon({
     super.key,
     required this.icon,
-    required this.semanticLabel,
     this.size = 24,
     this.color,
     this.filled = false,
@@ -26,15 +24,14 @@ class ArucadLineIcon extends StatelessWidget {
     final resolved = color ??
         IconTheme.of(context).color ??
         Theme.of(context).colorScheme.onSurface;
-    return Semantics(
-      label: semanticLabel,
-      child: ExcludeSemantics(
-        child: SizedBox.square(
-          dimension: size,
-          child: CustomPaint(
-            painter: _ArucadLinePainter(
-                icon: icon, color: resolved, filled: filled),
-          ),
+    // NavigationDestination already exposes the destination label. A second
+    // semantic label here made screen readers announce each tab twice.
+    return ExcludeSemantics(
+      child: SizedBox.square(
+        dimension: size,
+        child: CustomPaint(
+          painter:
+              _ArucadLinePainter(icon: icon, color: resolved, filled: filled),
         ),
       ),
     );

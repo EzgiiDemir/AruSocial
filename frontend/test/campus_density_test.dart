@@ -48,4 +48,36 @@ void main() {
     expect(zones.single.color, ArucadColors.yellow);
     expect(zones.single.intensity, closeTo(0.6, 0.001));
   });
+
+  test('the glow follows where people actually are, not who checked in', () {
+    // "busy" here comes from three people physically at the place; the
+    // check-in count for the same place is one. A glow built from the
+    // check-in would have called it quiet green.
+    final zones = HeatmapAdapter.pulseZones(
+      [_place('gallery', 'quiet').copyWith(recentCheckins: 1)],
+      live: {'gallery': 6},
+    );
+
+    expect(zones.single.color, ArucadColors.danger);
+    expect(zones.single.intensity, 1.0);
+  });
+
+  test('a place outside the live snapshot still glows from its check-ins',
+      () {
+    final zones = HeatmapAdapter.pulseZones(
+      [_place('library', 'moderate').copyWith(recentCheckins: 3)],
+      live: const {'gallery': 6},
+    );
+
+    expect(zones.single.color, ArucadColors.yellow);
+  });
+
+  test('crowd bands from a head count match the backend thresholds', () {
+    expect(campusCrowdForCount(0), CampusCrowd.unknown);
+    expect(campusCrowdForCount(1), CampusCrowd.quiet);
+    expect(campusCrowdForCount(2), CampusCrowd.moderate);
+    expect(campusCrowdForCount(5), CampusCrowd.busy);
+    expect(crowdColorForCount(5), ArucadColors.danger);
+    expect(crowdColorForCount(1), ArucadColors.campusGreen);
+  });
 }

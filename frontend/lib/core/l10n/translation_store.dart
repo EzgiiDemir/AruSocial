@@ -54,7 +54,9 @@ class TranslationStore {
       final prefs = await SharedPreferences.getInstance();
       final known = prefs.getString(_versionKey);
 
-      final uri = Uri.parse('$baseUrl/api/v1/translations')
+      // baseUrl already ends in /api/v1 (config.apiBaseUrl), so the path must
+      // NOT repeat it — otherwise the request goes to /api/v1/api/v1/... (404).
+      final uri = Uri.parse('$baseUrl/translations')
           .replace(queryParameters: {'lang': language.name});
 
       final response = await _client.get(uri, headers: {

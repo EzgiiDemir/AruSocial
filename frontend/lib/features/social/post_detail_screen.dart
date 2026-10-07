@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:arucad_campus_prototype/features/widgets/top_notice.dart';
 
 import 'package:arucad_campus_prototype/core/config/place_tour.dart';
 import 'package:arucad_campus_prototype/core/l10n/app_strings.dart';
@@ -111,8 +112,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     } on ContentModerationException catch (e) {
       if (!mounted) return;
       setState(() => _post = previous);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(e.reason)));
+      showTopNotice(context, message: e.reason, kind: TopNoticeKind.error);
     } catch (_) {
       if (!mounted) return;
       setState(() => _post = previous);

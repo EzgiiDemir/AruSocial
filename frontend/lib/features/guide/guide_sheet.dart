@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:arucad_campus_prototype/features/widgets/linkified_text.dart';
+import 'package:arucad_campus_prototype/core/l10n/app_strings.dart';
 import 'package:arucad_campus_prototype/core/models/geo_point.dart';
 
 import 'package:arucad_campus_prototype/core/config/campus_life_config.dart';
 import 'package:arucad_campus_prototype/core/config/place_catalog.dart';
+import 'package:arucad_campus_prototype/core/config/place_tour.dart';
 import 'package:arucad_campus_prototype/core/config/poi_config.dart';
 import 'package:arucad_campus_prototype/core/models/campus_models.dart';
 import 'package:arucad_campus_prototype/core/services/directions_result.dart';
 import 'package:arucad_campus_prototype/core/services/contracts.dart';
 import 'package:arucad_campus_prototype/core/services/groq_ai_service.dart';
 import 'package:arucad_campus_prototype/core/services/rest_campus_repository.dart';
+import 'package:arucad_campus_prototype/core/services/tour_launcher.dart';
 import 'package:arucad_campus_prototype/core/network/api_client.dart';
 import 'package:arucad_campus_prototype/core/theme/arucad_theme.dart';
 import 'package:arucad_campus_prototype/features/clubs/club_detail_screen.dart';
@@ -138,6 +142,12 @@ class _GuideSheetState extends State<GuideSheet> {
     });
   }
 
+  Future<void> _openTour(CampusPlace place) async {
+    final tour = resolvePlaceTour(place);
+    await open360Tour(context, tour.url,
+        tourTarget: tour.target, title: place.name);
+  }
+
   void _openClub(CampusClub club) {
     Navigator.of(context).push(MaterialPageRoute(
         builder: (_) => ClubDetailScreen(
@@ -226,10 +236,12 @@ class _GuideSheetState extends State<GuideSheet> {
               Row(children: [
                 const CircleAvatar(
                     radius: 20,
-                    backgroundImage: AssetImage('assets/images/galatea.png')),
+                    backgroundColor: Colors.white,
+                    backgroundImage:
+                        AssetImage('assets/images/aruverse_mark.png')),
                 const SizedBox(width: 12),
                 Expanded(
-                    child: Text('Aicad',
+                    child: Text('AICAD',
                         style: Theme.of(context)
                             .textTheme
                             .titleLarge
@@ -282,7 +294,9 @@ class _GuideSheetState extends State<GuideSheet> {
                         child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(answer),
+                              // Same as the chat: a cited source has to be
+                              // openable, not just readable.
+                              LinkifiedText(answer),
                               if (matchedPlace != null) ...[
                                 const SizedBox(height: 14),
                                 Row(children: [
@@ -304,6 +318,18 @@ class _GuideSheetState extends State<GuideSheet> {
                                     ),
                                   ),
                                 ]),
+                                if (matchedPlace != null) ...[
+                                  const SizedBox(height: 10),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: FilledButton.icon(
+                                      onPressed: () => _openTour(matchedPlace!),
+                                      icon: const Icon(Icons.threesixty),
+                                      label: Text(AppLocale.of(context)
+                                          .t('ask_open_360')),
+                                    ),
+                                  ),
+                                ],
                               ],
                               if (matchedService != null) ...[
                                 const SizedBox(height: 14),

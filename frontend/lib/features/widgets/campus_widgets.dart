@@ -227,8 +227,8 @@ class BrandMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // ARUVERSE is the product identity. Keep the regular/light-mode emblem
-    // in every theme; only the surrounding header surface changes.
+    // ARUVERSE is the product identity. Every branded surface uses the same
+    // approved master artwork; only the surrounding header surface changes.
     return Align(
       alignment: Alignment.centerLeft,
       child: FittedBox(
@@ -239,7 +239,7 @@ class BrandMark extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Image.asset(
-              'assets/images/aruverse_emblem.png',
+              'assets/images/aruverse_mark.png',
               height: height,
               filterQuality: FilterQuality.high,
             ),
@@ -789,6 +789,21 @@ PlaceLineArt? placeLineArt(String name) {
         ArucadColors.campusGreen);
   }
   return null;
+}
+
+/// Bundled campus photograph for [name], used as the default place cover
+/// before anyone uploads one.
+///
+/// The photo set is the same catalogue as the line art and is named after
+/// it file-for-file, so the name matching lives in [placeLineArt] only —
+/// one place to add a new place instead of two lists that can drift apart.
+/// `place_artwork_test.dart` asserts every line-art mark really does have
+/// the photo this derives.
+String? placePhoto(String name) {
+  final art = placeLineArt(name);
+  if (art == null) return null;
+  final file = art.asset.split('/').last.replaceFirst('.png', '.jpg');
+  return 'assets/images/places/photos/$file';
 }
 
 class PlaceLineArtIcon extends StatelessWidget {

@@ -77,6 +77,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool _refreshingCatalog = false;
   int _unreadNotifs = 0;
   CampusWeather? _weather;
+  bool _weatherLoading = true;
   static const _location = LocationService();
 
   /// `/feed` is ordered by pinned state first for the social screen. Home's
@@ -190,12 +191,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _loadWeather() async {
+    if (mounted) setState(() => _weatherLoading = true);
     try {
       final weather = await widget.repository.getWeather();
       if (mounted) setState(() => _weather = weather);
     } catch (_) {
-      // The greeting card simply omits the weather row rather than
-      // showing a made-up temperature.
+      // Keep the weather affordance visible with an honest unavailable
+      // state; silently removing it made a temporary provider outage look
+      // like the feature itself had been deleted.
+    } finally {
+      if (mounted) setState(() => _weatherLoading = false);
     }
   }
 
@@ -251,6 +256,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _load() async {
+    unawaited(_loadWeather());
     // Two waves: `php artisan serve` on Windows is single-threaded
     // (PHP_CLI_SERVER_WORKERS cannot fork), so 7 parallel GETs after
     // login used to hit the client timeout while queued behind each other.
@@ -443,10 +449,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         CampusPageHeader(
           title: 'ARUVERSE',
           leading: const SizedBox(
-            width: 32,
-            height: 32,
+            width: 36,
+            height: 40,
             child: BrandMark(
-              height: 24,
+              height: 36,
               showWordmark: false,
             ),
           ),
@@ -483,6 +489,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     GreetingCard(
                       userName: widget.user.name,
                       weather: _weather,
+                      weatherLoading: _weatherLoading,
                     ),
                     const SizedBox(height: ArucadSpacing.lg),
 

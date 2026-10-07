@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:arucad_campus_prototype/features/widgets/top_notice.dart';
 
 import 'package:flutter/material.dart';
 
@@ -151,8 +152,7 @@ class _ChatGroupScreenState extends State<ChatGroupScreen> {
       if (!mounted) return;
       setState(() =>
           _messages = _messages.where((m) => m.id != optimistic.id).toList());
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(e.reason)));
+      showTopNotice(context, message: e.reason, kind: TopNoticeKind.error);
     } catch (_) {
       if (!mounted) return;
       setState(() =>

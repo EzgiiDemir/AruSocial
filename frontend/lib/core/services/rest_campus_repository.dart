@@ -2,6 +2,9 @@ import 'photo_picker_service.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:http/http.dart' as http;
+
 import 'package:arucad_campus_prototype/core/config/campus_life_config.dart';
 import 'package:arucad_campus_prototype/core/config/onboarding_config.dart';
 import 'package:arucad_campus_prototype/core/config/shuttle_config.dart';
@@ -38,12 +41,40 @@ import 'contracts.dart';
 import 'directions_result.dart';
 import 'site_settings_store.dart';
 
+String _weatherSummary(int code) => switch (code) {
+      0 => 'Açık',
+      <= 2 => 'Parçalı bulutlu',
+      3 => 'Bulutlu',
+      <= 48 => 'Sisli',
+      <= 57 => 'Çiseleyen yağmur',
+      <= 67 => 'Yağmurlu',
+      <= 77 => 'Karlı',
+      <= 82 => 'Sağanak yağış',
+      <= 86 => 'Kar sağanağı',
+      _ => 'Gök gürültülü fırtına',
+    };
+
 class RestCampusRepository implements CampusRepository {
   RestCampusRepository({required this.client}) {
     MediaUrl.bindApiBase(client.baseUrl);
   }
 
+  /// Conversation turns sent with a question. Mirrors the server's
+  /// AI_HISTORY_TURNS default; the server re-applies its own cap.
+  static const _askHistoryTurns = 12;
+
   String? lastAskConversationId;
+
+  /// Sources the backend used for the most recent [askGuide] answer.
+  ///
+  /// A side-channel for the same reason `lastAskConversationId` is one:
+  /// `askGuide` returns the answer string and is implemented by every
+  /// repository, so widening its return type would ripple through Mock
+  /// mode and the contract for a field only the REST path can produce.
+  List<AskArucadSource> lastAskSources = const [];
+  List<AskPlaceComponent> lastAskPlaces = const [];
+  AskRouteComponent? lastAskRoute;
+  List<AskEventComponent> lastAskEvents = const [];
 
   /// Real server-side moderation now backs every content-creation call
   /// (`ModerationService` in the Laravel app) — a modified/malicious
@@ -709,13 +740,14 @@ class RestCampusRepository implements CampusRepository {
       final response = await client.get('/weather');
       final data = response['data'] as Map<String, dynamic>?;
       final weather = data?['weather'];
-      if (weather is! Map<String, dynamic>) return null;
-      return CampusWeather.fromJson(weather);
+      if (weather is Map<String, dynamic>) {
+        return CampusWeather.fromJson(weather);
+      }
     } catch (_) {
-      // Weather is decoration on top of the map, never a blocker — a
-      // provider outage hides the row rather than failing the screen.
-      return null;
+      // Continue to the same provider directly. This keeps local Windows
+      // usable when PHP/libcurl is blocked while browser HTTPS still works.
     }
+    return _getOpenMeteoWeather();
   }
 
   @override
@@ -757,6 +789,32 @@ class RestCampusRepository implements CampusRepository {
   }
 
   @override
+  Future<String?> pingPresence({
+    required double latitude,
+    required double longitude,
+  }) async {
+    final response = await client.post('/presence/ping', body: {
+      'latitude': latitude,
+      'longitude': longitude,
+    });
+    final data = response['data'] as Map<String, dynamic>?;
+    return data?['placeId'] as String?;
+  }
+
+  @override
+  Future<void> forgetPresence() async {
+    await client.post('/presence/forget');
+  }
+
+  @override
+  Future<CampusLiveCrowd> getLiveCrowd() async {
+    final response = await client.get('/presence/live');
+    final data = response['data'] as Map<String, dynamic>?;
+    if (data == null) return const CampusLiveCrowd();
+    return CampusLiveCrowd.fromJson(data);
+  }
+
+  @override
   Future<EventJoinResult> joinEvent(String eventId,
       {String? participationTypeId}) async {
     final response = await client.post('/events/$eventId/join',
@@ -795,7 +853,12 @@ class RestCampusRepository implements CampusRepository {
       if (conversationId != null && conversationId.startsWith('ask-'))
         'conversationId': conversationId,
       'messages': [
-        for (final turn in history)
+        // The server caps history too (AI_HISTORY_TURNS) and is the
+        // authority on it; this just avoids shipping an hour of
+        // conversation for the backend to throw away.
+        for (final turn in history.length > _askHistoryTurns
+            ? history.sublist(history.length - _askHistoryTurns)
+            : history)
           {'role': turn.fromUser ? 'user' : 'assistant', 'content': turn.text},
         {'role': 'user', 'content': prompt},
       ],
@@ -803,9 +866,25 @@ class RestCampusRepository implements CampusRepository {
     final data = response['data'];
     if (data is Map<String, dynamic>) {
       lastAskConversationId = data['conversationId'] as String?;
+      lastAskSources = (data['sources'] as List<dynamic>? ?? const [])
+          .map((s) => AskArucadSource.fromJson(s as Map<String, dynamic>))
+          .toList();
+      lastAskPlaces = (data['places'] as List<dynamic>? ?? const [])
+          .map((p) => AskPlaceComponent.fromJson(p as Map<String, dynamic>))
+          .toList();
+      lastAskRoute = data['route'] is Map<String, dynamic>
+          ? AskRouteComponent.fromJson(data['route'] as Map<String, dynamic>)
+          : null;
+      lastAskEvents = (data['events'] as List<dynamic>? ?? const [])
+          .map((e) => AskEventComponent.fromJson(e as Map<String, dynamic>))
+          .toList();
       return data['answer'] as String? ?? '';
     }
     lastAskConversationId = null;
+    lastAskSources = const [];
+    lastAskPlaces = const [];
+    lastAskRoute = null;
+    lastAskEvents = const [];
     return '';
   }
 
@@ -859,7 +938,6 @@ class RestCampusRepository implements CampusRepository {
   Future<void> deleteEvent(String id) async {
     await client.post('/admin/events/$id/delete');
   }
-
 
   @override
   Future<List<CampusClub>> getClubs({String? category}) async {
@@ -1590,6 +1668,20 @@ class RestCampusRepository implements CampusRepository {
     required double toLng,
     TravelMode mode = TravelMode.walking,
   }) async {
+    // The local Windows PHP server cannot reach public OSRM from its sandbox.
+    // On local web builds, go straight from the browser to the road provider
+    // instead of knowingly producing a noisy 502 first.
+    final apiHost = Uri.tryParse(client.baseUrl)?.host.toLowerCase();
+    final localWebApi = kIsWeb &&
+        (apiHost == '127.0.0.1' || apiHost == 'localhost' || apiHost == '::1');
+    if (mode.usesRoadNetwork && localWebApi) {
+      return _getPublicRoadRoute(
+        fromLat: fromLat,
+        fromLng: fromLng,
+        toLat: toLat,
+        toLng: toLng,
+      );
+    }
     try {
       final response = await client.post('/routing/directions', body: {
         'fromLat': fromLat,
@@ -1604,10 +1696,158 @@ class RestCampusRepository implements CampusRepository {
           e.statusCode == 502 ||
           e.code == 'ROUTING_NOT_CONFIGURED' ||
           e.code == 'ROUTING_UNAVAILABLE') {
+        if (mode.usesRoadNetwork) {
+          return _getPublicRoadRoute(
+            fromLat: fromLat,
+            fromLng: fromLng,
+            toLat: toLat,
+            toLng: toLng,
+          );
+        }
         return null;
       }
       rethrow;
+    } catch (_) {
+      // The local API can itself be unreachable (for example while the
+      // developer server is restarting). Keep road navigation usable by
+      // asking the public road router directly from the client.
+      if (mode.usesRoadNetwork) {
+        return _getPublicRoadRoute(
+          fromLat: fromLat,
+          fromLng: fromLng,
+          toLat: toLat,
+          toLng: toLng,
+        );
+      }
+      return null;
     }
+  }
+
+  @override
+  Future<Map<String, dynamic>?> matchRouteTrace({
+    required List<Map<String, dynamic>> samples,
+    TravelMode mode = TravelMode.walking,
+  }) async {
+    if (samples.length < 2) return null;
+    try {
+      final response = await client.post('/routing/match', body: {
+        'samples': samples,
+        'mode': mode.name,
+      });
+      final data = response['data'];
+      return data is Map<String, dynamic>
+          ? data
+          : data is Map
+              ? Map<String, dynamic>.from(data)
+              : null;
+    } on ApiClientException catch (e) {
+      if (e.statusCode == 501 || e.statusCode == 502) return null;
+      rethrow;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<CampusWeather?> _getOpenMeteoWeather() async {
+    try {
+      final uri = Uri.https('api.open-meteo.com', '/v1/forecast', {
+        'latitude': '35.33745566534394',
+        'longitude': '33.321512563639914',
+        'current':
+            'temperature_2m,apparent_temperature,weather_code,wind_speed_10m,is_day',
+        'timezone': 'Europe/Nicosia',
+        'wind_speed_unit': 'kmh',
+      });
+      final response = await http.get(uri, headers: const {
+        'Accept': 'application/json',
+      }).timeout(const Duration(seconds: 8));
+      if (response.statusCode != 200) return null;
+      final json = jsonDecode(response.body) as Map<String, dynamic>;
+      final current = json['current'] as Map<String, dynamic>?;
+      if (current == null || current['temperature_2m'] is! num) return null;
+      final code = (current['weather_code'] as num?)?.toInt() ?? 0;
+      return CampusWeather(
+        temperatureC: (current['temperature_2m'] as num).toDouble(),
+        feelsLikeC: (current['apparent_temperature'] as num?)?.toDouble() ??
+            (current['temperature_2m'] as num).toDouble(),
+        windKph: (current['wind_speed_10m'] as num?)?.toDouble() ?? 0,
+        code: code,
+        summary: _weatherSummary(code),
+        isDay: (current['is_day'] as num?)?.toInt() != 0,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<WalkingRoute?> _getPublicRoadRoute({
+    required double fromLat,
+    required double fromLng,
+    required double toLat,
+    required double toLng,
+  }) async {
+    final coordinatePath =
+        '${fromLng.toStringAsFixed(6)},${fromLat.toStringAsFixed(6)};'
+        '${toLng.toStringAsFixed(6)},${toLat.toStringAsFixed(6)}';
+    final endpoints = <Uri>[
+      Uri.https(
+        'routing.openstreetmap.de',
+        '/routed-car/route/v1/driving/$coordinatePath',
+        const {'overview': 'full', 'geometries': 'geojson', 'steps': 'true'},
+      ),
+      Uri.https(
+        'router.project-osrm.org',
+        '/route/v1/driving/$coordinatePath',
+        const {'overview': 'full', 'geometries': 'geojson', 'steps': 'true'},
+      ),
+    ];
+    for (final uri in endpoints) {
+      try {
+        final response = await http.get(uri, headers: const {
+          'Accept': 'application/json',
+        }).timeout(const Duration(seconds: 8));
+        if (response.statusCode != 200) continue;
+        final payload = jsonDecode(response.body) as Map<String, dynamic>;
+        final routes = payload['routes'] as List<dynamic>?;
+        if (routes == null || routes.isEmpty) continue;
+        final route = routes.first as Map<String, dynamic>;
+        final geometry = route['geometry'] as Map<String, dynamic>?;
+        final coordinates = geometry?['coordinates'] as List<dynamic>?;
+        if (coordinates == null || coordinates.length < 2) continue;
+        final points = coordinates.map((entry) {
+          final pair = entry as List<dynamic>;
+          return {'lat': pair[1], 'lng': pair[0]};
+        }).toList(growable: false);
+        final steps = <Map<String, dynamic>>[];
+        for (final leg in route['legs'] as List<dynamic>? ?? const []) {
+          for (final rawStep
+              in (leg as Map<String, dynamic>)['steps'] as List<dynamic>? ??
+                  const []) {
+            final step = rawStep as Map<String, dynamic>;
+            final maneuver = step['maneuver'] as Map<String, dynamic>? ??
+                const <String, dynamic>{};
+            steps.add({
+              'instruction': '',
+              'type': maneuver['type'] ?? '',
+              'modifier': maneuver['modifier'] ?? '',
+              'name': step['name'] ?? '',
+              'distanceMeters': step['distance'] ?? 0,
+              'durationSeconds': step['duration'] ?? 0,
+            });
+          }
+        }
+        return WalkingRoute.fromJson({
+          'points': points,
+          'distanceMeters': route['distance'] ?? 0,
+          'durationSeconds': route['duration'] ?? 0,
+          'steps': steps,
+          'provider': uri.host,
+        });
+      } catch (_) {
+        // Try the next OSRM-compatible road provider.
+      }
+    }
+    return null;
   }
 
   @override
@@ -2247,8 +2487,8 @@ class RestCampusRepository implements CampusRepository {
   @override
   Future<List<ModerationCase>> getModerationCases(
       {String status = 'open'}) async {
-    final json = await client
-        .get('/admin/moderation/cases', query: {'status': status});
+    final json =
+        await client.get('/admin/moderation/cases', query: {'status': status});
     final data = json['data'];
     return [
       for (final row in (data as List? ?? []))

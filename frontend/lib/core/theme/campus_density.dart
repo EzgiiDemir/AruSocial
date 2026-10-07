@@ -46,3 +46,21 @@ Color densityForeground(Color fill) =>
 int campusPresenceCount(CampusPlace place) =>
     place.recentCheckins < 0 ? 0 : place.recentCheckins;
 
+/// The three crowd bands applied to a raw head count, matching the
+/// thresholds the backend uses to derive a place's density string
+/// (`App\Services\PlacePresence::densityFor`). One rule, so a live count
+/// and a density label can never disagree about what "busy" means.
+CampusCrowd campusCrowdForCount(int people) {
+  if (people >= 5) return CampusCrowd.busy;
+  if (people >= 2) return CampusCrowd.moderate;
+  if (people >= 1) return CampusCrowd.quiet;
+  return CampusCrowd.unknown;
+}
+
+Color crowdColorForCount(int people) => switch (campusCrowdForCount(people)) {
+      CampusCrowd.busy => ArucadColors.danger,
+      CampusCrowd.moderate => ArucadColors.yellow,
+      CampusCrowd.quiet => ArucadColors.campusGreen,
+      CampusCrowd.unknown => ArucadColors.slate,
+    };
+

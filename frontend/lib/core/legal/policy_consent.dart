@@ -46,7 +46,9 @@ class PolicyConsentClient {
 
   final ApiClient _api;
 
-  static const _path = '/api/v1/me/policy-consent';
+  // ApiClient.baseUrl already includes /api/v1, so this path must not repeat
+  // it — otherwise every call 404s on /api/v1/api/v1/me/policy-consent.
+  static const _path = '/me/policy-consent';
 
   /// Whether this account still has to accept.
   ///

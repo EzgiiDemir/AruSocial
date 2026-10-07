@@ -62,6 +62,7 @@ flutter:
     - assets/icons/
     - assets/images/
     - assets/images/places/
+    - assets/images/places/photos/
     - assets/legal/
   fonts:
     - family: Montserrat
@@ -96,10 +97,11 @@ l10n:
 
 flutter_launcher_icons:
   android: true
-  ios: false
+  ios: true
   web:
     generate: true
-  image_path: "assets/images/aruverse_icon_light.png"
+  image_path: "assets/images/aruverse_mark.png"
   adaptive_icon_background: "#FFFFFF"
-  adaptive_icon_foreground: "assets/images/aruverse_adaptive_fg.png"
+  adaptive_icon_foreground: "assets/images/aruverse_mark.png"
+  remove_alpha_ios: true
   min_sdk_android: 21

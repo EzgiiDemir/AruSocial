@@ -13,7 +13,7 @@ class ApiClient {
   /// app can clear the local session instead of leaving the student on a
   /// screen that will 401 forever. Login itself uses different codes
   /// (`INVALID_CREDENTIALS`) and must not trip this.
-  static void Function(String code)? onSessionInvalid;
+  static void Function(String code, String? message)? onSessionInvalid;
 
   /// A moderation result that let the content through but still has
   /// something to tell the author — `warned`, `review`, or `support`.
@@ -198,7 +198,7 @@ class ApiClient {
       if (code == 'ACCOUNT_BANNED' ||
           (response.statusCode == 401 &&
               (code == 'AUTH_REQUIRED' || code == null))) {
-        onSessionInvalid?.call(code ?? 'AUTH_REQUIRED');
+        onSessionInvalid?.call(code ?? 'AUTH_REQUIRED', message);
       }
       throw ApiClientException(
         message,
@@ -243,7 +243,24 @@ class ApiClientException implements Exception {
   String get displayMessage {
     switch (code) {
       case 'ACCOUNT_BANNED':
-        return 'Bu hesap askıya alındı. Lütfen öğrenci işleri ile iletişime geç.';
+      case 'ACCOUNT_SUSPENDED':
+        // Show the server's detailed reason — it tells the user WHEN they can
+        // post again ("Tekrar erişebileceğin zaman: …") and why. Only fall
+        // back to a generic line if the server sent nothing.
+        return message.trim().isNotEmpty
+            ? message
+            : 'Bu hesap askıya alındı. Lütfen öğrenci işleri ile iletişime geç.';
+      case 'CONTENT_BLOCKED':
+      case 'MODERATION_PENDING':
+      case 'MODERATION_UNAVAILABLE':
+      // A posting restriction is deliberately NOT grouped with the
+      // suspension cases above: the account still works, so telling
+      // someone it was suspended would be wrong. It is also not a session
+      // failure, so it never signs anyone out.
+      case 'POSTING_RESTRICTED':
+        // Moderation messages name the reason (category, points charged,
+        // review status) — always show them verbatim so the user knows why.
+        return message;
       case 'INVALID_CREDENTIALS':
       case 'DOMAIN_NOT_ALLOWED':
       case 'NETWORK_UNREACHABLE':
@@ -292,31 +309,23 @@ bool isNetworkFailure(Object error) {
 
 String describeNetworkFailure(Object error, {String? baseUrl}) {
   final s = error.toString();
-  final endpoint = Uri.tryParse(baseUrl ?? '');
-  final host = endpoint?.host ?? '';
-  final target = host.isEmpty ? '' : ' API adresi: $host.';
   if (s.contains('No route to host') ||
       s.contains('errno = 113') ||
       s.contains('Network is unreachable') ||
       s.contains('errno = 101')) {
-    return 'Telefon API sunucusuna ağ üzerinden ulaşamıyor.$target '
-        'Telefon ve bilgisayarın aynı ağa bağlı olduğundan emin olun.';
+    return 'Sunucuya ulaşılamadı. İnternet bağlantınızı kontrol edip tekrar deneyin.';
   }
   if (s.contains('Connection refused') || s.contains('errno = 111')) {
-    return 'API sunucusu bu adreste bağlantıyı kabul etmiyor.$target '
-        'Sunucu ve port yapılandırmasını kontrol edin.';
+    return 'ARUVERSE hizmeti şu anda kullanılamıyor. Lütfen daha sonra tekrar deneyin.';
   }
   if (s.contains('timed out') ||
       s.contains('TimeoutException') ||
       s.contains('errno = 110') ||
       s.contains('ERR_NETWORK')) {
-    return 'API sunucusu zamanında yanıt vermedi.$target '
-        'Bağlantıyı kontrol edip tekrar deneyin.';
+    return 'Sunucu zamanında yanıt vermedi. İnternet bağlantınızı kontrol edip tekrar deneyin.';
   }
   if (s.contains('Failed host lookup')) {
-    return 'API adresi çözülemedi.$target '
-        'Uygulama yapılandırmasındaki sunucu adresini kontrol edin.';
+    return 'ARUVERSE hizmetine bağlanılamadı. İnternet bağlantınızı kontrol edip tekrar deneyin.';
   }
-  return 'Sunucuya ulaşılamadı.$target '
-      'Telefon ve sunucunun aynı ağda olduğundan emin olun.';
+  return 'Sunucuya ulaşılamadı. İnternet bağlantınızı kontrol edip tekrar deneyin.';
 }

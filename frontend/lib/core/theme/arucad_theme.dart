@@ -14,6 +14,16 @@ class ArucadColors {
   static const lavender = Color(0xFFC9BFE3);
   static const orange = Color(0xFFF7941D);
 
+  /// The "you are here" puck on every map.
+  ///
+  /// Deliberately NOT [blue]/[primary]: those are the brand navy the route
+  /// line and the destination pin are drawn in, so a student following a
+  /// route saw their own position and the place they were walking to in
+  /// the same colour. This is a brighter, lighter blue that reads as live
+  /// device location at a glance and never collides with the three
+  /// density colours either.
+  static const liveLocation = Color(0xFF1E88FF);
+
   static const navy = primary;
   static const slate = Color(0xFF5B6472);
   static const ink = Color(0xFF111111);

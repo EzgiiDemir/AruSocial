@@ -15,13 +15,14 @@ void main() {
     expect(uri.queryParameters, {'campus': 'main', 'scene': '12'});
   });
 
-  testWidgets('directory exposes search and remains usable on a narrow screen', (tester) async {
+  testWidgets('directory exposes search and remains usable on a narrow screen',
+      (tester) async {
     await tester.binding.setSurfaceSize(const Size(320, 740));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    await tester.pumpWidget(MaterialApp(home: BuildingDirectoryScreen(
-        repository: MockCampusRepository())));
+    await tester.pumpWidget(MaterialApp(
+        home: BuildingDirectoryScreen(repository: MockCampusRepository())));
     await tester.pumpAndSettle();
-    expect(find.text('Bina ara'), findsOneWidget);
+    expect(find.text('Bina, oda, birim veya personel ara'), findsOneWidget);
     await tester.enterText(find.byType(TextField), 'nonexistent building');
     await tester.pumpAndSettle();
     expect(find.text('Bina bulunamadı.'), findsOneWidget);
@@ -35,7 +36,8 @@ void main() {
       (tester) async {
     await tester.pumpWidget(const MaterialApp(
         home: Scaffold(
-            body: FeedPostMedia(imageUrl: 'https://example.test/media/x.jpg'))));
+            body:
+                FeedPostMedia(imageUrl: 'https://example.test/media/x.jpg'))));
 
     expect(find.text('Oynat'), findsNothing);
     expect(find.text('Video'), findsNothing);

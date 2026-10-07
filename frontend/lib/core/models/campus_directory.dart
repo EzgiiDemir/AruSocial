@@ -54,7 +54,11 @@ class CampusRoom {
   final String? categoryName;
   final String? roomNumber;
   final String? notes;
+  final String? splatSceneId;
   final String? splatSceneUrl;
+  final Map<String, dynamic>? location;
+  final Map<String, dynamic>? navigationMarker;
+  final DateTime? directorySyncedAt;
 
   const CampusRoom({
     required this.id,
@@ -70,7 +74,11 @@ class CampusRoom {
     this.categoryName,
     this.roomNumber,
     this.notes,
+    this.splatSceneId,
     this.splatSceneUrl,
+    this.location,
+    this.navigationMarker,
+    this.directorySyncedAt,
   });
 
   factory CampusRoom.fromJson(Map<String, dynamic> json) => CampusRoom(
@@ -87,7 +95,14 @@ class CampusRoom {
         categoryName: json['categoryName'] as String?,
         roomNumber: json['roomNumber'] as String?,
         notes: json['notes'] as String?,
+        splatSceneId: json['splatSceneId'] as String?,
         splatSceneUrl: json['splatSceneUrl'] as String?,
+        location: (json['location'] as Map?)?.cast<String, dynamic>(),
+        navigationMarker:
+            (json['navigationMarker'] as Map?)?.cast<String, dynamic>(),
+        directorySyncedAt: json['directorySyncedAt'] == null
+            ? null
+            : DateTime.tryParse(json['directorySyncedAt'] as String),
       );
 
   String get title {

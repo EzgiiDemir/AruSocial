@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'package:arucad_campus_prototype/features/widgets/top_notice.dart';
 
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
@@ -130,35 +131,46 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
               child: Stack(fit: StackFit.expand, children: [
                 GestureDetector(
                   onTap: () => _tour(context),
-                  child: _coverPhoto == null
-                      ? Container(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .surfaceContainerHighest,
-                          child: Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                PlaceLineArtIcon(
-                                  placeName: place.name,
-                                  color: ArucadColors.primary
-                                      .withValues(alpha: .78),
-                                  size: 92,
-                                ),
-                                const SizedBox(height: 6),
-                                Text(
-                                    AppLocale.of(context)
-                                        .t('place_tour_tap'),
-                                    style: TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .onSurface)),
-                              ],
+                  child: Builder(builder: (context) {
+                    if (_coverPhoto != null) {
+                      return _TourHintOverlay(
+                          child: _CoverPhotoImage(src: _coverPhoto!));
+                    }
+                    final bundledPhoto = placePhoto(place.name);
+                    if (bundledPhoto != null) {
+                      return _TourHintOverlay(
+                        child: Image.asset(
+                          bundledPhoto,
+                          fit: BoxFit.cover,
+                          filterQuality: FilterQuality.medium,
+                        ),
+                      );
+                    }
+                    return Container(
+                      color:
+                          Theme.of(context).colorScheme.surfaceContainerHighest,
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            PlaceLineArtIcon(
+                              placeName: place.name,
+                              color:
+                                  ArucadColors.primary.withValues(alpha: .78),
+                              size: 92,
                             ),
-                          ),
-                        )
-                      : _CoverPhotoImage(src: _coverPhoto!),
+                            const SizedBox(height: 6),
+                            Text(AppLocale.of(context).t('place_tour_tap'),
+                                style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurface)),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
                 ),
                 Positioned(
                   right: 10,
@@ -690,7 +702,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
       await repository.addReview(place.id, rating, controller.text.trim());
     } on ContentModerationException catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.reason)));
+      showTopNotice(context, message: e.reason, kind: TopNoticeKind.error);
       return;
     }
     if (!context.mounted) return;
@@ -770,6 +782,49 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(AppLocale.of(context).t('pd_photo_added'))));
+  }
+}
+
+/// The hero is the 360° tour's tap target. With a photo behind it the
+/// placeholder's hint is gone, so keep the hint over the photo — scrimmed
+/// so it stays readable on a bright cover.
+class _TourHintOverlay extends StatelessWidget {
+  final Widget child;
+  const _TourHintOverlay({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(fit: StackFit.expand, children: [
+      child,
+      const DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.center,
+            end: Alignment.bottomCenter,
+            colors: [Colors.transparent, Colors.black54],
+          ),
+        ),
+      ),
+      Align(
+        alignment: Alignment.bottomLeft,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(Icons.threesixty, color: Colors.white, size: 20),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                AppLocale.of(context).t('place_tour_tap'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ]),
+        ),
+      ),
+    ]);
   }
 }
 

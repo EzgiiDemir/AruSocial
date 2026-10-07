@@ -9,7 +9,7 @@ Bu metin hukuki inceleme bekleyen bir **taslaktır**. Yürürlüğe girmeden
 ## 1. Hizmet
 
 ARUVERSE, ARUCAD öğrencileri ve personeli için kampüs sosyal ağı, harita,
-etkinlik, başvuru ve Aicad asistanını sağlar. `@arucad.edu.tr` hesabı
+etkinlik, başvuru ve AICAD asistanını sağlar. `@arucad.edu.tr` hesabı
 zorunludur.
 
 ## 2. Hesap
@@ -90,7 +90,7 @@ kısıtlı çalışır.
 
 ## 9. Yapay zekâ
 
-Aicad kampüs kataloğuna dayalı yanıt üretir; hatalı bilgi içerebilir.
+AICAD kampüs kataloğuna dayalı yanıt üretir; hatalı bilgi içerebilir.
 Resmî akademik kararların yerine geçmez.
 
 ## 10. Sorumluluk

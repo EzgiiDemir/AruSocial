@@ -285,36 +285,4 @@ class AppSettingsStore {
     }
   }
 
-  static const _kRuntimeUseRest = 'settings.runtime.useRestApi';
-  static const _kRuntimeApiHost = 'settings.runtime.apiHost';
-  static const _kRuntimeApiPort = 'settings.runtime.apiPort';
-
-  /// Login-screen override for Laravel REST. `null` means follow the
-  /// compile-time `--dart-define` / release default.
-  static Future<bool?> runtimeUseRestApi() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (!prefs.containsKey(_kRuntimeUseRest)) return null;
-    return prefs.getBool(_kRuntimeUseRest);
-  }
-
-  static Future<String> runtimeApiHost() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_kRuntimeApiHost) ?? '';
-  }
-
-  static Future<int> runtimeApiPort() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getInt(_kRuntimeApiPort) ?? 4000;
-  }
-
-  static Future<void> setRuntimeApi({
-    required bool useRestApi,
-    required String host,
-    int port = 4000,
-  }) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_kRuntimeUseRest, useRestApi);
-    await prefs.setString(_kRuntimeApiHost, host.trim());
-    await prefs.setInt(_kRuntimeApiPort, port);
-  }
 }

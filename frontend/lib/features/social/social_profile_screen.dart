@@ -1,4 +1,5 @@
 import 'package:collection/collection.dart';
+import 'package:arucad_campus_prototype/features/widgets/top_notice.dart';
 import 'package:flutter/material.dart';
 
 import 'package:arucad_campus_prototype/core/auth/app_settings_store.dart';
@@ -201,8 +202,7 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
       await _load();
     } on ContentModerationException catch (e) {
       if (!mounted || !context.mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(e.reason)));
+      showTopNotice(context, message: e.reason, kind: TopNoticeKind.error);
     }
   }
 

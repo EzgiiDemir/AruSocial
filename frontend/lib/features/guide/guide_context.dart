@@ -88,6 +88,46 @@ class GuideContext {
     return best;
   }
 
+  /// The first place named in a sentence.
+  ///
+  /// [matchPlace] deliberately prefers the longest name, which is right for a
+  /// question ("Iris (Atelier Building)" should beat "Iris"). It is wrong for
+  /// an ANSWER: "Titan'da, Rodin'in yanında" is about Titan, but the longest
+  /// match could pick Rodin and navigate the student to the wrong building.
+  /// Whatever is mentioned first is the subject.
+  CampusPlace? firstMentionedPlace(String text) {
+    final target = text.toLowerCase();
+
+    CampusPlace? best;
+    var bestIndex = -1;
+
+    void consider(CampusPlace place, String needle) {
+      if (!_mentions(target, needle, allowSuffix: needle.length >= 6)) return;
+      final at = target.indexOf(needle.toLowerCase());
+      if (at < 0) return;
+      // Earlier wins; on a tie the longer (more specific) name wins.
+      if (bestIndex == -1 ||
+          at < bestIndex ||
+          (at == bestIndex && needle.length > (best?.name.length ?? 0))) {
+        best = place;
+        bestIndex = at;
+      }
+    }
+
+    for (final place in places) {
+      consider(place, place.name);
+    }
+    _placeAliases.forEach((alias, name) {
+      for (final place in places) {
+        if (place.name.toLowerCase() == name.toLowerCase()) {
+          consider(place, alias);
+        }
+      }
+    });
+
+    return best;
+  }
+
   CampusService? matchService(String text) {
     final target = text.toLowerCase();
     for (final service in services) {
@@ -188,7 +228,7 @@ class GuideContext {
     if (lower.contains('merhaba') ||
         lower.contains('selam') ||
         lower.contains('hello')) {
-      return 'Merhaba, ben Aicad. Yer, etkinlik, kulüp, spor veya birim sorabilirsin.';
+      return 'Merhaba, ben AICAD. Yer, etkinlik, kulüp, spor veya birim sorabilirsin.';
     }
     final names = places
         .take(5)

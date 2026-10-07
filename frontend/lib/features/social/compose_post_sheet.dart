@@ -1,3 +1,4 @@
+import 'package:arucad_campus_prototype/features/widgets/top_notice.dart';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -138,8 +139,7 @@ Future<bool> showComposePostSheet(
           } on ContentModerationException catch (e) {
             if (!ctx.mounted) return;
             setSheetState(() => publishing = false);
-            ScaffoldMessenger.of(ctx)
-                .showSnackBar(SnackBar(content: Text(e.reason)));
+            showTopNotice(ctx, message: e.reason, kind: TopNoticeKind.error);
 
             return;
           } catch (_) {

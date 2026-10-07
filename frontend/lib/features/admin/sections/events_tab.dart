@@ -283,7 +283,7 @@ class _EventsTabState extends State<_EventsTab> {
       _reload();
     } on PlaceConflictException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.reason)));
+      showTopNotice(context, message: e.reason, kind: TopNoticeKind.error);
     }
   }
 

@@ -97,8 +97,11 @@ class ModerationBenchmarkTest extends TestCase
      * the other way round.
      */
     #[DataProvider('sets')]
-    public function test_no_safe_post_is_refused(string $name): void
-    {
+    public function test_no_safe_post_is_refused(
+        string $name,
+        float $_minRecall,
+        float $_minPrecision,
+    ): void {
         $runner = new BenchmarkRunner;
         $report = $runner->run($this->load($name));
 

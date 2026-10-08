@@ -368,6 +368,7 @@ class AdminResourceCrudTest extends TestCase
     public function test_each_resource_can_delete_and_restore_a_row(
         string $page,
         array $data,
+        string $_idPrefix,
     ): void {
         $this->admin();
 

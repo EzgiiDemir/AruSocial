@@ -1,6 +1,5 @@
-import 'dart:html' as html;
-
 import 'package:flutter_web_plugins/flutter_web_plugins.dart';
+import 'package:web/web.dart' as web;
 
 /// The Flutter web build is the student application only. Admin and trainer
 /// are served by Laravel/Filament on the backend origin, so keeping legacy
@@ -13,6 +12,6 @@ void configureUrlStrategy() {
       path.startsWith('/admin/') ||
       path == '/trainer' ||
       path.startsWith('/trainer/')) {
-    html.window.history.replaceState(null, '', '/');
+    web.window.history.replaceState(null, '', '/');
   }
 }

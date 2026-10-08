@@ -42,9 +42,9 @@ jobs:
         with:
           php-version: '8.3'
           extensions: fileinfo, pdo_sqlite, sqlite3, mbstring
-      - run: composer install --no-interaction --prefer-dist
       - name: Copy .env
         run: cp .env.example .env
+      - run: composer install --no-interaction --prefer-dist
       - run: php artisan key:generate
       - run: php artisan test
 
@@ -74,9 +74,9 @@ jobs:
         with:
           php-version: '8.3'
           extensions: fileinfo, pdo_pgsql, pgsql, mbstring
-      - run: composer install --no-interaction --prefer-dist
       - name: Copy .env
         run: cp .env.example .env
+      - run: composer install --no-interaction --prefer-dist
       - run: php artisan key:generate
       - run: php artisan test --configuration=phpunit.pgsql.xml
 

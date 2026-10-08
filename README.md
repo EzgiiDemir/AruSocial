@@ -1,4 +1,4 @@
-# AruSocial — ARUCAD Digital Campus Experience
+# ARUVERSE — ARUCAD Digital Campus Experience
 
 A campus-life platform for ARUCAD: not a map app, not a social-media
 clone — a "student operating layer" connecting academic, administrative,

@@ -5,6 +5,7 @@ The exact steps to bring AICAD up on a staging server and run the soak. **Nothin
 Commands run in `backend/` on the staging host. The server commands (build, cache, queue) are those in `DEPLOYMENT.md` §3–4.
 
 ## 0. Before you start
+- **The staging host itself:** see [AICAD_STAGING_INFRASTRUCTURE.md](AICAD_STAGING_INFRASTRUCTURE.md). It covers the infrastructure request (dedicated host, DNS record, TLS, database, isolation), the provisioning commands and the exact staging `.env`.
 - The staging database is a staging copy or a fresh seed. It is **not** production.
 - You have a staff account with an admin-panel role grant. It is used for the full-answer evaluations and the fallback probes.
 - The model host and the embedder are reachable from the staging app server.
@@ -96,6 +97,11 @@ php artisan ask:evaluate --retrieval-only <those --id options>
 Run the automated pack through the real API first, from the staging host (see `AICAD_STAGING_SOAK.md` §4):
 ```
 php artisan ask:smoke --base=https://<staging-api>/api/v1 --as=<staff or approved test account>
+```
+Then the **two-user privacy pack**, which is mandatory: fixture students A and B plus a fixture staff account; B and staff must never receive A's data; personal answers are never cached; public answers still are:
+```
+php artisan aicad:staging-fixtures
+php artisan ask:smoke --privacy --base=https://<staging-api>/api/v1
 ```
 Then do these by hand, from the app or Search Playground, signed in:
 

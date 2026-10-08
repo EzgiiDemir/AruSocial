@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Console\Commands\AicadStagingFixtures;
 use App\Filament\Resources\AcademicYears\Pages\CreateAcademicYear;
 use App\Filament\Resources\Clubs\Pages\EditClub;
 use App\Filament\Resources\FoodVenues\Pages\EditFoodVenue;
@@ -10,6 +11,7 @@ use App\Filament\Resources\Sports\Pages\EditSport;
 use App\Models\AcademicYear;
 use App\Models\AiEntityAlias;
 use App\Models\Club;
+use App\Models\ClubMember;
 use App\Models\FoodVenue;
 use App\Models\KnowledgeDocument;
 use App\Models\OpeningHour;
@@ -34,6 +36,7 @@ use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -300,7 +303,18 @@ class AicadCoverageClosureTest extends TestCase
         $this->assertSame(5, OpeningHour::query()->where('subject_id', 'fixture-cafe')->count());
         $this->assertStringEndsWith('@example.edu', (string) Club::query()->find('fixture-club')->email);
 
+        // Fixture accounts for the two-user privacy smoke: labelled, distinct personal data, no known password.
+        $a = User::query()->where('email', AicadStagingFixtures::accountEmail('student_a'))->firstOrFail();
+        $b = User::query()->where('email', AicadStagingFixtures::accountEmail('student_b'))->firstOrFail();
+        $this->assertSame(['[FIXTURE] Student A', '[FIXTURE] Department A'], [$a->name, $a->department]);
+        $this->assertSame('[FIXTURE] Department B', $b->department);
+        $this->assertFalse(Hash::check('password', $a->password), 'no guessable password');
+        $this->assertTrue(ClubMember::query()->where('user_id', $a->id)->where('club_id', 'fixture-club')->exists());
+        $this->assertFalse(ClubMember::query()->where('user_id', $b->id)->exists());
+        $this->assertSame(3, User::query()->where('email', 'like', 'fixture-%')->count(), 'idempotent: no duplicate accounts');
+
         $this->artisan('aicad:staging-fixtures', ['--remove' => true])->assertSuccessful();
+        $this->assertSame(0, User::query()->where('email', 'like', 'fixture-%')->count(), 'fixture accounts removed');
         $this->assertSame(0, ServiceItem::withTrashed()->where('id', 'like', 'fixture-%')->count() + Place::withTrashed()->where('id', 'like', 'fixture-%')->count());
         $this->assertNotNull(ServiceItem::query()->find('student-affairs'));
 

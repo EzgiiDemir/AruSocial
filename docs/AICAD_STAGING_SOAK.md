@@ -70,6 +70,18 @@ php artisan ask:smoke --base=https://<staging-api>/api/v1 --as=<staff or approve
 - It refuses production, uses a token it creates and then revokes, and stores nothing.
 - Never use real student accounts unless they are approved fixtures.
 
+## 4b. Two-user privacy pack (mandatory)
+```
+php artisan aicad:staging-fixtures
+php artisan ask:smoke --privacy --base=https://<staging-api>/api/v1
+```
+The pack covers four question types for each user: an identical personal question, personal clubs, mixed public and personal, and a personal follow-up. It also covers staff vs student, and a public question asked by two users. It fails when B or staff receive A's department marker, when a personal answer is served from cache, or when A's own answer doesn't carry A's data. That last check makes the leak check inconclusive rather than vacuously green.
+
+**Local validation (2026-10-07, not staging):**
+- No leak: B and staff never received A's data.
+- Personal answers were never cached, and the public answer was served from cache for the second user.
+- But A's own data didn't surface in 4 of 4 personal checks: the local model ignored or misattributed the personal block (see §10), so the pack is not green.
+
 ## 5. The soak
 There is no fixed duration in code. Run until the window has exercised all of the following, with staff or test users:
 - weekdays and a weekend
@@ -129,3 +141,21 @@ Recommend `READY_FOR_PRODUCTION_STAFF_ONLY` only if **every** line holds on stag
 | p95 acceptable vs legacy | `latency_ms.p95` vs the legacy full-answer p95 |
 
 Otherwise: `KEEP_IN_STAGING`.
+
+## 10. Known blocker found by the local HTTP smoke (2026-10-07)
+**Personal answers don't surface the student's own data**, so the privacy smoke can't go green, and this blocks the STAFF_ONLY gate:
+
+| Question | Path | What happened | Layer |
+|---|---|---|---|
+| "profilim ne durumda?" | legacy model (personal block present, never cached) | "Please confirm you are logged in"; the personal block was ignored | GENERATION |
+| "bölümüm ne?" → "peki seviyem kaç?" | legacy model | Stated department "Plastik Sanatlar, 1. yıl": wrong, taken from retrieved programme pages instead of the personal block. AnswerGrounding can't catch it, because the name is in the prompt | GENERATION |
+| "kulüplerim neler ve bölümüm ne?", "bugün yemekte ne var ve bölümüm ne?" | operational path | Public club list / food list; the personal part was dropped | ROUTING (operational claims personal questions) |
+| "hangi kulüplerdeyim?" | operational path | Not recognised as personal (`PersonalContext::isRelevant` only knows "kulübüm/kulüplerim") | PLANNER/vocabulary |
+
+**Proposed smallest fix** (not implemented in 4E, which forbids AI-path changes without a staging-proven failure; needs approval):
+1. A deterministic `DirectAnswer` for profile, department, year, level and club-membership questions from `PersonalContext`, like the existing appointment answer. No model call, never cached.
+2. The operational path doesn't claim a question that `PersonalContext` marks personal.
+3. Extend the personal vocabulary for membership questions ("hangi kulüplerdeyim").
+
+Each needs a sanitized evaluation case and a PHPUnit regression, and the privacy pack must be green afterwards.
+

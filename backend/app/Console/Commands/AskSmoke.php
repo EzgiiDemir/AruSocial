@@ -35,6 +35,7 @@ class AskSmoke extends Command
         {--base= : API base URL, e.g. https://staging-api.example/api/v1}
         {--as= : E-mail of the staff/test account to ask as}
         {--pace=3.5 : Seconds between requests (the ai route is rate limited)}
+        {--privacy : Run the two-user privacy pack with the fixture accounts instead (aicad:staging-fixtures)}
         {--no-answers : Do not print answer text}
         {--json : Print the results as JSON}';
 
@@ -48,6 +49,9 @@ class AskSmoke extends Command
             return self::FAILURE;
         }
         $base = rtrim((string) $this->option('base'), '/');
+        if ($this->option('privacy')) {
+            return $base === '' ? $this->failWith('--base is required.') : $this->privacyPack($base);
+        }
         $user = User::query()->where('email', (string) $this->option('as'))->first();
         if ($base === '' || $user === null) {
             $this->error('--base and --as=<existing account e-mail> are required.');
@@ -87,11 +91,95 @@ class AskSmoke extends Command
         return $failed === [] ? self::SUCCESS : self::FAILURE;
     }
 
+    private function failWith(string $message): int
+    {
+        $this->error($message);
+
+        return self::FAILURE;
+    }
+
+    /**
+     * The two-user privacy pack (mandatory before a soak). Student A has
+     * labelled personal data (a department, membership of the fixture club);
+     * student B and a staff account ask the same words. Nothing of A's may
+     * ever reach them, and no personal answer may be served from the shared
+     * cache. A public question must still be shareable.
+     */
+    private function privacyPack(string $base): int
+    {
+        $users = [];
+        foreach (array_keys(AicadStagingFixtures::ACCOUNTS) as $key) {
+            $users[$key] = User::query()->where('email', AicadStagingFixtures::accountEmail($key))->first();
+            if ($users[$key] === null) {
+                return $this->failWith('Fixture account '.AicadStagingFixtures::accountEmail($key).' is missing: run php artisan aicad:staging-fixtures first.');
+            }
+        }
+        $tokens = array_map(fn (User $u) => $u->createToken('ask-smoke-privacy'), $users);
+        // Only data no one but A has: the fixture club is in the PUBLIC club list, so its name is not a marker.
+        $markers = [AicadStagingFixtures::STUDENT_A_MARKER, 'Department A'];
+        $leaks = fn (string $answer) => collect($markers)->first(fn ($m) => mb_stripos($answer, $m) !== false);
+        $ask = function (string $who, string $q, array $history = []) use ($base, $tokens): array {
+            usleep((int) ((float) $this->option('pace') * 1_000_000));
+
+            return $this->sendCase($base, $tokens[$who]->plainTextToken, ['name' => $who, 'q' => $q, 'history' => $history ?: null, 'check' => fn () => [true, '']]);
+        };
+        $rows = [];
+        $answers = [];
+        $row = function (string $name, bool $ok, string $detail) use (&$rows): void {
+            $rows[] = ['name' => $name, 'ok' => $ok, 'detail' => $detail];
+        };
+
+        try {
+            foreach ([
+                ['identical personal question', 'profilim ne durumda?', []],
+                ['identical personal question (clubs)', 'kulüplerim neler ve bölümüm ne?', []],
+                ['mixed public + personal', 'bugün yemekte ne var ve bölümüm ne?', []],
+                ['personal follow-up', 'peki seviyem kaç?', ['bölümüm ne?']],
+            ] as [$name, $q, $history]) {
+                $a = $ask('student_a', $q, $history);
+                $b = $ask('student_b', $q, $history);
+                $answers[] = "{$name} / A: ".$a['answer'];
+                $answers[] = "{$name} / B: ".$b['answer'];
+                $aSees = $leaks($a['answer']) !== null;
+                $bLeak = $leaks($b['answer']);
+                $row("{$name}: A sees own data", $aSees, $aSees ? 'A\'s answer carries A\'s data' : 'A\'s answer has no personal marker — the check below is inconclusive');
+                $row("{$name}: B never gets A's data", $bLeak === null && $b['ai_mode'] !== 'cached',
+                    $bLeak !== null ? "LEAK: B's answer contains '{$bLeak}'" : ($b['ai_mode'] === 'cached' ? 'personal answer served from cache' : 'B: '.$b['ai_mode']));
+            }
+            $staff = $ask('staff', 'profilim ne durumda?');
+            $staffLeak = $leaks($staff['answer']);
+            $row('staff vs student: staff never gets A\'s data', $staffLeak === null && $staff['ai_mode'] !== 'cached',
+                $staffLeak !== null ? "LEAK: staff answer contains '{$staffLeak}'" : 'staff: '.$staff['ai_mode']);
+
+            $public = 'ARUCAD\'da hangi burs imkanları var?';
+            $first = $ask('student_a', $public);
+            $second = $ask('student_b', $public);
+            $shareable = ! in_array($first['ai_mode'], ['local', 'groq', 'cached'], true);
+            $row('public question still caches', $second['ai_mode'] === 'cached' || $shareable,
+                $second['ai_mode'] === 'cached' ? 'second user served from cache' : ($shareable ? "served by {$first['ai_mode']} (not a cached path)" : 'not cached: check AI_CACHE_ENABLED'));
+        } finally {
+            foreach ($tokens as $token) {
+                $token->accessToken->delete();
+            }
+        }
+
+        $failed = array_filter($rows, fn ($r) => ! $r['ok']);
+        $this->table(['', 'check', 'detail'], array_map(fn ($r) => [$r['ok'] ? 'PASS' : 'FAIL', $r['name'], $r['detail']], $rows));
+        if (! $this->option('no-answers')) {
+            foreach ($answers as $line) {
+                $this->line('· '.$line);
+            }
+        }
+        $this->info(sprintf('privacy pack: %d passed, %d failed', count($rows) - count($failed), count($failed)));
+
+        return $failed === [] ? self::SUCCESS : self::FAILURE;
+    }
+
     /** @return array<string, mixed> */
     private function sendCase(string $base, string $token, array $case): array
     {
         $body = ['prompt' => $case['q']];
-        if (isset($case['history'])) {
+        if (! empty($case['history'])) {
             $body['messages'] = [...array_map(fn ($h) => ['role' => 'user', 'content' => $h], $case['history']), ['role' => 'user', 'content' => $case['q']]];
         }
         if (isset($case['location'])) {

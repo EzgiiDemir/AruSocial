@@ -3,13 +3,18 @@
 namespace App\Console\Commands;
 
 use App\Models\Club;
+use App\Models\ClubMember;
 use App\Models\FoodVenue;
 use App\Models\OpeningHour;
 use App\Models\Place;
+use App\Models\RoleAssignment;
 use App\Models\ServiceItem;
 use App\Models\Sport;
+use App\Models\User;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 /**
  * Installs (or removes) a small set of clearly labelled FIXTURE records so a
@@ -22,8 +27,14 @@ use Illuminate\Support\Facades\DB;
  * is changed, so nothing here can be mistaken for, or overwrite, verified
  * campus data. Refuses to run in production.
  *
+ * It also creates three FIXTURE accounts for the two-user privacy smoke
+ * (`ask:smoke --privacy`): two students with different, labelled personal
+ * data (department; student A is a member of the fixture club) and one
+ * staff account. Their passwords are random and never shown — the smoke
+ * pack mints its own short-lived token — so no usable credential exists.
+ *
  *   php artisan aicad:staging-fixtures          install (idempotent)
- *   php artisan aicad:staging-fixtures --remove remove every fixture row
+ *   php artisan aicad:staging-fixtures --remove remove every fixture row and account
  */
 class AicadStagingFixtures extends Command
 {
@@ -32,6 +43,17 @@ class AicadStagingFixtures extends Command
     protected $description = 'Install or remove labelled AICAD fixture records for a staging soak (never in production)';
 
     public const PREFIX = 'fixture-';
+
+    /** Fixture account local parts; the domain is the deployment's allowed e-mail domain. */
+    public const ACCOUNTS = ['student_a' => 'fixture-student-a', 'student_b' => 'fixture-student-b', 'staff' => 'fixture-staff'];
+
+    /** Personal data only student A has — what must never reach anyone else. */
+    public const STUDENT_A_MARKER = '[FIXTURE] Department A';
+
+    public static function accountEmail(string $key): string
+    {
+        return self::ACCOUNTS[$key].(string) config('auth.allowed_email_domain', '@arucad.edu.tr');
+    }
 
     public function handle(): int
     {
@@ -70,8 +92,22 @@ class AicadStagingFixtures extends Command
             Sport::query()->withTrashed()->updateOrCreate(['id' => self::PREFIX.'team'], [
                 'name' => '[FIXTURE] Test Team', 'facility' => '[FIXTURE] Test Hall', 'place_id' => $place->id, 'deleted_at' => null,
             ]);
+
+            $profiles = ['student_a' => ['[FIXTURE] Student A', self::STUDENT_A_MARKER], 'student_b' => ['[FIXTURE] Student B', '[FIXTURE] Department B'],
+                'staff' => ['[FIXTURE] Staff', null]];
+            foreach ($profiles as $key => [$name, $department]) {
+                $user = User::query()->firstOrNew(['email' => self::accountEmail($key)]);
+                $user->fill(['name' => $name, 'department' => $department, 'year' => $department === null ? null : 2]);
+                $user->password ??= Hash::make(Str::random(48));
+                $user->save();
+            }
+            RoleAssignment::query()->updateOrCreate(['email' => self::accountEmail('staff')],
+                ['role' => 'trainer', 'assigned_by' => 'aicad:staging-fixtures', 'assigned_at' => now()]);
+            $studentA = User::query()->where('email', self::accountEmail('student_a'))->firstOrFail();
+            ClubMember::query()->firstOrCreate(['user_id' => $studentA->id, 'club_id' => self::PREFIX.'club'], ['created_at' => now()]);
         });
         $this->info('Installed fixtures: [FIXTURE] Test Building, Test Office (phone), Test Cafe (place + Mon–Fri 08:00–16:00), Test Club (Instagram, e-mail, room), Test Team (place).');
+        $this->info('Fixture accounts (no usable password): '.implode(', ', array_map(fn ($k) => self::accountEmail($k), array_keys(self::ACCOUNTS))).'.');
         $this->line('Remove them after the soak: php artisan aicad:staging-fixtures --remove');
 
         return self::SUCCESS;
@@ -80,12 +116,20 @@ class AicadStagingFixtures extends Command
     private function remove(): int
     {
         DB::transaction(function (): void {
+            $emails = array_map(fn ($k) => self::accountEmail($k), array_keys(self::ACCOUNTS));
+            foreach (User::query()->whereIn('email', $emails)->get() as $user) {
+                $user->tokens()->delete();
+                ClubMember::query()->where('user_id', $user->id)->delete();
+                $user->forceDelete();
+            }
+            RoleAssignment::query()->whereIn('email', $emails)->delete();
+            ClubMember::query()->where('club_id', 'like', self::PREFIX.'%')->delete();
             OpeningHour::query()->where('subject_id', 'like', self::PREFIX.'%')->delete();
             foreach ([Sport::class, Club::class, FoodVenue::class, ServiceItem::class, Place::class] as $model) {
                 $model::query()->withTrashed()->where('id', 'like', self::PREFIX.'%')->forceDelete();
             }
         });
-        $this->info('Removed every fixture row.');
+        $this->info('Removed every fixture row and fixture account.');
 
         return self::SUCCESS;
     }
